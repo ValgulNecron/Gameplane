@@ -20,7 +20,7 @@ This feature introduces no CRD, no database table, and no API schema.
 | `line` | int | Line number of the flagged statement |
 | `message` | string | Human-readable summary of the finding |
 | `state` | string | Alert state (see State Machine below) |
-| `dismissed_reason` | string | Required when `state=dismissed`; one of: `false_positive`, `wont_fix`, `used_in_tests` |
+| `dismissed_reason` | string | Required when `state=dismissed`; one of: `false positive`, `won't fix`, `used in tests` |
 | `dismissed_comment` | string | Optional; maintainer-written justification for the dismissal |
 
 **State Machine**:
@@ -41,20 +41,20 @@ DISMISSED → REOPENED (code change re-triggers the alert)
 
 | # | Rule | File | Line | Verdict | Disposition |
 |---|---|---|---|---|---|
-| 1 | go/clear-text-logging | api/internal/kube/watch.go | 40 | FALSE POSITIVE (taint source is a field name string, not secret bytes; kubeconfig bytes never enter a log call) | Refactor or dismiss `false_positive` |
-| 2 | go/clear-text-logging | api/internal/kube/watch.go | 54 | FALSE POSITIVE (same as #1, UpdateFunc path) | Refactor or dismiss `false_positive` |
-| 3 | go/disabled-certificate-check | agent/internal/rcon/satisfactory.go | 199 | FALSE POSITIVE (guarded by `isLoopbackHost` check; local pod-internal dial; self-signed cert; rationale documented in package) | Refactor or dismiss `false_positive` |
+| 1 | go/clear-text-logging | api/internal/kube/watch.go | 40 | FALSE POSITIVE (taint source is a field name string, not secret bytes; kubeconfig bytes never enter a log call) | Refactor or dismiss `false positive` |
+| 2 | go/clear-text-logging | api/internal/kube/watch.go | 54 | FALSE POSITIVE (same as #1, UpdateFunc path) | Refactor or dismiss `false positive` |
+| 3 | go/disabled-certificate-check | agent/internal/rcon/satisfactory.go | 199 | FALSE POSITIVE (guarded by `isLoopbackHost` check; local pod-internal dial; self-signed cert; rationale documented in package) | Refactor or dismiss `false positive` |
 | 4 | go/disabled-certificate-check | test/e2e/internal/satisfactory/app.go | 188 | REAL DEFECT (`InsecureSkipVerify=true` unconditional, no loopback guard) | Fix (move to loopback-only guard or use local trust manager) |
-| 5 | go/request-forgery | agent/internal/mods/mods.go | 405 | FALSE POSITIVE (`netguard.HTTPClient` with `CheckRedirect` cap and per-hop `hostAllowed` validation; scheme and allowed list validated pre-dial) | Refactor or dismiss `false_positive` |
-| 6 | go/request-forgery | api/internal/ws/dialer.go | 281 | FALSE POSITIVE (DNS1123Label validation + hardcoded `https` scheme + in-cluster host from `p.agentHost()`) | Refactor or dismiss `false_positive` |
-| 7 | go/zipslip | agent/internal/mods/mods.go | 508 | FALSE POSITIVE (pre-check at line 511 rejects escaping entries; post-clean re-check at 527–532 returns error) | Refactor or dismiss `false_positive` |
-| 8 | go/path-injection | agent/internal/mods/mods.go | 389 | FALSE POSITIVE (`os.RemoveAll(target)` guarded by Clean+Join+Clean+HasPrefix at 381–385) | Refactor or dismiss `false_positive` |
-| 9 | go/path-injection | agent/internal/mods/mods.go | 391 | FALSE POSITIVE (`os.Remove(target)`, same guards) | Refactor or dismiss `false_positive` |
-| 10 | go/path-injection | agent/internal/mods/mods.go | 446 | FALSE POSITIVE (`os.Rename()` to `filepath.Join(h.dir, name)`; caller validates with `safeName()`) | Refactor or dismiss `false_positive` |
-| 11 | go/path-injection | agent/internal/mods/mods.go | 486 | FALSE POSITIVE (`os.RemoveAll(final)` guarded by Clean+Join+Clean+HasPrefix at 478–482) | Refactor or dismiss `false_positive` |
-| 12 | go/path-injection | agent/internal/mods/mods.go | 490 | FALSE POSITIVE (`os.Rename()`, same guards) | Refactor or dismiss `false_positive` |
-| 13 | go/path-injection | agent/internal/mods/mods.go | 594 | FALSE POSITIVE (`os.Stat(target)` guarded by `safeName()` at 586, then Clean+Join+Clean at 591–593) | Refactor or dismiss `false_positive` |
-| 14 | go/uncontrolled-allocation-size | api/internal/audit/audit.go | 834 | FALSE POSITIVE (`make([]Event, 0, limit)` clamped by 820–822; handler parses at 25 but Auditor clamps pre-allocation in same function) | Refactor or dismiss `false_positive` |
+| 5 | go/request-forgery | agent/internal/mods/mods.go | 405 | FALSE POSITIVE (`netguard.HTTPClient` with `CheckRedirect` cap and per-hop `hostAllowed` validation; scheme and allowed list validated pre-dial) | Refactor or dismiss `false positive` |
+| 6 | go/request-forgery | api/internal/ws/dialer.go | 281 | FALSE POSITIVE (DNS1123Label validation + hardcoded `https` scheme + in-cluster host from `p.agentHost()`) | Refactor or dismiss `false positive` |
+| 7 | go/zipslip | agent/internal/mods/mods.go | 508 | FALSE POSITIVE (pre-check at line 511 rejects escaping entries; post-clean re-check at 527–532 returns error) | Refactor or dismiss `false positive` |
+| 8 | go/path-injection | agent/internal/mods/mods.go | 389 | FALSE POSITIVE (`os.RemoveAll(target)` guarded by Clean+Join+Clean+HasPrefix at 381–385) | Refactor or dismiss `false positive` |
+| 9 | go/path-injection | agent/internal/mods/mods.go | 391 | FALSE POSITIVE (`os.Remove(target)`, same guards) | Refactor or dismiss `false positive` |
+| 10 | go/path-injection | agent/internal/mods/mods.go | 446 | FALSE POSITIVE (`os.Rename()` to `filepath.Join(h.dir, name)`; caller validates with `safeName()`) | Refactor or dismiss `false positive` |
+| 11 | go/path-injection | agent/internal/mods/mods.go | 486 | FALSE POSITIVE (`os.RemoveAll(final)` guarded by Clean+Join+Clean+HasPrefix at 478–482) | Refactor or dismiss `false positive` |
+| 12 | go/path-injection | agent/internal/mods/mods.go | 490 | FALSE POSITIVE (`os.Rename()`, same guards) | Refactor or dismiss `false positive` |
+| 13 | go/path-injection | agent/internal/mods/mods.go | 594 | FALSE POSITIVE (`os.Stat(target)` guarded by `safeName()` at 586, then Clean+Join+Clean at 591–593) | Refactor or dismiss `false positive` |
+| 14 | go/uncontrolled-allocation-size | api/internal/audit/audit.go | 834 | FALSE POSITIVE (`make([]Event, 0, limit)` clamped by 820–822; handler parses at 25 but Auditor clamps pre-allocation in same function) | Refactor or dismiss `false positive` |
 
 **Spec Drift Note**: The spec says 14 alerts (correct), but does not acknowledge that 13 of the 14 are false positives — #4 is the single real defect. The un-flagged latent gap in agent/internal/rcon/websocket.go is separate from the 14 CodeQL alerts entirely. Verdicts documented above supersede any implicit assumption in the spec's requirements that all 14 are real defects.
 
@@ -184,7 +184,7 @@ out := make([]Event, 0, limit)    // now safe; capacity proven in range
 
 | Site | Location | `InsecureSkipVerify` Guarded | Guard | Rationale | Disposition |
 |---|---|---|---|---|---|
-| **Satisfactory RCON (prod)** | agent/internal/rcon/satisfactory.go:199 | YES | `if isLoopbackHost(host)` where `isLoopbackHost` (lines 220–226) accepts only literal `localhost` or a parsed loopback IP | Satisfactory generates self-signed cert on startup with no CA supply mechanism; dial never leaves the pod; pod-internal loopback-only transport. Rationale documented in package doc (lines 60–76). | FALSE POSITIVE: CodeQL does not model the loopback guard or `isLoopbackHost`. Best-effort refactor (e.g., a custom `VerifyPeerCertificate` that calls `isLoopbackHost`) or dismiss `false_positive`. Note: Satisfactory regenerates cert on restart, so pinning has a lifecycle cost. |
+| **Satisfactory RCON (prod)** | agent/internal/rcon/satisfactory.go:199 | YES | `if isLoopbackHost(host)` where `isLoopbackHost` (lines 220–226) accepts only literal `localhost` or a parsed loopback IP | Satisfactory generates self-signed cert on startup with no CA supply mechanism; dial never leaves the pod; pod-internal loopback-only transport. Rationale documented in package doc (lines 60–76). | FALSE POSITIVE: CodeQL does not model the loopback guard or `isLoopbackHost`. Best-effort refactor (e.g., a custom `VerifyPeerCertificate` that calls `isLoopbackHost`) or dismiss `false positive`. Note: Satisfactory regenerates cert on restart, so pinning has a lifecycle cost. |
 | **Satisfactory test harness (test/e2e)** | test/e2e/internal/satisfactory/app.go:188 | NO | None | `queryServerState` sets `InsecureSkipVerify: true` unconditionally with no loopback check on `addr`. | **REAL DEFECT**: Fix by adding an `isLoopbackHost` check or moving to a local trust manager. |
 
 **Validation Rule**:

@@ -5,7 +5,7 @@
 Vulnerabilities and false-positive alerts are resolved in strict priority order:
 
 1. **REFACTOR**: Code is restructured to use patterns CodeQL recognizes as safe, clearing the alert automatically on the next default-branch analysis. Refactoring is attempted first and is always preferred.
-2. **DISMISS**: Only when refactoring provably cannot clear the alert (e.g. a safe TLS configuration using `InsecureSkipVerify` with no alternative API), the alert is dismissed via the GitHub code-scanning API with `dismissed_reason=false_positive` and a written justification. **Every dismissal requires maintainer sign-off before submission.** Dismissal is never a substitute for a fix where a fix is possible.
+2. **DISMISS**: Only when refactoring provably cannot clear the alert (e.g. a safe TLS configuration using `InsecureSkipVerify` with no alternative API), the alert is dismissed via the GitHub code-scanning API with `dismissed_reason=false positive` and a written justification. **Every dismissal requires maintainer sign-off before submission.** Dismissal is never a substitute for a fix where a fix is possible.
 3. **FIX**: For real defects, the code is corrected.
 
 **In-source suppressions are absolutely forbidden.** No `//nolint`, `//#nosec`, or any other directive is permitted in source code. All dismissals are GitHub-side actions only, recorded in `dismissed_comment` with the alert record as public documentation.
@@ -40,7 +40,7 @@ Field name strings are safe to log.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/1 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='The taint source is a string variable containing a kubeconfig field name (e.g. "kubeconfig"), not secret bytes. Kubeconfig bytes are never passed to log output; this alert analyzes the variable type, not the data flow. Field name strings are safe to log.'
 ```
 
@@ -72,7 +72,7 @@ not sensitive credential bytes. Field name strings are safe to log.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/2 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='Same as Alert #1: taint source is a string variable containing a field name, not sensitive credential bytes. Field name strings are safe to log.'
 ```
 
@@ -94,7 +94,9 @@ if isLoopbackHost(host) {
 `isLoopbackHost` (lines 220–226) accepts only literal "localhost" or a parsed loopback IP. Package doc (lines 60–76) records the rationale: Satisfactory generates a self-signed cert with no way to supply a CA; the dial never leaves the pod.
 
 **Verdict**: FALSE POSITIVE  
-**Disposition**: DISMISS (planned)
+**Disposition**: DISMISSED (2026-08-29)
+**Maintainer sign-off**: ValgulNecron, 2026-08-29 (T025)
+**Submitted**: `PATCH /code-scanning/alerts/3` — `state=dismissed`, `dismissed_reason="false positive"`. Confirmed by API response: `state=dismissed by=ValgulNecron`.
 
 **Justification**: This alert is verified as unclearable by refactoring. CodeQL's `go/disabled-certificate-check` flags the `InsecureSkipVerify = true` assignment itself and ignores surrounding guards, comments, and TLS configuration. Removing the assignment entirely (e.g., via custom `VerifyPeerCertificate` with pinning) would clear the alert, but Satisfactory regenerates its self-signed certificate on restart, making certificate pinning unmaintainable. The surrounding `isLoopbackHost` guard proves the assignment is safe for its intended use case, but CodeQL does not analyse it. This dismissal is planned and verified.
 
@@ -112,7 +114,7 @@ rationale.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/3 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='InsecureSkipVerify is set only when isLoopbackHost(host) succeeds, which accepts only the literal string "localhost" or a loopback IP (127.x.x.x, ::1) — see agent/internal/rcon/satisfactory.go:220–226. Satisfactory generates a self-signed cert on startup with no API to supply a CA. Since the connection is always local (inside the pod), cert verification is redundant. See the package documentation at lines 60–76 for the full rationale.'
 ```
 
@@ -166,7 +168,7 @@ guarded by allowlist and netguard SSRF dial policy.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/5 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='Client creation wraps the dial with netguard.HTTPClient (agent/internal/mods/mods.go:758), which enforces IsPublic policy at dial time. Before Do(), callers (install(), upload()) validate scheme ∈ {http, https} and call hostAllowed(u.Hostname(), h.allowed) against the module'"'"'s CRD allowlist, rejecting private ranges. CheckRedirect re-validates hostAllowed per redirect hop, capped at 5 hops. The request is guarded by allowlist and netguard SSRF dial policy.'
 ```
 
@@ -205,7 +207,7 @@ data.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/6 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='URL is constructed via url.URL struct with hardcoded https scheme and host from p.agentHost(name, ns) (line 281). Both httpProxyLimit and its caller wsProxy validate DNS1123Label format on namespace and server name at lines 176–179 and 252–256, rejecting non-alphanumeric values and special characters. The host is computed from cluster-local DNS names, not user input, and the scheme is hardcoded, not parsed from untrusted data.'
 ```
 
@@ -243,7 +245,7 @@ paths in archive entries.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/7 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='Function unzipInto performs a pre-check at line 511: filepath.Join(dstClean, filepath.Clean(f.Name)) is tested against dstClean with HasPrefix; entries escaping the root are rejected with errors.New at lines 527–532. The guard covers both relative traversal (../../) and absolute paths in archive entries.'
 ```
 
@@ -283,7 +285,7 @@ path to the sandbox.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/8 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='removeEntry validates the path at lines 381–385: filepath.Join, Clean, then HasPrefix against dstClean (root or a subdir). The caller remove() pre-validates with safeName() at line 586, rejecting paths with `..`, leading dots, separators, and control characters. The combination of caller validation and in-function HasPrefix guard confines the target path to the sandbox.'
 ```
 
@@ -312,7 +314,7 @@ safeName() at line 586.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/9 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='Same guard as Alert #8: removeEntry validates at lines 381–385 with filepath.Join, Clean, and HasPrefix. Caller remove() pre-validates with safeName() at line 586.'
 ```
 
@@ -346,7 +348,7 @@ Consolidated path confinement will move this guard into download() itself.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/10 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='Guard is in the caller: both install() (line 196) and upload() (line 306) call safeName(name) before invoking download(), rejecting paths with `..`, leading dots, separators, control characters, and length > 200. Consolidated path confinement will move this guard into download() itself.'
 ```
 
@@ -381,7 +383,7 @@ combination confines the staging folder to the sandbox.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/11 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='swapInArchive validates at lines 478–482 with filepath.Join, Clean on the result, then HasPrefix check at line 482. Caller wraps safeName() with archiveFolderName(), both of which reject dangerous path components. The combination confines the staging folder to the sandbox.'
 ```
 
@@ -410,7 +412,7 @@ safeName() and archiveFolderName().
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/12 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='Same as Alert #11: swapInArchive validates at lines 478–482 with filepath.Join, Clean, and HasPrefix. Caller pre-validates with safeName() and archiveFolderName().'
 ```
 
@@ -450,7 +452,7 @@ absolute paths. safeName() at line 586 provides defense-in-depth.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/13 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='remove() validates at lines 591–593 with filepath.Join, Clean, and HasPrefix against the sandbox root. Validation occurs in the same function before os.Stat(target), guarding against traversal and absolute paths. safeName() at line 586 provides defense-in-depth.'
 ```
 
@@ -488,7 +490,7 @@ entries maximum.
 **API Call**:
 ```bash
 gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/14 \
-  -f state=dismissed -f dismissed_reason=false_positive \
+  -f state=dismissed -f dismissed_reason=false positive \
   -f dismissed_comment='Auditor.Page clamps the limit at lines 820–822, replacing any value <= 0 or > 500 with a safe default of 100 before the allocation at line 834. The handler does not clamp, but the method itself is the trust boundary and enforces the limit regardless of caller input. Capacity is bounded to 500 entries maximum.'
 ```
 
@@ -500,7 +502,7 @@ gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/14 \
 |-------|------|------|---------|-------------|
 | 1 | clear-text-logging | api/kube/watch.go:40 | False Positive | Refactor first, Dismiss contingent |
 | 2 | clear-text-logging | api/kube/watch.go:54 | False Positive | Refactor first, Dismiss contingent |
-| 3 | disabled-cert-check | agent/rcon/satisfactory.go:199 | False Positive | Dismiss (planned) |
+| 3 | disabled-cert-check | agent/rcon/satisfactory.go:199 | False Positive | DISMISSED 2026-08-29 |
 | 4 | disabled-cert-check | test/e2e/.../satisfactory/app.go:188 | Real Defect | Fix |
 | 5 | request-forgery | agent/mods/mods.go:405 | False Positive | Refactor attempted, Dismiss expected |
 | 6 | request-forgery | api/ws/dialer.go:281 | False Positive | Refactor attempted, Dismiss expected |

@@ -40,7 +40,7 @@ Feature 009 addresses 14 open CodeQL security scanning alerts across the Gamepla
 
 ### D-002: Remediation Policy — Refactor-to-Recognized-Barrier First, API Dismissal as Fallback
 
-**Decision**: For each false-positive alert, best-effort refactor the site into a shape that CodeQL's built-in sanitizer models recognize as a barrier. When refactoring is not feasible (the taint source cannot be removed, the guard logic is orthogonal to what CodeQL models, or a real security practice conflicts with CodeQL's expectations), dismiss the alert via the GitHub code-scanning API (`PATCH /repos/{owner}/{repo}/code-scanning/alerts/{n}`) with `state=dismissed`, `dismissed_reason=false_positive`, and a written justification documented in the feature's `contracts/` directory.
+**Decision**: For each false-positive alert, best-effort refactor the site into a shape that CodeQL's built-in sanitizer models recognize as a barrier. When refactoring is not feasible (the taint source cannot be removed, the guard logic is orthogonal to what CodeQL models, or a real security practice conflicts with CodeQL's expectations), dismiss the alert via the GitHub code-scanning API (`PATCH /repos/{owner}/{repo}/code-scanning/alerts/{n}`) with `state=dismissed`, `dismissed_reason=false positive`, and a written justification documented in the feature's `contracts/` directory.
 
 Never add an in-source suppression directive (`//nolint`, `//#nosec`, `// eslint-disable-next-line`, `// @ts-ignore`).
 
@@ -113,7 +113,7 @@ Both sites pre-validate the destination URL or host:
 
 CodeQL's request-forgery query is conservative and often requires the untrusted value to be rejected at parse time (before becoming a `*url.URL`) or validated against an allowlist in CodeQL's model. Custom allowlists and custom validators are not recognized.
 
-**Proposal**: These are the most likely candidates for dismissal. Document the rationale (custom validator not in CodeQL's model) and dismiss as `false_positive` with full justification. A real fix — e.g., using an allowlist from a configuration struct and encoding it in a way CodeQL can statically analyze — is out of scope for this feature.
+**Proposal**: These are the most likely candidates for dismissal. Document the rationale (custom validator not in CodeQL's model) and dismiss as `false positive` with full justification. A real fix — e.g., using an allowlist from a configuration struct and encoding it in a way CodeQL can statically analyze — is out of scope for this feature.
 
 **Alternatives considered**: Introduce a CodeQL-recognized allowlist primitive or refactor to use only values from an allowlist struct; both add surface area for marginal benefit on false positives already well-guarded in practice.
 
@@ -131,7 +131,7 @@ The taint source is a *string variable named `secretKey`*, whose actual value is
 
 The code sets `InsecureSkipVerify = true` conditionally inside `if isLoopbackHost(host)`. CodeQL's query flags the assignment itself and does not analyze the surrounding conditional. Cert pinning is unworkable because Satisfactory regenerates its self-signed cert on every restart, making the pin invalid after restart.
 
-**Proposal**: This alert is a planned dismissal. Document the rationale: loopback-only dial, Satisfactory's cert lifecycle, and CodeQL's limitation in not modeling the surrounding conditional. Mark as `dismissed_reason=false_positive`.
+**Proposal**: This alert is a planned dismissal. Document the rationale: loopback-only dial, Satisfactory's cert lifecycle, and CodeQL's limitation in not modeling the surrounding conditional. Mark as `dismissed_reason=false positive`.
 
 **Alternatives considered**: Remove `InsecureSkipVerify` entirely and use a custom `VerifyPeerCertificate` with pinning. Rejected: Satisfactory regenerates certs on restart, so a pin is ephemeral and unreliable.
 
@@ -155,7 +155,7 @@ This fix is genuine — the code was truly unguarded — and it aligns the test 
 
 **Rationale**: Unlike the production code, which runs in a controlled pod environment with admin input, the test code runs in CI and could theoretically receive an untrusted address. The fix brings it in line with production best practice.
 
-**Alternatives considered**: Dismiss the alert as `used_in_tests`. Rejected because the code is genuinely unguarded; the test should be fixed to match the production pattern, not exempted.
+**Alternatives considered**: Dismiss the alert as `used in tests`. Rejected because the code is genuinely unguarded; the test should be fixed to match the production pattern, not exempted.
 
 ---
 
@@ -269,14 +269,14 @@ Dependabot PRs are verified by their individual CI runs (lint, build, test) and 
 For each false-positive alert dismissed via the GitHub API, the feature's `contracts/` directory will record:
 - Alert #(number)
 - Rule and site
-- Dismissal reason: `false_positive`
+- Dismissal reason: `false positive`
 - Justification: explanation of why the alert is a false positive (taint reaches the site but CodeQL does not recognize the barrier, or the guard is applied in the caller)
 
 Example:
 ```
 ## Alert #5: go/request-forgery (agent/internal/mods/mods.go:405)
 
-**Dismissed as**: false_positive
+**Dismissed as**: false positive
 
 **Justification**: HTTP client is initialized with `netguard.IsPublic`,
 which validates against private/loopback ranges at dial time. Caller

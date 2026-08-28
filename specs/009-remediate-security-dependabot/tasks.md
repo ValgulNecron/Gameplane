@@ -81,7 +81,7 @@
 
 ### Dismissal for User Story 2
 
-- [ ] T025 [US2] Obtain maintainer sign-off for alert #3 dismissal at agent/internal/rcon/satisfactory.go:199; this sign-off blocks the dismissal submission task (T046) in Phase 7 and is recorded in contracts/alert-disposition.md alongside the justification. Rationale: InsecureSkipVerify in production satisfactory.go is guarded by isLoopbackHost check accepting only localhost/loopback IPs; Satisfactory generates self-signed cert with no CA supply API; connection is pod-local; this is verified unclearable without removing InsecureSkipVerify entirely; package documentation at lines 60–76 records full rationale
+- [X] T025 [US2] Obtain maintainer sign-off for alert #3 dismissal at agent/internal/rcon/satisfactory.go:199; this sign-off blocks the dismissal submission task (T046) in Phase 7 and is recorded in contracts/alert-disposition.md alongside the justification. Rationale: InsecureSkipVerify in production satisfactory.go is guarded by isLoopbackHost check accepting only localhost/loopback IPs; Satisfactory generates self-signed cert with no CA supply API; connection is pod-local; this is verified unclearable without removing InsecureSkipVerify entirely; package documentation at lines 60–76 records full rationale
 
 ---
 
@@ -132,8 +132,8 @@
 **Critical Note**: Alert closure is only observable AFTER merge to master, because CodeQL default setup analyzes the default branch; a green feature branch proves nothing about alert state.
 
 - [ ] T045 [US5] Re-query code-scanning alerts on master via gh api repos/ValgulNecron/Gameplane/code-scanning/alerts and record which alerts are now `fixed` vs remain `open`
-- [ ] T046 [US5] Submit dismissal for alert #3 via gh api PATCH to code-scanning/alerts/3 with state=dismissed, dismissed_reason=false_positive, and documented justification from contracts/alert-disposition.md
-- [ ] T047 [US5] Submit dismissals for any non-cleared alerts from T045's re-query that remain open via gh api PATCH calls with false_positive reason and full justification per contracts/alert-disposition.md
+- [X] T046 [US5] Submit dismissal for alert #3 via gh api PATCH to code-scanning/alerts/3 with state=dismissed, dismissed_reason=false positive, and documented justification from contracts/alert-disposition.md
+- [ ] T047 [US5] Submit dismissals for any non-cleared alerts from T045's re-query that remain open via gh api PATCH calls with false positive reason and full justification per contracts/alert-disposition.md
 - [ ] T048 [US5] Verify Dependabot PR list via gh pr list -R ValgulNecron/Gameplane --author=dependabot --state=open shows only #263 remaining if its diagnosis in T035 concluded it is blocked (all others closed)
 - [ ] T049 [US5] Confirm master branch CI is fully green across all ci.yaml jobs (lint, go, web, web-e2e-mock, helm, chart-template, go-e2e-unit, e2e-buckets, e2e-go, e2e-multicluster, e2e-upgrade, e2e-web-live, e2e-game-bot, report)
 - [ ] T050 [US5] Walk through specs/009-remediate-security-dependabot/quickstart.md end-to-end to verify baseline capture, alert re-query, dismissal submission, and final verification steps all execute
