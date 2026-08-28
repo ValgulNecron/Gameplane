@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-22
 
-**Feature**: [Install-Time Configuration Spec](/specs/006-install-time-config/spec.md)
+**Feature**: [Install-Time Configuration Spec](/specs/done_006-install-time-config/spec.md)
 
 **Note**: This checklist tracks the completeness and quality of the feature specification against the project's constitution and standard requirements-writing practices.
 

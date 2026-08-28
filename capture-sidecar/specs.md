@@ -287,8 +287,8 @@ cd capture-sidecar && go test ./...    # Isolated run
 ## References
 
 - **`contracts/capture-sidecar.md`** — HTTP endpoint contracts (request/response shapes, status codes, error messages).
-- **`specs/003-network-capture-sidecar/spec.md`** — Feature specification (User Stories US1–US5, Functional Requirements FR-001–FR-012, Success Criteria SC-001–SC-008).
-- **`specs/003-network-capture-sidecar/data-model.md`** — NetworkCapture CRD design, status shape, lifecycle phases.
+- **`specs/done_003-network-capture-sidecar/spec.md`** — Feature specification (User Stories US1–US5, Functional Requirements FR-001–FR-012, Success Criteria SC-001–SC-008).
+- **`specs/done_003-network-capture-sidecar/data-model.md`** — NetworkCapture CRD design, status shape, lifecycle phases.
 - **`operator/internal/controller/gameserver_controller.go`** — pod template injection and ephemeral-container mechanics.
 - **`api/internal/handlers/capture.go`** — API-tier start/stop/download/enable/disable handlers that call the sidecar.
 - **`gopacket` documentation** — AF_PACKET and PCAPNG format specs.

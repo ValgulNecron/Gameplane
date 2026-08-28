@@ -105,7 +105,7 @@ spec:
   on the capture container. Not on the game container (FR-008) and not on the agent. The
   `sizeLimit` is the hard disk guard backing FR-002's max-size and the spec's disk-full edge case:
   the writer receives `ENOSPC` when it is hit. The name `capture-data` must match the pod-template
-  declaration byte-for-byte (`specs/003-network-capture-sidecar/data-model.md:422`): a
+  declaration byte-for-byte (`specs/done_003-network-capture-sidecar/data-model.md:422`): a
   `volumeMounts[].name` that does not resolve to a declared `pod.spec.volumes[].name` makes the
   injection patch invalid.
 - `agent-tls` — the per-GameServer Secret the pod already mounts, containing `tls.crt`, `tls.key`

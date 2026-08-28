@@ -14,7 +14,7 @@
 
 ### What SC-002 Is (Out of Scope for This Feature)
 
-SC-002 is a **live-cluster-only manual benchmark** documented in `specs/003-network-capture-sidecar/sc-002-benchmark.md`. It validates that players on a **REAL network** with **REAL player load** experience no observable increase in packet loss or latency when a capture is running. SC-002 requires:
+SC-002 is a **live-cluster-only manual benchmark** documented in `specs/done_003-network-capture-sidecar/sc-002-benchmark.md`. It validates that players on a **REAL network** with **REAL player load** experience no observable increase in packet loss or latency when a capture is running. SC-002 requires:
 - A real Kubernetes cluster (not kind) with real network conditions
 - Real or realistically-simulated game clients
 - Stable baseline measurements taken in the same environment
@@ -125,7 +125,7 @@ The CI job records packet-level metrics (handshake latency, join duration, KeepA
 - **FR-007**: The regression job MUST complete in approximately **30 minutes** (15 probes × ~2 minutes per probe, plus setup/teardown). If the job runs longer, the CI run time cost exceeds the value of the signal (see Risk section). The CI pipeline (`.github/workflows/ci.yaml` or equivalent) MAY run the regression job in its own parallel job slot rather than sequentially in an existing test job.
 - **FR-008**: The regression job MUST document (in a code comment or CI job description) that:
   - This guard catches **gross regressions** (joinability breaks, pod crashes, capture file corruption) but does NOT measure absolute overhead
-  - **SC-002 (zero perceptible impact) remains a live-cluster manual benchmark**, documented in `specs/003-network-capture-sidecar/sc-002-benchmark.md`
+  - **SC-002 (zero perceptible impact) remains a live-cluster manual benchmark**, documented in `specs/done_003-network-capture-sidecar/sc-002-benchmark.md`
   - The in-cluster A/B test uses noisy network conditions (veth, runner CPU steal) so absolute latency numbers are not meaningful; paired-difference comparison is the signal
   - Flaky environmental factors (transient pod failures) are expected and the job handles them with non-gating + manual review flagging, not automated assertions
 - **FR-009**: The probe's "sustained-load" mode MUST use KeepAlive packets as the in-protocol application-layer round-trip signal. This reuses the existing Minecraft wire protocol (no new wire-format fabrication) and provides a reliable measurement of whether the server is responsive, without introducing a new tool (e.g., no `mineflyer`, no Node, no npm). The probe MUST document which protocol(s) support KeepAlive-based sustained measurement vs. probes that can only join-and-disconnect (and therefore cannot measure sustained overhead).
@@ -169,7 +169,7 @@ The CI job records packet-level metrics (handshake latency, join duration, KeepA
 - **Assumption 4**: Capture filter expressions are correctly configured at capture start (default filter is game-server port). A filter that is too aggressive (e.g., capturing only port 1234 when the server listens on 25565) is a misconfiguration, not a sidecar bug. The regression job uses the default filter and does not test custom filters.
 - **Assumption 5**: The `gameproto` package (Minecraft, Terraria wire-format parsers) is maintained and available at build time. If support is needed for other `bot-fast` games later, their protocol parsers must exist in `gameproto/` before the regression job can validate their captures.
 - **Assumption 6**: The regression job is run as part of CI on every commit to the `003-network-capture-sidecar` branch (or merged into main after feature 003 ships). It is NOT run on every commit to every branch (overhead + cost).
-- **Assumption 7**: The live-cluster manual SC-002 benchmark (documented in `specs/003-network-capture-sidecar/sc-002-benchmark.md`) remains separate from this CI guard. A maintainer MUST run SC-002 on a real cluster before release to validate zero perceptible player impact; this CI guard is not a substitute.
+- **Assumption 7**: The live-cluster manual SC-002 benchmark (documented in `specs/done_003-network-capture-sidecar/sc-002-benchmark.md`) remains separate from this CI guard. A maintainer MUST run SC-002 on a real cluster before release to validate zero perceptible player impact; this CI guard is not a substitute.
 
 ---
 
