@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
@@ -166,10 +167,38 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 	}
 }
 
+// isLoopbackHost reports whether host names the local machine, so that
+// skipping TLS verification for the server's self-signed cert cannot expose
+// the client to an off-host MITM. A bare "localhost" counts; anything else
+// must parse to a loopback IP.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // queryServerState sends an unauthenticated QueryServerState request to the
 // Satisfactory HTTPS API. It returns the HTTP status code and response body,
 // or an error if the request failed.
 func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
+	// Split host and port. If no port is present, SplitHostPort returns an error,
+	// but we still want to validate the bare host.
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// No port in addr; use the entire addr as the host.
+		host = addr
+	}
+
+	// Enforce loopback-only connections. The Satisfactory server generates a
+	// self-signed cert with no CA supply API; InsecureSkipVerify is safe only
+	// for pod-local connections (localhost or loopback IPs). Reject non-loopback
+	// targets outright rather than allowing an unsafe dial.
+	if !isLoopbackHost(host) {
+		return 0, nil, fmt.Errorf("refusing non-loopback connection to %q: satisfactory server TLS verification can only be skipped for loopback hosts", host)
+	}
+
 	client := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(dctx context.Context, network, _ string) (net.Conn, error) {
@@ -181,10 +210,11 @@ func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
 			// or cluster-internal DNS name), which is safe: an off-host MITM cannot
 			// intercept the connection. See agent/internal/rcon/satisfactory.go's
 			// documentation for the rationale.
+			// The loopback guard above ensures this is safe.
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 				// InsecureSkipVerify is safe here: connection is pod-local (127.0.0.1 or cluster DNS),
-				// so off-host MITM is not a risk.
+				// so off-host MITM is not a risk. The loopback check above enforces this.
 				InsecureSkipVerify: true,
 			},
 		},
