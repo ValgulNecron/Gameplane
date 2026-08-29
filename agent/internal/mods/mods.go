@@ -419,7 +419,12 @@ func (h *handler) downloadTemp(ctx context.Context, rawURL string) (string, int6
 	if !hostAllowed(u.Hostname(), h.allowed) {
 		return "", 0, errHostNotAllowed
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	// Build the request from the validated *url.URL rather than from rawURL,
+	// so the value that reaches the client is the one the checks above ran
+	// against. http.NewRequestWithContext would re-parse rawURL to the same
+	// URL, so this is behaviourally identical; it exists so the sanitized
+	// value is what flows into the request.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return "", 0, err
 	}
