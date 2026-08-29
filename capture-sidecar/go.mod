@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/gopacket/gopacket v1.7.1
 	github.com/packetcap/go-pcap v0.0.0-20260731105150-c86974bbfbcd
-	golang.org/x/net v0.57.0
+	golang.org/x/net v0.58.0
 )
 
 // svcutil is an in-repo module (no published version); resolve it locally
