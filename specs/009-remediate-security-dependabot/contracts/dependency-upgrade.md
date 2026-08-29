@@ -412,9 +412,25 @@ Upgrade `monaco-editor` once upstream ships a release vendoring >= 3.4.13. **0.5
 currently the latest release**, so there is nothing to upgrade to today. No npm-level action
 can reach the vendored file.
 
-### Recommended disposition
+### Disposition — decided 2026-08-29
 
-Leave the four alerts **open** as an honest signal, and track monaco-editor for a release that
-re-vendors a patched DOMPurify. Do **not** add the `overrides` entry: it would close the
-alerts without changing a byte of shipped code. Revisit if monaco publishes >0.56.0 or if any
-markdown-rendering provider is ever registered in `web/src`.
+My recommendation was to leave the four open as an honest signal. **The maintainer decided to
+dismiss them instead**, and all four (#1, #2, #4, #9) were dismissed via the Dependabot API
+with `dismissed_reason=not_used`. Open Dependabot alerts: 0.
+
+That reason is accurate for what the alerts actually flag — the npm `dompurify` package, which
+is never imported and does not ship. The dismissal comment states the caveat explicitly so the
+record is not misleading:
+
+> npm dompurify is never imported: monaco-editor 0.56.0 vendors its own copy
+> (esm/vs/base/browser/dompurify/dompurify.js) via a relative import, so it does not ship.
+> Caveat: the vendored copy is also 3.4.8, fixable only by a monaco upgrade.
+> See specs/009 dependency-upgrade.md
+
+**Residual risk, tracked not closed**: the vendored 3.4.8 sits inside all four advisory ranges
+and no npm-level action can reach it. Upgrade `monaco-editor` when upstream vendors >= 3.4.13
+(0.56.0 is the latest release today), and revisit sooner if any markdown-rendering provider is
+ever registered in `web/src`, since that is what would make the sanitizer reachable.
+
+Note also that `dismissed_comment` is capped at **280 characters** on the Dependabot API, the
+same as the code-scanning API.
