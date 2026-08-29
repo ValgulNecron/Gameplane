@@ -347,3 +347,74 @@ The three ESLint 10 hazards the task flagged were each checked and none applies 
 
 **Disposition**: merged 2026-08-29 via `--admin --merge` (T059). T058 (the migration work)
 is a no-op — there was nothing to migrate.
+
+---
+
+## T072 — dompurify: the planned `overrides` fix would be a FALSE remediation (2026-08-29)
+
+The earlier analysis in this file recommended adding `"overrides": { "dompurify": "^3.4.13" }`
+and treated the open question as "does dompurify ship in the bundle?". That question is now
+answered, and the answer invalidates the recommendation.
+
+### What was verified
+
+Resolved against the **locked** `monaco-editor@0.56.0`, fetched from `registry.npmjs.org`
+rather than from `node_modules` — the local `node_modules` is stale (dated 2026-07-26, holding
+monaco 0.55.1 and dompurify 3.2.7 against a lock naming 0.56.0 and 3.4.8), so it is not
+evidence of anything.
+
+1. **monaco-editor 0.56.0 VENDORS DOMPurify.** The tarball contains
+   `package/esm/vs/base/browser/dompurify/dompurify.js`, whose license header reads
+   `DOMPurify 3.4.8`.
+2. **The vendored copy is what monaco uses.** `domSanitize.js:3` imports it by relative path:
+   `import purify from './dompurify/dompurify.js';`
+3. **The npm package is never imported.** A grep for `from 'dompurify'` across the whole of
+   `package/esm/` in 0.56.0 returns nothing. monaco declares `dompurify: 3.4.8` in its
+   `dependencies`, but no code imports it by bare name.
+4. Nothing in `web/src` imports dompurify either, and only `monaco-editor` depends on it in
+   `web/package-lock.json`.
+
+### Why the override is worse than doing nothing
+
+All four advisories cover the vendored version:
+
+| Alert | GHSA | Vulnerable range | First patched |
+|---|---|---|---|
+| #9 medium | GHSA-55q2-fjhq-7xh7 | `<= 3.4.12` | 3.4.13 |
+| #4 low | GHSA-c2j3-45gr-mqc4 | `<= 3.4.11` | 3.4.12 |
+| #2 medium | GHSA-cmwh-pvxp-8882 | `<= 3.4.10` | 3.4.11 |
+| #1 low | GHSA-vxr8-fq34-vvx9 | `< 3.4.9` | 3.4.9 |
+
+The vendored copy is **3.4.8**, inside all four ranges. An `overrides` entry raises the npm
+package — which never ships — and leaves the vendored 3.4.8 exactly where it is. Dependabot
+would mark all four alerts resolved while the bundled code is unchanged. That is a false
+negative manufactured on purpose, and it is worse than an open alert, which at least tells
+the truth.
+
+### Actual exposure
+
+Low, but not provably zero. The vendored sanitizer is reached through
+`markdownRenderer.js` -> `domSanitize.js`, i.e. Monaco's markdown-rendering surfaces (hover,
+IntelliSense, signature help). Verified on master: `web/src` registers **no**
+`registerHoverProvider`, `registerCompletionItemProvider` or `registerSignatureHelpProvider`,
+constructs no `MarkdownString`, and calls no `setSchemas` / `setDiagnosticsOptions` /
+`loader.config` / `useMonaco` / `beforeMount` / `onMount`. There are two mount points:
+`routes/tabs/settings/Placement.tsx:108,132` (both `language="json"`) and
+`routes/tabs/Files.tsx:362` (`guessLang`). Monaco's own built-in language features could still
+surface a markdown tooltip, so this is "no provider we register feeds it", not "unreachable".
+
+Planting content also already requires privilege: the file write/upload routes are gated at
+**operator+** in `api/internal/ws/dialer.go`, while reads are viewer+.
+
+### The only real fix
+
+Upgrade `monaco-editor` once upstream ships a release vendoring >= 3.4.13. **0.56.0 is
+currently the latest release**, so there is nothing to upgrade to today. No npm-level action
+can reach the vendored file.
+
+### Recommended disposition
+
+Leave the four alerts **open** as an honest signal, and track monaco-editor for a release that
+re-vendors a patched DOMPurify. Do **not** add the `overrides` entry: it would close the
+alerts without changing a byte of shipped code. Revisit if monaco publishes >0.56.0 or if any
+markdown-rendering provider is ever registered in `web/src`.
