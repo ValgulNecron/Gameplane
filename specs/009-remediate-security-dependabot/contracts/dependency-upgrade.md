@@ -173,3 +173,109 @@ grep '"vitest"' web/package.json  # example for PR #278
 - **Parallel tracks**: npm PRs and Go PRs can be merged concurrently (they touch disjoint files); order within each track by blast radius.
 - **All-green gate**: Do not merge on partial-green or ignored flakes; every `ci` workflow check must pass.
 - **Exceptions are isolated**: #263, #272, #268 are tracked separately and do not block the main wave.
+
+---
+
+## T035 — PR #263 diagnosis (sigstore 1.10.8 → 1.10.9): BLOCKED, needs a code migration
+
+Diagnosed 2026-08-29 from CI logs. This supersedes the "Diagnosis pending" row above.
+
+**Failing check**: `lint (operator)` — run 32909850638, job 98001714918. It is the only
+failing check on the PR.
+
+**Verbatim log excerpt** (`gh api repos/ValgulNecron/Gameplane/actions/jobs/98001714918/logs`):
+
+```
+##[error]/home/runner/work/Gameplane/Gameplane/operator/internal/verify/verify.go:20:2: SA1019: "github.com/sigstore/sigstore/pkg/fulcioroots" is deprecated: Use https://pkg.go.dev/github.com/sigstore/sigstore-go@main/pkg/tuf (staticcheck)
+	"github.com/sigstore/sigstore/pkg/fulcioroots"
+	^
+1 issues:
+* staticcheck: 1
+```
+
+**Root cause**: sigstore 1.10.9 marks `pkg/fulcioroots` deprecated. `golangci-lint`'s
+staticcheck raises SA1019 on the import, and per constitution Principle III the finding
+cannot be silenced with `//nolint`. The affected call sites are:
+
+- `operator/internal/verify/verify.go:20` — the import
+- `operator/internal/verify/verify.go:146` — `fulcioroots.Get()`
+- `operator/internal/verify/verify.go:150` — `fulcioroots.GetIntermediates()`
+
+**Confirmed this is caused by the bump, not by a linter upgrade**: master pins
+`github.com/sigstore/sigstore v1.10.8` (`operator/go.mod:22`) and its `ci` run on
+`880e030` is green with the identical import present. The deprecation therefore arrives
+with 1.10.9.
+
+**Classification**: (a) a genuine incompatibility introduced by the new version — **not** a
+stale `go.sum`. `@dependabot rebase` will not clear it.
+
+**Remediation required** (a code change, not a merge): migrate `verify.go` off
+`sigstore/pkg/fulcioroots` to the `sigstore-go` TUF-based API that the deprecation notice
+points at. The exact replacement symbols are **not yet determined** and must be read from
+upstream `sigstore-go/pkg/tuf` documentation rather than guessed — this is signing-path
+code, so a wrong root-of-trust source is a security regression, not a lint fix.
+
+**Disposition**: #263 stays open and unmerged. It is not a blocker for the rest of the
+dependency wave (disjoint from every other PR's failure mode), and it should be handled as
+its own unit of work alongside the other gated majors (#272, #268).
+
+---
+
+## dompurify — 4 Dependabot security alerts with no possible Dependabot PR
+
+Researched 2026-08-29 against the live npm registry; the parent chain was read from the
+committed lockfile.
+
+**Alerts** (all `web/package-lock.json`, all **runtime** scope): #9 medium (patched 3.4.13),
+#2 medium (3.4.11), #4 low (3.4.12), #1 low (3.4.9). Highest patched floor: **3.4.13**.
+
+**Why Dependabot cannot open a PR** — verified chain:
+
+```
+@monaco-editor/react ^4.7.0   (direct, production — web/package.json:18)
+  └─ monaco-editor 0.56.0     (peer — web/package-lock.json ~6864)
+       └─ dompurify "3.4.8"   (EXACT pin, no range — web/package-lock.json ~6870)
+```
+
+No entry in the chain carries `"dev": true`, which is why these four report runtime scope.
+Dependabot cannot bump a transitive dependency whose parent pins one exact version.
+
+**There is no clean upgrade path.** Verified live against `registry.npmjs.org`:
+
+- `monaco-editor` latest is **0.56.0** — i.e. the version already installed — and it still
+  pins `dompurify: "3.4.8"` exactly.
+- `@monaco-editor/react` latest is **4.7.0** (already installed); the `4.8.0-rc.3`
+  prerelease still declares only the peer *range* `monaco-editor: ">= 0.25.0 < 1"` and
+  pins no dompurify version.
+- `dompurify` latest is **3.4.14**.
+
+So bumping `@monaco-editor/react` cannot clear the alerts. An npm `overrides` entry is the
+only available lever short of waiting for upstream Monaco to move.
+
+**Recommended remediation** — add to `web/package.json` as a **top-level sibling** of
+`dependencies`/`devDependencies` (not nested inside either):
+
+```json
+"overrides": {
+  "dompurify": "^3.4.13"
+}
+```
+
+`^3.4.13` clears all four alerts (it is the highest `first_patched_version` among them) and
+admits the current 3.4.14.
+
+**Blocked on lock regeneration.** `web/package-lock.json` must be regenerated in the same
+change or `npm ci` fails CI, and the lockfile must never be hand-edited. Regeneration is
+`npm install` in `web/` — *not* `npm ci`, which refuses to run when `package.json` and the
+lock disagree and so cannot apply a newly added `overrides` block. Per the project's
+no-local-execution rule this cannot be done in an agent session; it needs the maintainer to
+run `npm install` in `web/` and commit both files together.
+
+**Reachability — UNVERIFIED, do not treat as settled.** Monaco is embedded in
+`web/src/routes/tabs/Files.tsx` (game-server config file editor) and
+`web/src/routes/tabs/settings/Placement.tsx` (Kubernetes tolerations/affinity JSON). Both
+edit operator/admin-supplied content rather than arbitrary user HTML, and dompurify is
+reached only via Monaco's markdown-sanitizing hover/IntelliSense widgets. That suggests a
+narrow surface, but whether attacker-controlled markdown can actually reach those widgets
+here was **not** traced to a conclusion. Resolve this before deciding urgency; the version
+remediation above is correct either way.
