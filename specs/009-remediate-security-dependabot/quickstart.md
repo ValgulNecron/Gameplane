@@ -8,7 +8,7 @@ Every test/lint/build result is observed via GitHub Actions CI runs, queried wit
 
 - `gh` authenticated with `security_events` scope to read and dismiss code-scanning alerts
 - Write access to `ValgulNecron/Gameplane`
-- Every `gh` invocation MUST include `-R ValgulNecron/Gameplane` (cwd drift into `modules/` submodule silently retargets `gh` at the wrong repo)
+- Most `gh` invocations include `-R ValgulNecron/Gameplane` (cwd drift into `modules/` submodule silently retargets `gh` at the wrong repo). **Exception**: `gh api` commands do NOT accept `-R`; the endpoint path already specifies the repo.
 - The feature branch `009-remediate-security-dependabot` is checked out and has received commits for the fixes
 - GitHub Actions CI is running and accessible
 
@@ -22,7 +22,6 @@ List all open code-scanning alerts:
 
 ```bash
 gh api repos/ValgulNecron/Gameplane/code-scanning/alerts \
-  -R ValgulNecron/Gameplane \
   --jq '.[].number' \
   --paginate
 ```
@@ -33,7 +32,6 @@ For details on each alert, query individually:
 
 ```bash
 gh api repos/ValgulNecron/Gameplane/code-scanning/alerts/N \
-  -R ValgulNecron/Gameplane \
   --jq '{number: .number, rule: .rule.id, state: .state, location: .most_recent_instance.location}'
 ```
 
@@ -46,17 +44,24 @@ List all open Dependabot PRs:
 ```bash
 gh pr list \
   -R ValgulNecron/Gameplane \
-  --author=dependabot \
+  --author='dependabot[bot]' \
   --state=open \
+  --json number \
   --jq '.[].number' \
-  --paginate
+  -L 100
 ```
 
-**Expected baseline (2026-08-28)**: 21 open PRs:
+**Historical baseline (2026-08-28)**: 21 open PRs:
 - Go: 10 PRs (#263, #265, #267, #269, #271, #273, #274, #276, #279, #281)
 - npm: 11 PRs (#262, #264, #266, #268, #270, #272, #275, #277, #278, #280, #283)
 
-Note: The spec lists 20 PRs (#262–#281); it omits #283 (brace-expansion + js-yaml security bump). The baseline today is 21; SC-002 outcome should reflect "19 merged + 2 deferred" (TS 7 #272 and ESLint 10 #268), totaling 21 PRs addressed.
+**Current state (2026-08-29)**: 2 open PRs remain:
+- **#263** (sigstore/sigstore 1.10.8→1.10.9) — Go, upstream-blocked (staticcheck SA1019 on deprecated import; needs sigstore-go migration)
+- **#272** (typescript 6.0.3→7.0.2) — npm, upstream-blocked (no @typescript-eslint release accepts TS 7; npm ci dies at ERESOLVE)
+
+**Merged/closed (2026-08-29)**: 19 PRs addressed:
+- 18 merged: #283, #281, #280, #279, #278, #277, #276, #275, #274, #273, #271, #270, #268, #267, #266, #265, #264, #262
+- 1 closed without merge: #269 (golang.org/x/net — outcome achieved transitively via other merges)
 
 ## Scenario A: Alert Remediation Verified
 
@@ -72,7 +77,8 @@ gh run list \
   --branch=009-remediate-security-dependabot \
   --workflow=ci.yaml \
   -L 1 \
-  --jq '.[0] | {id: .id, status: .status, conclusion: .conclusion}'
+  --json databaseId,status,conclusion \
+  --jq '.[0] | {id: .databaseId, status: .status, conclusion: .conclusion}'
 ```
 
 Wait for this run to complete. The `lint` job must be green for all 14 Go modules (netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, capture-sidecar, mcp-server, svcutil, tunnel, test/e2e with appropriate build tags).
@@ -89,7 +95,6 @@ Once the fixes are merged to master, CodeQL's default-branch analysis must run. 
 
 ```bash
 gh api repos/ValgulNecron/Gameplane/code-scanning/alerts \
-  -R ValgulNecron/Gameplane \
   --jq '.[] | select(.state != "open") | {number: .number, rule: .rule.id, state: .state}'
 ```
 
@@ -98,8 +103,7 @@ gh api repos/ValgulNecron/Gameplane/code-scanning/alerts \
 If alerts remain `open` after the next CodeQL run (force a manual run via the Actions UI if needed), query alert details to diagnose:
 
 ```bash
-gh api repos/ValgulNecron/Gameplane/code-scanning/alerts/N \
-  -R ValgulNecron/Gameplane
+gh api repos/ValgulNecron/Gameplane/code-scanning/alerts/N
 ```
 
 ## Scenario B: TLS Verification Fix Verified
@@ -118,7 +122,8 @@ gh run list \
   --branch=009-remediate-security-dependabot \
   --workflow=ci.yaml \
   -L 1 \
-  --jq '.[0].jobs_url'
+  --json url \
+  --jq '.[0].url'
 ```
 
 Follow the job URL and confirm `go-e2e-unit` passes. This job runs:
@@ -153,7 +158,8 @@ gh run list \
   --branch=009-remediate-security-dependabot \
   --workflow=ci.yaml \
   -L 1 \
-  --jq '.[0].jobs_url'
+  --json url \
+  --jq '.[0].url'
 ```
 
 Confirm the `e2e-buckets` job is green (it verifies all tests are bucketed and counts match).
@@ -184,7 +190,8 @@ gh run list \
   --branch=009-remediate-security-dependabot \
   --workflow=ci.yaml \
   -L 1 \
-  --jq '.[0].jobs_url'
+  --json url \
+  --jq '.[0].url'
 ```
 
 Confirm `e2e-go e2e-auth` job (the api-auth bucket, which contains TestAPI_AuditPaginationAndFilter) is green.
@@ -216,17 +223,18 @@ All responses must be bounded at max 500 entries. The API pod memory must not sp
 
 ## Scenario E: Dependency Bump Verification
 
-All 21 Dependabot PRs must be merged individually (per user decision) and verified green on CI before acceptance. TS 7 (#272) and ESLint 10 (#268) are deferred to a separate branch after the other 19 are merged.
+All 21 Dependabot PRs must be merged individually (per user decision) and verified green on CI before acceptance. Sigstore (#263) and TS 7 (#272) are deferred as upstream-blocked after the other 19 are merged.
 
 ### Per-PR Verification Pattern
 
-For each Dependabot PR (except #272 and #268):
+For each Dependabot PR (except #263 and #272):
 
 1. **Check PR status**:
 
 ```bash
 gh pr view PR_NUMBER \
   -R ValgulNecron/Gameplane \
+  --json number,title,state,statusCheckRollup \
   --jq '{number: .number, title: .title, state: .state, checks: .statusCheckRollup}'
 ```
 
@@ -240,6 +248,7 @@ gh run list \
   --branch="dependabot/go_modules_..." \
   --workflow=ci.yaml \
   -L 1 \
+  --json status,conclusion \
   --jq '.[0] | {status: .status, conclusion: .conclusion}'
 ```
 
@@ -258,19 +267,17 @@ The `--admin` flag is required because master has a ruleset with an "update" rul
 
 4. **Verify the version landed** in the appropriate go.mod files:
 
-After merge, query the master branch:
+After merge, query the master branch. Note: this repository is a Go workspace (go.work at the root) with no root go.mod, so you must specify a module directory in the path.
 
 ```bash
-gh api repos/ValgulNecron/Gameplane/contents/go.mod \
-  -R ValgulNecron/Gameplane \
-  --jq '.content' | base64 -d | grep "library-name"
+gh api repos/ValgulNecron/Gameplane/contents/<module>/go.mod \
+  --jq '.content' | base64 -d | grep "<library-name>"
 ```
 
 Example for #281 (sqlite 1.55.0 → 1.57.0):
 
 ```bash
 gh api repos/ValgulNecron/Gameplane/contents/api/go.mod \
-  -R ValgulNecron/Gameplane \
   --jq '.content' | base64 -d | grep "modernc.org/sqlite"
 ```
 
@@ -299,7 +306,8 @@ gh run list \
   --branch="dependabot/go_modules_sigstore_sigstore_..." \
   --workflow=ci.yaml \
   -L 1 \
-  --jq '.[0].jobs_url'
+  --json url \
+  --jq '.[0].url'
 ```
 
 Click the job URL and review the failing log to diagnose. If the failure is unrelated to the dependency bump (e.g., a flaky e2e test), merge after confirmation and monitor master for any regression.
@@ -315,12 +323,12 @@ Click the job URL and review the failing log to diagnose. If the failure is unre
 | #275 | @types/node 26.1.2→26.2.0 | green — MERGE |
 | #272 | typescript 6.0.3→7.0.2 (major) | 4 FAILING CHECKS — DEFER |
 | #270 | @tanstack/react-router 1.170.18→1.170.32 | green — MERGE |
-| #268 | @eslint/js 9.39.5→10.0.1 (major) | 1 FAILING CHECK — DEFER |
+| #268 | @eslint/js 9.39.5→10.0.1 (major) | green — MERGE |
 | #266 | @playwright/test 1.62.0→1.62.1 | green — MERGE |
 | #264 | @testing-library/jest-dom 7.0.0→7.0.1 | green — MERGE |
 | #262 | @typescript-eslint/parser 8.65.0→8.67.0 | green — MERGE |
 
-**Exceptions**: PRs #272 (TypeScript 7) and #268 (ESLint 10) are deferred to a separate feature branch and phase. All other 9 npm PRs + #283 (security) are merged first. #272 and #268 will be handled together in a follow-up with focused testing on type errors and lint rule changes.
+**Exceptions**: PRs #263 (Sigstore, upstream-blocked) and #272 (TypeScript 7, upstream-blocked) are deferred to a separate feature branch and phase. All other 19 Dependabot PRs are merged. #263 and #272 will be handled in follow-ups once upstream blockers are resolved.
 
 **Observing CI on a merged npm PR**:
 
@@ -330,6 +338,7 @@ gh run list \
   --branch=master \
   --workflow=ci.yaml \
   -L 1 \
+  --json status,conclusion \
   --jq '.[0] | {status: .status, conclusion: .conclusion}'
 ```
 
@@ -345,7 +354,6 @@ Query open alerts:
 
 ```bash
 gh api repos/ValgulNecron/Gameplane/code-scanning/alerts \
-  -R ValgulNecron/Gameplane \
   --jq '[.[] | select(.state == "open")] | length'
 ```
 
@@ -363,27 +371,30 @@ Query open Dependabot PRs:
 ```bash
 gh pr list \
   -R ValgulNecron/Gameplane \
-  --author=dependabot \
+  --author='dependabot[bot]' \
   --state=open \
+  --json title,number \
   --jq '[.[] | select(.title | test("^chore:"))] | length'
 ```
 
-**Expected**: 0 (all merged) or 2 (TS 7 #272 and ESLint 10 #268 deferred).
+**Expected**: 0 (all merged) or 2 (#263 and #272 deferred, upstream-blocked).
 
-If 2 are open, confirm they are #272 and #268:
+If 2 are open, confirm they are #263 and #272:
 
 ```bash
 gh pr list \
   -R ValgulNecron/Gameplane \
-  --author=dependabot \
+  --author='dependabot[bot]' \
   --state=open \
+  --json number \
   --jq '.[].number'
 ```
 
-Map to spec success criterion SC-002: "100% of 20 open Dependabot PRs are merged or resolved." The spec lists 20 (#262–#281); the actual baseline is 21 (#262–#281 + #283 security). The outcome is:
-- 19 PRs merged (10 Go + 9 npm including #283 security)
-- 2 PRs deferred (#272, #268 — to be handled in a separate phase)
-- Total addressed: 21 (all baseline PRs)
+Map to spec success criterion SC-002: "100% of open Dependabot PRs are merged or resolved." The baseline is 21 PRs (#262–#281 + #283 security). As of 2026-08-29:
+- 18 PRs merged (8 Go + 10 npm): #283, #281, #280, #279, #278, #277, #276, #275, #274, #273, #271, #270, #268, #267, #266, #265, #264, #262
+- 1 PR closed without merge: #269 (golang.org/x/net 0.57.0→0.58.0; outcome achieved transitively)
+- 2 PRs deferred (upstream-blocked): #263 (sigstore 1.10.9, SA1019 CEL fix needed), #272 (TypeScript 7, no @typescript-eslint release yet)
+- Total: 21 of 21 accounted for — 18 merged, 1 closed without merging (#269, superseded transitively), 2 deferred as upstream-blocked (#263 sigstore, #272 TypeScript 7)
 
 ### SC-003, SC-004: Tests Green
 
@@ -395,7 +406,8 @@ gh run list \
   --branch=master \
   --workflow=ci.yaml \
   -L 1 \
-  --jq '.[0] | {status: .status, conclusion: .conclusion, created_at: .created_at}'
+  --json status,conclusion,createdAt \
+  --jq '.[0] | {status: .status, conclusion: .conclusion, created_at: .createdAt}'
 ```
 
 Confirm the run is recent (within the last few hours, indicating it ran post-merge) and `conclusion` is `success`.
@@ -416,14 +428,14 @@ SC-003 (unit tests) and SC-004 (e2e tests) are satisfied if `conclusion: success
 
 Query the linting artifacts from the most recent master CI run. If available via the Actions API, retrieve the lint output and confirm zero `golangci-lint` warnings, zero `go vet` errors, zero ESLint errors, and zero TypeScript errors.
 
-Alternatively, inspect the feature branch diff to confirm no new suppressions (no `//nolint`, `// eslint-disable-next-line`, etc.) were added.
+Alternatively, inspect the feature branch diff to confirm no new suppressions (no `//nolint`, `// eslint-disable-next-line`, etc.) were added to source files. (Matches inside `specs/**/*.md` are expected — the docs quote these directives while explaining the rule.)
 
 ```bash
-git diff master...009-remediate-security-dependabot \
+git diff master...009-remediate-security-dependabot -- '*.go' '*.ts' '*.tsx' \
   | grep -E "//nolint|// eslint-disable|// @ts-ignore"
 ```
 
-**Expected**: No matches (no suppressions added).
+**Expected**: No matches (no suppressions added to source files).
 
 ### SC-006: Build Duration
 
@@ -431,7 +443,6 @@ Query the master CI run's total duration:
 
 ```bash
 gh api repos/ValgulNecron/Gameplane/actions/runs \
-  -R ValgulNecron/Gameplane \
   --jq '.workflow_runs[0] | {run_number: .run_number, run_time_minutes: ((.run_number * 0) + 42)}'  # Placeholder; actual query varies by run metadata
 ```
 
@@ -446,6 +457,6 @@ gh api repos/ValgulNecron/Gameplane/actions/runs \
 - [ ] **Scenario B**: TLS guard unit test passes; `go-e2e-unit` job green
 - [ ] **Scenario C**: api-mods e2e tests pass; new negative tests bucketed and passing; `e2e-buckets` verification green
 - [ ] **Scenario D**: audit handler clamping confirmed in diff; TestAPI_AuditPaginationAndFilter passes; extreme limit queries bounded at 500
-- [ ] **Scenario E**: All 19 Go/npm PRs merged and versions confirmed in go.mod/package.json; #272, #268 deferred; CI green after each merge
+- [ ] **Scenario E**: All 19 Go/npm PRs merged and versions confirmed in go.mod/package.json; #263, #272 deferred (upstream-blocked); CI green after each merge
 - [ ] **Final**: 0 open alerts, 0 open Dependabot PRs (or 2 deferred), master CI green across all jobs
 - [ ] **SC-001** through **SC-006**: All success criteria met
