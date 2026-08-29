@@ -144,8 +144,8 @@
 
 **Purpose**: Clean up working branch and document final outcomes.
 
-- [ ] T051 Delete merged feature branch remote via git push origin --delete 009-remediate-security-dependabot per branch-lifecycle rule
-- [ ] T052 Delete merged feature branch local via git branch -d 009-remediate-security-dependabot per branch-lifecycle rule
+- [X] T051 Delete merged feature branch remote via git push origin --delete 009-remediate-security-dependabot per branch-lifecycle rule **DONE 2026-08-29**: remote branch deleted (was 6fe8bad), after confirming `git branch --merged master` listed it.
+- [X] T052 Delete merged feature branch local via git branch -d 009-remediate-security-dependabot per branch-lifecycle rule **DONE 2026-08-29**: local branch deleted with `-d` (not `-D`), so git verified the merge itself.
 - [X] T053 Update specs/009-remediate-security-dependabot/contracts/alert-disposition.md with actual final state for each of the 14 alerts (fixed or dismissed with datetime and outcome notes); note that spec's original stale count of 20 PRs is corrected to 21 (adds #283 security bump) and all-14-real-defects claim is corrected to 13 false positives + 1 real defect, with the latent gap described as separate from the 14 alerts rather than counted among them **DONE 2026-08-29**: final per-alert state recorded in contracts/alert-disposition.md, including the two corrections that file needed (the 280-char comment cap, and the alert renumbering).
 
 ---
