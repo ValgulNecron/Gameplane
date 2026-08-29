@@ -277,6 +277,62 @@ func TestUpdateManifest_PrunesMissingFiles(t *testing.T) {
 	}
 }
 
+func TestUpdateManifest_DirectPrune(t *testing.T) {
+	root := t.TempDir()
+	modsDir := filepath.Join(root, "mods")
+	if err := os.MkdirAll(modsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a manifest with two entries
+	m := &manifest{
+		Version: 1,
+		Mods: map[string]*ModMeta{
+			"present.jar": {Provider: "modrinth", ProjectID: "present"},
+			"missing.jar": {Provider: "modrinth", ProjectID: "missing"},
+		},
+	}
+	if err := m.save(modsDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create only the "present.jar" file; "missing.jar" does not exist
+	if err := os.WriteFile(filepath.Join(modsDir, "present.jar"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a second file "added.jar" that the closure will add to the manifest
+	if err := os.WriteFile(filepath.Join(modsDir, "added.jar"), []byte("y"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a handler pointing to the mods directory
+	spec := &caps.Mods{Path: "mods"}
+	h := newHandler(root, spec)
+	if h.dir != modsDir {
+		t.Fatalf("handler dir setup failed: got %q, want %q", h.dir, modsDir)
+	}
+
+	// Call updateManifest with a function that adds a new entry; it should prune
+	// the missing entry while preserving both present.jar and added.jar.
+	h.updateManifest(func(mods map[string]*ModMeta) {
+		mods["added.jar"] = &ModMeta{Provider: "modrinth", ProjectID: "added"}
+	})
+
+	// Reload the manifest and verify the missing entry was pruned while entries
+	// for existing files (both original and added by the closure) survived.
+	got := loadManifest(modsDir)
+	if _, missing := got.Mods["missing.jar"]; missing {
+		t.Fatalf("manifest = %+v, missing.jar should be pruned", got.Mods)
+	}
+	if _, ok := got.Mods["present.jar"]; !ok {
+		t.Fatalf("manifest = %+v, present.jar should still exist", got.Mods)
+	}
+	if _, ok := got.Mods["added.jar"]; !ok {
+		t.Fatalf("manifest = %+v, added.jar should survive the prune", got.Mods)
+	}
+}
+
 func TestRemove_DropsManifestEntry(t *testing.T) {
 	allowLoopback(t)
 	upstream, host := jarServer(t, []byte("JAR"))
@@ -419,6 +475,9 @@ func TestManifest_SaveWriteErrorHandling(t *testing.T) {
 }
 
 func TestLoadManifest_ReadPermissionError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permissions are bypassed")
+	}
 	dir := t.TempDir()
 
 	// Write a valid manifest file

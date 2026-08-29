@@ -674,3 +674,43 @@ func TestConfineRelPath_AncestorSymlinkLoopError(t *testing.T) {
 		t.Fatalf("wrong error type: %v", err)
 	}
 }
+
+func TestConfineRelPath_AcceptsDotAndEmptySegments(t *testing.T) {
+	root := t.TempDir()
+
+	tests := []struct {
+		name    string
+		relPath string
+	}{
+		{
+			name:    "dot in middle",
+			relPath: "a/./b.txt",
+		},
+		{
+			name:    "double slash",
+			relPath: "a//b.txt",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, err := ConfineRelPath(root, tt.relPath)
+			if err != nil {
+				t.Fatalf("ConfineRelPath failed: %v", err)
+			}
+
+			// For non-existent paths, the function cleans the segments and returns
+			// the normalized absolute path under root. Both "a/./b.txt" and "a//b.txt"
+			// clean to "a/b.txt" under root.
+			expected := filepath.Join(root, "a", "b.txt")
+			if path != expected {
+				t.Fatalf("got %s, want %s", path, expected)
+			}
+
+			// Verify the result is confined to root
+			if path != root && !strings.HasPrefix(path, root+string(os.PathSeparator)) {
+				t.Fatalf("path %s not confined to root %s", path, root)
+			}
+		})
+	}
+}
