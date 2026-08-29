@@ -1,0 +1,196 @@
+R1 FAIL: external actions pinned to 40-char SHAs with a version comment (96 violation(s))
+  .github/workflows/ci.yaml:79: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:80: [R1] dorny/paths-filter is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:165: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:177: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:217: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:218: [R1] docker/setup-buildx-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:229: [R1] docker/build-push-action is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:326: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:357: [R1] golangci/golangci-lint-action is pinned to the mutable ref 'v9'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:364: [R1] golangci/golangci-lint-action is pinned to the mutable ref 'v9'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:371: [R1] golangci/golangci-lint-action is pinned to the mutable ref 'v9'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:391: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:431: [R1] actions/cache is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:437: [R1] actions/cache is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:477: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:478: [R1] actions/setup-node is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:503: [R1] actions/upload-artifact is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:518: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:519: [R1] actions/setup-node is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:523: [R1] actions/cache is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:534: [R1] actions/upload-artifact is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:548: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:549: [R1] azure/setup-helm is pinned to the mutable ref 'v5'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:559: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:560: [R1] azure/setup-helm is pinned to the mutable ref 'v5'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:612: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:639: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:704: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:708: [R1] azure/setup-helm is pinned to the mutable ref 'v5'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:710: [R1] helm/kind-action is pinned to the mutable ref 'v1'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:766: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:770: [R1] azure/setup-helm is pinned to the mutable ref 'v5'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:772: [R1] helm/kind-action is pinned to the mutable ref 'v1'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:835: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:839: [R1] azure/setup-helm is pinned to the mutable ref 'v5'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:841: [R1] helm/kind-action is pinned to the mutable ref 'v1'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:879: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:883: [R1] actions/setup-node is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:885: [R1] azure/setup-helm is pinned to the mutable ref 'v5'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:887: [R1] helm/kind-action is pinned to the mutable ref 'v1'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:906: [R1] actions/cache is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:927: [R1] actions/upload-artifact is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:950: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:954: [R1] azure/setup-helm is pinned to the mutable ref 'v5'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:956: [R1] helm/kind-action is pinned to the mutable ref 'v1'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/ci.yaml:1030: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:36: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:37: [R1] docker/setup-qemu-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:38: [R1] docker/setup-buildx-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:42: [R1] docker/login-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:48: [R1] docker/metadata-action is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:55: [R1] docker/build-push-action is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:80: [R1] sigstore/cosign-installer is pinned to the mutable ref 'v4.1.2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:145: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:146: [R1] docker/setup-qemu-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:147: [R1] docker/setup-buildx-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:151: [R1] docker/login-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:167: [R1] docker/build-push-action is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:203: [R1] docker/metadata-action is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:210: [R1] docker/build-push-action is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/images.yaml:238: [R1] sigstore/cosign-installer is pinned to the mutable ref 'v4.1.2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/publish-edge.yaml:65: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/publish-edge.yaml:66: [R1] docker/setup-qemu-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/publish-edge.yaml:67: [R1] docker/setup-buildx-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/publish-edge.yaml:68: [R1] docker/login-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/publish-edge.yaml:74: [R1] docker/metadata-action is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/publish-edge.yaml:83: [R1] docker/build-push-action is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/publish-edge.yaml:108: [R1] sigstore/cosign-installer is pinned to the mutable ref 'v4.1.2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/publish-edge.yaml:193: [R1] actions/upload-artifact is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:35: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:36: [R1] docker/setup-qemu-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:37: [R1] docker/setup-buildx-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:38: [R1] docker/login-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:44: [R1] docker/metadata-action is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:55: [R1] docker/build-push-action is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:76: [R1] sigstore/cosign-installer is pinned to the mutable ref 'v4.1.2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:129: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:130: [R1] azure/setup-helm is pinned to the mutable ref 'v5'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:134: [R1] docker/login-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:157: [R1] sigstore/cosign-installer is pinned to the mutable ref 'v4.1.2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:215: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:260: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:274: [R1] oras-project/setup-oras is pinned to the mutable ref 'v2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:276: [R1] sigstore/cosign-installer is pinned to the mutable ref 'v4.1.2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/release.yaml:282: [R1] docker/login-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/republish-modules.yaml:25: [R1] actions/checkout is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/republish-modules.yaml:39: [R1] oras-project/setup-oras is pinned to the mutable ref 'v2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/republish-modules.yaml:41: [R1] sigstore/cosign-installer is pinned to the mutable ref 'v4.1.2'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/workflows/republish-modules.yaml:47: [R1] docker/login-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/actions/build-e2e-images/action.yml:18: [R1] docker/setup-buildx-action is pinned to the mutable ref 'v4'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/actions/build-e2e-images/action.yml:20: [R1] docker/bake-action is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/actions/build-e2e-images/action.yml:39: [R1] docker/bake-action is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/actions/build-e2e-images/action.yml:59: [R1] actions/upload-artifact is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/actions/e2e-images/action.yml:16: [R1] actions/download-artifact is pinned to the mutable ref 'v8'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/actions/go-cache/action.yml:22: [R1] actions/setup-go is pinned to the mutable ref 'v7'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+  .github/actions/go-cache/action.yml:27: [R1] actions/cache is pinned to the mutable ref 'v6'; use a 40-character commit SHA with a `# vX.Y.Z` comment
+R2 FAIL: workflow and job permissions declared explicitly (R2 + R3) (26 violation(s))
+  .github/workflows/ci.yaml:47: [R2] top-level grant `statuses: write` is inherited by every job; move it to the job that needs it
+  .github/workflows/ci.yaml:158: [R3] job `build-images` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:170: [R3] job `build-images-arm64` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:210: [R3] job `capture-sidecar-setcap-proof` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:315: [R3] job `lint` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:376: [R3] job `go` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:469: [R3] job `web` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:510: [R3] job `web-e2e-mock` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:541: [R3] job `helm` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:552: [R3] job `chart-template` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:605: [R3] job `go-e2e-unit` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:632: [R3] job `e2e-buckets` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:656: [R3] job `e2e-go` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:750: [R3] job `e2e-multicluster` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:816: [R3] job `e2e-upgrade` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:865: [R3] job `e2e-web-live` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/ci.yaml:934: [R3] job `e2e-game-bot` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/images.yaml:23: [R3] job `common-base` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/images.yaml:135: [R3] job `game-images` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/publish-edge.yaml:42: [R3] job `images` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/release.yaml:8: [R2] `contents: write` at the top level is inherited by every job; scope it to the job that writes to the repository
+  .github/workflows/release.yaml:13: [R3] job `images` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/release.yaml:124: [R3] job `chart` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/release.yaml:210: [R3] job `github-release` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/release.yaml:253: [R3] job `modules` declares no `permissions`; it silently inherits the workflow-level token
+  .github/workflows/republish-modules.yaml:18: [R3] job `modules` declares no `permissions`; it silently inherits the workflow-level token
+R4 FAIL: every job declares timeout-minutes within the documented ceiling (9 violation(s))
+  .github/workflows/ci.yaml:661: [R4] job `e2e-go` has timeout-minutes 35, above the 30-minute ceiling; add it to EXCEPTIONS in r4_timeouts.py with a justification, or lower it
+  .github/workflows/images.yaml:23: [R4] job `common-base` declares no `timeout-minutes`; it defaults to 360 minutes
+  .github/workflows/images.yaml:135: [R4] job `game-images` declares no `timeout-minutes`; it defaults to 360 minutes
+  .github/workflows/publish-edge.yaml:42: [R4] job `images` declares no `timeout-minutes`; it defaults to 360 minutes
+  .github/workflows/release.yaml:13: [R4] job `images` declares no `timeout-minutes`; it defaults to 360 minutes
+  .github/workflows/release.yaml:124: [R4] job `chart` declares no `timeout-minutes`; it defaults to 360 minutes
+  .github/workflows/release.yaml:210: [R4] job `github-release` declares no `timeout-minutes`; it defaults to 360 minutes
+  .github/workflows/release.yaml:253: [R4] job `modules` declares no `timeout-minutes`; it defaults to 360 minutes
+  .github/workflows/republish-modules.yaml:18: [R4] job `modules` declares no `timeout-minutes`; it defaults to 360 minutes
+R5 FAIL: push/pull_request workflows declare a concurrency group (1 violation(s))
+  .github/workflows/images.yaml:1: [R5] workflow triggers on pull_request, push but declares no `concurrency` group; superseded runs will not be cancelled
+R6 pass: no user-controlled interpolation inside run: blocks -- 93 run: block(s) scanned
+R7 FAIL: dependabot covers every Go module, Dockerfile, npm and actions dir (39 violation(s))
+  .github/dependabot.yml: [R7] gomod: /agent exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /api exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /audit-syslog-bridge exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /capture-sidecar exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /gameaction exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /gameproto exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /mcp-server exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /netguard exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /operator exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /sentinel exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /svcutil exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /telemetry-receiver exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /test/e2e exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: /tunnel exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] gomod: / is declared but the tree has no such module there
+  .github/dependabot.yml: [R7] docker: /agent exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /api exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /audit-syslog-bridge exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /capture-sidecar exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /images/common/steamcmd exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /images/games/nuclear-option exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /mcp-server exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /operator exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /sentinel exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /telemetry-receiver exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /test/e2e exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: /web exists in the tree but has no dependabot entry, so its dependencies are unmonitored
+  .github/dependabot.yml: [R7] docker: / is declared but the tree has no such image there
+  .github/dependabot.yml:7: [R7] gomod: / contains no go.mod; dependabot silently ignores this entry
+  .github/dependabot.yml:7: [R7] gomod /: no `groups`; ungrouped updates flood CI with one PR per dependency
+  .github/dependabot.yml:7: [R7] gomod /: open-pull-requests-limit 10 exceeds the agreed 3
+  .github/dependabot.yml:7: [R7] gomod /: commit-message.prefix is 'chore: ', expected 'chore(deps)' (a trailing ': ' yields a malformed `chore: (deps):` subject)
+  .github/dependabot.yml:19: [R7] npm /web: no `groups`; ungrouped updates flood CI with one PR per dependency
+  .github/dependabot.yml:19: [R7] npm /web: commit-message.prefix is 'chore: ', expected 'chore(deps)' (a trailing ': ' yields a malformed `chore: (deps):` subject)
+  .github/dependabot.yml:31: [R7] docker: / contains no Dockerfile; dependabot silently ignores this entry
+  .github/dependabot.yml:31: [R7] docker /: no `groups`; ungrouped updates flood CI with one PR per dependency
+  .github/dependabot.yml:31: [R7] docker /: commit-message.prefix is 'chore: ', expected 'chore(deps)' (a trailing ': ' yields a malformed `chore: (deps):` subject)
+  .github/dependabot.yml:43: [R7] github-actions /: no `groups`; ungrouped updates flood CI with one PR per dependency
+  .github/dependabot.yml:43: [R7] github-actions /: commit-message.prefix is 'chore: ', expected 'chore(deps)' (a trailing ': ' yields a malformed `chore: (deps):` subject)
+R8 pass: signing and API secrets confined to entitled workflows -- 7 confined secret name(s)
+R9 pass: no workflow uses the pull_request_target trigger -- 5 workflow(s) checked
+R10 FAIL: cluster diagnostics are redacted and never dump Secret objects (14 violation(s))
+  .github/actions/dump-cluster-state/action.yml: [R10] no `redact()` shell function defined; collected logs would reach the step summary and artifact unfiltered
+  .github/actions/dump-cluster-state/action.yml:18: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:19: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:49: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:57: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:60: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:68: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:70: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:71: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:75: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:141: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:144: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:163: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+  .github/actions/dump-cluster-state/action.yml:166: [R10] collects cluster output without piping through `redact`; a single unfiltered stream defeats the control
+
+workflows-verify: 6 of 9 rule(s) FAILED

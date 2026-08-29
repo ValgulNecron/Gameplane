@@ -42,7 +42,7 @@ permissions:
 | `chart-template` | `contents: read` | 10 | |
 | `go-e2e-unit` | `contents: read` | 10 | |
 | `e2e-buckets` | `contents: read` | 5 | |
-| `e2e-go` | `contents: read` | matrix (`job_timeout`) | Matrix values must all be ≤ 30. |
+| `e2e-go` | `contents: read` | matrix (`job_timeout`) | Legs are 25–35. The `operator` leg's 35 is a documented exception — 8-way parallel behind a 20m test timeout. |
 | `e2e-multicluster` | `contents: read` | 30 | |
 | `e2e-upgrade` | `contents: read` | 30 | |
 | `e2e-web-live` | `contents: read` | 25 | |
@@ -51,9 +51,12 @@ permissions:
 | `workflows-verify` *(new)* | `contents: read` | 5 | Gated on the new `github` path-filter output. |
 
 **`e2e-go` note**: `timeout-minutes: ${{ matrix.job_timeout }}` is an expression, so the
-verifier cannot read a literal. R4 must resolve the matrix's `job_timeout` values and check
-each against the ceiling, or the rule is trivially bypassable by any future job that
-switches to an expression.
+verifier cannot read a literal. R4 resolves the matrix's `job_timeout` values and checks
+each against the ceiling, or the rule would be trivially bypassable by any future job that
+switches to an expression. Doing so surfaced a leg the plan had assumed away: the
+`operator` bucket is 35, not ≤ 30. It is legitimate — 8-way parallel behind a 20m test
+timeout, plus cluster-boot headroom — so it is recorded in R4's exception table rather than
+lowered, which would have reddened a real bucket.
 
 **`report` wiring**: adding `workflows-verify` requires three edits in the reporter — the
 `needs:` list, the `NEEDS_ORDER` array, and the `JOB_MATCHERS` map. Miss any one and the new
