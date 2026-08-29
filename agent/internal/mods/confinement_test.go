@@ -173,64 +173,6 @@ func TestConfinePath_AcceptSymlinkTargetInsideRoot(t *testing.T) {
 	}
 }
 
-func TestConfinePath_RejectAncestorSymlinkEscapesRoot(t *testing.T) {
-	root := t.TempDir()
-	escaped := t.TempDir() // A directory outside root
-
-	// Create a directory inside root
-	subDir := filepath.Join(root, "subdir")
-	if err := os.Mkdir(subDir, 0o755); err != nil {
-		t.Fatalf("Mkdir failed: %v", err)
-	}
-
-	// Create a symlink that replaces the subdirectory, pointing outside root
-	if err := os.Remove(subDir); err != nil {
-		t.Fatalf("Remove failed: %v", err)
-	}
-	if err := os.Symlink(escaped, subDir); err != nil {
-		t.Fatalf("Symlink failed: %v", err)
-	}
-
-	// ConfinePath should reject a new file in the escaped ancestor
-	_, err := ConfinePath(root, filepath.Join("subdir", "newfile.txt"))
-	// This should fail because we're trying to put a separator, so ErrSeparator
-	if !errors.Is(err, ErrSeparator) {
-		t.Fatalf("got %v, want ErrSeparator (because component has separator)", err)
-	}
-
-	// But test that a path under an ancestor symlink escaping root is rejected.
-	// To do this properly, we need a component that doesn't have a separator.
-	// We can't directly test this with ConfinePath's component validation,
-	// but we can test a scenario where the parent exists and is a symlink.
-	// Actually, the current test already checks this - a component can't have a separator,
-	// so the real-world case would be catching this at the archive extraction level.
-}
-
-func TestConfinePath_RejectNonExistingPathWithEscapingAncestor(t *testing.T) {
-	root := t.TempDir()
-	escaped := t.TempDir() // A directory outside root
-
-	// Create a directory with a name that will be our ancestor
-	ancestorDir := filepath.Join(root, "ancestor")
-	if err := os.Mkdir(ancestorDir, 0o755); err != nil {
-		t.Fatalf("Mkdir failed: %v", err)
-	}
-
-	// Replace the ancestor with a symlink pointing outside root
-	if err := os.Remove(ancestorDir); err != nil {
-		t.Fatalf("Remove failed: %v", err)
-	}
-	if err := os.Symlink(escaped, ancestorDir); err != nil {
-		t.Fatalf("Symlink failed: %v", err)
-	}
-
-	// Now try to create a file under a non-existent subdirectory of the escaped ancestor.
-	// But ConfinePath takes a single component, so we can't express "ancestor/nonexist/file".
-	// The safeName check in mods.go filters this earlier (separators), and ConfinePath
-	// operates on single components only, which aligns with the contract.
-	// So this scenario is already handled by ErrSeparator at the component level.
-}
-
 func TestConfinePath_AcceptNameResolveToRoot(t *testing.T) {
 	// Test that an empty component (or one that resolves to the root itself)
 	// is rejected per the contract. An empty string is already rejected by
@@ -508,6 +450,19 @@ func TestConfineRelPath_RejectPathTooLong(t *testing.T) {
 	if err != nil {
 		t.Fatalf("acceptable-length path failed: %v", err)
 	}
+
+	// Test boundary: exactly 4096 chars should be accepted (not rejected).
+	// The code checks if len(relPath) > 4096, so 4096 is allowed.
+	// Use pattern "a/" repeated 2048 times = exactly 4096 chars.
+	boundary4096Path := strings.Repeat("a/", 2048)
+	if len(boundary4096Path) != 4096 {
+		t.Fatalf("test setup error: path is %d chars, need exactly 4096", len(boundary4096Path))
+	}
+
+	_, err = ConfineRelPath(root, boundary4096Path)
+	if err != nil {
+		t.Fatalf("4096-char path failed: %v", err)
+	}
 }
 
 func TestConfineRelPath_NormalizeBackslashes(t *testing.T) {
@@ -561,6 +516,67 @@ func TestConfineRelPath_AcceptSymlinkInsideRoot(t *testing.T) {
 	path, err := ConfineRelPath(root, "link/file.txt")
 	if err != nil {
 		t.Fatalf("ConfineRelPath(symlink inside root) failed: %v", err)
+	}
+
+	// The result should be confined
+	if !strings.HasPrefix(path, root+string(os.PathSeparator)) && path != root {
+		t.Fatalf("path %s not confined to root %s", path, root)
+	}
+}
+
+func TestConfineRelPath_RejectAncestorSymlinkEscapesRoot(t *testing.T) {
+	root := t.TempDir()
+	escaped := t.TempDir() // Outside root
+
+	// Create and then replace an ancestor directory with a symlink pointing outside root
+	ancestorPath := filepath.Join(root, "ancestor")
+	if err := os.Mkdir(ancestorPath, 0o755); err != nil {
+		t.Fatalf("Mkdir failed: %v", err)
+	}
+	if err := os.Remove(ancestorPath); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if err := os.Symlink(escaped, ancestorPath); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+
+	// Try to create a file nested under the escaping ancestor symlink.
+	// The path doesn't exist yet, so the ancestor walk code (confinement.go:232-249)
+	// will run: it will find the ancestor symlink, resolve it, and detect that it
+	// escapes root.
+	_, err := ConfineRelPath(root, filepath.Join("ancestor", "nested", "newfile.txt"))
+	if !errors.Is(err, ErrEscapesRoot) {
+		t.Fatalf("got %v, want ErrEscapesRoot", err)
+	}
+}
+
+func TestConfineRelPath_AcceptAncestorSymlinkInsideRoot(t *testing.T) {
+	root := t.TempDir()
+
+	// Create a target directory inside root
+	targetDir := filepath.Join(root, "target")
+	if err := os.Mkdir(targetDir, 0o755); err != nil {
+		t.Fatalf("Mkdir failed: %v", err)
+	}
+
+	// Create an ancestor directory and replace it with a symlink pointing to target
+	ancestorPath := filepath.Join(root, "ancestor")
+	if err := os.Mkdir(ancestorPath, 0o755); err != nil {
+		t.Fatalf("Mkdir failed: %v", err)
+	}
+	if err := os.Remove(ancestorPath); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if err := os.Symlink(targetDir, ancestorPath); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+
+	// Try to create a file nested under the ancestor symlink (pointing inside root).
+	// The ancestor walk code should resolve the ancestor symlink and verify it
+	// stays within root, then allow the path.
+	path, err := ConfineRelPath(root, filepath.Join("ancestor", "nested", "newfile.txt"))
+	if err != nil {
+		t.Fatalf("ConfineRelPath failed: %v", err)
 	}
 
 	// The result should be confined
