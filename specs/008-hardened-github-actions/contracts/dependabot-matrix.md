@@ -5,6 +5,13 @@
 Target contents of `.github/dependabot.yml`. Enforced by `.github/workflows-verify.sh`
 rule **R7**.
 
+> ⚠️ **Ratified vs proposed.** R7 enforces only what `spec.md` states: directory parity with
+> `go.work` and the Dockerfile set (FR-017/FR-019), the presence of `groups` and a declared
+> `open-pull-requests-limit` (FR-021), the `chore(deps)` prefix (FR-021), and manifest
+> liveness. Everything below marked **[PROPOSED]** — the specific limit numbers, the group
+> names and shapes, and the 04:00 npm stagger — is an agent suggestion and is **not**
+> enforced. See OPEN-DECISIONS.md D-B, D-C, D-D.
+
 ---
 
 ## Baseline vs target
@@ -58,7 +65,7 @@ Per-entry shape:
       update-types: ["minor", "patch"]
 ```
 
-**The `k8s` group is not optional.** `k8s.io/api`, `k8s.io/apimachinery`, `k8s.io/client-go`
+**[PROPOSED]** — the `k8s` group has a real technical basis but the spec does not ask for it. `k8s.io/api`, `k8s.io/apimachinery`, `k8s.io/client-go`
 and `sigs.k8s.io/controller-runtime` are version-locked to each other; a PR bumping one
 alone does not compile. It is declared **before** the catch-all group — Dependabot matches
 groups in declaration order, so a catch-all listed first swallows everything.
@@ -82,7 +89,7 @@ one PR per module, so a normal Monday is ≤ 14 Go PRs, most weeks far fewer.
   schedule:
     interval: "weekly"
     day: "monday"
-    time: "04:00"          # staggered off the 03:00 burst
+    time: "04:00"          # [PROPOSED] staggered off the 03:00 burst; not enforced
   commit-message:
     prefix: "chore(deps)"
     include: "scope"

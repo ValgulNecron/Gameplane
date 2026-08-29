@@ -24,9 +24,16 @@ from _common import Ctx, Violation
 RULE_ID = "R2"
 DESCRIPTION = "workflow and job permissions declared explicitly (R2 + R3)"
 
-# Scopes a workflow may declare at the top level. Anything beyond these has to
-# be scoped to the single job that needs it, where it is reviewable.
-ALLOWED_TOP_LEVEL = {"contents", "packages"}
+# FR-001, verbatim: "Every workflow in `.github/workflows/` MUST define top-level
+# default permissions set to `contents: read` or `{}` (least privilege)."
+#
+# `packages` is deliberately NOT here. An earlier revision of this rule allowed
+# it at the top level on the reasoning that all jobs in the four publish
+# workflows push to ghcr.io anyway -- but that was invented, not specified, and
+# it contradicted the FR it claimed to enforce. Consequence of holding the
+# spec's line: the publish workflows must declare `packages: write` per job.
+# See OPEN-DECISIONS.md D-E if that trade is not wanted.
+ALLOWED_TOP_LEVEL = {"contents"}
 
 
 def check(ctx: Ctx) -> list[Violation]:

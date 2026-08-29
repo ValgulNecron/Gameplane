@@ -5,6 +5,14 @@
 The target state for every job in the repository. Enforced by
 `.github/workflows-verify.sh` rules **R2**, **R3**, **R4**, **R8**.
 
+> ⚠️ **Not all of this is ratified.** The `permissions` column follows FR-001/FR-002. The
+> `timeout-minutes` column does not: FR-004 gives a 30-minute default and names game-bot as
+> its one example, so every other number below is an agent proposal. Values marked
+> **[UNRATIFIED]** are not enforced by R4. See OPEN-DECISIONS.md D-A.
+>
+> The `packages: write` top-level blocks below also contradict FR-001, which permits only
+> `contents: read` or `{}` at the top level. R2 now flags them. See OPEN-DECISIONS.md D-E.
+
 ---
 
 ## The headline finding
@@ -74,8 +82,8 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `common-base` | `contents: read`, `packages: write` | 30 | Currently unbounded. |
-| `game-images` | `contents: read`, `packages: write` | 60 | Currently unbounded. **Exception** — SteamCMD downloads dominate. |
+| `common-base` | `contents: read`, `packages: write` | 30 **[UNRATIFIED]** | Currently unbounded. |
+| `game-images` | `contents: read`, `packages: write` | 60 **[UNRATIFIED]** | Currently unbounded. Nobody timed this; 60 is a guess at SteamCMD download cost. |
 
 Also: this workflow triggers on `push`, `pull_request`, and `workflow_dispatch` but has no
 `concurrency` block. R5 requires one. Recommended:
@@ -100,7 +108,7 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `images` | `contents: read`, `packages: write`, `id-token: write` | 45 | Currently unbounded. **Exception** — multi-arch buildx + cosign across 8 images. Add `id-token: write` only if keyless signing is in use; this repo signs keyed/offline with `COSIGN_PRIVATE_KEY`, so **omit it** unless verified otherwise during implementation. |
+| `images` | `contents: read`, `packages: write`, `id-token: write` | 45 **[UNRATIFIED]** | Currently unbounded; 45 is a guess at multi-arch buildx + cosign across 8 images. Add `id-token: write` only if keyless signing is in use; this repo signs keyed/offline with `COSIGN_PRIVATE_KEY`, so **omit it** unless verified otherwise during implementation. |
 
 Concurrency block already present and correct (`group: publish-edge`).
 
@@ -116,10 +124,10 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `images` | `contents: read`, `packages: write` | 45 | Currently unbounded. **Exception** — as publish-edge. |
-| `chart` | `contents: read`, `packages: write` | 20 | Currently unbounded. |
-| `github-release` | `contents: write` | 15 | **Only** job needing `contents: write` — it creates the GitHub Release. Currently unbounded. |
-| `modules` | `contents: read`, `packages: write` | 30 | Currently unbounded. |
+| `images` | `contents: read`, `packages: write` | 45 **[UNRATIFIED]** | Currently unbounded; guess, as publish-edge. |
+| `chart` | `contents: read`, `packages: write` | 20 **[UNRATIFIED]** | Currently unbounded. |
+| `github-release` | `contents: write` | 15 **[UNRATIFIED]** | **Only** job needing `contents: write` — it creates the GitHub Release. Currently unbounded. |
+| `modules` | `contents: read`, `packages: write` | 30 **[UNRATIFIED]** | Currently unbounded. |
 
 This is the second-biggest privilege reduction in the feature: `contents: write` is
 currently granted to all four release jobs, including the three that only read the tree and
@@ -140,7 +148,7 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `modules` | `contents: read`, `packages: write` | 30 | Currently unbounded. |
+| `modules` | `contents: read`, `packages: write` | 30 **[UNRATIFIED]** | Currently unbounded. |
 
 `workflow_dispatch` only — R5 exempt.
 

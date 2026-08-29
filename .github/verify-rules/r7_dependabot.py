@@ -34,9 +34,13 @@ MANIFEST = {
     "docker": "Dockerfile",
 }
 
+# FR-021 names this prefix explicitly ("chore(deps): "), so it is enforced.
 EXPECTED_PREFIX = "chore(deps)"
 
-LIMITS = {"gomod": 3, "npm": 10, "docker": 5, "github-actions": 5}
+# No per-ecosystem limit ceiling is enforced. FR-021 requires that a limit be
+# declared; it does not say what it should be, and the Edge Cases section says
+# "e.g., max 5-10". An earlier revision enforced gomod=3 -- a number nobody
+# approved, and one below the spec's own floor. See OPEN-DECISIONS.md D-B.
 
 
 def _entries(ctx: Ctx, ecosystem: str) -> list[dict]:
@@ -173,20 +177,6 @@ def check(ctx: Ctx) -> list[Violation]:
                     "`open-pull-requests-limit`",
                 )
             )
-        else:
-            limit = entry["open-pull-requests-limit"]
-            ceiling = LIMITS.get(ecosystem)
-            if ceiling is not None and isinstance(limit, int) and limit > ceiling:
-                violations.append(
-                    Violation(
-                        path,
-                        line,
-                        RULE_ID,
-                        f"{ecosystem} {entry.get('directory')}: "
-                        f"open-pull-requests-limit {limit} exceeds the agreed {ceiling}",
-                    )
-                )
-
         commit = entry.get("commit-message")
         prefix = commit.get("prefix") if isinstance(commit, dict) else None
         if prefix != EXPECTED_PREFIX:

@@ -5,6 +5,11 @@
 Behavioral contract for `.github/workflows/ai-review.yaml`. Satisfies FR-022…FR-025 and
 SC-006. Design rationale in research.md D-05 and D-06.
 
+> ⚠️ The trust split, the `pull_request_target` ban and the re-validation requirement follow
+> from FR-023/FR-025. The specific caps (200 KB diff, 200-char title, 4000-char body) and the
+> `<!-- gameplane-ai-review -->` marker string are agent-chosen defaults, not requirements.
+> See OPEN-DECISIONS.md D-G.
+
 ---
 
 ## Trust model

@@ -8,9 +8,11 @@ description: "Task list for 008-hardened-github-actions"
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md)
 
-**Tests**: This feature has no Go/TS test suite. Its executable proof is the
-`.github/workflows-verify.sh` gate, which Constitution Principle I requires be **proven to
-fail before it is trusted**. The verifier rules are therefore written in Phase 2 and each
+**Tests**: This feature has no Go/TS test suite. The plan proposed `.github/workflows-verify.sh`
+as its executable proof — but that verifier is an agent invention `spec.md` never asked for,
+and Principle I's status is unresolved pending a maintainer ruling (OPEN-DECISIONS.md D-F).
+The falsification discipline below is applied because it is good practice, not because the
+constitution demands it of a config gate. The verifier rules are therefore written in Phase 2 and each
 user story's rules land **before** the config they check — the rule fails first, the fix
 makes it pass. That ordering is deliberate, not incidental; do not reorder it.
 
@@ -76,9 +78,9 @@ by any task in this file. Two new trees:
 > One task per file so all of these run in parallel. Each applies **all** of US1's changes to its file: SHA pins, top-level permissions, per-job permissions, timeouts, concurrency.
 
 - [ ] T010 [US1] Harden `.github/workflows/ci.yaml` — pin all 10 external actions; **drop `statuses: write` from the top-level `permissions`** (leaving `contents: read`) and add it to the `web` job only; add an explicit `permissions` block to all 17 jobs currently lacking one; verify `changes` and `report` are not broader than needed; confirm all `e2e-go` matrix `job_timeout` values are ≤ 30; add the inline justification comment on `e2e-game-bot`'s 50. **Not [P]** — every other ci.yaml task depends on this landing first.
-- [ ] T011 [P] [US1] Harden `.github/workflows/images.yaml` — pin 7 actions; add `permissions` to `common-base` and `game-images`; add `timeout-minutes` 30 and 60 (both currently unbounded), with a justification comment on the 60; add the `concurrency` block from [contracts/permissions-matrix.md](./contracts/permissions-matrix.md) (`cancel-in-progress` for PRs only, never for a master publish).
-- [ ] T012 [P] [US1] Harden `.github/workflows/publish-edge.yaml` — pin 8 actions; add `permissions` to `images`; add `timeout-minutes: 45` with justification. Confirm whether keyless signing is in use before adding `id-token: write` — this repo signs keyed/offline, so **omit it** unless verified otherwise.
-- [ ] T013 [P] [US1] Harden `.github/workflows/release.yaml` — pin 9 actions; **narrow top-level `contents: write` to `contents: read`** and grant `contents: write` to the `github-release` job only (the other three jobs merely read the tree and push to a registry); add `permissions` and `timeout-minutes` to all four jobs (45/20/15/30, all currently unbounded).
+- [ ] T011 [P] [US1] Harden `.github/workflows/images.yaml` — pin 7 actions; add `permissions` to `common-base` and `game-images`; add `timeout-minutes` (both currently unbounded) — **30/60 are unmeasured guesses, OPEN-DECISIONS.md D-A**; add the `concurrency` block from [contracts/permissions-matrix.md](./contracts/permissions-matrix.md) (`cancel-in-progress` for PRs only, never for a master publish).
+- [ ] T012 [P] [US1] Harden `.github/workflows/publish-edge.yaml` — pin 8 actions; add `permissions` to `images`; add a `timeout-minutes` — **45 is an unmeasured guess, OPEN-DECISIONS.md D-A**. Confirm whether keyless signing is in use before adding `id-token: write` — this repo signs keyed/offline, so **omit it** unless verified otherwise.
+- [ ] T013 [P] [US1] Harden `.github/workflows/release.yaml` — pin 9 actions; **narrow top-level `contents: write` to `contents: read`** and grant `contents: write` to the `github-release` job only (the other three jobs merely read the tree and push to a registry); add `permissions` and `timeout-minutes` to all four jobs (all currently unbounded) — **45/20/15/30 are unmeasured guesses, OPEN-DECISIONS.md D-A**.
 - [ ] T014 [P] [US1] Harden `.github/workflows/republish-modules.yaml` — pin 4 actions; add `permissions` and `timeout-minutes: 30` to `modules`.
 - [ ] T015 [P] [US1] Pin the 3 actions in `.github/actions/build-e2e-images/action.yml` (setup-buildx, bake-action, upload-artifact).
 - [ ] T016 [P] [US1] Pin `actions/download-artifact` in `.github/actions/e2e-images/action.yml`.
@@ -126,8 +128,8 @@ by any task in this file. Two new trees:
 
 - [X] T027 [P] [US3] Implement R7 (Dependabot parity) in `.github/verify-rules/r7_dependabot.py` — gomod directories must equal the `go.work` module list exactly; docker directories must equal `find . -name Dockerfile -not -path './website/*'` exactly; every entry must declare `groups` (≥ 1), `open-pull-requests-limit`, and `commit-message.prefix: chore(deps)`; **no entry may name a directory lacking its ecosystem's manifest** — the exact failure that silently disabled Go and Docker updates.
 - [ ] T028 [US3] Rewrite `.github/dependabot.yml` to the 28-entry matrix in [contracts/dependabot-matrix.md](./contracts/dependabot-matrix.md): 14 `gomod` + 1 `npm` + 12 `docker` + 1 `github-actions`. Drop the dead `gomod: /` and `docker: /` entries. Apply the FR-019 corrections from research.md D-08 — remove `/` and `/tunnel` (no Dockerfile), add `/test/e2e` and `/web` (they have one).
-- [ ] T029 [US3] Add the group definitions to `.github/dependabot.yml` — per Go module, the `k8s` group (`k8s.io/*`, `sigs.k8s.io/*`) declared **before** the `<module>-minor-patch` catch-all, since Dependabot matches groups in declaration order and a catch-all listed first swallows everything. The k8s carve-out is not optional: those libraries are version-locked and a PR bumping one alone does not compile. Modules with no k8s dependency (`netguard`, `gameaction`, `gameproto`, `svcutil`) get only the minor-patch group. Depends on T028.
-- [ ] T030 [US3] Set limits and schedules in `.github/dependabot.yml` — gomod 3 / npm 10 / docker 5 / actions 5; weekly Monday 03:00 UTC, with npm staggered to 04:00; `commit-message.prefix: "chore(deps)"` with `include: "scope"`, fixing the current `"chore: "` which yields a malformed `chore: (deps):` subject. Depends on T029.
+- [ ] T029 [US3] Add the group definitions to `.github/dependabot.yml` — **group names and shapes are unratified (OPEN-DECISIONS.md D-C).** Proposed: per Go module, the `k8s` group (`k8s.io/*`, `sigs.k8s.io/*`) declared **before** the `<module>-minor-patch` catch-all, since Dependabot matches groups in declaration order and a catch-all listed first swallows everything. The k8s carve-out is not optional: those libraries are version-locked and a PR bumping one alone does not compile. Modules with no k8s dependency (`netguard`, `gameaction`, `gameproto`, `svcutil`) get only the minor-patch group. Depends on T028.
+- [ ] T030 [US3] Set limits and schedules in `.github/dependabot.yml` — **limit values and the npm stagger are unratified (OPEN-DECISIONS.md D-B, D-D); confirm before applying.** Proposed: gomod 3 / npm 10 / docker 5 / actions 5, weekly Monday 03:00 UTC with npm at 04:00. Note gomod 3 sits below the spec's own "max 5–10". `commit-message.prefix: "chore(deps)"` with `include: "scope"`, fixing the current `"chore: "` which yields a malformed `chore: (deps):` subject. Depends on T029.
 
 **Checkpoint**: SC-003 and FR-017…FR-021 satisfied. Adding a 15th Go module now reddens CI until Dependabot is updated in the same change.
 
@@ -158,8 +160,12 @@ by any task in this file. Two new trees:
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T041 [P] Document the verifier in `docs/contributing.md` — what `.github/workflows-verify.sh verify` checks, how to run it before pushing, and how to add a rule.
-- [ ] T042 [P] Add a short "CI hardening" section to `docs/security.md` covering the SHA-pinning policy, the least-privilege permission model, secret confinement, and the AI reviewer's trust split.
+> T041 and T042 edit docs nobody asked to have edited, and both depend on the verifier
+> surviving the D-F ruling. **Blocked pending maintainer review** — see OPEN-DECISIONS.md
+> D-F and D-I.
+
+- [ ] T041 [P] **[BLOCKED — D-I]** Document the verifier in `docs/contributing.md` — what `.github/workflows-verify.sh verify` checks, how to run it before pushing, and how to add a rule.
+- [ ] T042 [P] **[BLOCKED — D-I]** Add a short "CI hardening" section to `docs/security.md` covering the SHA-pinning policy, the least-privilege permission model, secret confinement, and the AI reviewer's trust split.
 - [ ] T043 Run the full local pre-push check from quickstart.md ("Full local pre-push check") and confirm `PRE-PUSH OK`.
 - [ ] T044 Push the branch and confirm a **fully green** CI run — including every pre-existing e2e bucket. Not a formality: the hardening narrows every job's token and repins every action, and a green e2e tier is what proves nothing was quietly relying on the over-broad `statuses: write`. Per Constitution Principle VI, nothing here is validated until this run is green.
 - [ ] T045 Complete quickstart.md's Definition of Done table — all 8 evidence rows, with the scenario 5 and 7 run URLs and the scenario 6 falsification output in the PR description. Depends on T044.
