@@ -164,6 +164,9 @@ EOF
 bucket_api_mods() { cat <<'EOF'
 TestAPI_ModManifestInstallUpgrade
 TestAPI_ModUpload
+TestAPI_ModArchiveConfinement_PathTraversalRejected
+TestAPI_ModArchiveConfinement_SymlinkEscapeRejected
+TestAPI_ModArchiveConfinement_ValidArchiveExtracts
 EOF
 }
 

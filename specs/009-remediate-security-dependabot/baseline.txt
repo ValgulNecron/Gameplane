@@ -1,0 +1,50 @@
+# Baseline: 2026-08-28T20:18:30Z
+# Branch: 009-remediate-security-dependabot
+
+## CodeQL Alerts (14 open)
+
+1  go/clear-text-logging                   api/internal/kube/watch.go                        40
+2  go/clear-text-logging                   api/internal/kube/watch.go                        54
+3  go/disabled-certificate-check           agent/internal/rcon/satisfactory.go               199
+4  go/disabled-certificate-check           test/e2e/internal/satisfactory/app.go             188
+5  go/request-forgery                      agent/internal/mods/mods.go                       405
+6  go/request-forgery                      api/internal/ws/dialer.go                         281
+7  go/zipslip                              agent/internal/mods/mods.go                       508
+8  go/path-injection                       agent/internal/mods/mods.go                       389
+9  go/path-injection                       agent/internal/mods/mods.go                       391
+10 go/path-injection                       agent/internal/mods/mods.go                       446
+11 go/path-injection                       agent/internal/mods/mods.go                       486
+12 go/path-injection                       agent/internal/mods/mods.go                       490
+13 go/path-injection                       agent/internal/mods/mods.go                       594
+14 go/uncontrolled-allocation-size         api/internal/audit/audit.go                       834
+
+## Dependabot PRs (21 open)
+
+283 chore: (deps-dev): bump the npm_and_yarn group across 1 directory with 2 updates
+281 chore: (deps): bump modernc.org/sqlite from 1.55.0 to 1.57.0
+280 chore: (deps-dev): bump @types/react-dom from 19.2.3 to 19.2.4 in /web
+279 chore: (deps): bump github.com/sigstore/cosign/v2 from 2.6.4 to 2.6.5
+278 chore: (deps-dev): bump vitest from 4.1.10 to 4.1.11 in /web
+277 chore: (deps-dev): bump @vitejs/plugin-react from 6.0.4 to 6.1.0 in /web
+276 chore: (deps): bump github.com/gopacket/gopacket from 1.6.1 to 1.7.1
+275 chore: (deps-dev): bump @types/node from 26.1.2 to 26.2.0 in /web
+274 chore: (deps): bump golang.org/x/mod from 0.38.0 to 0.40.0
+273 chore: (deps): bump github.com/minio/minio-go/v7 from 7.2.1 to 7.3.0
+272 chore: (deps-dev): bump typescript from 6.0.3 to 7.0.2 in /web
+271 chore: (deps): bump k8s.io/api from 0.36.3 to 0.36.4
+270 chore: (deps): bump @tanstack/react-router from 1.170.18 to 1.170.32 in /web
+269 chore: (deps): bump golang.org/x/net from 0.57.0 to 0.58.0
+268 chore: (deps-dev): bump @eslint/js from 9.39.5 to 10.0.1 in /web
+267 chore: (deps): bump github.com/go-chi/chi/v5 from 5.3.1 to 5.3.2
+266 chore: (deps-dev): bump @playwright/test from 1.62.0 to 1.62.1 in /web
+265 chore: (deps): bump github.com/google/go-containerregistry from 0.21.7 to 0.22.0
+264 chore: (deps-dev): bump @testing-library/jest-dom from 7.0.0 to 7.0.1 in /web
+263 chore: (deps): bump github.com/sigstore/sigstore from 1.10.8 to 1.10.9
+262 chore: (deps-dev): bump @typescript-eslint/parser from 8.65.0 to 8.67.0 in /web
+
+## Token Permission Test
+
+PASS: Successfully read alert #1 via gh api /repos/ValgulNecron/Gameplane/code-scanning/alerts/1
+- No 403 error
+- No scope errors
+- security_events scope is available

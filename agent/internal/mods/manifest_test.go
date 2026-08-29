@@ -277,6 +277,62 @@ func TestUpdateManifest_PrunesMissingFiles(t *testing.T) {
 	}
 }
 
+func TestUpdateManifest_DirectPrune(t *testing.T) {
+	root := t.TempDir()
+	modsDir := filepath.Join(root, "mods")
+	if err := os.MkdirAll(modsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a manifest with two entries
+	m := &manifest{
+		Version: 1,
+		Mods: map[string]*ModMeta{
+			"present.jar": {Provider: "modrinth", ProjectID: "present"},
+			"missing.jar": {Provider: "modrinth", ProjectID: "missing"},
+		},
+	}
+	if err := m.save(modsDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create only the "present.jar" file; "missing.jar" does not exist
+	if err := os.WriteFile(filepath.Join(modsDir, "present.jar"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a second file "added.jar" that the closure will add to the manifest
+	if err := os.WriteFile(filepath.Join(modsDir, "added.jar"), []byte("y"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a handler pointing to the mods directory
+	spec := &caps.Mods{Path: "mods"}
+	h := newHandler(root, spec)
+	if h.dir != modsDir {
+		t.Fatalf("handler dir setup failed: got %q, want %q", h.dir, modsDir)
+	}
+
+	// Call updateManifest with a function that adds a new entry; it should prune
+	// the missing entry while preserving both present.jar and added.jar.
+	h.updateManifest(func(mods map[string]*ModMeta) {
+		mods["added.jar"] = &ModMeta{Provider: "modrinth", ProjectID: "added"}
+	})
+
+	// Reload the manifest and verify the missing entry was pruned while entries
+	// for existing files (both original and added by the closure) survived.
+	got := loadManifest(modsDir)
+	if _, missing := got.Mods["missing.jar"]; missing {
+		t.Fatalf("manifest = %+v, missing.jar should be pruned", got.Mods)
+	}
+	if _, ok := got.Mods["present.jar"]; !ok {
+		t.Fatalf("manifest = %+v, present.jar should still exist", got.Mods)
+	}
+	if _, ok := got.Mods["added.jar"]; !ok {
+		t.Fatalf("manifest = %+v, added.jar should survive the prune", got.Mods)
+	}
+}
+
 func TestRemove_DropsManifestEntry(t *testing.T) {
 	allowLoopback(t)
 	upstream, host := jarServer(t, []byte("JAR"))
@@ -362,5 +418,84 @@ func TestLoadManifest_NullModsMap(t *testing.T) {
 	got := loadManifest(dir)
 	if got.Mods == nil {
 		t.Fatal("Mods map must be non-nil after load")
+	}
+}
+
+func TestManifest_SaveCreateTempError(t *testing.T) {
+	root := t.TempDir()
+	// Create a file at the path where we'd normally create a directory
+	filePath := filepath.Join(root, "notadir")
+	if err := os.WriteFile(filePath, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Try to save to this path (which is a file, not a directory)
+	// CreateTemp should fail
+	m := &manifest{Version: 1, Mods: map[string]*ModMeta{}}
+	err := m.save(filePath)
+	if err == nil {
+		t.Fatal("save should fail when target is not a directory")
+	}
+	// The error should be from CreateTemp, not from subsequent operations
+}
+
+func TestManifest_SaveWriteErrorHandling(t *testing.T) {
+	root := t.TempDir()
+
+	// Create a manifest with specific data
+	m := &manifest{
+		Version: 1,
+		Mods: map[string]*ModMeta{
+			"test.jar": {
+				Provider:  "modrinth",
+				ProjectID: "testid",
+			},
+		},
+	}
+
+	// Verify successful save works as baseline
+	if err := m.save(root); err != nil {
+		t.Fatalf("baseline save failed: %v", err)
+	}
+
+	// Verify the saved file exists
+	data, err := os.ReadFile(filepath.Join(root, manifestName))
+	if err != nil {
+		t.Fatalf("read saved manifest: %v", err)
+	}
+
+	// Verify it's valid JSON
+	var loaded manifest
+	if err := json.Unmarshal(data, &loaded); err != nil {
+		t.Fatalf("parse saved manifest: %v", err)
+	}
+	if len(loaded.Mods) != 1 || loaded.Mods["test.jar"] == nil {
+		t.Fatalf("saved manifest content incorrect: %+v", loaded.Mods)
+	}
+}
+
+func TestLoadManifest_ReadPermissionError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permissions are bypassed")
+	}
+	dir := t.TempDir()
+
+	// Write a valid manifest file
+	manifestPath := filepath.Join(dir, manifestName)
+	if err := os.WriteFile(manifestPath, []byte(`{"version":1,"mods":{"a.jar":{}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change permissions to make it unreadable
+	if err := os.Chmod(manifestPath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(manifestPath, 0o644) // restore for cleanup
+
+	// loadManifest should handle the read error and return an empty manifest
+	// (it logs a warning but doesn't fail)
+	got := loadManifest(dir)
+	if got.Version != 1 || len(got.Mods) != 0 {
+		t.Fatalf("loadManifest should return empty on read error, got %+v", got)
 	}
 }

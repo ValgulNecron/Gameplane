@@ -378,11 +378,17 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 // removeEntry deletes an installed mod by name — the whole folder for
 // extract loaders, a single file otherwise.
 func (h *handler) removeEntry(name string) error {
-	dirClean := filepath.Clean(h.dir)
-	target := filepath.Join(dirClean, name)
+	// Use ConfinePath to validate and resolve the target within h.dir.
+	// ConfinePath consolidates validation and symlink resolution in one function,
+	// making the guard legible to CodeQL taint analysis.
+	target, err := ConfinePath(h.dir, name)
+	if err != nil {
+		return fmt.Errorf("path escape attempt: %w", err)
+	}
+	// Re-check inline so the guard is visible at the point of use.
+	rootClean := filepath.Clean(h.dir)
 	target = filepath.Clean(target)
-	// Ensure target stays within h.dir (name is pre-validated by safeName).
-	if target != dirClean && !strings.HasPrefix(target, dirClean+string(os.PathSeparator)) {
+	if target != rootClean && !strings.HasPrefix(target, rootClean+string(os.PathSeparator)) {
 		return errors.New("path escape attempt")
 	}
 	if h.extract {
@@ -391,14 +397,34 @@ func (h *handler) removeEntry(name string) error {
 	return os.Remove(target)
 }
 
-// downloadTemp streams url into a temp file under the mods dir, enforcing
+// downloadTemp streams rawURL into a temp file under the mods dir, enforcing
 // the size cap. The caller owns the returned path (rename it into place or
 // unpack it), and must remove it.
-func (h *handler) downloadTemp(ctx context.Context, url string) (string, int64, error) {
+func (h *handler) downloadTemp(ctx context.Context, rawURL string) (string, int64, error) {
 	if err := os.MkdirAll(h.dir, 0o750); err != nil {
 		return "", 0, fmt.Errorf("mkdir mods: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// Validate the URL scheme and host in this function, on the parsed URL
+	// that is actually used, even though the caller has already checked.
+	// This makes the SSRF guard explicit to CodeQL's taint analysis.
+	// The caller-side checks (install() validates scheme and hostAllowed)
+	// remain in place for defense-in-depth.
+	u, err := url.Parse(rawURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		if err != nil {
+			return "", 0, fmt.Errorf("parse url: %w", err)
+		}
+		return "", 0, errors.New("invalid url scheme or host")
+	}
+	if !hostAllowed(u.Hostname(), h.allowed) {
+		return "", 0, errHostNotAllowed
+	}
+	// Build the request from the validated *url.URL rather than from rawURL,
+	// so the value that reaches the client is the one the checks above ran
+	// against. http.NewRequestWithContext would re-parse rawURL to the same
+	// URL, so this is behaviourally identical; it exists so the sanitized
+	// value is what flows into the request.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return "", 0, err
 	}
@@ -443,7 +469,15 @@ func (h *handler) download(ctx context.Context, url, name string) (int64, error)
 	if err != nil {
 		return 0, err
 	}
-	if err := os.Rename(tmpName, filepath.Join(h.dir, name)); err != nil {
+	// Use ConfinePath to validate and resolve the destination within h.dir.
+	// ConfinePath consolidates validation and symlink resolution in one function,
+	// making the guard legible to CodeQL taint analysis.
+	finalPath, err := ConfinePath(h.dir, name)
+	if err != nil {
+		_ = os.Remove(tmpName)
+		return 0, err
+	}
+	if err := os.Rename(tmpName, finalPath); err != nil {
 		_ = os.Remove(tmpName)
 		return 0, err
 	}
@@ -475,11 +509,18 @@ func (h *handler) swapInArchive(tmpZip, folder string, maxBytes int64) error {
 		_ = os.RemoveAll(staging)
 		return err
 	}
-	dirClean := filepath.Clean(h.dir)
-	final := filepath.Join(dirClean, folder)
+	// Use ConfinePath to validate and resolve the final path within h.dir.
+	// ConfinePath consolidates validation and symlink resolution in one function,
+	// making the guard legible to CodeQL taint analysis.
+	final, err := ConfinePath(h.dir, folder)
+	if err != nil {
+		_ = os.RemoveAll(staging)
+		return fmt.Errorf("path escape attempt: %w", err)
+	}
+	// Re-check inline so the guard is visible at the point of use.
+	rootClean := filepath.Clean(h.dir)
 	final = filepath.Clean(final)
-	// Ensure final stays within h.dir (folder is pre-validated by archiveFolderName(safeName)).
-	if final != dirClean && !strings.HasPrefix(final, dirClean+string(os.PathSeparator)) {
+	if final != rootClean && !strings.HasPrefix(final, rootClean+string(os.PathSeparator)) {
 		_ = os.RemoveAll(staging)
 		return errors.New("path escape attempt")
 	}
@@ -506,10 +547,18 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 	dstClean := filepath.Clean(dst)
 	var total int64
 	for _, f := range zr.File {
-		target := filepath.Join(dstClean, filepath.Clean(f.Name))
-		// Reject entries that resolve outside the staging dir (zip-slip).
+		// Validate the archive entry in a single gate: use ConfineRelPath to validate and
+		// resolve the entry name within the destination directory. Any entry that escapes
+		// the destination returns an error immediately rather than being silently skipped.
+		// ConfineRelPath handles multi-segment paths and dotfiles that legitimate archives contain.
+		target, confineErr := ConfineRelPath(dstClean, f.Name)
+		if confineErr != nil {
+			return fmt.Errorf("zip-slip: %w", confineErr)
+		}
+		// Re-check inline so the guard is visible at the point of use.
+		target = filepath.Clean(target)
 		if target != dstClean && !strings.HasPrefix(target, dstClean+string(os.PathSeparator)) {
-			continue
+			return fmt.Errorf("zip-slip: %w", ErrEscapesRoot)
 		}
 		if f.FileInfo().IsDir() {
 			if err := os.MkdirAll(target, 0o750); err != nil {
@@ -524,13 +573,7 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 		if err != nil {
 			return err
 		}
-		targetClean := filepath.Clean(target)
-		// Re-validate target after cleaning to ensure it stays within dst.
-		if targetClean != dstClean && !strings.HasPrefix(targetClean, dstClean+string(os.PathSeparator)) {
-			_ = rc.Close()
-			return errors.New("zip-slip attempt")
-		}
-		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, moduleFileMode)
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, moduleFileMode)
 		if err != nil {
 			_ = rc.Close()
 			return err
@@ -588,9 +631,21 @@ func (h *handler) remove(w http.ResponseWriter, req *http.Request) {
 		httpjson.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	dirClean := filepath.Clean(h.dir)
-	target := filepath.Join(dirClean, name)
+	// Use ConfinePath to validate and resolve the target within h.dir.
+	// ConfinePath consolidates validation and symlink resolution in one function,
+	// making the guard legible to CodeQL taint analysis.
+	target, err := ConfinePath(h.dir, name)
+	if err != nil {
+		httpjson.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// Re-check inline so the guard is visible at the point of use.
+	rootClean := filepath.Clean(h.dir)
 	target = filepath.Clean(target)
+	if target != rootClean && !strings.HasPrefix(target, rootClean+string(os.PathSeparator)) {
+		httpjson.Error(w, http.StatusBadRequest, "path escape attempt")
+		return
+	}
 	if _, statErr := os.Stat(target); errors.Is(statErr, os.ErrNotExist) {
 		httpjson.Error(w, http.StatusNotFound, "no such mod")
 		return
