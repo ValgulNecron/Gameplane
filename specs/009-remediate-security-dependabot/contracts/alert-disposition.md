@@ -825,3 +825,73 @@ which returns 0 matches (SC-005).
 **Sequencing note**: CodeQL only re-analyses the default branch, so alerts #1–#14 cannot
 reach `fixed` until #285 merges. The re-query (T045) and the dismissals (T047) therefore run
 strictly after the merge (T062), never before.
+
+---
+
+## FINAL STATE — recorded 2026-08-29 after PR #285 merged to master (T053)
+
+Master at `e1a9d2c`. CodeQL re-analysed the default branch; the result is
+**0 open alerts — 7 fixed, 12 dismissed.** SC-001 is met.
+
+### Two corrections this file needs
+
+**1. `dismissed_comment` is capped at 280 characters.** Every justification drafted above is
+500–755 characters, so *none* of them could be submitted as written — the API rejects them
+with HTTP 422 (`Only 280 characters are allowed`). The comments actually submitted are the
+condensed forms below. The long-form text above remains the durable rationale; this file, not
+the GitHub comment field, is the record of record.
+
+**2. The remediation renumbered the alerts.** Refactoring moved the flagged code, so CodeQL
+closed the originals as `fixed` and opened *new alert numbers* at the new lines rather than
+tracking them. The "4 alerts" the PR check reported was only the subset introduced by that
+PR's own diff; master carried **11** open once analysis completed. Any future re-triage must
+query master, not the PR check.
+
+### Alert-by-alert outcome
+
+| # | Rule | Location | Outcome |
+|---|---|---|---|
+| 1 | go/clear-text-logging | api/internal/kube/watch.go:40 | **fixed** |
+| 2 | go/clear-text-logging | api/internal/kube/watch.go:54 | **fixed** |
+| 3 | go/disabled-certificate-check | agent/internal/rcon/satisfactory.go:199 | dismissed 2026-08-29 (earlier) |
+| 4 | go/disabled-certificate-check | test/e2e/internal/satisfactory/app.go:218 | dismissed 2026-08-29 |
+| 5 | go/request-forgery | agent/internal/mods/mods.go:431 | dismissed 2026-08-29 |
+| 6 | go/request-forgery | api/internal/ws/dialer.go:297 | dismissed 2026-08-29 |
+| 7 | go/zipslip | agent/internal/mods/mods.go:508 | **fixed** (reopened as #16) |
+| 8 | go/path-injection | agent/internal/mods/mods.go:389 | **fixed** (reopened as #19) |
+| 9 | go/path-injection | agent/internal/mods/mods.go:391 | **fixed** (reopened as #20) |
+| 10 | go/path-injection | agent/internal/mods/mods.go:446 | **fixed** (reopened as #17) |
+| 11 | go/path-injection | agent/internal/mods/mods.go:527 | dismissed 2026-08-29 |
+| 12 | go/path-injection | agent/internal/mods/mods.go:531 | dismissed 2026-08-29 |
+| 13 | go/path-injection | agent/internal/mods/mods.go:649 | dismissed 2026-08-29 |
+| 14 | go/uncontrolled-allocation-size | api/internal/audit/audit.go:834 | **fixed** (reopened as #18) |
+| 16 | go/zipslip | agent/internal/mods/mods.go:549 | dismissed 2026-08-29 |
+| 17 | go/path-injection | agent/internal/mods/mods.go:480 | dismissed 2026-08-29 |
+| 18 | go/uncontrolled-allocation-size | api/internal/audit/audit.go:844 | dismissed 2026-08-29 |
+| 19 | go/path-injection | agent/internal/mods/mods.go:395 | dismissed 2026-08-29 |
+| 20 | go/path-injection | agent/internal/mods/mods.go:397 | dismissed 2026-08-29 |
+
+Alert #15 does not exist in the repository's alert sequence.
+
+Note the pattern in #7/#8/#9/#10/#14: each shows `fixed` **only because its code moved**, with
+the identical finding reopening at the new line. Reading those five as genuine fixes would
+overstate the remediation. The seven true fixes are #1, #2 (logging) plus those five
+relocations' predecessors; the substantive wins are the clear-text-logging pair, which CodeQL
+now agrees are clean.
+
+### Comments as actually submitted (each verified <= 280 chars, guards re-verified against
+### master before submission — the line numbers in the long-form drafts above had gone stale)
+
+- **#4** — Loopback-only gate rejects non-loopback hosts before the TLS config is built (app.go:198-199). Self-signed cert, pod-local, e2e harness only. Same disposition as #3.
+- **#5** — Scheme+host validated on the parsed URL (mods.go:412-422); request built from it (:428). netguard.IsPublic runs on the RESOLVED IP at dial time (:806, :812-823), defeating DNS rebinding. Redirects re-check the allowlist (:814-821).
+- **#6** — URL built via url.URL with hardcoded https scheme and host from agentHost() (dialer.go:274-281); namespace and pod name validated as DNS-1123 labels.
+- **#11 / #12** — swapInArchive resolves via ConfinePath (mods.go:515-518), re-checks Clean + HasPrefix against the cleaned root (:520-526) before the RemoveAll/Rename.
+- **#13** — Handler resolves via ConfinePath, re-checks Clean + HasPrefix, returns HTTP 400 before the os.Stat (mods.go:642-648); name pre-validated by safeName at :629.
+- **#16** — unzipInto gates every entry through ConfineRelPath (mods.go:554-557) and re-checks Clean + HasPrefix (:559-562) before any write.
+- **#17** — download resolves with ConfinePath(h.dir, name) (mods.go:475) before the rename (:480).
+- **#18** — limit clamped to DefaultAuditPageSize (100) when <=0 or >MaxAuditPageSize (500) at audit.go:828-831; allocation at :844 uses the clamped value.
+- **#19 / #20** — removeEntry resolves via ConfinePath (mods.go:384-387), re-checks Clean + HasPrefix (:389-394) before the RemoveAll/Remove.
+
+**Principle III holds**: no in-source suppression was added. Verified on master —
+`git diff` over `*.go`/`*.ts`/`*.tsx` for this feature returns 0 matches for
+`//nolint`, `// eslint-disable` and `// @ts-ignore` (SC-005).
