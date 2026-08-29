@@ -516,3 +516,247 @@ gh api -X PATCH /repos/ValgulNecron/Gameplane/code-scanning/alerts/14 \
 | 14 | uncontrolled-alloc | api/audit/audit.go:834 | False Positive | Refactor first, Dismiss contingent |
 
 **Total**: 1 planned dismissal (alert #3, verified unclearable), 2 expected dismissals (alerts #5–#6, post-refactor), 9 contingent dismissals (alerts #1–#2, #7–#14, refactor-first policy), 1 real fix (alert #4). **Latent gap:** `agent/internal/rcon/websocket.go` (~line 292, `ensureLocked`) dials `ws://<baseURL>/<escapedPw>` with no netguard policy; flagged as defence-in-depth rather than an active vulnerability.
+
+---
+
+## Re-triage: 4 new alerts on PR #285 (2026-08-29)
+
+**Summary**: The Phase A refactoring strategy — consolidating path validation into single-exit ConfinePath/ConfineRelPath helpers and attempting to make SSRF guards "explicit to CodeQL's taint analysis" — has NOT cleared alerts #5, #7, #10, and #14. Instead, code changes have caused line-number shifts, and CodeQL now reports four RELOCATED instances of the same vulnerabilities at new line numbers. One is a REAL BUG; three are FALSE POSITIVES with fixable root causes.
+
+### New Alert 1: mods.go:426 (go/request-forgery) — RELOCATED from #5, ROOT CAUSE FOUND
+
+**CodeQL Report**:
+```
+Title: "Uncontrolled data used in network request"
+Message: "The [URL](1) of this request depends on a [user-provided value](2)."
+Location: agent/internal/mods/mods.go:426 (h.client.Do(req))
+```
+
+**Enclosing Function**: `downloadTemp` (lines 403–459), same as original alert #5.
+
+**Runtime Guard**:
+```go
+u, err := url.Parse(rawURL)                           // Line 412
+if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+  if err != nil {
+    return "", 0, fmt.Errorf("parse url: %w", err)
+  }
+  return "", 0, errors.New("invalid url scheme or host")
+}
+if !hostAllowed(u.Hostname(), h.allowed) {           // Line 419
+  return "", 0, errHostNotAllowed
+}
+req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)  // Line 422
+resp, err := h.client.Do(req)                        // Line 426
+```
+
+**Verdict**: REAL BUG — Taint is not cleared.
+
+**Why the Code is NOT Safe**: The guard validates the URL through parsing and hostname checking, but continues to use the ORIGINAL `rawURL` parameter in `http.NewRequestWithContext(line 422). While `url.Parse` confirms the scheme is http/https and the host passes `hostAllowed`, CodeQL's taint analysis tracks the parameter `rawURL` as tainted and does not recognize that validation on a *parsed* version (`u`) clears the taint on the *original string*. The code validates the URL but does not produce or use a "sanitized" return value. For CodeQL to recognize the guard, the code must reconstruct a URL string from the validated parsed version:
+
+```go
+// Guard must return/use a taint-cleared string, not validate-in-place
+u, err := url.Parse(rawURL)
+if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+  return "", 0, errors.New("invalid url")
+}
+if !hostAllowed(u.Hostname(), h.allowed) {
+  return "", 0, errHostNotAllowed
+}
+sanitizedURL := u.String()  // <-- Reconstruct from validated parsed version
+req, err := http.NewRequestWithContext(ctx, http.MethodGet, sanitizedURL, nil)
+```
+
+**Recommended Disposition**: RESTRUCTURE
+
+**Concrete Restructure Plan**:
+Replace line 422 with a sanitized URL constructed from the validated parsed version. Extract `u.String()` and use it as the request URL instead of continuing to use the original `rawURL` parameter. This makes CodeQL's taint tracking visible: the new string comes from the validated parsed object `u`, not from the untrusted parameter.
+
+---
+
+### New Alert 2: mods.go:475 (go/path-injection) — RELOCATED from #10
+
+**CodeQL Report**:
+```
+Title: "Uncontrolled data used in path expression"
+Message: "This path depends on a [user-provided value](1)."
+Location: agent/internal/mods/mods.go:475 (os.Rename(tmpName, finalPath))
+```
+
+**Enclosing Function**: `download` (lines 462–480), same as original alert #10.
+
+**Runtime Guard**:
+```go
+finalPath, err := ConfinePath(h.dir, name)  // Line 470
+if err != nil {
+  _ = os.Remove(tmpName)
+  return 0, err
+}
+if err := os.Rename(tmpName, finalPath); err != nil {  // Line 475 — uses confined finalPath
+```
+
+**Verdict**: FALSE POSITIVE — Guard result IS used.
+
+**Why the Code IS Safe**: `ConfinePath` validates the untrusted `name` parameter and returns a confined absolute path (`finalPath`) or an error. Line 475 uses the *returned* `finalPath` from the guard, not the original tainted `name`. The guard result is the operand to `os.Rename`. However, CodeQL may not recognize `ConfinePath` as a sufficient guard because it is not a built-in function and its implementation is not obvious to CodeQL's taint-analysis rules without deep inter-procedural analysis.
+
+**Recommended Disposition**: DISMISS
+
+**Dismissal Justification**:
+```
+download() uses ConfinePath(h.dir, name) at line 470 to validate and 
+resolve the destination path. ConfinePath (agent/internal/mods/confinement.go) 
+validates that the component does not contain path traversal (../ or /), 
+separators, or control characters, and returns a cleaned absolute path 
+confined within the sandbox root or an error. Line 475 uses the returned 
+`finalPath` (the guard result) directly in os.Rename, not the original 
+tainted `name` parameter. The code is safe; the issue is CodeQL's lack of 
+inter-procedural visibility into ConfinePath's confinement guarantee.
+```
+
+---
+
+### New Alert 3: mods.go:544–589 (go/zipslip) — RELOCATED from #7
+
+**CodeQL Report**:
+```
+Title: "Arbitrary file access during archive extraction (\"Zip Slip\")"
+Message: "Unsanitized archive entry, which may contain '..', is used in 
+a [file system operation](1–3)."
+Location: agent/internal/mods/mods.go:544–589 (unzipInto loop)
+```
+
+**Enclosing Function**: `unzipInto` (lines 535–591), same as original alert #7.
+
+**Runtime Guard**:
+```go
+for _, f := range zr.File {                           // Line 544
+  target, confineErr := ConfineRelPath(dstClean, f.Name)  // Line 549
+  if confineErr != nil {
+    return fmt.Errorf("zip-slip: %w", confineErr)    // Line 551
+  }
+  // Re-check inline so the guard is visible at the point of use.
+  target = filepath.Clean(target)                    // Line 554 — re-cleans
+  if target != dstClean && !strings.HasPrefix(target, dstClean+string(os.PathSeparator)) {
+    return fmt.Errorf("zip-slip: %w", ErrEscapesRoot)  // Line 556
+  }
+  if f.FileInfo().IsDir() {
+    if err := os.MkdirAll(target, 0o750); err != nil {  // Line 559 — uses confined target
+  } else {
+    out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, moduleFileMode)  // Line 571
+```
+
+**Verdict**: FALSE POSITIVE — Guard result IS used, but inline re-cleaning may confuse analysis.
+
+**Why the Code IS Safe**: `ConfineRelPath` (lines 158–250 of confinement.go) validates the untrusted archive entry name against multi-segment path rules, resolves symlinks, and returns a confined absolute path or an error. Line 549 uses the guard result. Lines 554–557 re-check the confined path with `filepath.Clean` and a HasPrefix guard; this is redundant but safe (Clean normalizes paths without un-confining them). Lines 559 and 571 use the confined `target`, not the original tainted `f.Name`. The issue is likely that CodeQL does not recognize `ConfineRelPath` as a taint-clearing guard, combined with confusion from the re-application of `filepath.Clean` at line 554.
+
+**Recommended Disposition**: RESTRUCTURE or DISMISS
+
+**Concrete Restructure Plan** (Simpler Fix):
+Remove the redundant re-check at lines 554–557. The guard at line 549 already validates and confines the path with explicit error handling. The re-check was added for "visibility at the point of use" but may actually confuse CodeQL by reintroducing analysis uncertainty on the already-confined path:
+
+```go
+target, confineErr := ConfineRelPath(dstClean, f.Name)
+if confineErr != nil {
+  return fmt.Errorf("zip-slip: %w", confineErr)
+}
+// No re-check needed; ConfineRelPath returns a confined path or errors
+if f.FileInfo().IsDir() {
+  if err := os.MkdirAll(target, 0o750); err != nil {
+```
+
+**Alternative Dismissal Justification** (if restructure is not done):
+```
+unzipInto uses ConfineRelPath(dstClean, f.Name) at line 549 to validate 
+and confine each archive entry. ConfineRelPath validates multi-segment 
+paths, rejects traversal (..) and absolute paths, resolves symlinks, and 
+returns a confined absolute path or an error (lines 158–250, 
+confinement.go). Lines 559–589 use the returned `target` in mkdir/stat/open 
+operations. The re-check at lines 554–557 is redundant but not incorrect. 
+Archive extraction is guarded; CodeQL's issue is lack of inter-procedural 
+visibility into ConfineRelPath.
+```
+
+---
+
+### New Alert 4: audit.go:844 (go/uncontrolled-allocation-size) — RELOCATED from #14
+
+**CodeQL Report**:
+```
+Title: "Slice memory allocation with excessive size value"
+Message: "This memory allocation depends on a [user-provided value](1)."
+Location: api/internal/audit/audit.go:844 (out := make([]Event, 0, pageSize))
+```
+
+**Enclosing Function**: `(*Auditor).Page` (lines 827–853), same as original alert #14.
+
+**Runtime Guard**:
+```go
+func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, error) {
+  // Clamp the limit into a new variable so taint analysis recognizes it as bounded.
+  pageSize := limit                                    // Line 829
+  if pageSize <= 0 || pageSize > MaxAuditPageSize {   // Line 830
+    pageSize = DefaultAuditPageSize                    // Line 831
+  }
+  // ... query at lines 833–839 ...
+  out := make([]Event, 0, pageSize)                   // Line 844 — uses clamped pageSize
+```
+
+**Verdict**: FALSE POSITIVE — Allocation is bounded.
+
+**Why the Code IS Safe**: `pageSize` is copied from the untrusted input `limit` at line 829 and then immediately clamped at lines 830–832. Any value ≤ 0 or > MaxAuditPageSize (500) is replaced with `DefaultAuditPageSize` (100). The allocation at line 844 uses the clamped `pageSize`, ensuring the slice capacity cannot exceed 500 elements. The refactor from the original code (which reassigned the parameter `limit` directly) to creating a separate `pageSize` variable was intended to make this taint-clearing explicit to CodeQL, but CodeQL may still treat the allocation as depending on the untrusted parameter if it does not recognize the intermediate variable assignment as a taint barrier.
+
+**Recommended Disposition**: RESTRUCTURE (lightweight) or DISMISS
+
+**Concrete Restructure Plan** (Micro-Optimization for CodeQL Clarity):
+Introduce an explicit constant name and reduce the clamping logic to a single assignment:
+
+```go
+const AuditPageSizeLimit = 500
+const AuditPageSizeDefault = 100
+
+// Taint is cleared by the ternary; if-clamping may confuse analysis
+func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, error) {
+  pageSize := limit
+  if pageSize <= 0 || pageSize > AuditPageSizeLimit {
+    pageSize = AuditPageSizeDefault
+  }
+  out := make([]Event, 0, pageSize)
+```
+
+This is already the current state. Alternative: Use a math.Min helper to make the operation more explicit (though this does not improve the situation).
+
+**Alternative Dismissal Justification** (if no restructure):
+```
+Auditor.Page clamps the limit at lines 830–832, assigning DefaultAuditPageSize 
+(100) to any value outside [1, MaxAuditPageSize (500)]. The allocation at 
+line 844 uses the clamped pageSize, not the untrusted parameter. The handler 
+layer (api/internal/handlers/audit.go) does not clamp, but the method 
+itself is the trust boundary and enforces the limit regardless of caller 
+input. Capacity is bounded to 500 entries maximum.
+```
+
+---
+
+## Synthesis and Recommendations
+
+**Key Finding**: The Phase A refactoring strategy has NOT cleared these four alerts. All four are **relocated instances** of the original #5, #7, #10, and #14 findings, caused by code reorganization (c3cd0f1 "refactor(agent): route mod path operations through the confinement helpers"). The root causes are:
+
+1. **Alert 1 (mods.go:426, request-forgery)**: REAL BUG. The guard validates a parsed URL but continues to use the original tainted parameter string. Requires reconstruction of the URL from the validated parsed version.
+
+2. **Alert 2 (mods.go:475, path-injection)**: FALSE POSITIVE. ConfinePath guard result IS used; CodeQL lacks inter-procedural visibility.
+
+3. **Alert 3 (mods.go:544–589, zipslip)**: FALSE POSITIVE. ConfineRelPath guard result IS used; CodeQL lacks inter-procedural visibility; optional: remove redundant re-check to improve clarity.
+
+4. **Alert 4 (audit.go:844, uncontrolled-allocation-size)**: FALSE POSITIVE. Allocation is bounded after clamping; CodeQL may not recognize the intermediate variable as a taint barrier.
+
+**Action Plan**:
+- **Alert 1**: RESTRUCTURE (required). Modify `downloadTemp` to use `u.String()` instead of `rawURL` in the HTTP request.
+- **Alerts 2 & 4**: DISMISS (false positives with clear justifications).
+- **Alert 3**: RESTRUCTURE (optional, improves clarity) to remove redundant re-check, or DISMISS.
+
+| Alert | Location | Rule | Verdict | Disposition | Severity |
+|-------|----------|------|---------|-------------|----------|
+| New 1 | mods.go:426 | request-forgery | Real bug | Restructure | Critical |
+| New 2 | mods.go:475 | path-injection | False positive | Dismiss | N/A |
+| New 3 | mods.go:544–589 | zipslip | False positive | Dismiss or restructure | N/A |
+| New 4 | audit.go:844 | uncontrolled-alloc | False positive | Dismiss | N/A |
