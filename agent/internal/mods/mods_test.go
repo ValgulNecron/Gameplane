@@ -759,10 +759,10 @@ func TestUnzipInto_AcceptsValidEntriesWithConfinePath(t *testing.T) {
 func TestUnzipInto_AcceptsDotfilesAndNestedEntries(t *testing.T) {
 	// Create an archive with dotfiles and nested paths (typical for real archives).
 	zipPath := makeZip(t, map[string]string{
-		".gitkeep":            "",              // dotfile at root
-		"config/.gitignore":   "*.tmp\n",       // dotfile in subdirectory
-		"plugins/Cool.dll":    "DLLBYTES",      // nested file
-		"src/main/.settings":  "debug=false\n", // nested dotfile
+		".gitkeep":           "",              // dotfile at root
+		"config/.gitignore":  "*.tmp\n",       // dotfile in subdirectory
+		"plugins/Cool.dll":   "DLLBYTES",      // nested file
+		"src/main/.settings": "debug=false\n", // nested dotfile
 	})
 	dst := filepath.Join(t.TempDir(), "out")
 
@@ -833,7 +833,7 @@ func TestUpload_BadArchive(t *testing.T) {
 	}
 }
 
-func TestUpload_SizeCap(t *testing.T) {
+func TestUpload_DefaultSizeCap(t *testing.T) {
 	root := t.TempDir()
 	spec := &caps.Mods{
 		Path:       "plugins",
