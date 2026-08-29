@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -497,5 +499,44 @@ func TestLoadManifest_ReadPermissionError(t *testing.T) {
 	got := loadManifest(dir)
 	if got.Version != 1 || len(got.Mods) != 0 {
 		t.Fatalf("loadManifest should return empty on read error, got %+v", got)
+	}
+}
+
+// TestUpdateManifest_SaveFailureIsLoggedNotFatal exercises updateManifest's
+// save-failure branch (the slog.Warn at manifest.go:109-111). Chmod-ing the
+// mods dir to 0o500 makes os.CreateTemp fail inside save(), so save returns
+// early without ever reaching Write/Close/Rename — that path is already
+// covered by TestManifest_SaveCreateTempError. The assertion here is that a
+// failed save leaves no manifest file behind: updateManifest must not panic
+// or otherwise treat the write failure as success. The added entry is pruned
+// before save (it has no backing file), which is fine: save runs
+// unconditionally, so the failure branch is still reached.
+func TestUpdateManifest_SaveFailureIsLoggedNotFatal(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permissions are bypassed")
+	}
+	root := t.TempDir()
+	modsDir := filepath.Join(root, "mods")
+	if err := os.MkdirAll(modsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	spec := &caps.Mods{Path: "mods"}
+	h := newHandler(root, spec)
+	if h.dir != modsDir {
+		t.Fatalf("handler dir setup failed: got %q, want %q", h.dir, modsDir)
+	}
+
+	if err := os.Chmod(modsDir, 0o500); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(modsDir, 0o755) })
+
+	h.updateManifest(func(mods map[string]*ModMeta) {
+		mods["new.jar"] = &ModMeta{Provider: "modrinth", ProjectID: "new"}
+	})
+
+	if _, err := os.Stat(filepath.Join(modsDir, manifestName)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("manifest file should not exist after a failed save, stat err=%v", err)
 	}
 }

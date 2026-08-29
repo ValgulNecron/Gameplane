@@ -253,3 +253,88 @@ func TestSleep_Elapses(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+// TestTail_DefaultFromEndSkipsExistingContent drives the default (no
+// ?from param) path through streamFile's fromEnd branch: pre-existing
+// content in the file must not be delivered, only lines appended after
+// the WS connects.
+func TestTail_DefaultFromEndSkipsExistingContent(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "latest.log")
+	if err := os.WriteFile(logPath, []byte("already-here\n"), 0o600); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	url := mountServer(t, logPath)
+	wsURL := "ws" + strings.TrimPrefix(url, "http") + "/logs/tail"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, dialResp, err := websocket.Dial(ctx, wsURL, nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close(websocket.StatusNormalClosure, "") })
+
+	// Let the server reach streamFile's Seek(0, io.SeekEnd) before we
+	// append; otherwise the seek can land past "fresh\n" and the read
+	// below blocks until the context deadline.
+	time.Sleep(100 * time.Millisecond)
+
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := f.WriteString("fresh\n"); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	_ = f.Close()
+
+	mt, b, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if mt != websocket.MessageText || string(b) != "fresh\n" {
+		t.Fatalf("got %d %q, want only the post-connect line", mt, b)
+	}
+}
+
+// TestCheckRotation_StatError exercises the os.Stat error branch (not the
+// NotExist branch, which TestCheckRotation already covers): make the
+// parent directory unsearchable so os.Stat(f.Name()) fails with EACCES
+// while the already-open file handle's own Stat still succeeds.
+func TestCheckRotation_StatError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — permissions are bypassed")
+	}
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	path := filepath.Join(sub, "f")
+	if err := os.WriteFile(path, []byte("a"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer f.Close()
+
+	if err := os.Chmod(sub, 0o000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(sub, 0o755) })
+
+	rot, err := checkRotation(f)
+	if err == nil {
+		t.Fatal("expected a stat error, got nil")
+	}
+	if rot {
+		t.Fatal("rot should be false on a stat error, not treated as a rotation")
+	}
+}
