@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
@@ -149,39 +150,28 @@ func newKeyed(ctx context.Context, pubPEM []byte, auth authn.Authenticator, inse
 // locate a cosign-initialized TUF directory.
 const tufRootEnv = "TUF_ROOT"
 
-// errUnsupportedTUFRoot is returned when TUF_ROOT is set. See fulcioPools.
-var errUnsupportedTUFRoot = errors.New("private Sigstore instances via TUF_ROOT are not supported")
+// tufRootWarning reports whether a legacy TUF_ROOT is set, and returns the warning
+// to log when it is. See fulcioPools for why it cannot be honoured.
+func tufRootWarning() (string, bool) {
+	dir := os.Getenv(tufRootEnv)
+	if dir == "" {
+		return "", false
+	}
+	return fmt.Sprintf("%s is set to %q, but a private Sigstore instance configured through it is NOT being used: "+
+		"module signature verification is proceeding against the PUBLIC-GOOD Sigstore trust root instead. "+
+		"Configure a private Fulcio explicitly on the ModuleSource CRD; this environment variable is ignored.",
+		tufRootEnv, dir), true
+}
 
-// fulcioPools loads the Fulcio root and intermediate certificate pools from the
-// Sigstore TUF trust root.
-//
-// This replaces github.com/sigstore/sigstore/pkg/fulcioroots, which sigstore
-// deprecated in v1.10.9.
-//
-// The two differ in one way that matters. The old client read TUF_ROOT, and that
-// directory carried not just a cache but the pinned root.json and a remote.json
-// naming the mirror, so setting it genuinely repointed verification at a private
-// Sigstore instance. sigstore-go offers no environment override for either the
-// trust anchor or the mirror: DefaultOptions hardcodes an embedded public-good
-// root.json and the public mirror, and reads the environment only to site its
-// cache directory. Mapping TUF_ROOT onto that CachePath would
-// therefore preserve nothing while silently building the root pool from the
-// PUBLIC-GOOD Fulcio CA — verification would then succeed against a CA the
-// deployment never configured. That is worse than not supporting the override, so
-// this fails closed instead. A private instance should be configured explicitly on
-// the ModuleSource CRD rather than through an implicit environment side-channel.
-func fulcioPools() (*x509.CertPool, *x509.CertPool, error) {
-	if dir := os.Getenv(tufRootEnv); dir != "" {
-		return nil, nil, fmt.Errorf("%w: TUF_ROOT is set to %q", errUnsupportedTUFRoot, dir)
-	}
-	tr, err := root.FetchTrustedRootWithOptions(sgtuf.DefaultOptions())
-	if err != nil {
-		return nil, nil, fmt.Errorf("fetch sigstore trusted root: %w", err)
-	}
+// poolsFromCAs turns the trusted root's Fulcio certificate authorities into the
+// root and intermediate pools cosign expects. It is separated from the TUF fetch
+// so the trust decision — which certificate lands in which pool — is unit-testable
+// without network access.
+func poolsFromCAs(cas []root.CertificateAuthority) (*x509.CertPool, *x509.CertPool, error) {
 	roots := x509.NewCertPool()
 	intermediates := x509.NewCertPool()
 	var nRoots int
-	for _, ca := range tr.FulcioCertificateAuthorities() {
+	for _, ca := range cas {
 		fca, ok := ca.(*root.FulcioCertificateAuthority)
 		if !ok {
 			continue
@@ -200,8 +190,41 @@ func fulcioPools() (*x509.CertPool, *x509.CertPool, error) {
 	return roots, intermediates, nil
 }
 
+// fulcioPools loads the Fulcio root and intermediate certificate pools from the
+// Sigstore TUF trust root.
+//
+// This replaces github.com/sigstore/sigstore/pkg/fulcioroots, which sigstore
+// deprecated in v1.10.9.
+//
+// The two differ in one way that matters. The old client read TUF_ROOT, and that
+// directory carried not just a cache but the pinned root.json and a remote.json
+// naming the mirror, so setting it genuinely repointed verification at a private
+// Sigstore instance. sigstore-go offers no environment override for either the
+// trust anchor or the mirror: DefaultOptions hardcodes an embedded public-good
+// root.json and the public mirror, and reads the environment only to site its
+// cache directory. Mapping TUF_ROOT onto that CachePath would
+// therefore preserve nothing while silently building the root pool from the
+// PUBLIC-GOOD Fulcio CA — verification would then succeed against a CA the
+// deployment never configured. Rather than fail closed, this now warns loudly and
+// proceeds against the public-good root: a deployment configured for a private
+// Fulcio via TUF_ROOT will be verifying bundle signatures against a certificate
+// authority it did not configure, which is why the warning above is emphatic
+// rather than a routine log line. A private instance should still be configured
+// explicitly on the ModuleSource CRD rather than through this environment
+// side-channel, which sigstore-go itself no longer honours.
+func fulcioPools(ctx context.Context) (*x509.CertPool, *x509.CertPool, error) {
+	if msg, warn := tufRootWarning(); warn {
+		log.FromContext(ctx).Error(nil, msg, tufRootEnv, os.Getenv(tufRootEnv))
+	}
+	tr, err := root.FetchTrustedRootWithOptions(sgtuf.DefaultOptions())
+	if err != nil {
+		return nil, nil, fmt.Errorf("fetch sigstore trusted root: %w", err)
+	}
+	return poolsFromCAs(tr.FulcioCertificateAuthorities())
+}
+
 func newKeyless(ctx context.Context, issuer, identity string, auth authn.Authenticator, insecure bool) (Verifier, error) {
-	roots, intermediates, err := fulcioPools()
+	roots, intermediates, err := fulcioPools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load fulcio roots: %w", err)
 	}
