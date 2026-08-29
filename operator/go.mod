@@ -19,7 +19,7 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sigstore/cosign/v2 v2.6.5
-	github.com/sigstore/sigstore v1.10.8 // indirect
+	github.com/sigstore/sigstore v1.10.9 // indirect
 	golang.org/x/crypto v0.55.0
 	golang.org/x/mod v0.40.0
 	k8s.io/api v0.36.4
@@ -109,7 +109,6 @@ require (
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
-	github.com/letsencrypt/boulder v0.20260728.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/miekg/pkcs11 v1.1.2 // indirect
@@ -144,7 +143,6 @@ require (
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/theupdateframework/go-tuf v0.7.0 // indirect
 	github.com/theupdateframework/go-tuf/v2 v2.4.2 // indirect
-	github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 // indirect
 	github.com/transparency-dev/formats v0.1.1 // indirect
 	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
