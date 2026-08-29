@@ -1,0 +1,198 @@
+# Phase 1 Data Model: Hardened GitHub Actions
+
+**Feature**: 008-hardened-github-actions | **Date**: 2026-08-29
+
+There is no database and no runtime object graph in this feature. The "entities" are
+declarative configuration structures evaluated by GitHub's workflow engine, plus the
+artifacts they produce. Each is defined below with its fields, validation rules (all
+mechanically enforced by `.github/workflows-verify.sh` unless noted), and — where it has
+one — its lifecycle.
+
+---
+
+## E1. Workflow Security Policy
+
+The cross-cutting policy every file under `.github/workflows/` and `.github/actions/` must
+satisfy. Not a file itself; the invariant the verifier encodes.
+
+| Field | Type | Rule |
+|---|---|---|
+| `workflow.permissions` | map | REQUIRED at top level. Floor is `contents: read`. Elevated scopes forbidden at top level except `packages: write` in the four publish workflows. |
+| `job.permissions` | map | REQUIRED on every job, no exceptions. Must be a subset of what the job's steps actually use. |
+| `job.timeout-minutes` | integer | REQUIRED. `1 ≤ n ≤ 30`, unless the job is on the exception list, which additionally requires an inline `#` comment stating why. |
+| `step.uses` (external) | string | MUST match `^[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40}$`, followed by a `# vX.Y.Z` comment. |
+| `step.uses` (local) | string | MUST start with `./.github/` — local composite actions are exempt from pinning (they are versioned by the repo checkout itself). |
+| `workflow.concurrency` | map | REQUIRED when `on:` includes `push` or `pull_request`. Must set `group` and `cancel-in-progress`. |
+| `run:` script body | string | MUST NOT contain `${{ github.event.*.{title,body,ref,label,name} }}`, `${{ github.head_ref }}`, or any interpolation of a user-writable field. Such values pass through `env:`. |
+| `on:` triggers | list | MUST NOT include `pull_request_target`. |
+| secret references | string | `COSIGN_PRIVATE_KEY`, `GHCR_*`, registry credentials permitted only in `images.yaml`, `publish-edge.yaml`, `release.yaml`, `republish-modules.yaml`. |
+
+**Timeout exception list** (the only values > 30 permitted):
+
+| Workflow | Job | Max |
+|---|---|---|
+| `ci.yaml` | `e2e-game-bot` | 50 |
+| `images.yaml` | `game-images` | 60 |
+| `release.yaml` | `images` | 45 |
+| `publish-edge.yaml` | `images` | 45 |
+
+**Validation**: verifier rules R1–R6, R8, R9.
+
+---
+
+## E2. Action Pin Registry
+
+The mapping from each external action to its immutable commit. Authoritative copy lives in
+[contracts/action-pins.md](./contracts/action-pins.md); this defines its shape.
+
+| Field | Type | Rule |
+|---|---|---|
+| `owner/repo` | string | Unique key. 18 entries at baseline. |
+| `sha` | string | Exactly 40 lowercase hex chars. Must be a real commit reachable from the named tag. |
+| `tag` | string | `vX.Y.Z` form, recorded as the trailing comment. |
+| `usage_count` | integer | How many `uses:` sites reference it — informational, used to size the diff. |
+| `trust_tier` | enum | `first-party` (`actions/*`), `verified` (`docker/*`, `azure/*`, `sigstore/*`, `golangci/*`, `helm/*`, `oras-project/*`), `community` (`dorny/*`). |
+
+**Invariants**:
+- Every occurrence of a given `owner/repo` across all 9 files pins the **same** SHA. Version
+  skew between two call sites of the same action is a defect.
+- A pin's tag comment must match the tag the SHA was resolved from — a stale comment misleads
+  Dependabot and reviewers alike.
+
+**Lifecycle**: `resolved` → `committed` → `superseded by Dependabot PR` → `re-resolved`.
+Dependabot's `github-actions` ecosystem owns the transition after landing; the pin table in
+`contracts/` is a point-in-time snapshot, not a file to maintain by hand forever.
+
+---
+
+## E3. Job Permission & Timeout Matrix
+
+One row per job across all 5 workflows — 26 at baseline, 28 after this feature (adds
+`workflows-verify` in `ci.yaml`, plus `collect`/`review` in the new `ai-review.yaml`, minus
+none). Authoritative copy in
+[contracts/permissions-matrix.md](./contracts/permissions-matrix.md).
+
+| Field | Type | Rule |
+|---|---|---|
+| `workflow` | string | Filename under `.github/workflows/`. |
+| `job_id` | string | YAML key under `jobs:`. Unique within a workflow. |
+| `permissions` | map | Explicit. Minimum viable set for that job's steps. |
+| `timeout_minutes` | integer | Explicit. Per E1's rule. |
+| `justification` | string | REQUIRED when `permissions` exceeds `contents: read` or `timeout_minutes > 30`. Rendered as an inline YAML comment. |
+
+**State transition** — the only one in this feature, and it is imposed by GitHub, not by us:
+
+```
+same-repo PR / push  →  declared permissions granted as written
+fork PR              →  ALL write scopes silently downgraded to read
+```
+
+Consequence, and the rule that follows from it: any step that writes (commit status, PR
+comment) MUST detect failure and degrade to `$GITHUB_STEP_SUMMARY` rather than failing the
+job. The existing `report` job already implements this; new write-capable steps must copy
+the pattern.
+
+---
+
+## E4. Dependabot Ecosystem Matrix
+
+The full contents of `.github/dependabot.yml`. Authoritative copy in
+[contracts/dependabot-matrix.md](./contracts/dependabot-matrix.md).
+
+| Field | Type | Rule |
+|---|---|---|
+| `package-ecosystem` | enum | `gomod` \| `npm` \| `docker` \| `github-actions`. |
+| `directory` | string | MUST contain the ecosystem's manifest: `go.mod` for gomod, `package.json` for npm, `Dockerfile` for docker, `.github/workflows/` for github-actions. |
+| `schedule` | map | `interval: weekly`, `day`, `time` (UTC). |
+| `commit-message.prefix` | string | `chore(deps)`. |
+| `commit-message.include` | string | `scope`. |
+| `open-pull-requests-limit` | integer | gomod 3, npm 10, docker 5, github-actions 5. |
+| `groups` | map | ≥ 1 group per entry. Each group has `patterns` and/or `update-types`. |
+
+**Entry count invariant** — the load-bearing rule, enforced as verifier R7:
+
+```
+count(gomod entries)  == count(module lines in go.work)                  == 14
+count(docker entries) == count(find . -name Dockerfile, excl. website/)  == 12
+count(npm entries)    == 1
+count(github-actions entries) == 1
+                                                            total entries = 28
+```
+
+Adding a 15th Go module or a 13th Dockerfile without a matching Dependabot entry fails CI.
+This is the mechanism that keeps SC-003 true over time rather than only on the day it lands.
+
+---
+
+## E5. Cluster Diagnostics Bundle
+
+What `dump-cluster-state` emits when an e2e job fails.
+
+| Field | Type | Rule |
+|---|---|---|
+| `context` | string | Kind cluster context name. Input. |
+| `namespaces` | string | Comma-separated. Input. |
+| `pod_descriptions` | text | `kubectl describe pods`. **Redacted before emit.** |
+| `controller_logs` | text | Operator + API pod logs. **Redacted.** |
+| `container_logs` | text | Game server + agent + ephemeral capture container logs. **Redacted.** |
+| `events` | text | `kubectl get events --sort-by=.lastTimestamp`. **Redacted.** |
+| `helm_history` | text | Optional, gated by input. **Redacted.** |
+| Secret objects | — | **NEVER collected.** No `kubectl get secret`, no `describe secret`, in any form. |
+
+**Redaction contract** — applied to every text field above, at the point of emit, before it
+reaches either a step summary or an artifact:
+
+| Pattern (case-insensitive) | Replacement |
+|---|---|
+| `(password\|passwd\|token\|secret\|api[-_]?key\|bearer\|authorization)\s*[:=]\s*\S+` | key preserved, value → `***REDACTED***` |
+| `eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+` | `***REDACTED-JWT***` |
+| `-----BEGIN [A-Z ]*PRIVATE KEY-----` … `-----END [A-Z ]*PRIVATE KEY-----` | `***REDACTED-KEY***` |
+
+**Lifecycle**: `job fails` → `if: failure()` fires → collect → **redact** → write to
+`$GITHUB_STEP_SUMMARY` + upload artifact → artifact retained per repo policy.
+
+Redaction sits between collect and write. It is not a post-processing step on the consumer
+side, because both sinks are readable by anyone who can see the run — and on a public repo
+that is the entire internet.
+
+**Validation**: quickstart.md scenario 5 seeds a known sentinel value into a pod's
+environment, fails the job deliberately, and asserts the sentinel does not appear in either
+sink.
+
+---
+
+## E6. AI Review Exchange
+
+The artifact handed from the untrusted `collect` job to the privileged `review` job. Full
+contract in [contracts/ai-review-contract.md](./contracts/ai-review-contract.md).
+
+| Field | Type | Rule |
+|---|---|---|
+| `pr_number` | integer | Validated `^[0-9]+$` in the privileged job before use. |
+| `head_sha` | string | Validated `^[0-9a-f]{40}$` before use. |
+| `base_ref` | string | Validated against `^[\w./-]+$`. |
+| `title` | string | Sanitised: backticks and `${` stripped, truncated to 200 chars. |
+| `body` | string | Sanitised, truncated to 4000 chars. |
+| `diff` | text | Truncated to 200 KB. Passed as labelled untrusted data, never interpolated into the instruction section of the prompt. |
+| `changed_files` | list | Paths only. Used to decide which spec artifacts to load. |
+
+**Trust rule**: every field above originates in the untrusted job and is attacker-controlled.
+The privileged job re-validates each one on receipt — it does not trust that `collect`
+sanitised anything, because `collect` ran alongside the attacker's code. This mirrors the
+`gameaction/` boundary discipline already in the codebase: both sides validate independently,
+and neither skips because "the other side already checked."
+
+**Sticky comment identity**: the `review` job upserts a single comment per PR, located by a
+hidden marker `<!-- gameplane-ai-review -->` as the first line of the body. Update in place
+on every run; never post a second comment on the same PR.
+
+**Lifecycle**:
+
+```
+PR opened/synchronized
+  → collect (untrusted code, no secrets, contents:read)  → artifact
+  → workflow_run completed
+  → review (no code checkout, has secrets, pull-requests:write)
+      → re-validate → prompt → upsert sticky comment
+      → on any failure: continue-on-error, write to step summary, never block the PR
+```
