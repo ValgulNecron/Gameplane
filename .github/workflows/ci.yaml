@@ -46,9 +46,6 @@ env:
 
 permissions:
   contents: read
-  # Lets the coverage steps publish a per-module commit status carrying
-  # the measured %.
-  statuses: write
 
 # All jobs run on GitHub-hosted runners: each job gets its own isolated
 # VM, so jobs never contend for memory or ports and there is nothing to
@@ -76,8 +73,8 @@ jobs:
       weblive: ${{ steps.combine.outputs.weblive }}
       images: ${{ steps.combine.outputs.images }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
           filters: |
@@ -161,8 +158,10 @@ jobs:
     if: needs.changes.outputs.images == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/build-e2e-images
 
   # Same as build-images but on an arm64 runner, producing the e2e-images-arm64
@@ -173,8 +172,10 @@ jobs:
     if: needs.changes.outputs.images == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/build-e2e-images
         with:
           arch: arm64
@@ -213,9 +214,11 @@ jobs:
     if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
       - name: install libcap2-bin (getcap)
         run: |
           set -euo pipefail
@@ -226,7 +229,7 @@ jobs:
       # — single-platform (amd64, matching this runner) and loaded locally
       # instead of pushed.
       - name: build capture-sidecar image (matches publish workflows)
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           file: capture-sidecar/Dockerfile
@@ -318,12 +321,14 @@ jobs:
     if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         module: [netguard, gameaction, gameproto, operator, agent, api, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, capture-sidecar, svcutil, tunnel, test/e2e]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: verify lint gate configuration
         if: matrix.module == 'netguard'
         run: ./test/e2e/lint-gate-verify.sh verify
@@ -354,21 +359,21 @@ jobs:
           go mod download
       - name: lint (operator/api - envtest build tags)
         if: matrix.module == 'operator' || matrix.module == 'api'
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@e7fa5ac41e1cf5b7d48e45e42232ce7ada589601 # v9.1.0
         with:
           version: v2.12.2
           working-directory: ${{ matrix.module }}
           args: --build-tags=envtest
       - name: lint (test/e2e - e2e build tags)
         if: matrix.module == 'test/e2e'
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@e7fa5ac41e1cf5b7d48e45e42232ce7ada589601 # v9.1.0
         with:
           version: v2.12.2
           working-directory: ${{ matrix.module }}
           args: --build-tags=e2e
       - name: lint (other modules - no build tags)
         if: matrix.module != 'operator' && matrix.module != 'api' && matrix.module != 'test/e2e'
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@e7fa5ac41e1cf5b7d48e45e42232ce7ada589601 # v9.1.0
         with:
           version: v2.12.2
           working-directory: ${{ matrix.module }}
@@ -382,13 +387,15 @@ jobs:
     # real arch bugs (build tags, sqlite codepaths, struct alignment) surface.
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 20
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, capture-sidecar, svcutil, tunnel]
         arch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: ${{ matrix.module }}
@@ -428,13 +435,13 @@ jobs:
             -coverprofile=coverage/unit.out ./...
       - name: setup-envtest binary cache
         if: matrix.module == 'operator' || matrix.module == 'api'
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/go/bin/setup-envtest
           key: setup-envtest-bin-release-0.24-${{ runner.os }}-${{ runner.arch }}
       - name: envtest assets cache
         if: matrix.module == 'operator' || matrix.module == 'api'
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/kubebuilder-envtest
           key: envtest-1.36.2-${{ runner.os }}-${{ runner.arch }}
@@ -472,10 +479,13 @@ jobs:
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      statuses: write
     defaults: { run: { working-directory: web } }
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - run: npm run build
@@ -500,7 +510,7 @@ jobs:
       - name: upload web coverage
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-web
           path: web/coverage
@@ -512,15 +522,17 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults: { run: { working-directory: web } }
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - name: playwright browser cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
@@ -531,7 +543,7 @@ jobs:
         run: npm run test:e2e:mock
       - name: upload playwright report
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: playwright-report-mock
           path: web/playwright-report
@@ -544,9 +556,11 @@ jobs:
     if: needs.changes.outputs.charts == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/setup-helm@v5
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - run: helm lint charts/gameplane
 
   chart-template:
@@ -555,9 +569,11 @@ jobs:
     if: needs.changes.outputs.charts == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/setup-helm@v5
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - run: helm template gameplane charts/gameplane > /tmp/rendered.yaml
       - name: sanity-check rendered manifests
         run: |
@@ -608,8 +624,10 @@ jobs:
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: e2e-unit
@@ -635,8 +653,10 @@ jobs:
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: true
       - name: verify buckets are disjoint + exhaustive
@@ -659,6 +679,8 @@ jobs:
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: ${{ matrix.job_timeout }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -701,13 +723,13 @@ jobs:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: e2e
-      - uses: azure/setup-helm@v5
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - name: install kind
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@fa81e57adff234b2908110485695db0f181f3c67 # v1.7.0
         with:
           install_only: true
       - name: load images
@@ -753,6 +775,8 @@ jobs:
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -763,13 +787,13 @@ jobs:
       CTX: kind-gameplane-e2e
       CTX_B: kind-gameplane-e2e-b
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: e2e
-      - uses: azure/setup-helm@v5
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - name: install kind
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@fa81e57adff234b2908110485695db0f181f3c67 # v1.7.0
         with:
           install_only: true
       - name: load images
@@ -819,6 +843,8 @@ jobs:
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -832,13 +858,13 @@ jobs:
       # never published — its chart and images 404 on GHCR).
       GAMEPLANE_UPGRADE_FROM: 0.2.0-beta.5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: e2e
-      - uses: azure/setup-helm@v5
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - name: install kind
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@fa81e57adff234b2908110485695db0f181f3c67 # v1.7.0
         with:
           install_only: true
       - name: load images
@@ -868,6 +894,8 @@ jobs:
     if: needs.changes.outputs.weblive == 'true'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 25
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -876,15 +904,15 @@ jobs:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: e2e
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
-      - uses: azure/setup-helm@v5
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - name: install kind
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@fa81e57adff234b2908110485695db0f181f3c67 # v1.7.0
         with:
           install_only: true
       - name: load images
@@ -903,7 +931,7 @@ jobs:
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             go test -tags=e2e -timeout 5m -v -run '^TestAPI_BootstrapAndLogin$' ./...
       - name: playwright browser cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
@@ -924,7 +952,7 @@ jobs:
           include-operator-logs: "false"
       - name: upload playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: playwright-report-live
           path: web/playwright-report
@@ -943,17 +971,19 @@ jobs:
     # Two serial real-game boots (Minecraft, then Terraria — deliberately
     # not parallel: two game servers booting at once OOM-starve the node).
     timeout-minutes: 50
+    permissions:
+      contents: read
     env:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: e2e
-      - uses: azure/setup-helm@v5
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - name: install kind
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@fa81e57adff234b2908110485695db0f181f3c67 # v1.7.0
         with:
           install_only: true
       - name: load images
@@ -1027,7 +1057,7 @@ jobs:
       # here, which the comment step detects and skips quietly.
       pull-requests: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: gather data
         id: gather
