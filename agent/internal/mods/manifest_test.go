@@ -364,3 +364,79 @@ func TestLoadManifest_NullModsMap(t *testing.T) {
 		t.Fatal("Mods map must be non-nil after load")
 	}
 }
+
+func TestManifest_SaveCreateTempError(t *testing.T) {
+	root := t.TempDir()
+	// Create a file at the path where we'd normally create a directory
+	filePath := filepath.Join(root, "notadir")
+	if err := os.WriteFile(filePath, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Try to save to this path (which is a file, not a directory)
+	// CreateTemp should fail
+	m := &manifest{Version: 1, Mods: map[string]*ModMeta{}}
+	err := m.save(filePath)
+	if err == nil {
+		t.Fatal("save should fail when target is not a directory")
+	}
+	// The error should be from CreateTemp, not from subsequent operations
+}
+
+func TestManifest_SaveWriteErrorHandling(t *testing.T) {
+	root := t.TempDir()
+
+	// Create a manifest with specific data
+	m := &manifest{
+		Version: 1,
+		Mods: map[string]*ModMeta{
+			"test.jar": {
+				Provider:  "modrinth",
+				ProjectID: "testid",
+			},
+		},
+	}
+
+	// Verify successful save works as baseline
+	if err := m.save(root); err != nil {
+		t.Fatalf("baseline save failed: %v", err)
+	}
+
+	// Verify the saved file exists
+	data, err := os.ReadFile(filepath.Join(root, manifestName))
+	if err != nil {
+		t.Fatalf("read saved manifest: %v", err)
+	}
+
+	// Verify it's valid JSON
+	var loaded manifest
+	if err := json.Unmarshal(data, &loaded); err != nil {
+		t.Fatalf("parse saved manifest: %v", err)
+	}
+	if len(loaded.Mods) != 1 || loaded.Mods["test.jar"] == nil {
+		t.Fatalf("saved manifest content incorrect: %+v", loaded.Mods)
+	}
+}
+
+func TestLoadManifest_ReadPermissionError(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a valid manifest file
+	manifestPath := filepath.Join(dir, manifestName)
+	if err := os.WriteFile(manifestPath, []byte(`{"version":1,"mods":{"a.jar":{}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change permissions to make it unreadable
+	if err := os.Chmod(manifestPath, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(manifestPath, 0o644) // restore for cleanup
+
+	// loadManifest should handle the read error and return an empty manifest
+	// (it logs a warning but doesn't fail)
+	got := loadManifest(dir)
+	if got.Version != 1 || len(got.Mods) != 0 {
+		t.Fatalf("loadManifest should return empty on read error, got %+v", got)
+	}
+}

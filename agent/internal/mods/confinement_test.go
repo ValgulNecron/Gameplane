@@ -584,3 +584,93 @@ func TestConfineRelPath_AcceptAncestorSymlinkInsideRoot(t *testing.T) {
 		t.Fatalf("path %s not confined to root %s", path, root)
 	}
 }
+
+func TestConfinePath_SymlinkLoopError(t *testing.T) {
+	root := t.TempDir()
+
+	// Create a symlink loop: link1 -> link2, link2 -> link1
+	link1 := filepath.Join(root, "link1")
+	link2 := filepath.Join(root, "link2")
+	if err := os.Symlink(link2, link1); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+	if err := os.Symlink(link1, link2); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+
+	// Try to confine the symlink; EvalSymlinks should fail with "too many symlinks"
+	_, err := ConfinePath(root, "link1")
+	if err == nil {
+		t.Fatal("ConfinePath should error on symlink loop")
+	}
+	// The error should be from resolving symlinks, not a validation error
+	if errors.Is(err, ErrEmpty) || errors.Is(err, ErrAbsolute) || errors.Is(err, ErrTraversal) {
+		t.Fatalf("wrong error type: %v", err)
+	}
+}
+
+func TestConfineRelPath_SymlinkLoopError(t *testing.T) {
+	root := t.TempDir()
+
+	// Create a symlink loop
+	link1 := filepath.Join(root, "link1")
+	link2 := filepath.Join(root, "link2")
+	if err := os.Symlink(link2, link1); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+	if err := os.Symlink(link1, link2); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+
+	// Try to confine a path through the symlink loop
+	_, err := ConfineRelPath(root, "link1")
+	if err == nil {
+		t.Fatal("ConfineRelPath should error on symlink loop")
+	}
+	// Should not be a validation error (those are caught earlier)
+	if errors.Is(err, ErrEmpty) || errors.Is(err, ErrAbsolute) || errors.Is(err, ErrTooLong) {
+		t.Fatalf("wrong error type: %v", err)
+	}
+}
+
+func TestConfineRelPath_AncestorSymlinkLoopError(t *testing.T) {
+	root := t.TempDir()
+
+	// Create directories a/b/c so we have a deep path to work with
+	aPath := filepath.Join(root, "a")
+	bPath := filepath.Join(aPath, "b")
+	cPath := filepath.Join(bPath, "c")
+	if err := os.MkdirAll(cPath, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	// Remove the top-level directory "a" and replace it with a symlink loop
+	if err := os.RemoveAll(aPath); err != nil {
+		t.Fatalf("RemoveAll failed: %v", err)
+	}
+	link1 := filepath.Join(root, "link1")
+	link2 := filepath.Join(root, "link2")
+	if err := os.Symlink(link2, link1); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+	if err := os.Symlink(link1, link2); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+
+	// Make "a" point to the loop
+	if err := os.Symlink(link1, aPath); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+
+	// Try to create a file nested deep under "a"
+	// The target doesn't exist, so ancestor walk will start
+	// When it tries to resolve ancestor "a", it will encounter the symlink loop
+	_, err := ConfineRelPath(root, "a/b/c/d/file.txt")
+	if err == nil {
+		t.Fatal("ConfineRelPath should error on ancestor symlink loop")
+	}
+	// Should not be a validation error
+	if errors.Is(err, ErrEmpty) || errors.Is(err, ErrAbsolute) || errors.Is(err, ErrDotDot) {
+		t.Fatalf("wrong error type: %v", err)
+	}
+}
