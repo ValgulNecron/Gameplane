@@ -40,10 +40,10 @@ done
 | 16 | `helm/kind-action` | `@v1` | `fa81e57adff234b2908110485695db0f181f3c67` | `v1.7.0` | verified |
 | 17 | `oras-project/setup-oras` | `@v2` | `38de303aac69abb66f3e6255b7198bff35f323e3` | `v2.0.0` | verified |
 | 18 | `sigstore/cosign-installer` | `@v4.1.2` | `6f9f17788090df1f26f669e9d70d6ae9567deba6` | `v4.1.2` | verified |
-| 19 | `anthropics/claude-code-action` | *(new)* | **resolve at implementation** | — | verified |
+| 19 | `anthropics/claude-code-action` | *(new)* | `50b26a71effe456d50842a733597491c5636cb6f` | `v1.0.210` | verified |
 
-Entry 19 is not in the tree yet; it arrives with `ai-review.yaml` and must be resolved by
-the same method before that file is committed.
+Entry 19 is not in the tree yet; it arrives with `ai-review.yaml` (T033–T036). Resolved
+2026-08-30 by the same method as the rest of the table.
 
 `dorny/paths-filter` is the sole `community`-tier action and drives the `changes` job that
 gates every other job's execution. It is the highest-value pin in the table.

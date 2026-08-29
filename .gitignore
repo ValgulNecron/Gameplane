@@ -64,3 +64,6 @@ cosign.key
 .mcp.json
 .repowise
 .vscode
+# Python bytecode (.github/verify-rules)
+__pycache__/
+*.py[cod]

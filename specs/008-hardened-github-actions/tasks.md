@@ -35,9 +35,9 @@ by any task in this file. Two new trees:
 
 **Purpose**: Scaffolding the rest of the feature builds on.
 
-- [ ] T001 Create `.github/verify-rules/_common.py` — YAML loading via `python3` + PyYAML with a `yq`-free fallback, a `Violation(file, line, rule, message)` dataclass, repo-root resolution, and iterators `iter_workflows()`, `iter_jobs()`, `iter_uses()`, `iter_run_blocks()` that every rule consumes. Must preserve line numbers so violations are clickable.
-- [ ] T002 Create `.github/workflows-verify.sh` — dispatcher with a `verify` subcommand (`set -euo pipefail`), discovering and running every `.github/verify-rules/r*.py` module, printing `R<n> pass: <summary>` or `R<n> FAIL` with `file:line` per violation, exiting non-zero if any rule fails. Mirrors the `verify` subcommand convention of `test/e2e/buckets.sh`. `chmod +x`.
-- [ ] T003 [P] Re-resolve every SHA in [contracts/action-pins.md](./contracts/action-pins.md) with `git ls-remote --tags --refs` and correct any drift since 2026-08-29; additionally resolve `anthropics/claude-code-action` (row 19) and record it in the same table.
+- [X] T001 Create `.github/verify-rules/_common.py` — YAML loading via `python3` + PyYAML with a `yq`-free fallback, a `Violation(file, line, rule, message)` dataclass, repo-root resolution, and iterators `iter_workflows()`, `iter_jobs()`, `iter_uses()`, `iter_run_blocks()` that every rule consumes. Must preserve line numbers so violations are clickable.
+- [X] T002 Create `.github/workflows-verify.sh` — dispatcher with a `verify` subcommand (`set -euo pipefail`), discovering and running every `.github/verify-rules/r*.py` module, printing `R<n> pass: <summary>` or `R<n> FAIL` with `file:line` per violation, exiting non-zero if any rule fails. Mirrors the `verify` subcommand convention of `test/e2e/buckets.sh`. `chmod +x`.
+- [X] T003 [P] Re-resolve every SHA in [contracts/action-pins.md](./contracts/action-pins.md) with `git ls-remote --tags --refs` and correct any drift since 2026-08-29; additionally resolve `anthropics/claude-code-action` (row 19) and record it in the same table.
 
 **Checkpoint**: `.github/workflows-verify.sh verify` runs and reports zero rules registered.
 
@@ -49,7 +49,7 @@ by any task in this file. Two new trees:
 
 **⚠️ CRITICAL**: No user story may begin until T004 fixes the rule interface — rules written against a moving interface get rewritten.
 
-- [ ] T004 Define and document the rule-module contract at the top of `.github/verify-rules/_common.py`: each `r*.py` exposes `RULE_ID`, `DESCRIPTION`, and `check(ctx) -> list[Violation]`; `ctx` carries parsed workflows, parsed composite actions, the parsed `dependabot.yml`, the `go.work` module list, and the `find`-derived Dockerfile list, each computed once and shared. Add a `--rule R<n>` flag to `.github/workflows-verify.sh` so a single rule can be exercised in isolation during development.
+- [X] T004 Define and document the rule-module contract at the top of `.github/verify-rules/_common.py`: each `r*.py` exposes `RULE_ID`, `DESCRIPTION`, and `check(ctx) -> list[Violation]`; `ctx` carries parsed workflows, parsed composite actions, the parsed `dependabot.yml`, the `go.work` module list, and the `find`-derived Dockerfile list, each computed once and shared. Add a `--rule R<n>` flag to `.github/workflows-verify.sh` so a single rule can be exercised in isolation during development.
 
 **Checkpoint**: Foundation ready — US1–US4 rule modules can now be authored in parallel.
 
