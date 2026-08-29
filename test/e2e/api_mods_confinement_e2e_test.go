@@ -336,10 +336,16 @@ func TestAPI_ModArchiveConfinement_ValidArchiveExtracts(t *testing.T) {
 		t.Fatalf("close zip: %v", err)
 	}
 
+	// Extraction loaders strip the archive extension from the folder name,
+	// so "e2e-mod-confinement.zip" becomes "e2e-mod-confinement" when extracted
+	// (agent/internal/mods/mods.go: archiveFolderName).
+	uploadFilename := "e2e-mod-confinement.zip"
+	installName := strings.TrimSuffix(uploadFilename, ".zip")
+
 	// Upload the valid archive via multipart
 	mpBuf := &bytes.Buffer{}
 	mw := multipart.NewWriter(mpBuf)
-	fw, err := mw.CreateFormFile("file", "e2e-mod-confinement.zip")
+	fw, err := mw.CreateFormFile("file", uploadFilename)
 	if err != nil {
 		t.Fatalf("form file: %v", err)
 	}
@@ -373,8 +379,8 @@ func TestAPI_ModArchiveConfinement_ValidArchiveExtracts(t *testing.T) {
 	if err := json.Unmarshal(body, &uploaded); err != nil {
 		t.Fatalf("decode upload response: %v body=%q", err, string(body))
 	}
-	if uploaded.Name != "e2e-mod-confinement.zip" {
-		t.Fatalf("upload response name = %q, want e2e-mod-confinement.zip", uploaded.Name)
+	if uploaded.Name != installName {
+		t.Fatalf("upload response name = %q, want %q", uploaded.Name, installName)
 	}
 	if uploaded.Meta == nil || uploaded.Meta.Provider != "upload" {
 		t.Fatalf("upload response provider = %v, want upload", uploaded.Meta)
@@ -384,7 +390,7 @@ func TestAPI_ModArchiveConfinement_ValidArchiveExtracts(t *testing.T) {
 	mods := listServerMods(t, cli, gs)
 	found := false
 	for _, m := range mods {
-		if m.Name == "e2e-mod-confinement.zip" {
+		if m.Name == installName {
 			found = true
 			if m.Meta == nil || m.Meta.Provider != "upload" {
 				t.Fatalf("listed mod has unexpected meta: %+v", m.Meta)
@@ -400,7 +406,7 @@ func TestAPI_ModArchiveConfinement_ValidArchiveExtracts(t *testing.T) {
 	}
 
 	// Cleanup: delete the mod to verify removal also respects confinement
-	delResp, delBody, err := cli.Delete("/servers/" + gs + "/mods?name=e2e-mod-confinement.zip")
+	delResp, delBody, err := cli.Delete("/servers/" + gs + "/mods?name=" + installName)
 	if err != nil {
 		t.Fatalf("DELETE /mods: %v", err)
 	}
@@ -412,7 +418,7 @@ func TestAPI_ModArchiveConfinement_ValidArchiveExtracts(t *testing.T) {
 	// Verify mod is removed from listing
 	mods = listServerMods(t, cli, gs)
 	for _, m := range mods {
-		if m.Name == "e2e-mod-confinement.zip" {
+		if m.Name == installName {
 			t.Fatalf("mod still in listing after delete: %+v", m)
 		}
 	}
