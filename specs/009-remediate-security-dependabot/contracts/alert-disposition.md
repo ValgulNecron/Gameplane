@@ -760,3 +760,68 @@ input. Capacity is bounded to 500 entries maximum.
 | New 2 | mods.go:475 | path-injection | False positive | Dismiss | N/A |
 | New 3 | mods.go:544–589 | zipslip | False positive | Dismiss or restructure | N/A |
 | New 4 | audit.go:844 | uncontrolled-alloc | False positive | Dismiss | N/A |
+
+---
+
+## T066 — re-triage of the 4 CodeQL alerts on PR #285 (2026-08-29)
+
+**Question**: are the 4 alerts CodeQL raises against PR #285 genuinely new defects, or the
+Phase A originals relocated by the refactor?
+
+**Answer: relocated, not new.** Each maps 1:1 onto an original alert, displaced only by the
+line-count change the refactor introduced.
+
+| PR #285 annotation | Rule | Original |
+|---|---|---|
+| `agent/internal/mods/mods.go:431` | Uncontrolled data used in network request | #5 (`:405` on master) |
+| `agent/internal/mods/mods.go:480` | Uncontrolled data used in path expression | #10 (`:446`) |
+| `agent/internal/mods/mods.go:549` | Zip Slip | #7 (`:508`) |
+| `api/internal/audit/audit.go:844` | Slice allocation with excessive size | #14 (`:834`) |
+
+Read from check run 99097398101's annotations. No fifth finding appeared, and no rule id
+changed — so the refactor neither introduced nor removed a defect class.
+
+### The refactor attempt, and its outcome
+
+Per the maintainer decision recorded in HANDOFF.md §3.1 ("try one more refactor first"), one
+further change was made and pushed as `7294db7`: `downloadTemp` now builds its request from
+the validated `*url.URL` rather than the raw string —
+
+```go
+req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+```
+
+**It did not clear the alert.** CodeQL re-analysed `7294db7` and reported the same
+`go/request-forgery` finding, merely shifted from `:426` to `:431` by the five comment lines
+the change added. This is direct evidence, not inference: the alert moved by exactly the
+number of lines inserted above it.
+
+The refactor is nonetheless kept. It is behaviourally identical (`http.NewRequestWithContext`
+re-parses `rawURL` to the same URL) and it is strictly better hygiene for the validated value
+to be the one that flows into the request.
+
+### Why the remaining three were not restructured
+
+Only `go/request-forgery` ever had an identified refactor candidate. For path-injection,
+zipslip and uncontrolled-allocation there is **no hypothesis** for what shape would satisfy
+the analyzer. Speculatively restructuring archive-extraction and path-confinement code — the
+agent's actual sandbox boundary — without one is churn carrying real regression risk, on code
+whose correctness is what stops a mod archive escaping its volume. Not attempted, deliberately.
+
+### Disposition
+
+Per the maintainer's pre-agreed fallback (HANDOFF.md §3.1: *"If it does not clear the alerts,
+dismiss via the code-scanning API"*), all four are dismissed as false positives once PR #285
+lands on master, using the justifications already drafted in this file for alerts #5, #7, #10
+and #14. The guards each dismissal cites were re-verified against the current source, not
+taken from the earlier draft.
+
+Constitution Principle III is not implicated: dismissal is repository metadata carrying an
+audit trail, not an in-source suppression. The branch contains **zero** `//nolint`,
+`#nosec`, `eslint-disable` or `@ts-ignore` directives — verified by
+`git diff master...009-remediate-security-dependabot -- '*.go' '*.ts' '*.tsx' | grep -E ...`,
+which returns 0 matches (SC-005).
+
+**Sequencing note**: CodeQL only re-analyses the default branch, so alerts #1–#14 cannot
+reach `fixed` until #285 merges. The re-query (T045) and the dismissals (T047) therefore run
+strictly after the merge (T062), never before.
