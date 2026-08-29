@@ -279,3 +279,71 @@ reached only via Monaco's markdown-sanitizing hover/IntelliSense widgets. That s
 narrow surface, but whether attacker-controlled markdown can actually reach those widgets
 here was **not** traced to a conclusion. Resolve this before deciding urgency; the version
 remediation above is correct either way.
+
+---
+
+## T054 — PR #272 diagnosis (typescript 6.0.3 → 7.0.2): BLOCKED upstream
+
+**Status**: blocked by an upstream peer-dependency constraint. No code change on our side
+can clear it today. #272 stays open.
+
+**Failing checks**: `web`, `web e2e (mock)`, `e2e web live` — all three fail at the
+dependency-install step, before any TypeScript is compiled. There are no type errors to fix
+because `tsc` never runs.
+
+**Verbatim CI excerpt** (job 99082482156, run 33245283178):
+
+```
+npm error code ERESOLVE
+npm error ERESOLVE could not resolve
+npm error While resolving: @typescript-eslint/eslint-plugin@8.65.0
+npm error Found: typescript@7.0.2
+npm error   dev typescript@"^7.0.2" from the root project
+npm error Could not resolve dependency:
+npm error peer typescript@">=4.8.4 <6.1.0" from @typescript-eslint/eslint-plugin@8.65.0
+npm error Conflicting peer dependency: typescript@6.0.3
+```
+
+**Root cause**: `@typescript-eslint/*` declares `peerDependencies.typescript` as
+`>=4.8.4 <6.1.0`, which excludes all of TypeScript 7.
+
+**No upgrade path exists yet.** Verified live against `registry.npmjs.org` on 2026-08-29 —
+every published dist-tag of `@typescript-eslint/eslint-plugin`:
+
+| dist-tag | version | peer `typescript` |
+|---|---|---|
+| `latest` | 8.68.0 | `>=4.8.4 <6.1.0` |
+| `canary` | 8.68.1-alpha.6 | `>=4.8.4 <6.1.0` |
+| `rc-v8` | 8.0.0-alpha.62 | (none declared) |
+
+So even the canary channel still caps at TypeScript 6. Bumping the plugin cannot help, and
+the alpha `rc-v*` tags are pre-release lines that declare no peer at all — not a basis for a
+production toolchain.
+
+**Rejected workarounds**: `--legacy-peer-deps` / `--force` would install a plugin whose
+type-checking internals genuinely do not understand TypeScript 7's AST, silently degrading
+lint and type diagnostics. An `overrides` entry pinning the peer would do the same. Neither
+is a fix; both trade a loud failure for a silent one.
+
+**Disposition**: #272 stays open and unmerged pending a `@typescript-eslint` release that
+declares TypeScript 7 support. This is the same shape of blocker as #263 — an upstream
+dependency that has not yet caught up — and is tracked as an exception, not a defect in this
+repo. T055/T056 cannot proceed until upstream ships.
+
+---
+
+## T057 — PR #268 (@eslint/js 9.39.5 → 10.0.1): NOT blocked; premise was stale
+
+The task text assumed a failing check. Re-queried on 2026-08-29: **there is none.** All 21
+status checks were `SUCCESS` or `SKIPPED` (run 33245582221) and the PR was `MERGEABLE`.
+
+The three ESLint 10 hazards the task flagged were each checked and none applies here:
+
+- **eslintrc support dropped** — not applicable; `web/` already uses flat config
+  (`web/eslint.config.js`).
+- **Deprecated `SourceCode` / rule-context methods removed** — not applicable; the project
+  ships no custom ESLint rules, only configuration.
+- **Node floor raised to `^20.19 || ^22.13 || >=24`** — satisfied; CI runs Node 24.
+
+**Disposition**: merged 2026-08-29 via `--admin --merge` (T059). T058 (the migration work)
+is a no-op — there was nothing to migrate.

@@ -93,15 +93,15 @@
 **Merge Mechanics**: Each PR uses `gh pr merge <N> -R ValgulNecron/Gameplane --admin --merge` (--admin required for branch ruleset update rule; merge-commit not squash). If sibling PR CI fails due to go.sum conflict after a merge, comment `@dependabot rebase` to auto-rebase and re-run.
 
 - [X] T026 [US3] Merge PR #276 gopacket 1.6.1 → 1.7.1 across 2 modules (capture-sidecar, test/e2e); verify master CI green
-- [ ] T027 [US3] Merge PR #279 cosign 2.6.4 → 2.6.5 across 3 modules (capture-sidecar, operator, test/e2e); rebase if needed after T026 merge
-- [ ] T028 [US3] Merge PR #281 sqlite 1.55.0 → 1.57.0 across 5 modules (api, capture-sidecar, mcp-server, operator, test/e2e); rebase if needed
-- [ ] T029 [US3] Merge PR #267 chi 5.3.1 → 5.3.2 across 5 modules (agent, api, capture-sidecar, operator, test/e2e); rebase if needed
-- [ ] T030 [US3] Merge PR #274 x/mod 0.38.0 → 0.40.0 across 7 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, test/e2e); rebase if needed
-- [ ] T031 [US3] Merge PR #271 k8s.io/api 0.36.3 → 0.36.4 across 7 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, test/e2e); rebase if needed
+- [X] T027 [US3] Merge PR #279 cosign 2.6.4 → 2.6.5 across 3 modules (capture-sidecar, operator, test/e2e); rebase if needed after T026 merge
+- [X] T028 [US3] Merge PR #281 sqlite 1.55.0 → 1.57.0 across 5 modules (api, capture-sidecar, mcp-server, operator, test/e2e); rebase if needed
+- [X] T029 [US3] Merge PR #267 chi 5.3.1 → 5.3.2 across 5 modules (agent, api, capture-sidecar, operator, test/e2e); rebase if needed
+- [X] T030 [US3] Merge PR #274 x/mod 0.38.0 → 0.40.0 across 7 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, test/e2e); rebase if needed
+- [X] T031 [US3] Merge PR #271 k8s.io/api 0.36.3 → 0.36.4 across 7 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, test/e2e); rebase if needed
 - [ ] T032 [US3] Merge PR #269 x/net 0.57.0 → 0.58.0 across 7 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, test/e2e); rebase if needed
 - [ ] T033 [US3] Merge PR #273 minio-go 7.2.1 → 7.3.0 across 8 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, telemetry-receiver, test/e2e); rebase if needed
 - [ ] T034 [US3] Merge PR #265 go-containerregistry 0.21.7 → 0.22.0 across 8 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, telemetry-receiver, test/e2e); rebase if needed
-- [ ] T035 [US3] Diagnose failing check on PR #263 sigstore 1.10.8 → 1.10.9 (3 modules: capture-sidecar, operator, test/e2e); accept as done when root cause is identified from CI logs read via the gh CLI and either (a) a fix is landed, or (b) the blocker is documented in contracts/dependency-upgrade.md with the relevant log excerpt. An inconclusive diagnosis does not close the task — **DIAGNOSED 2026-08-29**: `lint (operator)` fails with staticcheck SA1019 on the deprecated `sigstore/pkg/fulcioroots` import (`operator/internal/verify/verify.go:20`, call sites `:146`/`:150`). Confirmed introduced by the bump — master pins v1.10.8 and lints green with the same import. Not a stale `go.sum`; `@dependabot rebase` will not clear it. Blocker and log excerpt recorded in contracts/dependency-upgrade.md. #263 stays open pending a migration to the `sigstore-go/pkg/tuf` API.
+- [X] T035 [US3] Diagnose failing check on PR #263 sigstore 1.10.8 → 1.10.9 (3 modules: capture-sidecar, operator, test/e2e); accept as done when root cause is identified from CI logs read via the gh CLI and either (a) a fix is landed, or (b) the blocker is documented in contracts/dependency-upgrade.md with the relevant log excerpt. An inconclusive diagnosis does not close the task — **DIAGNOSED 2026-08-29**: `lint (operator)` fails with staticcheck SA1019 on the deprecated `sigstore/pkg/fulcioroots` import (`operator/internal/verify/verify.go:20`, call sites `:146`/`:150`). Confirmed introduced by the bump — master pins v1.10.8 and lints green with the same import. Not a stale `go.sum`; `@dependabot rebase` will not clear it. Blocker and log excerpt recorded in contracts/dependency-upgrade.md. #263 stays open pending a migration to the `sigstore-go/pkg/tuf` API.
 
 ---
 
@@ -120,7 +120,7 @@
 - [X] T041 [US4] Merge PR #270 @tanstack/react-router 1.170.18 → 1.170.32 in web/package.json
 - [X] T042 [US4] Merge PR #266 @playwright/test 1.62.0 → 1.62.1 in web/package.json
 - [X] T043 [US4] Merge PR #264 @testing-library/jest-dom 7.0.0 → 7.0.1 in web/package.json
-- [ ] T044 [US4] Merge PR #262 @typescript-eslint/parser 8.65.0 → 8.67.0 in web/package.json
+- [X] T044 [US4] Merge PR #262 @typescript-eslint/parser 8.65.0 → 8.67.0 in web/package.json
 
 ---
 
@@ -159,12 +159,12 @@
 
 **Note**: PR #272 (TypeScript 7) and PR #268 (ESLint 10) are deferred from Phase 6 due to breaking changes requiring source code updates; they are tackled here with explicit diagnosis of type errors and linting violations, and acceptance criteria that forbid `// @ts-ignore` and `// eslint-disable` per constitution Principle III.
 
-- [ ] T054 [US4] Diagnose failing checks on PR #272 (typescript 6.0.3 → 7.0.2) by reading CI logs via gh api repos/ValgulNecron/Gameplane/actions/runs/<run_id>/attempts/<attempt>/logs and recording specific type errors encountered in web/ migration
-- [ ] T055 [US4] Apply TypeScript 7 migration in web/ by updating web/package.json to 7.0.2, web/tsconfig.json as needed, and fixing all resulting type errors in web/src source files; constitution Principle III forbids resolving any error with // @ts-ignore
-- [ ] T056 [US4] Merge PR #272 once all CI checks are green via gh pr merge 272 -R ValgulNecron/Gameplane --admin --merge
-- [ ] T057 [US4] Diagnose failing check on PR #268 (@eslint/js 9.39.5 → 10.0.1) by reading CI logs via gh API and recording specific linting violations encountered; note that ESLint 10 drops eslintrc support, removes deprecated SourceCode and rule-context methods, and raises the Node floor to ^20.19 || ^22.13 || >=24
-- [ ] T058 [US4] Apply ESLint 10 migration in web/ by updating web/package.json and web/eslint.config.js to 10.0.1, removing any deprecated rule-context or SourceCode usage, and fixing all resulting linting violations; constitution Principle III forbids resolving any finding with // eslint-disable
-- [ ] T059 [US4] Merge PR #268 once all CI checks are green via gh pr merge 268 -R ValgulNecron/Gameplane --admin --merge
+- [X] T054 [US4] Diagnose failing checks on PR #272 (typescript 6.0.3 → 7.0.2) by reading CI logs via gh api repos/ValgulNecron/Gameplane/actions/runs/<run_id>/attempts/<attempt>/logs and recording specific type errors encountered in web/ migration
+- [ ] T055 [US4] Apply TypeScript 7 migration in web/ by updating web/package.json to 7.0.2, web/tsconfig.json as needed, and fixing all resulting type errors in web/src source files; constitution Principle III forbids resolving any error with // @ts-ignore **BLOCKED UPSTREAM 2026-08-29**: no published `@typescript-eslint` version (incl. `canary` 8.68.1-alpha.6) accepts TypeScript 7 — peer is `>=4.8.4 <6.1.0`. `npm ci` fails at ERESOLVE before `tsc` ever runs, so there are no type errors to fix. See contracts/dependency-upgrade.md § T054.
+- [ ] T056 [US4] Merge PR #272 once all CI checks are green via gh pr merge 272 -R ValgulNecron/Gameplane --admin --merge **BLOCKED** by T055.
+- [X] T057 [US4] Diagnose failing check on PR #268 (@eslint/js 9.39.5 → 10.0.1) by reading CI logs via gh API and recording specific linting violations encountered; note that ESLint 10 drops eslintrc support, removes deprecated SourceCode and rule-context methods, and raises the Node floor to ^20.19 || ^22.13 || >=24
+- [X] T058 [US4] Apply ESLint 10 migration in web/ by updating web/package.json and web/eslint.config.js to 10.0.1, removing any deprecated rule-context or SourceCode usage, and fixing all resulting linting violations; constitution Principle III forbids resolving any finding with // eslint-disable **NO-OP 2026-08-29**: #268 had no failing check and needed no migration — flat config already in use, no custom rules, CI on Node 24. See contracts/dependency-upgrade.md § T057.
+- [X] T059 [US4] Merge PR #268 once all CI checks are green via gh pr merge 268 -R ValgulNecron/Gameplane --admin --merge
 - [ ] T060 [US4] Confirm web CI jobs (web, web-e2e-mock) are green on master after both migrations are merged
 
 ---
