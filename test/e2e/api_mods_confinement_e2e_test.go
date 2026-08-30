@@ -270,11 +270,15 @@ func TestAPI_ModArchiveConfinement_SymlinkEscapeRejected(t *testing.T) {
 		return
 	}
 
-	// Verify the symlink was not created or listed
+	// Verify the symlink was not created or listed.
+	// Extraction installs archives under a folder named after the archive
+	// with its extension stripped (see agent/internal/mods/mods.go archiveFolderName).
+	uploadFilename := "symlink-escape.zip"
+	installName := strings.TrimSuffix(uploadFilename, ".zip")
 	mods := listServerMods(t, cli, gs)
 	for _, m := range mods {
-		if m.Name == "symlink-escape.zip" {
-			t.Fatalf("symlink-escape archive landed in mods list: %+v (symlink escape was not rejected)", m)
+		if m.Name == uploadFilename || m.Name == installName {
+			t.Fatalf("symlink-escape archive landed in mods list: %+v (symlink escape was not rejected, expected neither %q nor %q)", m, uploadFilename, installName)
 		}
 	}
 }
