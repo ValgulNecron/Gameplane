@@ -648,6 +648,15 @@ Delegation is the default execution path, not an optimization. **Every user requ
 - **Label agents with their model** in the `label` — e.g. "OIDC docs PR (haiku)" — so the human can see at a glance which tier each agent runs on.
 - *Why:* cost and latency. The biggest model adds nothing on well-scoped tasks, and many concurrent cheap agents cover the breadth far faster than one expensive serial one. A subagent's "done" is a claim, not evidence — that's what the tier+1 review is for.
 
+### 14. Every PR must carry type and area labels
+
+Every pull request MUST carry at least one `type:` label and at least one `area:` label before it is merged. Issues should be labelled too, but the requirement is firm for PRs.
+
+- *Why:* the label taxonomy is what makes the PR and issue lists navigable and what lets release notes be assembled by category. An unlabelled PR is invisible to every filter and has to be re-read from scratch months later to work out what it was.
+- **The taxonomy:** `type:` is one of `feature`, `fix`, `refactor`, `test`, `ci`, `chore`, `docs`, `security`. `area:` is one of `operator`, `api`, `agent`, `web`, `modules`, `chart`, `e2e`, `specs`, `shared`, `optional-components`. A breaking CRD/API/chart change gets the `breaking` label. Optional: use `status:` labels (`blocked`, `needs-maintainer`, `in-progress`).
+- **Mechanics:** apply with `gh pr edit <n> --add-label "type: fix" --add-label "area: api"`. The label should match the conventional-commit prefix already used in the branch's commits — a PR of `fix:` commits gets `type: fix`. A PR spanning several components takes several `area:` labels rather than being left unlabelled.
+- **Automation:** the labels `dependencies`, `go`, and `javascript` are applied automatically by Dependabot and should not be applied by hand or deleted.
+
 ---
 
 ## Architecture quick reference
