@@ -452,3 +452,53 @@ than as a bug to resolve.
 
 D-K implements D-J's "fail on any finding" with an explicitly bounded and recorded starting
 rule set. D-K **supersedes nothing** in D-J; it completes D-J's implementation detail.
+
+---
+
+## D-L: AI reviewer provider selection
+
+**Spec says** (Assumptions, ~line 174; FR-022…FR-025; SC-006): offers THREE options for
+the AI reviewer — `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or a standard GitHub App token —
+and names no provider at all. The feature is deliberately provider-agnostic.
+
+**Invented**: `anthropics/claude-code-action` + an `ANTHROPIC_API_KEY` repository secret
+were written into `plan.md:40` as a "Primary Dependency" in commit `c0e88910` and implemented
+in commit `229d7152`, both by agent sessions. No maintainer approval for this choice exists
+in any versioned document. The decision went unrecorded and unvetted for the entire feature,
+discovered only when T040 (the only task that would actually run the reviewer end-to-end)
+was attempted and the missing secret surfaced the undocumented choice.
+
+**Why it was a violation**: The spec deliberately left the provider question open — precisely
+what CLAUDE.md's no-invention rule forbids. Picking one and writing it into a contract as
+settled, without recording it here for ruling, violated both the rule and the feature's own
+design principle.
+
+**Question**: The maintainer was shown the evidence and asked what provider to use.
+
+**RESPONSE**: "Wait why is ai review using anthropic? it should be copilot or native github / free tier. If this was written software i never gave my Ok for this"
+
+*(Clarified on follow-up:)* "i want something free for opensource project that do the scanning as expected"
+
+**Options evaluated**:
+
+| Provider | Free tier | License gate | PR cap | Why disqualified |
+|---|---|---|---|---|
+| GitHub Models | Yes, full inference | None | None | **RETIRED 2026-07-30.** Playground, catalog, inference API, and BYOK all ended. This was the ideal fit — free inference from Actions via `models: read` on the built-in GITHUB_TOKEN, no secret needed. |
+| GitHub Copilot PR review | Yes, limited | None | None | Requires Copilot Pro plan ($10/mo floor); Copilot Free tier has no PR review. Rejected by the maintainer on cost. |
+| Greptile | Yes, up to 500 API calls/mo | MIT or Apache only | N/A | License-gated to "qualified non-commercial projects with MIT or Apache licenses"; this repo is AGPL-3.0-or-later, so it does not qualify. Structurally disqualified. |
+| Qodo Merge | Yes | None | 30/month | Free tier capped at 30 PRs/month. Rejected because the ceiling is too low for a mature project with regular activity. |
+| Korbit | Yes | None | None | Free tier available for all public OSS repos; no license gate. Rejected only because its rules live in a vendor dashboard rather than a versioned `.korbit.yaml` or equivalent file in the repo — no source of truth. |
+| CodeRabbit | Yes, unlimited | None | None | **ADOPTED.** Free forever for public repositories, no credit card, no PR cap, `.coderabbit.yaml` config + Code Guidelines available on the free tier. Rules are versioned in the repo. |
+
+**The ruling**: **CodeRabbit**, decided by the maintainer 2026-08-30.
+
+`.github/workflows/ai-review.yaml` and `.github/workflows/ai-review-respond.yaml` are
+deleted; rules move to `.coderabbit.yaml` (to be written); the maintainer installs the
+CodeRabbit GitHub App.
+
+**Process note**: This entry is written **retroactively** — the decision should have been
+raised and ruled on **before** any provider was written into code. The fact that it was not
+is the actual defect, independent of which provider was chosen. Retroactive recording
+corrects the procedural failure; it does not excuse having bypassed the procedure in the
+first place. For future work: no provider or other provider-specific detail goes into code
+until a ruling is recorded here.

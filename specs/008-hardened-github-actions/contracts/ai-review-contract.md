@@ -1,3 +1,13 @@
+⚠️ **SUPERSEDED as of 2026-08-30**
+
+This document describes the AI review workflow design that was removed and is **not shipped**. The implementation was based on `anthropics/claude-code-action` with an `ANTHROPIC_API_KEY` secret, which was never approved by the maintainer and was invented by an agent session in violation of CLAUDE.md's no-invention rule. The required secret never existed, so the reviewer never actually ran.
+
+**Replacement**: The AI review surface is now provided by the **CodeRabbit GitHub App**, configured via `.coderabbit.yaml` at the repository root. This document is retained as a historical record of the rejected design.
+
+**What carried forward**: The nine review criteria listed under "Review criteria" below (lint suppressions, `%w` wrapping, unjustified `any` / floating promises, CRD regeneration, spec updates, e2e bucket coverage, `design.pen` export, handler-vs-reconciler layering, unpinned actions) remain the substance of what the reviewer must catch. These have been incorporated into CodeRabbit's `.coderabbit.yaml` `path_instructions` configuration.
+
+---
+
 # Contract: AI Review Workflow
 
 **Feature**: 008-hardened-github-actions | **Date**: 2026-08-29

@@ -217,6 +217,8 @@ where this class of bug hides.
   maintainer action on every PR, so the gate is only as reliable as someone remembering.
   Reasonable as a future re-run affordance.
 
+**Amendment (2026-08-30)**: This decision's reasoning about `workflow_run`, the trust split, and the problem of keeping a privileged token separate from attacker-controlled code remains correct for any self-hosted API-key design. However, D-05 does not apply to the adopted **CodeRabbit GitHub App** implementation, because CodeRabbit's integration is a third-party GitHub App, not a self-hosted job holding a repo secret. There is no job holding both a privileged token and untrusted code, so the trust-split problem D-05 solves does not arise.
+
 ---
 
 ## D-06: Prompt-injection containment
@@ -399,10 +401,9 @@ every other dependency, and the job is added to `report`'s `needs`, `NEEDS_ORDER
 
 ## Open items carried into `/speckit-tasks`
 
-None blocking. Two judgement calls to confirm during implementation:
+None blocking. One judgement call to confirm during implementation:
 
-- The exact `anthropics/claude-code-action` version to pin — resolve at implementation time
-  with the same `git ls-remote` method, since it is the one action not currently in the tree.
+- ~~The exact `anthropics/claude-code-action` version to pin~~ — **NOT APPLICABLE**. The `ANTHROPIC_API_KEY`-based workflow was never approved by the maintainer and has been replaced by the CodeRabbit GitHub App. This action is no longer part of the design.
 - Whether `images.yaml` should gain a `concurrency` group with `cancel-in-progress`. It
   triggers on `workflow_dispatch` + `pull_request` + `push`, and concurrency would be useful
   for PRs. Leaning yes, keyed on `${{ github.workflow }}-${{ github.ref }}` with

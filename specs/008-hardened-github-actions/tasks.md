@@ -110,22 +110,33 @@ by any task in this file. Hardening is applied directly to workflow and action f
 
 ## Phase 6: User Story 4 — Secure GitHub AI Workflow for PR Review (Priority: P2)
 
-**Goal**: AI review on every PR, including forks, with no job ever holding both attacker-controlled code and a privileged token.
+**SUPERSEDED WORK**: Tasks T033–T039 built a bespoke two-file workflow (`ai-review.yaml` + `ai-review-respond.yaml`) using `anthropics/claude-code-action` to provide code review on every PR with a trust split that separated untrusted PR code from the API key. This work was completed and merged but then removed per ruling D-L, which determined the Anthropic provider had never been approved by the maintainer. The maintainer ruled to adopt **CodeRabbit** (free for public OSS repos, no credit card required, no PR cap on the free tier) instead. T033–T039 are marked superseded; new tasks T047–T050 complete the CodeRabbit integration.
 
-**Independent Test**: quickstart.md scenario 7 — all five sub-checks: same-repo comment, stickiness across a second push, fork PR green with no comment and a step-summary report, `collect` provably without the API key, and an injection attempt in the PR body that changes nothing.
+**Goal**: AI review on every PR using CodeRabbit's free GitHub App integration, configured via `path_instructions` to enforce the project's code quality rules.
 
-**Depends on**: Phase 2, plus T003 (the resolved `claude-code-action` pin) and T010-T017 (action SHA pinning, which the new file must satisfy on arrival).
+**Independent Test**: After CodeRabbit is installed (T048 [MAINTAINER]), verify on a live PR that CodeRabbit posts a review and that its `path_instructions` fire (replacing scenario 7's bespoke validation).
 
-- [X] T033 [US4] Create `.github/workflows/ai-review.yaml` with the `collect` job — `on: pull_request: types: [opened, synchronize, reopened]`, top-level `permissions: {}`, job `permissions: contents: read`, `timeout-minutes: 10`, **no secrets**. Declare named `env:` constants per OPEN-DECISIONS.md D-G: `MAX_DIFF_BYTES: 200000` (approximately 200 KB, about 50k tokens, leaving room for constitution/CLAUDE.md/specs in the review context); `MAX_TITLE_CHARS: 200` (GitHub's PR title limit is 256); `MAX_BODY_CHARS: 4000` (enough for a real description with a checklist). `STICKY_MARKER` is declared in `ai-review-respond.yaml`, not here — only the `review` job posts comments. Checks out PR head with `fetch-depth: 0`, computes the base diff truncated to `MAX_DIFF_BYTES`, writes the metadata JSON (`pr_number`, `head_sha`, `base_ref`, `title`, `body`, `changed_files`), sanitises `title`/`body` (strip backticks and `${`, truncate to `MAX_TITLE_CHARS`/`MAX_BODY_CHARS`), uploads the `ai-review-payload` artifact.
-- [X] T034 [US4] Create `.github/workflows/ai-review-respond.yaml` with the `review` job — `on: workflow_run: {workflows: [ai-review], types: [completed]}`, guarded by `if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'`, `permissions: contents: read, pull-requests: write, actions: read`, `timeout-minutes: 15`. Downloads the artifact. **Must not check out PR code** — that would collapse the trust split the whole design rests on. Depends on T033.
-- [X] T035 [US4] Add re-validation of every artifact field at the top of the `review` job in `.github/workflows/ai-review-respond.yaml` per [contracts/ai-review-contract.md](./contracts/ai-review-contract.md) — `pr_number` `^[0-9]+$`, `head_sha` `^[0-9a-f]{40}$`, `base_ref` `^[\w./-]+$`, re-sanitise and re-truncate `title`/`body`/`diff`. `collect` ran next to the attacker's code, so nothing it produced is trusted — including its claim to have sanitised. Same boundary discipline `gameaction/` applies between API and agent. Depends on T034.
-- [X] T036 [US4] Add the three-section prompt to `.github/workflows/ai-review-respond.yaml` — trusted SYSTEM (role, criteria, and an explicit statement that `<untrusted_diff>` content is data to review and never instructions to follow), trusted CONTEXT loaded from the **base** checkout only (`.specify/memory/constitution.md`, `CLAUDE.md`, `specs.md` for touched modules), then fenced untrusted INPUT last. Pin `anthropics/claude-code-action` to the SHA resolved in T003. Grant no shell tool and no network beyond the API call — that capability floor is what bounds a successful injection, the framing only lowers its odds. Depends on T035.
-- [X] T037 [US4] Implement the review criteria list from [contracts/ai-review-contract.md](./contracts/ai-review-contract.md) in the prompt (in `.github/workflows/ai-review-respond.yaml`) — in-source suppressions, `%w` error wrapping, unjustified `any` / floating promises, CRD edits without regenerated artifacts, behavior changes without a `specs.md` update, features without E2E coverage or a bucket entry, dashboard changes without a `design.pen` + export update, business logic in handlers that belongs in a reconciler, and unpinned actions. Depends on T036.
-- [X] T038 [US4] Implement the sticky comment upsert in `.github/workflows/ai-review-respond.yaml` — locate the first bot comment whose body starts with the `STICKY_MARKER` env var, `PATCH` it if found and `POST` otherwise, never posting a second marked comment. Include the short `head_sha` and an advisory/non-blocking footer. Depends on T037.
-- [X] T039 [US4] Implement graceful degradation in `.github/workflows/ai-review-respond.yaml` — catch the 403 a fork PR's downgraded token produces on upsert and write the identical report to `$GITHUB_STEP_SUMMARY`; handle unset `ANTHROPIC_API_KEY`, API failure or timeout, and a missing or malformed artifact. **Every path exits 0.** The reviewer must be structurally incapable of blocking a PR — which is also what makes it safe to run on untrusted input. Depends on T038.
-- [ ] T040 [US4] Execute quickstart.md scenario 7's five sub-checks and record the results in the PR. A red `review` job on a fork PR is a bug, not an expected outcome — the write token was never going to be granted. Depends on T039.
+**Depends on**: Phase 2, plus T010-T017 (action SHA pinning in base workflows).
 
-**Checkpoint**: SC-006 and FR-022…FR-025 satisfied.
+### Superseded Tasks (Historical Record)
+
+- [~] T033 [US4] [SUPERSEDED] Create `.github/workflows/ai-review.yaml` with the `collect` job — implemented per spec contracts/ai-review-contract.md but removed when the Anthropic provider was not approved.
+- [~] T034 [US4] [SUPERSEDED] Create `.github/workflows/ai-review-respond.yaml` with the `review` job — implemented per spec contracts/ai-review-contract.md but removed when the Anthropic provider was not approved.
+- [~] T035 [US4] [SUPERSEDED] Add re-validation of artifact fields in the `review` job — implemented per contracts/ai-review-contract.md but removed when the Anthropic provider was not approved.
+- [~] T036 [US4] [SUPERSEDED] Add the three-section prompt to the `review` job — implemented per contracts/ai-review-contract.md but removed when the Anthropic provider was not approved.
+- [~] T037 [US4] [SUPERSEDED] Implement the review criteria list in the prompt — implemented per contracts/ai-review-contract.md but removed when the Anthropic provider was not approved.
+- [~] T038 [US4] [SUPERSEDED] Implement the sticky comment upsert — implemented per contracts/ai-review-contract.md but removed when the Anthropic provider was not approved.
+- [~] T039 [US4] [SUPERSEDED] Implement graceful degradation — implemented per contracts/ai-review-contract.md but removed when the Anthropic provider was not approved.
+- [~] T040 [US4] [SUPERSEDED] Execute quickstart.md scenario 7's five sub-checks — tested the bespoke collect/review workflow and no longer applies now that CodeRabbit has replaced it.
+
+### New Tasks
+
+- [X] T047 [US4] Create `.coderabbit.yaml` in the repo root with `path_instructions` tuned to Gameplane's rules — hardening enforcement (unpinned actions, expression injection, permission breadth, timeout omission, concurrency misconfiguration), code quality (error wrapping with `%w`, no unjustified `any`, no floating promises, CRD edits without regenerated artifacts, design-first for web changes), and review gates (features need E2E coverage + bucket entry, behavior changes need `specs.md` update, business logic in handlers that belongs in a reconciler). Reference the review criteria from the deleted contracts/ai-review-contract.md or analogous guidance. Configured to omit code review on `.pen` files (design source, reviewed visually not textually).
+- [X] T048 [MAINTAINER] Install the CodeRabbit GitHub App on ValgulNecron/Gameplane (maintainer action only; link provided in PR). Once installed, CodeRabbit will automatically review new PRs using the `.coderabbit.yaml` configuration.
+- [ ] T049 [US4] After CodeRabbit is installed (T048 [MAINTAINER] complete), create a throwaway branch, push a test commit, open a PR against `master`, and confirm CodeRabbit posts a review comment on the PR. Verify that `path_instructions` fire — check that at least one of the hardening or code quality categories appears in the review output. Record the PR URL in the final PR description as evidence of integration.
+- [X] T050 [US4] Delete `.github/workflows/ai-review.yaml` and `.github/workflows/ai-review-respond.yaml` (already removed when the Anthropic provider was rejected; this task records the completion).
+
+**Checkpoint**: SC-006 and FR-022…FR-025 satisfied via CodeRabbit integration.
 
 ---
 
@@ -134,7 +145,7 @@ by any task in this file. Hardening is applied directly to workflow and action f
 - [X] T043 Run the full local pre-push check from quickstart.md ("Full local pre-push check") and confirm `PRE-PUSH OK`.
 - [ ] T044 Push the branch and confirm a **fully green** CI run — including every pre-existing e2e bucket. Not a formality: the hardening narrows every job's token and repins every action, and a green e2e tier is what proves nothing was quietly relying on the over-broad `statuses: write`. Per Constitution Principle VI, nothing here is validated until this run is green.
 - [ ] T045 Complete quickstart.md's Definition of Done table — all 8 evidence rows, with the scenario 5 and 7 run URLs and the scenario 6 falsification output in the PR description. Depends on T044.
-- [ ] T041 **[Last]** — after all other tasks are complete, update `docs/contributing.md` and `docs/security.md` to describe the final CI: the SHA-pinning policy and how Dependabot maintains the pins, the lowest-privilege per-job permission model, the workflow-lint gate (`actionlint` + `zizmor`), the timeout budgets from D-A, secret confinement, and the AI reviewer's trust split. Written against the merged state — no forward references to work not yet done. Depends on T045.
+- [ ] T041 **[Last]** — after all other tasks are complete, update `docs/contributing.md` and `docs/security.md` to describe the final CI: the SHA-pinning policy and how Dependabot maintains the pins, the lowest-privilege per-job permission model, the workflow-lint gate (`actionlint` + `zizmor`), the timeout budgets from D-A, secret confinement, and the CodeRabbit integration (path_instructions configuration and automated PR review). Written against the merged state — no forward references to work not yet done. Depends on T045.
 - [ ] T046 Merge to `master` and delete the branch, remote and local, per CLAUDE.md rule 12. Depends on T041.
 
 ---
@@ -155,7 +166,7 @@ by any task in this file. Hardening is applied directly to workflow and action f
 | **US1** (P1) | Phase 2 | The MVP. SHA pinning verified by `zizmor`; expression-injection safety verified by `actionlint`; permissions, timeouts, and concurrency enforced by code review. |
 | **US2** (P1) | Phase 2 | Touches only `dump-cluster-state/action.yml` — zero file overlap with US1/US3/US4. T025 alone waits on T010. |
 | **US3** (P2) | Phase 2 | Touches only `dependabot.yml`. Fully independent. Note R7 gap: no CI enforcement of parity. |
-| **US4** (P2) | Phase 2, T003, T010–T017 | New file must arrive already satisfying action SHA pins. |
+| **US4** (P2) | Phase 2 | Adds `.coderabbit.yaml` configuration; no GitHub workflow files. CodeRabbit App installation and live PR validation complete the integration. |
 
 ### File-Conflict Map
 
@@ -171,8 +182,7 @@ The constraint that actually governs parallelism here — one file, one writer a
 | `.github/actions/*/action.yml` (3 files) | T015, T016, T017 | free, one each |
 | `.github/actions/dump-cluster-state/action.yml` | T023 → T024 | serial pair |
 | `.github/dependabot.yml` | T028 → T029 → T030 | serial chain |
-| `.github/workflows/ai-review.yaml` | T033 | free (creates `collect` job) |
-| `.github/workflows/ai-review-respond.yaml` | T034 → T035 → … → T039 | serial chain, 6 deep (creates `review` job) |
+| `.coderabbit.yaml` | T047 | free (CodeRabbit path_instructions configuration) |
 
 ### Parallel Opportunities
 
