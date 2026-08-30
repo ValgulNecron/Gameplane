@@ -57,15 +57,15 @@ grep -n 'statuses: write' .github/workflows/ci.yaml
 
 Expected: exactly one hit, inside the `web` job's `permissions:` block.
 
-Confirm the four documented timeout exceptions and no others:
+Confirm the five documented timeout exceptions and no others:
 
 ```sh
 grep -rnE 'timeout-minutes: (3[1-9]|[4-9][0-9]|[0-9]{3,})' .github/workflows/
 ```
 
-Expected: exactly 4 lines — `ci.yaml` `e2e-game-bot` (50), `images.yaml` `game-images` (60),
-`release.yaml` `images` (45), `publish-edge.yaml` `images` (45). Each must carry an inline
-justification comment.
+Expected: exactly 5 lines, all from `ci.yaml`, all E2E jobs with 60-minute timeout:
+`e2e-go` (all matrix legs), `e2e-multicluster`, `e2e-upgrade`, `e2e-web-live`, `e2e-game-bot`.
+Each must carry an inline justification comment explaining the longer budget.
 
 ---
 

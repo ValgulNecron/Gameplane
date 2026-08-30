@@ -6,9 +6,8 @@ Behavioral contract for `.github/workflows/ai-review.yaml`. Satisfies FR-022…F
 SC-006. Design rationale in research.md D-05 and D-06.
 
 > ⚠️ The trust split, the `pull_request_target` ban and the re-validation requirement follow
-> from FR-023/FR-025. The specific caps (200 KB diff, 200-char title, 4000-char body) and the
-> `<!-- gameplane-ai-review -->` marker string are agent-chosen defaults, not requirements.
-> See OPEN-DECISIONS.md D-G.
+> from FR-023/FR-025. The limits and marker below are governed by OPEN-DECISIONS.md D-G.
+> Each limit is a named constant in `ai-review.yaml` carrying a comment stating its justification.
 
 ---
 
@@ -56,10 +55,15 @@ pattern exists.
 
 **Steps**:
 1. Checkout PR head (`fetch-depth: 0` for the base diff).
-2. Compute `git diff origin/$BASE_REF...HEAD`, truncate to 200 KB.
+2. Compute `git diff origin/$BASE_REF...HEAD`, truncate to `MAX_DIFF_BYTES` (200 KB — ~50k tokens,
+   about a quarter of the review context, leaving room for the constitution, CLAUDE.md and
+   touched specs.md; larger diffs truncate with an explicit marker).
 3. Write metadata JSON: `pr_number`, `head_sha`, `base_ref`, `title`, `body`,
    `changed_files`.
-4. Sanitise `title` and `body`: strip backticks and `${`, truncate to 200 / 4000 chars.
+4. Sanitise `title` and `body`: strip backticks and `${`, truncate to `MAX_TITLE_CHARS` (200 chars
+   — GitHub's PR title limit is 256; 200 keeps a margin) and `MAX_BODY_CHARS` (4000 chars — enough
+   for a real description with a checklist; bounds how much attacker-controlled text enters the
+   prompt).
 5. Upload `ai-review-payload` artifact.
 
 Sanitising here is defence in depth, not the defence. The `review` job re-validates
@@ -89,9 +93,9 @@ on:
    | `pr_number` | `^[0-9]+$` | abort |
    | `head_sha` | `^[0-9a-f]{40}$` | abort |
    | `base_ref` | `^[\w./-]+$` | abort |
-   | `title` | ≤ 200 chars after re-sanitising | truncate |
-   | `body` | ≤ 4000 chars after re-sanitising | truncate |
-   | `diff` | ≤ 200 KB | truncate with a marker |
+   | `title` | ≤ `MAX_TITLE_CHARS` (200) after re-sanitising | truncate |
+   | `body` | ≤ `MAX_BODY_CHARS` (4000) after re-sanitising | truncate |
+   | `diff` | ≤ `MAX_DIFF_BYTES` (200 KB) | truncate with a marker |
 
    The `collect` job ran next to the attacker's code. Nothing it produced is trusted,
    including its claim to have sanitised. Both sides validate independently — the same
@@ -149,7 +153,9 @@ Output is advisory. The reviewer flags; a human decides.
 
 ## Sticky comment
 
-**Marker**: first line of the body is exactly `<!-- gameplane-ai-review -->`.
+**Marker**: first line of the body is exactly `STICKY_MARKER` (`<!-- gameplane-ai-review -->` — an
+HTML comment is invisible in rendered Markdown, so it identifies the bot's comment for in-place
+updates).
 
 **Algorithm**:
 1. `GET /repos/{repo}/issues/{pr}/comments`, find the first comment authored by the bot
@@ -175,7 +181,7 @@ job stays green. Never fail a job for a permission GitHub was never going to gra
 | API call fails or times out | `continue-on-error: true`, report in summary, exit 0. |
 | Artifact missing or malformed | Abort with a summary note, exit 0. |
 | Comment upsert 403 (fork) | Degrade to step summary, exit 0. |
-| Diff exceeds 200 KB | Truncate, state the truncation in the comment. |
+| Diff exceeds `MAX_DIFF_BYTES` (200 KB) | Truncate, state the truncation in the comment. |
 
 Every path exits 0. The AI reviewer is incapable of blocking a PR by design — which is also
 what makes it safe to run on untrusted input.

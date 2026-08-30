@@ -112,15 +112,22 @@ explicit and non-negotiable, preventing accidental inheritance creep.
 
 ## D-03: Timeout policy
 
-**Decision**: Every job gets `timeout-minutes`. Ceiling is 30 minutes; four documented
-exceptions above it, each requiring an inline comment stating why:
+**Decision**: Every job gets `timeout-minutes`. Ceiling is 30 minutes; per ruling D-A the five
+E2E jobs are the only documented exceptions above it, each requiring an inline comment stating
+why:
 
 | Job | Timeout | Justification |
 |---|---|---|
-| `e2e-game-bot` | 50 | Pulls multi-GB game images, boots real servers, runs protocol joins. Already set. |
-| `release.images` | 45 | Multi-arch buildx + cosign sign across 8 images. |
-| `images.game-images` | 60 | SteamCMD-based game images; upstream download is the long pole. |
-| `publish-edge.images` | 45 | Same shape as `release.images`. |
+| `e2e-go` (all matrix legs) | 60 | Boots a kind cluster, installs the chart, runs the bucket's suite. |
+| `e2e-multicluster` | 60 | Same, across two clusters. |
+| `e2e-upgrade` | 60 | Same, plus a chart upgrade across versions. |
+| `e2e-web-live` | 60 | Same, plus a live dashboard drive. |
+| `e2e-game-bot` | 60 | Pulls multi-GB game images, boots real servers, runs protocol joins. |
+
+The remaining D-A budgets sit at or below the 30 ceiling and are not exceptions:
+`images.game-images` 10, `images.common-base` 10 [EXTENSION], `release.images` 15,
+`release.chart`/`github-release`/`modules` 15 [EXTENSION], `publish-edge.images` 15,
+`republish-modules.modules` 15 [EXTENSION].
 
 Everything else is ≤ 30. The 9 currently-unbounded jobs are all in the publish/release
 workflows, which is the worst place to be unbounded — a hung `docker push` holding a
@@ -302,26 +309,20 @@ across 14 modules, and those are per-entry. Revisit if the config becomes unwiel
 
 - Each of the 14 Go modules: one group `<module>-minor-patch` matching `update-types:
   ["minor", "patch"]` across all dependencies. Major bumps come as individual PRs.
-- `k8s.io/*` + `sigs.k8s.io/*` get their own group per module — they must move together or
-  the module does not build.
-- `web/`: `npm-minor-patch` for everything minor/patch; a separate `react` group for
-  `react*`; a separate `types` group for `@types/*`.
+- `web/`: one group `npm-minor-patch` matching `update-types: ["minor", "patch"]` across all
+  dependencies. Major bumps come as individual PRs.
 - Docker: one group per directory, all update types.
 - GitHub Actions: a single `actions` group, all update types — pin churn is safe to batch.
-- `open-pull-requests-limit: 3` per Go module (14 × 3 worst case is still bounded), `10` for
+- `open-pull-requests-limit: 5` per Go module (14 × 5 worst case is still bounded), `10` for
   npm, `5` for docker, `5` for actions.
-- Schedule: weekly, Monday 03:00 for Go/docker/actions; Monday 04:00 for npm, to stagger the
-  webhook burst.
+- Schedule: weekly, Monday 03:00 UTC for all ecosystems.
 - `commit-message.prefix: "chore(deps)"` with `include: "scope"` — note this corrects the
   current config's `"chore: "`, which yields a malformed `chore: (deps):` subject.
 
 **Rationale**: The spec's own edge case names PR floods as the risk; 28 ungrouped entries
 across a 14-module workspace could open dozens of PRs in one Monday morning, each triggering
 a full CI run. Grouping minor/patch collapses the common case to one PR per module while
-keeping majors — the ones that actually break builds — individually reviewable. The
-k8s-group carve-out is not optional: `client-go`, `api`, `apimachinery` and
-`controller-runtime` are version-locked to each other in practice, and splitting them
-produces PRs that cannot compile in isolation.
+keeping majors — the ones that actually break builds — individually reviewable.
 
 **Alternatives considered**:
 - *One group across all 14 modules* — rejected: a single failing module blocks the whole

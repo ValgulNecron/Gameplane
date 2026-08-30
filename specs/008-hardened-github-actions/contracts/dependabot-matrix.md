@@ -5,12 +5,12 @@
 Target contents of `.github/dependabot.yml`. **Note: R7 (Dependabot<->tree parity check)
 is a known coverage gap — no longer automatically enforced.** See OPEN-DECISIONS.md D-F.
 
-> ⚠️ **Ratified vs proposed.** The directory parity requirement with `go.work` and the
+> ✓ **Ratified values.** The directory parity requirement with `go.work` and the
 > Dockerfile set (FR-017/FR-019), the presence of `groups`, and a declared
 > `open-pull-requests-limit` (FR-021), the `chore(deps)` prefix (FR-021) are ratified.
-> Everything below marked **[PROPOSED]** — the specific limit numbers, the group
-> names and shapes, and the 04:00 npm stagger — is an agent suggestion and is **not**
-> enforced. See OPEN-DECISIONS.md D-B, D-C, D-D.
+> The specific limit numbers (5/10/5/5), the group batching strategy (one group per
+> entry, minor+patch only), and the schedule (weekly Monday 03:00 UTC, no stagger)
+> are **ratified per OPEN-DECISIONS.md D-B, D-C, D-D.**
 
 ---
 
@@ -55,29 +55,20 @@ Per-entry shape:
   commit-message:
     prefix: "chore(deps)"
     include: "scope"
-  open-pull-requests-limit: 3
+  open-pull-requests-limit: 5
   groups:
-    k8s:
-      patterns:
-        - "k8s.io/*"
-        - "sigs.k8s.io/*"
     operator-minor-patch:
       update-types: ["minor", "patch"]
 ```
 
-**[PROPOSED]** — the `k8s` group has a real technical basis but the spec does not ask for it. `k8s.io/api`, `k8s.io/apimachinery`, `k8s.io/client-go`
-and `sigs.k8s.io/controller-runtime` are version-locked to each other; a PR bumping one
-alone does not compile. It is declared **before** the catch-all group — Dependabot matches
-groups in declaration order, so a catch-all listed first swallows everything.
+Each gomod entry has exactly one group batching all minor and patch updates. No k8s
+carve-out — `k8s.io/api`, `k8s.io/apimachinery`, `k8s.io/client-go`, and
+`sigs.k8s.io/controller-runtime` are version-locked to each other and may not compile
+independently, but the simpler config is preferred. Dependabot-proposed PRs that fail
+this constraint can be closed by hand.
 
-Group naming: `<module>-minor-patch`, so a PR title identifies its module at a glance.
-
-Applies to every module that imports k8s libraries — `operator`, `api`, `agent`,
-`capture-sidecar`, `sentinel`, `mcp-server`, `test/e2e`. Modules with no k8s dependency
-(`netguard`, `gameaction`, `gameproto`, `svcutil`) get only the minor-patch group.
-
-**Limit arithmetic**: 14 × 3 = 42 worst case. In practice the minor/patch group collapses to
-one PR per module, so a normal Monday is ≤ 14 Go PRs, most weeks far fewer.
+**Limit arithmetic**: 14 × 5 = 70 worst case. In practice the minor/patch group
+collapses to one PR per module, so a normal Monday is ≤ 14 Go PRs, most weeks far fewer.
 
 ---
 
@@ -89,22 +80,17 @@ one PR per module, so a normal Monday is ≤ 14 Go PRs, most weeks far fewer.
   schedule:
     interval: "weekly"
     day: "monday"
-    time: "04:00"          # [PROPOSED] staggered off the 03:00 burst; not enforced
+    time: "03:00"
   commit-message:
     prefix: "chore(deps)"
     include: "scope"
   open-pull-requests-limit: 10
   groups:
-    react:
-      patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
-    types:
-      patterns: ["@types/*"]
     npm-minor-patch:
       update-types: ["minor", "patch"]
 ```
 
-`react` is declared first and names its `@types` packages explicitly — React and its type
-definitions must move together, and the broader `types` group would otherwise capture them.
+One group batching all minor and patch updates.
 
 ---
 

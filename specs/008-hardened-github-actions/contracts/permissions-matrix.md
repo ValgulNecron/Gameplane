@@ -4,14 +4,14 @@
 
 The target state for every job in the repository. Permissions misuse is enforced by the workflow-lint gate (zizmor); this matrix's specific per-job scopes are code-review-only. Timeout configuration is code-review-only.
 
-> ⚠️ **Not all of this is ratified.** The `permissions` column follows FR-001/FR-002. The
-> `timeout-minutes` column does not: FR-004 gives a 30-minute default and names game-bot as
-> its one example, so every other number below is an agent proposal. Values marked
-> **[UNRATIFIED]** are not automatically enforced. See OPEN-DECISIONS.md D-A.
+> ⚠️ **Timeouts are ratified.** See OPEN-DECISIONS.md D-A. The E2E jobs run with a 60-minute
+> budget, which exceeds FR-004's ≤30 default; this is the maintainer's explicit call, justified
+> because "an image build has no business taking longer than the entire E2E suite it feeds."
+> Values marked **[EXTENSION]** are applied by extension of the ruling and may be vetoed by the
+> maintainer. Removed [UNRATIFIED] markers where the ruling settled the value.
 >
-> The `packages: write` top-level blocks below also contradict FR-001, which permits only
-> `contents: read` or `{}` at the top level. Code review is expected to enforce this.
-> See OPEN-DECISIONS.md D-E.
+> The `packages: write` top-level blocks have been corrected — FR-001 holds strictly.
+> See OPEN-DECISIONS.md D-E (already implemented in commit 01af5953).
 
 ---
 
@@ -50,18 +50,14 @@ permissions:
 | `chart-template` | `contents: read` | 10 | |
 | `go-e2e-unit` | `contents: read` | 10 | |
 | `e2e-buckets` | `contents: read` | 5 | |
-| `e2e-go` | `contents: read` | matrix (`job_timeout`) | Legs are 25–35. The `operator` leg's 35 is a documented exception — 8-way parallel behind a 20m test timeout. |
-| `e2e-multicluster` | `contents: read` | 30 | |
-| `e2e-upgrade` | `contents: read` | 30 | |
-| `e2e-web-live` | `contents: read` | 25 | |
-| `e2e-game-bot` | `contents: read` | 50 | **Exception** — multi-GB game images + real protocol joins. Inline comment required. |
+| `e2e-go` | `contents: read` | 60 | All matrix legs run with the 60-minute E2E budget. |
+| `e2e-multicluster` | `contents: read` | 60 | |
+| `e2e-upgrade` | `contents: read` | 60 | |
+| `e2e-web-live` | `contents: read` | 60 | |
+| `e2e-game-bot` | `contents: read` | 60 | E2E suite timeout per D-A. |
 | `report` | `contents: read`, `statuses: read`, `pull-requests: write` | 5 | Already correct. Fork-degradation already handled. |
 | `workflow-lint` *(new)* | `contents: read` | 5 | The workflow-lint gate runs actionlint and zizmor over `.github/workflows/`. Gated on the new `github` path-filter output. |
 
-**`e2e-go` note**: `timeout-minutes: ${{ matrix.job_timeout }}` is an expression. Timeout
-values are resolved from the matrix and each is checked against reasonable ceilings. The
-`operator` bucket is 35, not ≤ 30 — legitimate due to 8-way parallel behind a 20m test
-timeout, plus cluster-boot headroom. This is recorded as an exception rather than lowered.
 
 **`report` wiring**: adding `workflow-lint` requires three edits in the reporter — the
 `needs:` list, the `NEEDS_ORDER` array, and the `JOB_MATCHERS` map. Miss any one and the new
@@ -79,8 +75,8 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `common-base` | `contents: read`, `packages: write` | 30 **[UNRATIFIED]** | Currently unbounded. |
-| `game-images` | `contents: read`, `packages: write` | 60 **[UNRATIFIED]** | Currently unbounded. Nobody timed this; 60 is a guess at SteamCMD download cost. |
+| `common-base` | `contents: read`, `packages: write` | 10 **[EXTENSION]** | 10 minutes per image; matrix legs run in parallel. |
+| `game-images` | `contents: read`, `packages: write` | 10 | 10 minutes per image; matrix legs run in parallel. |
 
 Also: this workflow triggers on `push`, `pull_request`, and `workflow_dispatch` but has no
 `concurrency` block. A concurrency block should be added. Recommended:
@@ -105,7 +101,7 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `images` | `contents: read`, `packages: write`, `id-token: write` | 45 **[UNRATIFIED]** | Currently unbounded; 45 is a guess at multi-arch buildx + cosign across 8 images. Add `id-token: write` only if keyless signing is in use; this repo signs keyed/offline with `COSIGN_PRIVATE_KEY`, so **omit it** unless verified otherwise during implementation. |
+| `images` | `contents: read`, `packages: write`, `id-token: write` | 15 | Multi-arch buildx + cosign. Add `id-token: write` only if keyless signing is in use; this repo signs keyed/offline with `COSIGN_PRIVATE_KEY`, so **omit it** unless verified otherwise during implementation. |
 
 Concurrency block already present and correct (`group: publish-edge`).
 
@@ -121,10 +117,10 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `images` | `contents: read`, `packages: write` | 45 **[UNRATIFIED]** | Currently unbounded; guess, as publish-edge. |
-| `chart` | `contents: read`, `packages: write` | 20 **[UNRATIFIED]** | Currently unbounded. |
-| `github-release` | `contents: write` | 15 **[UNRATIFIED]** | **Only** job needing `contents: write` — it creates the GitHub Release. Currently unbounded. |
-| `modules` | `contents: read`, `packages: write` | 30 **[UNRATIFIED]** | Currently unbounded. |
+| `images` | `contents: read`, `packages: write` | 15 | Multi-arch buildx + cosign. |
+| `chart` | `contents: read`, `packages: write` | 15 **[EXTENSION]** | Release budget. |
+| `github-release` | `contents: write` | 15 **[EXTENSION]** | **Only** job needing `contents: write` — it creates the GitHub Release. Release budget. |
+| `modules` | `contents: read`, `packages: write` | 15 **[EXTENSION]** | Release budget. |
 
 This is the second-biggest privilege reduction in the feature: `contents: write` is
 currently granted to all four release jobs, including the three that only read the tree and
@@ -145,7 +141,7 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `modules` | `contents: read`, `packages: write` | 30 **[UNRATIFIED]** | Currently unbounded. |
+| `modules` | `contents: read`, `packages: write` | 15 **[EXTENSION]** | Module push budget. |
 
 `workflow_dispatch` only — no concurrency block needed.
 

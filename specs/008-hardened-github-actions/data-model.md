@@ -27,14 +27,20 @@ satisfy. Not a file itself; the security invariant all workflows must preserve.
 | `on:` triggers | list | MUST NOT include `pull_request_target`. |
 | secret references | string | `COSIGN_PRIVATE_KEY`, `GHCR_*`, registry credentials permitted only in `images.yaml`, `publish-edge.yaml`, `release.yaml`, `republish-modules.yaml`. |
 
-**Timeout exception list** (the only values > 30 permitted):
+**Timeout exception list** (the only values > 30 permitted, per ruling D-A):
 
 | Workflow | Job | Max |
 |---|---|---|
-| `ci.yaml` | `e2e-game-bot` | 50 |
-| `images.yaml` | `game-images` | 60 |
-| `release.yaml` | `images` | 45 |
-| `publish-edge.yaml` | `images` | 45 |
+| `ci.yaml` | `e2e-go` (all matrix legs) | 60 |
+| `ci.yaml` | `e2e-multicluster` | 60 |
+| `ci.yaml` | `e2e-upgrade` | 60 |
+| `ci.yaml` | `e2e-web-live` | 60 |
+| `ci.yaml` | `e2e-game-bot` | 60 |
+
+Every other job is ≤ 30 and needs no exception: `images.yaml`'s `game-images` and
+`common-base` are 10, and the release, publish-edge and republish-modules jobs are 15.
+D-A raises the E2E set above FR-004's ≤ 30 default by the maintainer's explicit call;
+the justification is recorded in OPEN-DECISIONS.md D-A.
 
 **Validation**: Expression-injection patterns in `run:` bodies are enforced by actionlint in the `workflow-lint` job. Action `uses:` pinning, permissions misuse, and `pull_request_target` exclusion are enforced by zizmor (also in the workflow-lint gate). The following rows are upheld by code review and are not automatically enforced: `workflow.permissions` and `job.permissions` (presence and scope requirements), `job.timeout-minutes` (presence and value; actionlint enforces only malformed keys), `workflow.concurrency` (presence and fields), `secret references` (confinement to approved workflows), `step.uses (local)` (exemption from pinning), and the `# vX.Y.Z` comment convention for external action refs.
 
@@ -105,7 +111,7 @@ The full contents of `.github/dependabot.yml`. Authoritative copy in
 | `schedule` | map | `interval: weekly`, `day`, `time` (UTC). |
 | `commit-message.prefix` | string | `chore(deps)`. |
 | `commit-message.include` | string | `scope`. |
-| `open-pull-requests-limit` | integer | gomod 3, npm 10, docker 5, github-actions 5. |
+| `open-pull-requests-limit` | integer | gomod 5, npm 10, docker 5, github-actions 5. |
 | `groups` | map | ≥ 1 group per entry. Each group has `patterns` and/or `update-types`. |
 
 **Entry count invariant** — the load-bearing rule:
