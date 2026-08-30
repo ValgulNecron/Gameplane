@@ -72,6 +72,7 @@ jobs:
       e2e: ${{ steps.combine.outputs.e2e }}
       weblive: ${{ steps.combine.outputs.weblive }}
       images: ${{ steps.combine.outputs.images }}
+      github: ${{ steps.combine.outputs.github }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
@@ -120,6 +121,9 @@ jobs:
               - 'go.work'
               - 'go.work.sum'
               - 'test/e2e/buckets.sh'
+            github:
+              - '.github/workflows/**'
+              - '.github/actions/**'
       - id: combine
         # Fold the raw filters into single-token booleans so every downstream
         # `if:` is one expression (fewer chances to get wrong when the only way
@@ -133,12 +137,14 @@ jobs:
           E2ETREE: ${{ steps.filter.outputs.e2etree }}
           GAMECOVERAGE: ${{ steps.filter.outputs.gamecoverage }}
           CI: ${{ steps.filter.outputs.ci }}
+          GITHUB: ${{ steps.filter.outputs.github }}
         run: |
           gov=false;  { [ "$GO" = true ]     || [ "$CI" = true ]; } && gov=true
           webv=false; { [ "$WEB" = true ]    || [ "$CI" = true ]; } && webv=true
           chv=false;  { [ "$CHARTS" = true ] || [ "$CI" = true ]; } && chv=true
           e2ev=false; { [ "$GO" = true ] || [ "$CHARTS" = true ] || [ "$E2ETREE" = true ] || [ "$GAMECOVERAGE" = true ] || [ "$CI" = true ]; } && e2ev=true
           wlv=false;  { [ "$e2ev" = true ] || [ "$WEB" = true ] || [ "$CI" = true ]; } && wlv=true
+          ghv=false;  { [ "$GITHUB" = true ] || [ "$CI" = true ]; } && ghv=true
           {
             echo "go=$gov"
             echo "web=$webv"
@@ -146,6 +152,7 @@ jobs:
             echo "e2e=$e2ev"
             echo "weblive=$wlv"
             echo "images=$wlv"
+            echo "github=$ghv"
           } >> "$GITHUB_OUTPUT"
 
   # Build the operator/api/agent (+ gameprobe) images ONCE and publish them as
@@ -612,6 +619,35 @@ jobs:
           fi
           echo "chart cosign key matches root cosign.pub"
 
+  workflow-lint:
+    name: workflow lint
+    needs: [changes]
+    if: needs.changes.outputs.github == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: actionlint (download and verify)
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cd "$tmp"
+          curl -fsSL -o actionlint.tar.gz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.9/actionlint_1.7.9_linux_amd64.tar.gz
+          # sha256sum -c exits non-zero on mismatch, and set -e aborts the step:
+          # the binary never executes unless it matches the pinned digest.
+          echo "233b280d05e100837f4af1433c7b40a5dcb306e3aa68fb4f17f8a7f45a7df7b4  actionlint.tar.gz" | sha256sum -c -
+          tar -xzf actionlint.tar.gz
+          # actionlint takes workflow FILE paths, not a directory. With no
+          # arguments it discovers every workflow in the repository itself,
+          # so run it from the checkout root.
+          cd "$GITHUB_WORKSPACE"
+          "$tmp/actionlint"
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+
   # Unit tests for probe protocol packages (minecraft, terraria, etc).
   # These are in test/e2e but are untagged Go unit tests, not integration
   # tests, so they run without a cluster or build tags. Gated on e2e
@@ -697,28 +733,28 @@ jobs:
           - bucket: operator
             parallel: 8
             test_timeout: 20m
-            job_timeout: 35
+            job_timeout: 60 # Boots a kind cluster, installs the chart, runs the bucket's suite.
           - bucket: api-auth
             parallel: 4
             test_timeout: 15m
-            job_timeout: 30
+            job_timeout: 60 # Boots a kind cluster, installs the chart, runs the bucket's suite.
             tail: ratelimit
           - bucket: api-roles
             parallel: 3
             test_timeout: 10m
-            job_timeout: 25
+            job_timeout: 60 # Boots a kind cluster, installs the chart, runs the bucket's suite.
           - bucket: api-rbac
             parallel: 4
             test_timeout: 10m
-            job_timeout: 25
+            job_timeout: 60 # Boots a kind cluster, installs the chart, runs the bucket's suite.
           - bucket: api-agent
             parallel: 4
             test_timeout: 15m
-            job_timeout: 30
+            job_timeout: 60 # Boots a kind cluster, installs the chart, runs the bucket's suite.
           - bucket: api-mods
             parallel: 2
             test_timeout: 15m
-            job_timeout: 30
+            job_timeout: 60 # Boots a kind cluster, installs the chart, runs the bucket's suite.
     env:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
@@ -774,7 +810,7 @@ jobs:
     needs: [changes, build-images, build-images-arm64]
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 60 # Same, across two clusters.
     permissions:
       contents: read
     strategy:
@@ -842,7 +878,7 @@ jobs:
     needs: [changes, build-images, build-images-arm64]
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 60 # Same, plus a chart upgrade across versions.
     permissions:
       contents: read
     strategy:
@@ -893,7 +929,7 @@ jobs:
     needs: [changes, build-images, build-images-arm64]
     if: needs.changes.outputs.weblive == 'true'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
-    timeout-minutes: 25
+    timeout-minutes: 60 # Same, plus a live dashboard drive.
     permissions:
       contents: read
     strategy:
@@ -970,7 +1006,7 @@ jobs:
     runs-on: ubuntu-latest
     # Two serial real-game boots (Minecraft, then Terraria — deliberately
     # not parallel: two game servers booting at once OOM-starve the node).
-    timeout-minutes: 50
+    timeout-minutes: 60 # Pulls multi-GB game images, boots real servers, runs protocol joins.
     permissions:
       contents: read
     env:
@@ -1037,6 +1073,7 @@ jobs:
         web-e2e-mock,
         helm,
         chart-template,
+        workflow-lint,
         go-e2e-unit,
         e2e-buckets,
         e2e-go,
@@ -1134,7 +1171,7 @@ jobs:
 
             const NEEDS_ORDER = [
               'changes', 'build-images', 'build-images-arm64', 'lint', 'go',
-              'web', 'web-e2e-mock', 'helm', 'chart-template', 'go-e2e-unit',
+              'web', 'web-e2e-mock', 'helm', 'chart-template', 'workflow-lint', 'go-e2e-unit',
               'e2e-buckets', 'e2e-go', 'e2e-multicluster', 'e2e-upgrade',
               'e2e-web-live', 'e2e-game-bot',
             ];
@@ -1152,6 +1189,7 @@ jobs:
               'web-e2e-mock': (n) => n === 'web e2e (mock)',
               helm: (n) => n === 'helm lint',
               'chart-template': (n) => n === 'chart render',
+              'workflow-lint': (n) => n === 'workflow lint',
               'go-e2e-unit': (n) => n === 'go (test/e2e)',
               'e2e-buckets': (n) => n === 'e2e bucket coverage',
               'e2e-go': (n) => /^e2e (operator|api-auth|api-roles|api-rbac|api-agent|api-mods) \//.test(n),
