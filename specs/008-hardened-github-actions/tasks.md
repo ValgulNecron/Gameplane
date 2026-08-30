@@ -65,7 +65,7 @@ by any task in this file. Hardening is applied directly to workflow and action f
 
 ### Validation for User Story 1
 
-- [ ] T021 [US1] Run quickstart.md scenario 6 — deliberately regress a zizmor-enforced control by removing a SHA pin from an action `uses:`, run `zizmor` locally on the modified file to confirm it exits non-zero (as the scenario demonstrates), then restore the tree. Paste the zizmor output into the PR description. Separately, optionally regress an actionlint-enforced control (e.g., inject a bash expression into a run: body) to demonstrate actionlint's catch. Manual review confirms that removing a permissions block or timeout would be caught in code review.
+- [X] T021 [US1] Run quickstart.md scenario 6 — deliberately regress a zizmor-enforced control by removing a SHA pin from an action `uses:`, run `zizmor` locally on the modified file to confirm it exits non-zero (as the scenario demonstrates), then restore the tree. Paste the zizmor output into the PR description. Separately, optionally regress an actionlint-enforced control (e.g., inject a bash expression into a run: body) to demonstrate actionlint's catch. Manual review confirms that removing a permissions block or timeout would be caught in code review.
 
 **Checkpoint**: US1 is complete and independently shippable. SC-001 and FR-003 are verified by `zizmor` (SHA pinning); FR-006 is verified by `actionlint` (expression-injection safety). SC-002, FR-001, FR-002, FR-004, FR-005, and FR-007–FR-011 are satisfied and enforced by code review (permissions presence/values, timeouts, concurrency, and static test suite).
 
@@ -83,7 +83,7 @@ by any task in this file. Hardening is applied directly to workflow and action f
 
 - [X] T023 [US2] Add the redaction filter to `.github/actions/dump-cluster-state/action.yml` as a shared shell function applied at the **emit** boundary — before anything reaches `$GITHUB_STEP_SUMMARY` or an uploaded artifact. Patterns per [data-model.md](./data-model.md) E5: labelled key/value pairs (`password|passwd|token|secret|api[-_]?key|bearer|authorization`), bare JWTs (`eyJ...`), and PEM private-key blocks. **Redact values, preserve keys** — the dump must stay useful for debugging.
 - [X] T024 [US2] Apply the filter to every collection step in `.github/actions/dump-cluster-state/action.yml`: `describe pods`, operator logs, API logs, game-server container logs, ephemeral capture-container logs, events, and the optional `helm history`. Audit all 178 lines — a single unfiltered stream defeats the whole control. Depends on T023.
-- [ ] T025 [US2] Confirm the artifact-reuse and cancellation invariants FR-012 and FR-005 assert already hold in `.github/workflows/ci.yaml` — `build-images`/`build-images-arm64` produce the tarball once and every e2e matrix job consumes it via `./.github/actions/e2e-images` with no rebuild, and the `concurrency` group cancels superseded PR runs. Record the finding; open a task only if something is actually broken. Depends on T010.
+- [X] T025 [US2] Confirm the artifact-reuse and cancellation invariants FR-012 and FR-005 assert already hold in `.github/workflows/ci.yaml` — `build-images`/`build-images-arm64` produce the tarball once and every e2e matrix job consumes it via `./.github/actions/e2e-images` with no rebuild, and the `concurrency` group cancels superseded PR runs. Record the finding; open a task only if something is actually broken. Depends on T010.
 - [ ] T026 [US2] Execute quickstart.md scenario 5 on a throwaway branch: seed `GAMEPLANE_LEAK_CANARY`, force a test failure, download the artifact, assert `clean` for both the artifact and the run log, then revert. Record the run URL in the PR — this is the only evidence that satisfies SC-005's "100% of failure runs" claim. Depends on T024.
 
 **Checkpoint**: SC-005 and FR-012…FR-016 satisfied, with a live CI run as evidence.
@@ -131,7 +131,7 @@ by any task in this file. Hardening is applied directly to workflow and action f
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T043 Run the full local pre-push check from quickstart.md ("Full local pre-push check") and confirm `PRE-PUSH OK`.
+- [X] T043 Run the full local pre-push check from quickstart.md ("Full local pre-push check") and confirm `PRE-PUSH OK`.
 - [ ] T044 Push the branch and confirm a **fully green** CI run — including every pre-existing e2e bucket. Not a formality: the hardening narrows every job's token and repins every action, and a green e2e tier is what proves nothing was quietly relying on the over-broad `statuses: write`. Per Constitution Principle VI, nothing here is validated until this run is green.
 - [ ] T045 Complete quickstart.md's Definition of Done table — all 8 evidence rows, with the scenario 5 and 7 run URLs and the scenario 6 falsification output in the PR description. Depends on T044.
 - [ ] T041 **[Last]** — after all other tasks are complete, update `docs/contributing.md` and `docs/security.md` to describe the final CI: the SHA-pinning policy and how Dependabot maintains the pins, the lowest-privilege per-job permission model, the workflow-lint gate (`actionlint` + `zizmor`), the timeout budgets from D-A, secret confinement, and the AI reviewer's trust split. Written against the merged state — no forward references to work not yet done. Depends on T045.
