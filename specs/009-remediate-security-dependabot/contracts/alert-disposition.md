@@ -895,3 +895,52 @@ now agrees are clean.
 **Principle III holds**: no in-source suppression was added. Verified on master —
 `git diff` over `*.go`/`*.ts`/`*.tsx` for this feature returns 0 matches for
 `//nolint`, `// eslint-disable` and `// @ts-ignore` (SC-005).
+
+---
+
+## SUPERSEDING NOTE — recorded 2026-08-30 after PR #290 merged to master
+
+**This section supersedes the "0 open alerts" assertion above.** The "FINAL STATE" section was
+written as of 2026-08-29 and is now stale.
+
+### Alert #21: Reopened alert #12 after line-shift renumbering
+
+On 2026-08-30, CodeQL raised alert #21 (`go/path-injection`, `agent/internal/mods/mods.go:531`)
+— the same finding that was dismissed as #12 on 2026-08-29. **This is not a new vulnerability.**
+
+**Root cause**: PR #290 (T078, symlink rejection in `swapInArchive`) modified
+`agent/internal/mods/mods.go` and shifted line numbers. CodeQL's dismissal for alert #12
+binds to the alert **number**, not the code **location**. When lines shifted, the original
+code-at-line:531 (the `os.Rename` call) was no longer trackable as "#12" — CodeQL re-analysed
+the default branch and raised the same finding as a fresh alert #21.
+
+This is the fourth instance of this renumbering pattern: #7/#8/#9/#10/#14 were marked `fixed`
+and reopened as #16–#20 during the initial remediation (T045/T062); #12 now reopens as #21
+after the follow-up edit.
+
+**Disposition of #21** (T080, 2026-08-30):
+
+- **State**: dismissed
+- **Reason**: false positive  
+- **Comment submitted**: "swapInArchive resolves via ConfinePath and returns on failure
+  (mods.go:515-518), then re-checks filepath.Clean + HasPrefix against the cleaned root
+  (:520-526) before this rename. Folder name pre-validated by safeName. See
+  contracts/alert-disposition.md." (249 characters)
+
+**Corrected final state**: Master at `ad3e30a` (after PR #290 merged). CodeQL re-analysed and
+raised #21; it was dismissed the same day. **0 open alerts — 7 fixed, 13 dismissed.** SC-001
+remains met.
+
+### The recurring cost: CodeQL dismissal binds to alert number, not code location
+
+A dismissed CodeQL alert is recorded by *alert number* in the GitHub database. The dismissal
+does NOT transfer if the code moves. Future edits in `agent/internal/mods/mods.go` that shift
+line numbers will re-raise the same false positives under fresh alert numbers — each requiring
+re-dismissal via the GitHub UI, with re-submission of the 280-character justification.
+
+For any future maintainer: when editing `agent/internal/mods/mods.go`, expect that dismissals
+#5, #11, #12 (#21), #13, #16, #17, #19, #20 may re-raise if lines shift. The long-form
+rationale for each is recorded in the comments section above; the 280-character cap limits what
+can be re-submitted. Re-dismissals add no new insight to the audit trail but are an unavoidable
+tax on the file's operational footprint.
+
