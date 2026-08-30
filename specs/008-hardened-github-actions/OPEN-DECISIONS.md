@@ -7,9 +7,33 @@ into the plan, the contracts, or the verifier **as though it were a settled deci
 of it comes from `spec.md`, `CLAUDE.md`, or the constitution. It is collected here so it can
 be ruled on rather than absorbed.
 
-Until an item is marked RESOLVED, the verifier does **not** enforce it. Rules enforce only
-what `spec.md` actually states; invented values are recorded as defaults with a marker, not
-as gates.
+**All nine items were ruled on by the maintainer on 2026-08-30.** Each carries the verbatim
+response, followed by what it means for the implementation.
+
+---
+
+## Execution order for the next session
+
+The rulings reshape the remaining work substantially — the verifier is deleted and
+`actionlint` replaces it. In dependency order:
+
+| # | Work | Ruling |
+|---|---|---|
+| 1 | Delete `.github/workflows-verify.sh`, `.github/verify-rules/`, the `.gitignore` Python block, `baseline-violations.txt` | D-F |
+| 2 | Strip verifier references from `plan.md`, `research.md`, `tasks.md`, `quickstart.md`, `contracts/*.md` | D-F |
+| 3 | Add `timeout-minutes` to every job per the D-A table | D-A |
+| 4 | Rewrite `.github/dependabot.yml`: 28 entries, one group per module, limits 5/10/5/5, all Monday 03:00 | D-B, D-C, D-D |
+| 5 | Add the `actionlint` job to `ci.yaml`, wired into `report` (needs + `NEEDS_ORDER` + `JOB_MATCHERS`) | D-H |
+| 6 | Write `.github/workflows/ai-review.yaml` with named, documented constants | D-G |
+| 7 | Add the `concurrency` block to `images.yaml` | FR-005 |
+| 8 | **Last:** update `docs/contributing.md` and `docs/security.md` to the final CI state | D-I |
+
+Already landed in `01af5953`: all 96 SHA pins and every per-job permissions block (D-E).
+Already landed uncommitted: the `redact()` filter in `dump-cluster-state/action.yml`.
+
+**Outstanding measurement**: D-A asked for the actual duration of the release and image
+build steps. `gh` was unavailable when the rulings were recorded, so the values in D-A are
+the maintainer's budgets, unverified. Measure and propose adjustments when `gh` works.
 
 ---
 
@@ -33,8 +57,36 @@ spec's own example, and its 50 was already in the tree.
 observed p95 duration? The three invented values were guesses at what a multi-arch buildx
 plus cosign run costs; nobody timed them.
 
-**Status**: OPEN. R4 enforces the ≤ 30 ceiling (spec-stated) and requires a declared
-timeout (spec-stated). It does **not** fail a job for exceeding an invented allowance.
+**RESPONSE**: if the whole E2E need to run on 35 - 50 minute do you really thing the image build should be 45-60minute? no it should not. here the two thing that will be made all E2E get a new timeout of 1h (60minute) game-images get 10minute PER image they should run in parralel but n image should take more than 10minute. for the release budget will be at 15minute and same for publish edge. (if the CI timeout increase in 5minute increment) also check how long these specific step usually take to conclude if it not enought and propose new value.
+
+**Status**: **RESOLVED** 2026-08-30. The maintainer's reasoning governs: an image build has
+no business taking longer than the entire E2E suite it feeds. Values below are the ruling,
+not a measurement — `gh run list` was unavailable when this was recorded (the session's
+Bash tool was blocked), so the "check how long these steps actually take" half of the
+instruction is **outstanding**. Re-measure when `gh` is reachable and propose adjustments
+if any job runs close to its budget.
+
+All timeouts are multiples of 5 minutes, per the ruling.
+
+| Workflow | Job | Timeout | Basis |
+|---|---|---|---|
+| `ci.yaml` | `e2e-go` (all matrix legs) | **60** | "all E2E get a new timeout of 1h" |
+| `ci.yaml` | `e2e-multicluster` | **60** | same |
+| `ci.yaml` | `e2e-upgrade` | **60** | same |
+| `ci.yaml` | `e2e-web-live` | **60** | same |
+| `ci.yaml` | `e2e-game-bot` | **60** | same — lowered from the pre-existing 50 |
+| `images.yaml` | `game-images` | **10** | "10 minutes PER image"; the job is a matrix, one leg per image, legs run in parallel |
+| `images.yaml` | `common-base` | **10** | ⚠️ **EXTENSION, not ruled on.** Same shape as `game-images` — a per-image matrix — so the same per-image budget is applied. Veto here if the steamcmd base build legitimately needs longer. |
+| `release.yaml` | `images` | **15** | "release budget will be at 15minute" |
+| `release.yaml` | `chart`, `github-release`, `modules` | **15** | ⚠️ **EXTENSION.** The ruling named a release budget of 15 without splitting it per job; applied uniformly across the release workflow's jobs. |
+| `publish-edge.yaml` | `images` | **15** | "same for publish edge" |
+| `republish-modules.yaml` | `modules` | **15** | ⚠️ **EXTENSION.** Not named in the ruling; it is a module push like `release.yaml`'s `modules`, so it inherits the same 15. |
+
+Note this raises the E2E jobs above the ≤ 30 default in FR-004. That is the maintainer's
+call and supersedes the FR's default; FR-004's "unless specifically justified" clause covers
+it, and the justification is recorded here.
+
+Every remaining non-E2E job keeps whatever it has today; nothing else changes.
 
 ---
 
@@ -53,8 +105,19 @@ than implementing it.
 at 3 it is 42. Grouping should collapse both to ~14 in practice, so the ceiling only matters
 in a bad week.
 
-**Status**: OPEN. R7 requires that a limit be declared (spec-stated). It does **not**
-enforce a particular value.
+**RESPONSE**:  respect the 5-10
+
+**Status**: **RESOLVED** 2026-08-30. Every `open-pull-requests-limit` sits inside the spec's
+own 5–10 band. The invented `gomod: 3` is discarded.
+
+| Ecosystem | Limit |
+|---|---|
+| `gomod` (×14) | **5** |
+| `npm` | **10** |
+| `docker` (×12) | **5** |
+| `github-actions` | **5** |
+
+Worst case is 14 × 5 = 70 open Go PRs; grouping (D-C) collapses the normal week to ~14.
 
 ---
 
@@ -72,9 +135,19 @@ it and nobody confirmed it.
 **Question**: keep the per-module k8s group, or accept simpler one-group-per-module and let
 the occasional broken PR be closed by hand?
 
-**Status**: OPEN. R7 requires ≥ 1 group per entry (spec-stated). It does **not** enforce
-group names or shapes.
+**RESPONSE**: per module group
 
+*(Clarified on follow-up: "one group per module.")*
+
+**Status**: **RESOLVED** 2026-08-30. **One group per module, no k8s carve-out.** Each `gomod`
+entry declares exactly one group batching `update-types: ["minor", "patch"]` across all its
+dependencies. Major bumps still arrive as individual PRs.
+
+Consequence, accepted knowingly: `k8s.io/*` and `sigs.k8s.io/*` are version-locked to each
+other, so a grouped PR that moves only some of them may not compile. Those get closed by
+hand. The simpler config was preferred over pre-empting that case.
+
+Same shape for the other ecosystems: one group per entry, batching minor and patch.
 ---
 
 ## D-D: Dependabot schedule stagger
@@ -86,7 +159,10 @@ burst".
 
 **Question**: is the stagger wanted, or should everything run at one time?
 
-**Status**: OPEN, low stakes. Not enforced.
+**RESPONSE**: at the same time
+
+**Status**: **RESOLVED** 2026-08-30. No stagger. Every entry across all four ecosystems runs
+`weekly`, `monday`, `03:00` UTC. The invented 04:00 npm offset is discarded.
 
 ---
 
@@ -102,8 +178,15 @@ seemed noisy. **This directly contradicts FR-001**, which allows only two values
 **Question**: hold the strict FR-001 line (top level is `contents: read` or `{}`, and
 `packages: write` is declared per job), or amend FR-001 to permit it?
 
-**Status**: OPEN. R2 currently reports top-level `packages` as an **advisory note**, not a
-failure, pending the ruling. Strict FR-001 enforcement is one line away.
+**RESPONSE**: per job packages write ALwAYS do lowest priv
+
+**Status**: **RESOLVED** 2026-08-30, and **already implemented** in commit `01af5953`.
+FR-001 holds strictly: top level is `contents: read` or `{}`, never more. `packages: write`
+is declared only on the jobs that actually push to ghcr.io, in all four publish workflows.
+The invented top-level carve-out is gone.
+
+Standing principle recorded for future work: **always lowest privilege.** When a scope is
+needed by one job, it goes on that job — never at the top level "for convenience".
 
 ---
 
@@ -129,7 +212,41 @@ hardening.
 **Question**: keep it, cut it to a smaller subset (R1 and R7 carry most of the value), or
 drop it entirely and rely on review?
 
-**Status**: OPEN — the largest open item. Built and working; deletable in one commit.
+**RESPONSE**: never asked for it so removed
+
+**Status**: **RESOLVED — DELETE.** 2026-08-30. Not requested, so it goes. Enforcement moves
+to `actionlint` per D-H, which covers the pin/permission/injection ground better than
+hand-written rules and is maintained by someone else.
+
+Delete, in one commit:
+
+- `.github/workflows-verify.sh`
+- `.github/verify-rules/` (all 10 modules: `_common.py`, `r1`, `r2`, `r4`, `r5`, `r6`, `r7`,
+  `r8`, `r9`, `r10`)
+- the `__pycache__/` + `*.py[cod]` block appended to `.gitignore` — it existed only for
+  these modules
+- `specs/008-hardened-github-actions/baseline-violations.txt` — the verifier's own output
+
+Then strip every reference to it from the spec artifacts: `plan.md` (Summary, Technical
+Context, Project Structure, and the Principle I row of the Constitution Check),
+`research.md` (D-10 and the D-04 rejection of actionlint, now reversed), `tasks.md`
+(T001–T002, T004, and every rule task: T005–T009, T018–T020, T022, T027, T031–T032),
+`quickstart.md` (scenarios 1–4 and 6 are written around `workflows-verify.sh`), and the
+"Enforced by" headers in all four `contracts/*.md`.
+
+**What is lost, stated plainly** so it is a known gap rather than a silent one:
+
+- **R7's parity check.** Nothing will now fail CI when a 15th Go module or 13th Dockerfile
+  is added without a matching Dependabot entry. That is precisely the failure that left all
+  14 Go modules unmonitored for the life of this repo, and `actionlint` does not cover it.
+  If a cheap replacement is wanted later, this one check is ~40 lines and is the single
+  highest-value piece of what is being deleted.
+- **R10's redaction check.** Nothing will verify that `dump-cluster-state` keeps piping
+  through `redact`. The filter itself stays — only the check that it is still wired up goes.
+
+Also resolved by this deletion: the R10 line-continuation and subcommand-indirection
+bypasses found by adversarial review are moot, along with the `.gitignore` question in
+"Already corrected" below.
 
 ---
 
@@ -140,7 +257,23 @@ drop it entirely and rely on review?
 **Invented**: 200 KB diff cap, 200-char title cap, 4000-char body cap, and the
 `<!-- gameplane-ai-review -->` marker string.
 
-**Status**: OPEN, low stakes. Defaults, not requirements.
+**RESPONSE**: why cap on these? magic number should not exist. they should be documented named and explained
+
+**Status**: **RESOLVED** 2026-08-30. The objection is to *unexplained* numbers, not to
+limits as such — a diff cap is genuinely needed, since an unbounded diff would blow the
+model's context and cost. So: no bare literals anywhere in `ai-review.yaml`. Every limit
+becomes a named `env:` constant carrying a comment that states **why it has that value**,
+and each is justified below rather than asserted.
+
+| Constant | Value | Why this number |
+|---|---|---|
+| `MAX_DIFF_BYTES` | 200000 | ~200 KB ≈ 50k tokens, roughly a quarter of the review context, leaving room for the constitution, CLAUDE.md and the touched `specs.md`. Larger diffs are truncated with an explicit marker so the reviewer knows it is seeing a partial change. |
+| `MAX_TITLE_CHARS` | 200 | GitHub's own PR title limit is 256; 200 keeps a margin and a title is a headline, not prose. |
+| `MAX_BODY_CHARS` | 4000 | Enough for a real PR description with a checklist; bounds how much attacker-controlled text enters the prompt at all. |
+| `STICKY_MARKER` | `<!-- gameplane-ai-review -->` | An HTML comment is invisible in rendered Markdown, so it identifies the bot's comment for in-place updates without showing up in the thread. |
+
+If a value later proves wrong, the fix is to change the constant and its comment together —
+never to leave the comment describing an old value.
 
 ---
 
@@ -156,7 +289,26 @@ hand-written rules do, and adopting it would shrink D-F considerably. It was rej
 research.md D-04/D-10 on the grounds of "adding a third-party binary to a supply-chain
 hardening feature" — a defensible argument, but not one anybody asked for.
 
-**Status**: OPEN.
+**RESPONSE**: adding new third party is not an issue if it would really improve CI you have my go ahead. 
+
+**Status**: **RESOLVED** 2026-08-30. **Adopt `actionlint`.** It replaces the deleted
+verifier (D-F) and does the job better: it is purpose-built, externally maintained, and
+already knows GitHub's workflow schema, expression syntax, and `shellcheck`-level analysis
+of `run:` bodies.
+
+Add a `workflow-lint` job to `ci.yaml`, gated on a new `github` path filter, `contents: read`,
+running `actionlint` over `.github/workflows/`. Pin the action or the binary by SHA like
+every other dependency, and add it to the `report` job's `needs`, `NEEDS_ORDER` and
+`JOB_MATCHERS` (all three, or it is silently missing from the PR comment).
+
+What it covers that the deleted rules did: unpinned/malformed action refs, expression-injection
+into `run:` bodies (the old R6), schema and type errors, shellcheck findings, deprecated
+syntax. What it does **not** cover, and stays uncovered per D-F: Dependabot↔tree parity,
+`dump-cluster-state` redaction wiring, and repo-specific secret confinement.
+
+`zizmor` (a workflow security auditor covering permissions and `pull_request_target` misuse)
+would close part of that remaining gap. Not adopted here — flagged as a candidate once
+`actionlint` is settled, so this feature does not grow a second new dependency mid-flight.
 
 ---
 
@@ -165,7 +317,20 @@ hardening feature" — a defensible argument, but not one anybody asked for.
 **Invented**: T041 (`docs/contributing.md`) and T042 (`docs/security.md`) — tasks to edit
 docs nobody asked to have edited.
 
-**Status**: OPEN. Both are still unstarted.
+**RESPONSE**: revert and once the whole thing is done update the docs to reflect the LAST state of the new ci
+
+**Status**: **RESOLVED** 2026-08-30. Drop T041/T042 as written — they were speculative and,
+worse, they described the verifier that D-F now deletes. Replace them with a single task
+that runs **last**, after every other change has landed, documenting the CI as it finally
+is rather than as it was planned:
+
+> **T041 (revised)** — after all other tasks are complete, update `docs/contributing.md` and
+> `docs/security.md` to describe the final CI: the SHA-pinning policy and how Dependabot
+> maintains the pins, the lowest-privilege per-job permission model, the `actionlint` gate,
+> the timeout budgets from D-A, secret confinement, and the AI reviewer's trust split.
+> Written against the merged state — no forward references to work not yet done.
+
+Sequencing matters here: documentation written mid-flight describes a CI that never shipped.
 
 ---
 

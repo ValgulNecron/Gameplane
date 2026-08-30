@@ -54,6 +54,15 @@ def _find_action(ctx: Ctx):
     return None
 
 
+def _line_of(run_line: int, offset: int) -> int:
+    """Calculate absolute line number for a hit inside a run block.
+
+    The run block starts at run_line; the script content begins at
+    run_line + 1, so an offset within the script maps to run_line + 1 + offset.
+    """
+    return run_line + 1 + offset if run_line else 0
+
+
 def check(ctx: Ctx) -> list[Violation]:
     parsed = _find_action(ctx)
     if parsed is None:
@@ -77,35 +86,41 @@ def check(ctx: Ctx) -> list[Violation]:
             )
         )
 
-    for lineno, raw in enumerate(parsed.lines, start=1):
-        stripped = raw.strip()
-        if stripped.startswith("#"):
+    # -- examine only run: block bodies, never raw YAML lines ----------------
+    for parsed_file, run_line, script, job_id, _step in ctx.iter_run_blocks():
+        # Only check the dump-cluster-state action
+        if parsed_file.path != ACTION_PATH:
             continue
 
-        # -- Secret objects are never collected ---------------------------
-        if SECRET_DUMP_RE.search(stripped):
-            violations.append(
-                Violation(
-                    parsed.path,
-                    lineno,
-                    RULE_ID,
-                    "collects Kubernetes Secret objects; no redaction makes this safe, "
-                    "so it must not run at all",
-                )
-            )
+        for offset, source_line in enumerate(script.splitlines()):
+            stripped = source_line.strip()
+            if stripped.startswith("#"):
+                continue
 
-        # -- every collecting command is filtered -------------------------
-        if COLLECTING_RE.search(stripped):
-            if f"| {REDACT_FN}" not in stripped and f"|{REDACT_FN}" not in stripped:
+            # -- Secret objects are never collected -------------------------
+            if SECRET_DUMP_RE.search(stripped):
                 violations.append(
                     Violation(
-                        parsed.path,
-                        lineno,
+                        parsed_file.path,
+                        _line_of(run_line, offset),
                         RULE_ID,
-                        f"collects cluster output without piping through `{REDACT_FN}`; "
-                        "a single unfiltered stream defeats the control",
+                        "collects Kubernetes Secret objects; no redaction makes this safe, "
+                        "so it must not run at all",
                     )
                 )
+
+            # -- every collecting command is filtered ---------------------
+            if COLLECTING_RE.search(stripped):
+                if f"| {REDACT_FN}" not in stripped and f"|{REDACT_FN}" not in stripped:
+                    violations.append(
+                        Violation(
+                            parsed_file.path,
+                            _line_of(run_line, offset),
+                            RULE_ID,
+                            f"collects cluster output without piping through `{REDACT_FN}`; "
+                            "a single unfiltered stream defeats the control",
+                        )
+                    )
 
     return violations
 
