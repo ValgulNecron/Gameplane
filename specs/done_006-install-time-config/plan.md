@@ -46,7 +46,7 @@ This feature enables operators to configure two critical Gameplane settings at i
 ### Documentation (this feature)
 
 ```text
-specs/006-install-time-config/
+specs/done_006-install-time-config/
 ├── spec.md              # Feature specification (requirements, user stories, scope)
 ├── plan.md              # This file (implementation breakdown)
 ├── research.md          # Phase 0 research findings (helm-storage, pvc-path, pvc-errors, oidc, config-admin, tests, specs-md)

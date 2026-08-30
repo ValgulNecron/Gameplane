@@ -22,6 +22,10 @@ import (
 func MountAudit(r chi.Router, a *audit.Auditor) {
 	r.Get("/admin/audit", func(w http.ResponseWriter, req *http.Request) {
 		limit, _ := strconv.Atoi(req.URL.Query().Get("limit"))
+		// Clamp the untrusted limit value before passing to the store layer.
+		if limit <= 0 || limit > audit.MaxAuditPageSize {
+			limit = audit.DefaultAuditPageSize
+		}
 		before, _ := strconv.ParseInt(req.URL.Query().Get("before"), 10, 64)
 		events, err := a.Page(req, limit, before)
 		if err != nil {

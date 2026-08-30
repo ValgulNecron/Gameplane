@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
@@ -121,7 +122,7 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 
 		// Attempt the QueryServerState call with a timeout.
 		actx, cancel := context.WithTimeout(ctx, attemptTimeout)
-		statusCode, _, err := queryServerState(actx, addr)
+		statusCode, err := queryServerState(actx, addr)
 		cancel()
 
 		if err == nil {
@@ -166,10 +167,38 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 	}
 }
 
+// isLoopbackHost reports whether host names the local machine, so that
+// skipping TLS verification for the server's self-signed cert cannot expose
+// the client to an off-host MITM. A bare "localhost" counts; anything else
+// must parse to a loopback IP.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // queryServerState sends an unauthenticated QueryServerState request to the
-// Satisfactory HTTPS API. It returns the HTTP status code and response body,
+// Satisfactory HTTPS API. It returns the HTTP status code,
 // or an error if the request failed.
-func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
+func queryServerState(ctx context.Context, addr string) (int, error) {
+	// Split host and port. If no port is present, SplitHostPort returns an error,
+	// but we still want to validate the bare host.
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// No port in addr; use the entire addr as the host.
+		host = addr
+	}
+
+	// Enforce loopback-only connections. The Satisfactory server generates a
+	// self-signed cert with no CA supply API; InsecureSkipVerify is safe only
+	// for pod-local connections (localhost or loopback IPs). Reject non-loopback
+	// targets outright rather than allowing an unsafe dial.
+	if !isLoopbackHost(host) {
+		return 0, fmt.Errorf("refusing non-loopback connection to %q: satisfactory server TLS verification can only be skipped for loopback hosts", host)
+	}
+
 	client := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(dctx context.Context, network, _ string) (net.Conn, error) {
@@ -181,10 +210,11 @@ func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
 			// or cluster-internal DNS name), which is safe: an off-host MITM cannot
 			// intercept the connection. See agent/internal/rcon/satisfactory.go's
 			// documentation for the rationale.
+			// The loopback guard above ensures this is safe.
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 				// InsecureSkipVerify is safe here: connection is pod-local (127.0.0.1 or cluster DNS),
-				// so off-host MITM is not a risk.
+				// so off-host MITM is not a risk. The loopback check above enforces this.
 				InsecureSkipVerify: true,
 			},
 		},
@@ -199,18 +229,18 @@ func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
 		"function": "QueryServerState",
 	})
 	if err != nil {
-		return 0, nil, fmt.Errorf("marshal request: %w", err)
+		return 0, fmt.Errorf("marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+addr+"/api/v1", bytes.NewReader(reqBody))
 	if err != nil {
-		return 0, nil, fmt.Errorf("build request: %w", err)
+		return 0, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, nil, fmt.Errorf("http request: %w", err)
+		return 0, fmt.Errorf("http request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -235,15 +265,15 @@ func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
 		if err := json.Unmarshal(body, &respEnv); err == nil {
 			if respEnv.ErrorCode != "" {
 				// The response has an error code; the endpoint rejected the call.
-				return resp.StatusCode, body, fmt.Errorf("query-server-state: %s (api error, not network)", respEnv.ErrorCode)
+				return resp.StatusCode, fmt.Errorf("query-server-state: %s (api error, not network)", respEnv.ErrorCode)
 			}
 			// Success: the endpoint accepted the unauthenticated call.
-			return resp.StatusCode, body, nil
+			return resp.StatusCode, nil
 		}
 		// Response body is not JSON, but the status is 2xx; that's still success.
-		return resp.StatusCode, body, nil
+		return resp.StatusCode, nil
 	}
 
 	// A 4xx/5xx status is an API-level failure.
-	return resp.StatusCode, body, fmt.Errorf("query-server-state: http %d", resp.StatusCode)
+	return resp.StatusCode, fmt.Errorf("query-server-state: http %d", resp.StatusCode)
 }

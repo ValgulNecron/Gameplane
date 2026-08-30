@@ -4,7 +4,7 @@ description: "Task list for install-time configuration feature (storage class & 
 
 # Tasks: Install-Time Configuration (Storage Class & OIDC Role Mapping)
 
-**Input**: Design documents from `/specs/006-install-time-config/`
+**Input**: Design documents from `/specs/done_006-install-time-config/`
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), data-model.md, contracts/
 

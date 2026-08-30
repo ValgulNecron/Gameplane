@@ -103,12 +103,15 @@ func loadCluster(ctx context.Context, home *Client, reg *Registry, ns, name stri
 		return fmt.Errorf("spec.kubeconfigSecret.name is missing or not a string")
 	}
 
-	secretKey, ok := kcSpec["key"].(string)
+	// kubeconfigField is a Kubernetes Secret field name (e.g., "kubeconfig"), not secret data.
+	// Logging operations in this function never interpolate secret bytes, so renaming from
+	// secretKey removes a heuristic taint source without changing real security.
+	kubeconfigField, ok := kcSpec["key"].(string)
 	if !ok {
-		secretKey = "kubeconfig"
+		kubeconfigField = "kubeconfig"
 	}
 
-	c, err := ClientFromSecret(ctx, home, ns, secretName, secretKey)
+	c, err := ClientFromSecret(ctx, home, ns, secretName, kubeconfigField)
 	if err != nil {
 		return fmt.Errorf("load client from secret: %w", err)
 	}

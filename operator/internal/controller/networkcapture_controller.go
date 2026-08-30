@@ -77,7 +77,7 @@ const capturePodUIDAnnotation = "gameplane.local/capture-pod-uid"
 // terminal capture whose spec.ttlSecondsAfterFinished is nil or
 // non-positive, and maxCaptureRetentionSeconds is the cluster-wide ceiling —
 // both match the ratified values in
-// specs/003-network-capture-sidecar/data-model.md (24-hour default, 7-day
+// specs/done_003-network-capture-sidecar/data-model.md (24-hour default, 7-day
 // max via capture.defaultRetentionSeconds/capture.maxRetentionSeconds Helm
 // values) and NetworkCaptureSpec.TTLSecondsAfterFinished's own
 // kubebuilder:validation:Minimum=60/Maximum=604800. Used only as a fallback

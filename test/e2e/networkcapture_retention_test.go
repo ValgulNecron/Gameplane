@@ -12,6 +12,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/util/retry"
 )
 
 // captureListTestResp mirrors the envelope returned by GET
@@ -180,21 +181,27 @@ func TestNetworkCapture_RetentionExpiry(t *testing.T) {
 
 	// Backdate completionTime to 2 hours in the past so the TTL is already
 	// expired — matching the pattern in envtest (TestNetworkCapture_RetentionExpiresCompletedCapture).
-	nc, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
-		Get(ctx, captureID, metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("get networkcapture pre-backdate: %v", err)
-	}
 	past := metav1.NewTime(time.Now().Add(-2 * time.Hour))
-	// Convert metav1.Time to RFC3339 string for unstructured API compatibility.
-	// The unstructured API cannot deep copy metav1.Time objects. metav1.Time's
-	// MarshalJSON renders in UTC with a trailing Z, so use UTC() before Format
-	// to match the exact apiserver serialization.
-	if err := unstructured.SetNestedField(nc.Object, past.UTC().Format(time.RFC3339), "status", "completionTime"); err != nil {
-		t.Fatalf("set completionTime in object: %v", err)
-	}
-	if _, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
-		UpdateStatus(ctx, nc, metav1.UpdateOptions{}); err != nil {
+	// Retry on conflict: the operator's reconciler writes status concurrently,
+	// so this read-modify-write can race. RetryOnConflict re-fetches the object
+	// inside the closure if a conflict occurs.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		nc, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		// Convert metav1.Time to RFC3339 string for unstructured API compatibility.
+		// The unstructured API cannot deep copy metav1.Time objects. metav1.Time's
+		// MarshalJSON renders in UTC with a trailing Z, so use UTC() before Format
+		// to match the exact apiserver serialization.
+		if err := unstructured.SetNestedField(nc.Object, past.UTC().Format(time.RFC3339), "status", "completionTime"); err != nil {
+			return err
+		}
+		_, err = envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			UpdateStatus(ctx, nc, metav1.UpdateOptions{})
+		return err
+	}); err != nil {
 		t.Fatalf("patch completionTime to past: %v", err)
 	}
 

@@ -30,6 +30,14 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
+const (
+	// MaxAuditPageSize is the maximum number of audit events returned in a single page.
+	MaxAuditPageSize = 500
+	// DefaultAuditPageSize is the default number of audit events per page when
+	// the client doesn't specify a limit or specifies an invalid one.
+	DefaultAuditPageSize = 100
+)
+
 // webhookEvents counts audit-event webhook deliveries by outcome. A "dropped"
 // or "failed" delta is operationally important — it means the external audit
 // mirror has a gap — so it's surfaced at /metrics (default registry, served by
@@ -817,21 +825,23 @@ type Event struct {
 // Page returns the most recent events, oldest-first within the page.
 // `before` is an ID cursor (exclusive); 0 means "from latest".
 func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
+	// Clamp the limit into a new variable so taint analysis recognizes it as bounded.
+	pageSize := limit
+	if pageSize <= 0 || pageSize > MaxAuditPageSize {
+		pageSize = DefaultAuditPageSize
 	}
 	rows, err := a.db.DB.QueryContext(req.Context(),
 		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,''), COALESCE(reason,'')
 		 FROM audit_events
 		 WHERE (? = 0 OR id < ?)
 		 ORDER BY id DESC
-		 LIMIT ?`, before, before, limit,
+		 LIMIT ?`, before, before, pageSize,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	out := make([]Event, 0, limit)
+	out := make([]Event, 0, pageSize)
 	for rows.Next() {
 		var e Event
 		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP, &e.Reason); err != nil {

@@ -900,8 +900,8 @@ func TestGameServer_ExtraVolumesProvisionedAndMounted(t *testing.T) {
 }
 
 // TestGameServer_NoExtraVolumesNoCaptureComponent is the regression guard
-// for the amended FR-001/SC-007 (specs/003-network-capture-sidecar/spec.md,
-// specs/003-network-capture-sidecar/plan.md human Decision 2): a template
+// for the amended FR-001/SC-007 (specs/done_003-network-capture-sidecar/spec.md,
+// specs/done_003-network-capture-sidecar/plan.md human Decision 2): a template
 // declaring no spec.storage.extra can no longer render a pod spec
 // byte-identical to before the capture feature, because the capture
 // "captures" emptyDir volume is now pre-provisioned UNCONDITIONALLY on
@@ -1433,7 +1433,7 @@ func intToStr(n int32) string {
 // numeric targetPort — ephemeral containers cannot declare a named
 // containerPort), so the API can reach the network-capture sidecar's
 // control endpoint through the same Service DNS name and mTLS cert SANs
-// used for the agent (specs/003-network-capture-sidecar/plan.md). This
+// used for the agent (specs/done_003-network-capture-sidecar/plan.md). This
 // test now asserts the full 2-port set precisely, rather than a single
 // port, and — since CreateOrUpdate rebuilds Spec.Ports on every
 // reconcile — that repeated reconciles don't accumulate duplicate ports.

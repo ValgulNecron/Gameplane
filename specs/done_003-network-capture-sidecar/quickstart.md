@@ -1239,8 +1239,8 @@ curl -X POST http://localhost:8000/servers/capture-test-1:capture-start \
 
 ## References
 
-- **Specification**: `specs/003-network-capture-sidecar/spec.md` (User Stories US1–US5, Success Criteria SC-001–SC-008, Requirements FR-001–FR-012)
-- **Research Document**: `specs/003-network-capture-sidecar/research.md` (Architecture decisions, technology choices, open risks)
+- **Specification**: `specs/done_003-network-capture-sidecar/spec.md` (User Stories US1–US5, Success Criteria SC-001–SC-008, Requirements FR-001–FR-012)
+- **Research Document**: `specs/done_003-network-capture-sidecar/research.md` (Architecture decisions, technology choices, open risks)
 - **CRD Types**: `operator/api/v1alpha1/networkcapture_types.go` (NetworkCapture spec and status fields)
 - **API Handlers**: `api/internal/handlers/capture.go` (REST endpoints for capture lifecycle)
 - **E2E Test Bucket**: `test/e2e/buckets.sh` (bucket placement; capture tests may go in operator or bot-fast bucket)

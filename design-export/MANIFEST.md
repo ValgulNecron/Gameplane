@@ -108,7 +108,7 @@ All 8 objects (7 screens + 1 component) have both `json/<id>.json` and `screensh
 
 ## Incremental export 2026-08-26 — Install-time configuration (spec 006)
 
-Feature 006 (`specs/006-install-time-config/`, Slices 7 / 7b / 8 — FR-012, FR-015, FR-017, SC-006, SC-007) added the Helm-seeded OIDC snapshot, the dashboard-side role-mapping override editor, and moved the install-time storage-class row onto Cluster Settings. Eleven objects were exported or re-exported.
+Feature 006 (`specs/done_006-install-time-config/`, Slices 7 / 7b / 8 — FR-012, FR-015, FR-017, SC-006, SC-007) added the Helm-seeded OIDC snapshot, the dashboard-side role-mapping override editor, and moved the install-time storage-class row onto Cluster Settings. Eleven objects were exported or re-exported.
 
 **Screens (5):**
 
@@ -191,7 +191,7 @@ FR-015 required the over-broad-mapping (admin role) warning plus a confirm step 
 
 ## Incremental export 2026-08-27 — PVC provisioning failure surfaced on Server Detail Overview
 
-Feature 006 made the operator report a missing StorageClass on `status.conditions` (`reason=PVCProvisioningFailed`, phase stays `Pending`, not `Failed`) — see `operator/internal/controller/gameserver_status.go` and `specs/006-install-time-config/spec.md` FR-005/SC-002. Nothing in the design showed where that state surfaces in the dashboard, so this pass adds one new screen variant. One object exported (1 new screen). **Correction 2026-08-27:** this originally also claimed "no existing objects were modified" — that was false. This pass's `warningLine` insert was in fact applied to the shared component *definition* `Gameplane/Server Detail Header` (`S4k0x`), rippling the PVC warning onto all 36 screens instantiating it. See "Fix 2026-08-27 — `o4LH8W` warning row wrongly landed on the shared component definition" below for the repair; `S4k0x` has since been restored to carrying no warning row.
+Feature 006 made the operator report a missing StorageClass on `status.conditions` (`reason=PVCProvisioningFailed`, phase stays `Pending`, not `Failed`) — see `operator/internal/controller/gameserver_status.go` and `specs/done_006-install-time-config/spec.md` FR-005/SC-002. Nothing in the design showed where that state surfaces in the dashboard, so this pass adds one new screen variant. One object exported (1 new screen). **Correction 2026-08-27:** this originally also claimed "no existing objects were modified" — that was false. This pass's `warningLine` insert was in fact applied to the shared component *definition* `Gameplane/Server Detail Header` (`S4k0x`), rippling the PVC warning onto all 36 screens instantiating it. See "Fix 2026-08-27 — `o4LH8W` warning row wrongly landed on the shared component definition" below for the repair; `S4k0x` has since been restored to carrying no warning row.
 
 **Screens (1):**
 

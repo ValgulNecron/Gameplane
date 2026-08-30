@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -512,15 +513,16 @@ func makeZip(t *testing.T, entries map[string]string) string {
 func TestUnzipInto_RejectsZipSlip(t *testing.T) {
 	zipPath := makeZip(t, map[string]string{"good.txt": "ok", "../evil.txt": "pwned"})
 	dst := filepath.Join(t.TempDir(), "out")
-	if err := unzipInto(zipPath, dst, 1<<20); err != nil {
-		t.Fatalf("unzipInto: %v", err)
+	// After refactoring to use ConfinePath, unzipInto now returns an error
+	// immediately on any traversal entry (rather than silently skipping).
+	// This makes the guard explicit to CodeQL's taint analysis.
+	err := unzipInto(zipPath, dst, 1<<20)
+	if err == nil {
+		t.Fatalf("unzipInto should error on traversal entry, not skip it")
 	}
-	if _, err := os.Stat(filepath.Join(dst, "good.txt")); err != nil {
-		t.Fatalf("good.txt should be extracted: %v", err)
-	}
-	// The traversal entry is skipped — nothing lands beside the staging dir.
+	// No files should be extracted if a traversal is detected early.
 	if _, err := os.Stat(filepath.Join(filepath.Dir(dst), "evil.txt")); !os.IsNotExist(err) {
-		t.Fatalf("evil.txt escaped the staging dir: %v", err)
+		t.Fatalf("evil.txt should not have escaped: %v", err)
 	}
 }
 
@@ -540,6 +542,100 @@ func TestUnzipInto_BadArchive(t *testing.T) {
 	}
 	if err := unzipInto(notZip, filepath.Join(dir, "out"), 1<<20); !errors.Is(err, errBadArchive) {
 		t.Fatalf("unzipInto bad archive = %v, want errBadArchive", err)
+	}
+}
+
+func TestUnzipInto_RejectsSymlinks(t *testing.T) {
+	// Create a temp directory for the zip
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "symlink.zip")
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a zip with a symlink entry
+	zw := zip.NewWriter(f)
+	h := &zip.FileHeader{Name: "escape-link", Method: zip.Store}
+	h.SetMode(os.ModeSymlink | 0o777)
+	w, err := zw.CreateHeader(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("../../../../etc/passwd")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// unzipInto should reject the symlink entry
+	dst := filepath.Join(dir, "out")
+	if err := unzipInto(zipPath, dst, 1<<20); !errors.Is(err, errSymlinkEntry) {
+		t.Fatalf("unzipInto symlink = %v, want errSymlinkEntry", err)
+	}
+
+	// The "escape-link" entry should not exist after rejection
+	escapeLinkPath := filepath.Join(dst, "escape-link")
+	if _, err := os.Lstat(escapeLinkPath); !os.IsNotExist(err) {
+		t.Fatalf("escape-link should not exist after rejection: %v", err)
+	}
+}
+
+// TestUnzipInto_RejectsSymlinksWithoutUnixCreator covers the adversarial
+// shape: an entry carrying the Unix symlink type bits in ExternalAttrs but
+// leaving CreatorVersion zero, so archive/zip's FileHeader.Mode falls back to
+// the MS-DOS attribute bits and never reports os.ModeSymlink. A guard that
+// trusted Mode() alone would let this through.
+func TestUnzipInto_RejectsSymlinksWithoutUnixCreator(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "symlink-nocreator.zip")
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	zw := zip.NewWriter(f)
+	// Note: ExternalAttrs is set directly and CreatorVersion is left zero,
+	// unlike SetMode which would stamp the Unix creator byte.
+	h := &zip.FileHeader{Name: "escape-link", Method: zip.Store, ExternalAttrs: 0o120777 << 16}
+	w, err := zw.CreateHeader(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("../../../../etc/passwd")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Guard the premise: if a future Go release taught Mode() to decode these
+	// bits without the creator byte, this test would silently stop covering
+	// the fallback branch it exists for.
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := zr.File[0].Mode(); got&os.ModeSymlink != 0 {
+		t.Fatalf("premise broken: Mode() = %v already reports ModeSymlink without a Unix creator", got)
+	}
+	if err := zr.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(dir, "out")
+	if err := unzipInto(zipPath, dst, 1<<20); !errors.Is(err, errSymlinkEntry) {
+		t.Fatalf("unzipInto symlink without unix creator = %v, want errSymlinkEntry", err)
+	}
+	if _, err := os.Lstat(filepath.Join(dst, "escape-link")); !os.IsNotExist(err) {
+		t.Fatalf("escape-link should not exist after rejection: %v", err)
 	}
 }
 
@@ -569,3 +665,378 @@ func TestInstall_ExtractBadArchive(t *testing.T) {
 // The SSRF IP-classification table (isPublic / IsAllowed) now lives in the
 // shared netguard module's TestIsPublic; the agent tests cover only its use
 // of the guard (default-refuses loopback, redirect host re-check).
+
+// --- Tests for ConfinePath-based refactors (T006) ---
+
+// TestRemoveEntry_ConfinePath verifies that removeEntry uses ConfinePath
+// to validate the target and rejects path traversal attempts.
+func TestRemoveEntry_ConfinePath(t *testing.T) {
+	root := t.TempDir()
+	modsDir := filepath.Join(root, "mods")
+	if err := os.MkdirAll(modsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a file to remove.
+	target := filepath.Join(modsDir, "test.jar")
+	if err := os.WriteFile(target, []byte("data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHandler(root, modsSpec("mods", nil))
+
+	// removeEntry should accept a valid name and delete the file.
+	if err := h.removeEntry("test.jar"); err != nil {
+		t.Errorf("removeEntry(valid) = %v, want nil", err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("file should be deleted but still exists")
+	}
+
+	// removeEntry should reject path traversal attempts.
+	for _, bad := range []string{"../escape", "a/b", "..", ".hidden"} {
+		if err := h.removeEntry(bad); err == nil {
+			t.Errorf("removeEntry(%q) should fail on traversal", bad)
+		}
+	}
+}
+
+// TestDownload_ConfinePath verifies that download uses ConfinePath to validate
+// the destination and rejects traversal attempts.
+func TestDownload_ConfinePath(t *testing.T) {
+	allowLoopback(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("TESTDATA"))
+	}))
+	defer upstream.Close()
+	host, _, _ := net.SplitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
+
+	root := t.TempDir()
+	h := newHandler(root, modsSpec("mods", &caps.ModInstall{AllowedHosts: []string{host}}))
+
+	// download should accept a valid name and save the file.
+	n, err := h.download(t.Context(), upstream.URL+"/test.jar", "valid.jar")
+	if err != nil || n != 8 {
+		t.Errorf("download(valid) = %v, %d, want nil, 8", err, n)
+	}
+	if _, err := os.Stat(filepath.Join(root, "mods", "valid.jar")); err != nil {
+		t.Errorf("file should exist: %v", err)
+	}
+
+	// download should reject traversal attempts by ConfinePath.
+	for _, bad := range []string{"../escape", "a/b"} {
+		_, err := h.download(t.Context(), upstream.URL+"/x.jar", bad)
+		if err == nil {
+			t.Errorf("download(%q) should fail on traversal", bad)
+		}
+	}
+}
+
+// TestSwapInArchive_ConfinePath verifies that swapInArchive uses ConfinePath
+// to validate the destination and rejects traversal attempts.
+func TestSwapInArchive_ConfinePath(t *testing.T) {
+	root := t.TempDir()
+	modsDir := filepath.Join(root, "mods")
+	if err := os.MkdirAll(modsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHandler(root, &caps.Mods{Path: "mods", Extract: true})
+
+	// Create a valid zip to extract.
+	validZip := makeZip(t, map[string]string{
+		"plugin.dll": "DLLBYTES",
+		"config.yml": "key: value",
+	})
+
+	// swapInArchive should accept a valid folder name.
+	if err := h.swapInArchive(validZip, "MyPlugin", 1<<20); err != nil {
+		t.Errorf("swapInArchive(valid) = %v, want nil", err)
+	}
+	if _, err := os.Stat(filepath.Join(modsDir, "MyPlugin", "plugin.dll")); err != nil {
+		t.Errorf("extracted file should exist: %v", err)
+	}
+
+	// swapInArchive should reject traversal attempts by ConfinePath.
+	for _, bad := range []string{"../escape", "a/b", "..", ".hidden"} {
+		badZip := makeZip(t, map[string]string{"file.txt": "data"})
+		if err := h.swapInArchive(badZip, bad, 1<<20); err == nil {
+			t.Errorf("swapInArchive(%q) should fail on traversal", bad)
+		}
+	}
+}
+
+// TestRemoveWithConfinePath verifies that the remove handler uses ConfinePath
+// to validate the name parameter and rejects traversal attempts.
+func TestRemoveWithConfinePath(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "mods"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "mods", "gone.jar")
+	if err := os.WriteFile(target, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := newSrv(t, root, modsSpec("mods", nil))
+
+	// remove should work for a valid name.
+	if status, _ := do(t, srv, http.MethodDelete, "/mods?name=gone.jar", nil); status != http.StatusNoContent {
+		t.Errorf("delete status=%d, want 204", status)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatal("file should be gone")
+	}
+
+	// remove should reject traversal attempts via ConfinePath validation.
+	for _, bad := range []string{"../escape", "a/b", ".."} {
+		status, _ := do(t, srv, http.MethodDelete, "/mods?name="+bad, nil)
+		if status != http.StatusBadRequest {
+			t.Errorf("delete name=%q status=%d, want 400", bad, status)
+		}
+	}
+}
+
+// TestUnzipInto_RejectsTraversalWithConfinePath verifies that unzipInto now
+// rejects archive entries containing traversal attempts (rather than silently
+// skipping them) by returning an error immediately.
+func TestUnzipInto_RejectsTraversalWithConfinePath(t *testing.T) {
+	// Create an archive with a traversal entry.
+	zipPath := makeZip(t, map[string]string{
+		"../evil.txt": "should not extract",
+	})
+	dst := filepath.Join(t.TempDir(), "out")
+
+	// unzipInto should now reject the traversal entry and return an error.
+	err := unzipInto(zipPath, dst, 1<<20)
+	if err == nil {
+		t.Fatal("unzipInto should error on traversal entry, not skip it")
+	}
+
+	// Verify the evil file escaped nowhere.
+	if _, err := os.Stat(filepath.Join(filepath.Dir(dst), "evil.txt")); !os.IsNotExist(err) {
+		t.Fatal("evil.txt should not have escaped")
+	}
+}
+
+// TestUnzipInto_AcceptsValidEntriesWithConfinePath verifies that unzipInto
+// still extracts valid entries correctly after the ConfinePath refactor.
+func TestUnzipInto_AcceptsValidEntriesWithConfinePath(t *testing.T) {
+	// Create an archive with only valid entries.
+	zipPath := makeZip(t, map[string]string{
+		"plugins/Cool.dll": "DLLBYTES",
+		"config/data.json": `{"version":1}`,
+		"readme.txt":       "Instructions",
+	})
+	dst := filepath.Join(t.TempDir(), "out")
+
+	// unzipInto should succeed.
+	if err := unzipInto(zipPath, dst, 1<<20); err != nil {
+		t.Fatalf("unzipInto valid archive: %v", err)
+	}
+
+	// All files should be extracted.
+	for _, path := range []string{
+		filepath.Join(dst, "plugins", "Cool.dll"),
+		filepath.Join(dst, "config", "data.json"),
+		filepath.Join(dst, "readme.txt"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("file %q should exist: %v", filepath.Base(path), err)
+		}
+	}
+}
+
+// TestUnzipInto_AcceptsDotfilesAndNestedEntries verifies that unzipInto
+// accepts archives with dotfiles and nested directories (using ConfineRelPath).
+// This is the key regression test for DEFECT 2 — archives legitimately contain
+// nested paths and dotfiles, which ConfinePath would have rejected.
+func TestUnzipInto_AcceptsDotfilesAndNestedEntries(t *testing.T) {
+	// Create an archive with dotfiles and nested paths (typical for real archives).
+	zipPath := makeZip(t, map[string]string{
+		".gitkeep":           "",              // dotfile at root
+		"config/.gitignore":  "*.tmp\n",       // dotfile in subdirectory
+		"plugins/Cool.dll":   "DLLBYTES",      // nested file
+		"src/main/.settings": "debug=false\n", // nested dotfile
+	})
+	dst := filepath.Join(t.TempDir(), "out")
+
+	// unzipInto should succeed with ConfineRelPath.
+	if err := unzipInto(zipPath, dst, 1<<20); err != nil {
+		t.Fatalf("unzipInto archive with dotfiles: %v", err)
+	}
+
+	// All files and dotfiles should be extracted.
+	for _, path := range []string{
+		filepath.Join(dst, ".gitkeep"),
+		filepath.Join(dst, "config", ".gitignore"),
+		filepath.Join(dst, "plugins", "Cool.dll"),
+		filepath.Join(dst, "src", "main", ".settings"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("file %q should exist: %v", path, err)
+		}
+	}
+}
+
+func TestUpload_BadArchive(t *testing.T) {
+	root := t.TempDir()
+	spec := &caps.Mods{
+		Path:       "plugins",
+		Extensions: []string{".zip"},
+		Extract:    true,
+	}
+	srv := newSrv(t, root, spec)
+
+	// Create a bad zip file and upload it
+	badZipPath := filepath.Join(t.TempDir(), "bad.zip")
+	if err := os.WriteFile(badZipPath, []byte("definitely not a zip"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Open the file and send it as multipart upload
+	zipFile, err := os.Open(badZipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zipFile.Close()
+
+	// Build the multipart form body.
+	client := &http.Client{}
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("file", "bad.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(part, zipFile)
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/mods/upload", &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400 for bad archive", resp.StatusCode)
+	}
+}
+
+func TestUpload_DefaultSizeCap(t *testing.T) {
+	root := t.TempDir()
+	spec := &caps.Mods{
+		Path:       "plugins",
+		Extensions: []string{".zip"},
+	}
+	srv := newSrv(t, root, spec)
+
+	// Create a large file (exceeds default cap)
+	largeData := bytes.Repeat([]byte("A"), 300<<20) // 300 MiB, exceeds 256 MiB default
+	client := &http.Client{}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("file", "large.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(part, bytes.NewReader(largeData))
+	writer.Close()
+
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/mods/upload", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d, want 413 for oversized upload", resp.StatusCode)
+	}
+}
+
+func TestUpload_WrongExtension(t *testing.T) {
+	root := t.TempDir()
+	spec := &caps.Mods{
+		Path:       "plugins",
+		Extensions: []string{".dll"},
+	}
+	srv := newSrv(t, root, spec)
+
+	client := &http.Client{}
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("file", "plugin.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write([]byte("zipdata"))
+	writer.Close()
+
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/mods/upload", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400 for wrong extension", resp.StatusCode)
+	}
+}
+
+func TestUpload_InvalidForm(t *testing.T) {
+	root := t.TempDir()
+	spec := &caps.Mods{Path: "plugins"}
+	srv := newSrv(t, root, spec)
+
+	// Send a POST without proper multipart form
+	client := &http.Client{}
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/mods/upload",
+		bytes.NewReader([]byte("not a form")))
+	req.Header.Set("Content-Type", "text/plain")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400 for invalid form", resp.StatusCode)
+	}
+}
+
+func TestRemove_MissingMod(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "mods"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	srv := newSrv(t, root, modsSpec("mods", nil))
+
+	// Try to remove a mod that doesn't exist
+	status, body := do(t, srv, http.MethodDelete, "/mods?name=nonexistent.jar", nil)
+	if status != http.StatusNotFound {
+		t.Fatalf("status=%d, want 404; body=%s", status, body)
+	}
+}
+
+func TestList_Empty(t *testing.T) {
+	root := t.TempDir()
+	// Create the mods directory but leave it empty
+	if err := os.MkdirAll(filepath.Join(root, "mods"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	srv := newSrv(t, root, modsSpec("mods", nil))
+
+	status, body := do(t, srv, http.MethodGet, "/mods", nil)
+	if status != http.StatusOK || strings.TrimSpace(string(body)) != "[]" {
+		t.Fatalf("status=%d body=%s", status, body)
+	}
+}
