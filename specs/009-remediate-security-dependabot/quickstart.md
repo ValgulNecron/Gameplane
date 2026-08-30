@@ -55,12 +55,11 @@ gh pr list \
 - Go: 10 PRs (#263, #265, #267, #269, #271, #273, #274, #276, #279, #281)
 - npm: 11 PRs (#262, #264, #266, #268, #270, #272, #275, #277, #278, #280, #283)
 
-**Current state (2026-08-29)**: 2 open PRs remain:
-- **#263** (sigstore/sigstore 1.10.8→1.10.9) — Go, upstream-blocked (staticcheck SA1019 on deprecated import; needs sigstore-go migration)
+**Current state (2026-08-29)**: 1 open PR remains:
 - **#272** (typescript 6.0.3→7.0.2) — npm, upstream-blocked (no @typescript-eslint release accepts TS 7; npm ci dies at ERESOLVE)
 
-**Merged/closed (2026-08-29)**: 19 PRs addressed:
-- 18 merged: #283, #281, #280, #279, #278, #277, #276, #275, #274, #273, #271, #270, #268, #267, #266, #265, #264, #262
+**Merged/closed (2026-08-29)**: 20 PRs addressed:
+- 19 merged: #283, #281, #280, #279, #278, #277, #276, #275, #274, #273, #271, #270, #268, #267, #266, #265, #264, #263, #262
 - 1 closed without merge: #269 (golang.org/x/net — outcome achieved transitively via other merges)
 
 ## Scenario A: Alert Remediation Verified
@@ -223,11 +222,11 @@ All responses must be bounded at max 500 entries. The API pod memory must not sp
 
 ## Scenario E: Dependency Bump Verification
 
-All 21 Dependabot PRs must be merged individually (per user decision) and verified green on CI before acceptance. Sigstore (#263) and TS 7 (#272) are deferred as upstream-blocked after the other 19 are merged.
+All 21 Dependabot PRs must be addressed individually (per user decision) and verified green on CI before acceptance. TypeScript 7 (#272) is deferred as upstream-blocked after the other 20 are resolved—19 merged and 1 (#269) closed without merging.
 
 ### Per-PR Verification Pattern
 
-For each Dependabot PR (except #263 and #272):
+For each Dependabot PR (except #272):
 
 1. **Check PR status**:
 
@@ -298,19 +297,7 @@ Expected: line shows `modernc.org/sqlite v1.57.0` (or a compatible indirect vers
 | #265 | google/go-containerregistry 0.21.7→0.22.0 | agent, api, capture-sidecar, mcp-server, operator, sentinel, telemetry-receiver, test/e2e |
 | #263 | sigstore/sigstore 1.10.8→1.10.9 | capture-sidecar, operator, test/e2e |
 
-**Special case: #263 has 1 failing check** (cause not yet diagnosed in BRIEF.md). Investigate via:
-
-```bash
-gh run list \
-  -R ValgulNecron/Gameplane \
-  --branch="dependabot/go_modules_sigstore_sigstore_..." \
-  --workflow=ci.yaml \
-  -L 1 \
-  --json url \
-  --jq '.[0].url'
-```
-
-Click the job URL and review the failing log to diagnose. If the failure is unrelated to the dependency bump (e.g., a flaky e2e test), merge after confirmation and monitor master for any regression.
+**Special case: #263 was initially blocked by 1 failing check** (`lint (operator)`: staticcheck SA1019 on deprecated sigstore/pkg/fulcioroots API). The check was cleared by PR #287 (T071), which migrated operator/internal/verify/verify.go to sigstore-go/pkg/tuf. #263 merged on 2026-08-29 after T071 landed. **No action needed; included in 19 merged PRs above.**
 
 ### npm Dependencies (11 PRs)
 
@@ -328,7 +315,7 @@ Click the job URL and review the failing log to diagnose. If the failure is unre
 | #264 | @testing-library/jest-dom 7.0.0→7.0.1 | green — MERGE |
 | #262 | @typescript-eslint/parser 8.65.0→8.67.0 | green — MERGE |
 
-**Exceptions**: PRs #263 (Sigstore, upstream-blocked) and #272 (TypeScript 7, upstream-blocked) are deferred to a separate feature branch and phase. All other 19 Dependabot PRs are merged. #263 and #272 will be handled in follow-ups once upstream blockers are resolved.
+**Exception**: PR #272 (TypeScript 7, upstream-blocked) is deferred to a separate feature branch and phase. The other 20 Dependabot PRs are resolved: 19 merged and 1 (#269) closed without merging. #272 will be handled in a follow-up once the upstream blocker is resolved.
 
 **Observing CI on a merged npm PR**:
 
@@ -377,9 +364,9 @@ gh pr list \
   --jq '[.[] | select(.title | test("^chore:"))] | length'
 ```
 
-**Expected**: 0 (all merged) or 2 (#263 and #272 deferred, upstream-blocked).
+**Expected**: 0 (all merged) or 1 (#272 deferred, upstream-blocked).
 
-If 2 are open, confirm they are #263 and #272:
+If 1 is open, confirm it is #272:
 
 ```bash
 gh pr list \
@@ -391,10 +378,10 @@ gh pr list \
 ```
 
 Map to spec success criterion SC-002: "100% of open Dependabot PRs are merged or resolved." The baseline is 21 PRs (#262–#281 + #283 security). As of 2026-08-29:
-- 18 PRs merged (8 Go + 10 npm): #283, #281, #280, #279, #278, #277, #276, #275, #274, #273, #271, #270, #268, #267, #266, #265, #264, #262
+- 19 PRs merged (9 Go + 10 npm): #283, #281, #280, #279, #278, #277, #276, #275, #274, #273, #271, #270, #268, #267, #266, #265, #264, #263, #262
 - 1 PR closed without merge: #269 (golang.org/x/net 0.57.0→0.58.0; outcome achieved transitively)
-- 2 PRs deferred (upstream-blocked): #263 (sigstore 1.10.9, SA1019 CEL fix needed), #272 (TypeScript 7, no @typescript-eslint release yet)
-- Total: 21 of 21 accounted for — 18 merged, 1 closed without merging (#269, superseded transitively), 2 deferred as upstream-blocked (#263 sigstore, #272 TypeScript 7)
+- 1 PR deferred (upstream-blocked): #272 (TypeScript 7, no @typescript-eslint release yet)
+- Total: 21 of 21 accounted for — 19 merged, 1 closed without merging (#269, superseded transitively), 1 deferred as upstream-blocked (#272 TypeScript 7)
 
 ### SC-003, SC-004: Tests Green
 
@@ -457,6 +444,6 @@ gh api repos/ValgulNecron/Gameplane/actions/runs \
 - [ ] **Scenario B**: TLS guard unit test passes; `go-e2e-unit` job green
 - [ ] **Scenario C**: api-mods e2e tests pass; new negative tests bucketed and passing; `e2e-buckets` verification green
 - [ ] **Scenario D**: audit handler clamping confirmed in diff; TestAPI_AuditPaginationAndFilter passes; extreme limit queries bounded at 500
-- [ ] **Scenario E**: All 19 Go/npm PRs merged and versions confirmed in go.mod/package.json; #263, #272 deferred (upstream-blocked); CI green after each merge
-- [ ] **Final**: 0 open alerts, 0 open Dependabot PRs (or 2 deferred), master CI green across all jobs
+- [ ] **Scenario E**: 19 Go/npm PRs merged and 1 (#269) closed without merge; versions confirmed in go.mod/package.json; #272 deferred (upstream-blocked); CI green after each merge
+- [ ] **Final**: 0 open alerts, 0 open Dependabot PRs (or 1 deferred), master CI green across all jobs
 - [ ] **SC-001** through **SC-006**: All success criteria met

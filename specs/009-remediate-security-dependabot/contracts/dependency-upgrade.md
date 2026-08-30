@@ -219,6 +219,8 @@ code, so a wrong root-of-trust source is a security regression, not a lint fix.
 dependency wave (disjoint from every other PR's failure mode), and it should be handled as
 its own unit of work alongside the other gated majors (#272, #268).
 
+**Update (2026-08-29)**: #263 merged as commit 5291807 after T071 (PR #287) migrated verify.go off the deprecated fulcioroots API. The SA1019 blocker has been resolved.
+
 ---
 
 ## dompurify — 4 Dependabot security alerts with no possible Dependabot PR
