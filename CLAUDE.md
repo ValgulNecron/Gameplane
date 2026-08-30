@@ -6,6 +6,36 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 
 > **Status:** beta (`v0.2.0-beta.8`). CRDs, operator, API, agent, and dashboard are feature-complete for the v1 scope and stabilized for external testing; not yet recommended for unattended production. See README "Beta status & known limitations".
 
+## ⏳ Start-of-session check: TypeScript 7 (delete this section once it passes)
+
+**Check this at the start of every session. When the check passes, do the work and then DELETE this
+entire section from `CLAUDE.md` — it exists only to mark a blocked task.**
+
+```sh
+npm view @typescript-eslint/parser@latest version peerDependencies.typescript
+npm view @typescript-eslint/parser@canary version peerDependencies.typescript
+```
+
+(A registry lookup is a read, not a build — it is exempt from the no-local-execution rule in rule 8.)
+
+- **Still blocked** if the peer range ends below `<7` (measured 2026-08-30: `latest` 8.68.0 and `canary`
+  8.68.1-alpha.6 both declare `typescript >=4.8.4 <6.1.0`).
+- **Unblocked** as soon as a published release accepts TypeScript 7.
+
+**Why it is blocked:** Dependabot PR #272 bumps `web/` from typescript 6.0.3 to 7.0.2. Because no
+`@typescript-eslint` release — canary included — accepts TypeScript 7, `npm ci` fails at `ERESOLVE`
+before `tsc` ever runs. There are therefore **no type errors to fix**; this is not our defect and there
+is nothing to work around on our side. Do not attempt the migration, do not pin around it with
+`overrides`, and do not close #272.
+
+**When it unblocks**, this is tasks T055/T056 in
+`specs/009-remediate-security-dependabot/tasks.md` — the last two open tasks of feature 009:
+bump `typescript` in `web/package.json`, raise `@typescript-eslint/*` to the release that supports it,
+fix the resulting type errors (rule 5 forbids `@ts-ignore`), merge #272, then mark T055/T056 `[X]` and
+delete this section.
+
+---
+
 > **AI tooling provenance:** the project was started with Claude Code on Claude Opus 4.8 (`claude-opus-4-8`); since June 2026 development continues on Claude Fable 5 (`claude-fable-5`). This is informational only — nothing in this file is model-specific.
 
 ---
