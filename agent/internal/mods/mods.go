@@ -560,6 +560,11 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 		if target != dstClean && !strings.HasPrefix(target, dstClean+string(os.PathSeparator)) {
 			return fmt.Errorf("zip-slip: %w", ErrEscapesRoot)
 		}
+		// Reject symlink entries outright: a symlink's target is resolved at use
+		// time and therefore cannot be confined by a path check at extraction time.
+		if f.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("zip-slip: %w", errSymlinkEntry)
+		}
 		if f.FileInfo().IsDir() {
 			if err := os.MkdirAll(target, 0o750); err != nil {
 				return err
@@ -798,6 +803,7 @@ var (
 	errTooLarge       = errors.New("download exceeds size limit")
 	errHostNotAllowed = errors.New("redirect host not allowed")
 	errBadArchive     = errors.New("not a valid archive")
+	errSymlinkEntry   = errors.New("symlink archive entry")
 )
 
 // ssrfPolicy decides whether the agent may dial an address. It defaults to

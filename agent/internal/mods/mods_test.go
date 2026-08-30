@@ -545,6 +545,46 @@ func TestUnzipInto_BadArchive(t *testing.T) {
 	}
 }
 
+func TestUnzipInto_RejectsSymlinks(t *testing.T) {
+	// Create a temp directory for the zip
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "symlink.zip")
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a zip with a symlink entry
+	zw := zip.NewWriter(f)
+	h := &zip.FileHeader{Name: "escape-link", Method: zip.Store}
+	h.SetMode(os.ModeSymlink | 0o777)
+	w, err := zw.CreateHeader(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("../../../../etc/passwd")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// unzipInto should reject the symlink entry
+	dst := filepath.Join(dir, "out")
+	if err := unzipInto(zipPath, dst, 1<<20); !errors.Is(err, errSymlinkEntry) {
+		t.Fatalf("unzipInto symlink = %v, want errSymlinkEntry", err)
+	}
+
+	// The "escape-link" entry should not exist after rejection
+	escapeLinkPath := filepath.Join(dst, "escape-link")
+	if _, err := os.Lstat(escapeLinkPath); !os.IsNotExist(err) {
+		t.Fatalf("escape-link should not exist after rejection: %v", err)
+	}
+}
+
 func TestInstall_ExtractBadArchive(t *testing.T) {
 	allowLoopback(t)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
