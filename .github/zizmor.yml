@@ -34,10 +34,3 @@ rules:
   # expansions in shell scripts. Blanket fix would require rewriting ~30 run steps.
   template-injection:
     disable: true
-
-  # dangerous-triggers: 2 findings
-  # fires on workflow_run, which in ai-review-respond.yaml IS the security control:
-  # a workflow_run job executes the BASE branch's definition, which is what stops
-  # a PR granting itself the API key. This rule is wrong for this justified case.
-  dangerous-triggers:
-    disable: true
