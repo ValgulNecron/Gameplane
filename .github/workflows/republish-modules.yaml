@@ -17,6 +17,7 @@ jobs:
   modules:
     name: push & sign module bundles
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # D-A extension (inherits release module-push budget); pending maintainer confirmation
     permissions:
       contents: read
       packages: write

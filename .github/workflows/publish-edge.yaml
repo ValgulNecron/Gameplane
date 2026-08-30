@@ -41,6 +41,9 @@ jobs:
   images:
     name: build & push edge image
     runs-on: ubuntu-latest
+    # 35 min: observed max 31 minutes across 142 job samples on 2026-08-30,
+    # multi-arch buildx plus cosign across the image set
+    timeout-minutes: 35
     permissions:
       contents: read
       packages: write

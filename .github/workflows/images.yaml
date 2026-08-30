@@ -16,12 +16,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Stage 1: Build and push the shared SteamCMD base image.
   # Game images depend on this digest via build args, so it must be built first.
   common-base:
     name: build & push common base images
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # extension per D-A, pending maintainer confirmation
     permissions:
       contents: read
       packages: write
@@ -137,6 +142,7 @@ jobs:
   game-images:
     name: build & push game images
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
