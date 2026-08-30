@@ -160,3 +160,32 @@ func TestUpload_Unconfigured(t *testing.T) {
 		t.Fatalf("status=%d, want 501", status)
 	}
 }
+
+// TestUpload_NonExtractRejectsTraversalWithConfinePath verifies that the
+// non-extract upload handler uses ConfinePath to validate the destination
+// and rejects traversal attempts.
+func TestUpload_NonExtractRejectsTraversalWithConfinePath(t *testing.T) {
+	root := t.TempDir()
+	srv := newSrv(t, root, modsSpec("mods", nil))
+
+	// upload should accept a valid name and save the file.
+	status, body := postUpload(t, srv, "file", "valid.jar", []byte("VALIDDATA"))
+	if status != http.StatusOK {
+		t.Errorf("valid upload status=%d, want 200; body=%s", status, body)
+	}
+	if _, err := os.Stat(filepath.Join(root, "mods", "valid.jar")); err != nil {
+		t.Errorf("valid file should exist: %v", err)
+	}
+
+	// upload should reject traversal attempts via ConfinePath validation.
+	for _, bad := range []string{"../escape", "a/b", "..", ".hidden"} {
+		status, _ := postUpload(t, srv, "file", bad, []byte("BADDATA"))
+		if status != http.StatusBadRequest {
+			t.Errorf("upload name=%q status=%d, want 400", bad, status)
+		}
+		// Verify the malicious file did not escape h.dir.
+		if _, err := os.Stat(filepath.Join(root, "escape")); !os.IsNotExist(err) {
+			t.Errorf("traversal escape should not exist: %v", err)
+		}
+	}
+}
