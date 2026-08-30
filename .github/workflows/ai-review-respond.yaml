@@ -118,11 +118,22 @@ jobs:
             echo "DIFF_EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: checkout base branch for context
+      # Checks out the repository's DEFAULT BRANCH, taken from the event payload.
+      #
+      # It must not check out anything derived from the artifact. base_ref arrives
+      # in a payload written by `collect`, which runs the PR's own workflow
+      # definition — so its value is attacker-controlled, and the `^[\w./-]+$`
+      # check it passes constrains the shape, not the provenance: a 40-hex commit
+      # SHA satisfies that regex. Feeding it here would check the PR's own code out
+      # inside the job holding ANTHROPIC_API_KEY, and the next step reads CLAUDE.md
+      # and the constitution from this tree into the TRUSTED half of the prompt.
+      # That hands the attacker both the privileged context and the trusted
+      # instructions. Found by CodeQL actions/untrusted-checkout/high.
+      - name: checkout default branch for context
         if: steps.validate.outputs.pr_number != ''
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ steps.validate.outputs.base_ref }}
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 1
 
       - name: load review context

@@ -66,6 +66,7 @@ pattern exists.
 | `ANTHROPIC_API_KEY` in `collect` | The untrusted job must have no secret to exfiltrate. | Code review — not automatically enforced. |
 | `${{ ... }}` of any PR field inside a `run:` in either job | Script injection. All values flow through `env:`. | actionlint + shellcheck on `run:` steps detect malformed expressions; code review ensures values come from `env:` not direct injection. |
 | Failing the build on review outcome | Advisory only (FR-022). A hijacked or unavailable reviewer must not block a legitimate PR. | Code review — not automatically enforced. |
+| A checkout `ref:` in `review` derived from the artifact | The artifact is written by `collect`, which runs the PR's own workflow definition, so every field in it is attacker-controlled. `base_ref` passing `^[\w./-]+$` proves its **shape**, not its **provenance** — a 40-hex commit SHA satisfies that regex, so the PR's own code would be checked out inside the job holding `ANTHROPIC_API_KEY` and read into the *trusted* half of the prompt. The ref must come from the event payload. | CodeQL `actions/untrusted-checkout/high`. |
 
 ---
 
@@ -120,8 +121,14 @@ on:
    The `collect` job ran next to the attacker's code. Nothing it produced is trusted,
    including its claim to have sanitised. Both sides validate independently — the same
    boundary discipline `gameaction/` applies between the API and the agent.
-3. Load review context from the base checkout **only**: `.specify/memory/constitution.md`,
-   `CLAUDE.md`, and any `specs.md` for touched modules.
+3. Load review context from a checkout of the repository's **default branch**, whose ref comes
+   from `github.event.repository.default_branch` in the event payload:
+   `.specify/memory/constitution.md`, `CLAUDE.md`, and any `specs.md` for touched modules.
+
+   The ref MUST come from the event payload, never from the artifact — see the forbidden
+   constructs table. Re-validating an artifact field makes it well-formed, not trustworthy;
+   that distinction is the entire boundary, and it is easiest to lose on a field that selects
+   code rather than one that merely gets printed.
 4. Call the model with the prompt structure below.
 5. Upsert the sticky comment.
 
