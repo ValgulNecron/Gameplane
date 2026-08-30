@@ -21,8 +21,9 @@ concrete gaps were measured against the live tree (see [research.md](./research.
 | Dependabot coverage | 1 gomod dir (`/`, covers 0 of 14 modules), 1 docker dir (`/`, matches no Dockerfile) | 14 gomod dirs, 12 docker dirs, npm, github-actions — all grouped |
 
 Plus two additions: a redaction filter in `dump-cluster-state` (currently dumps container
-logs with no sanitisation at all), and a new `ai-review.yaml` workflow built on the
-`pull_request_target`-free `workflow_run` pattern so fork PRs never see a write token.
+logs with no sanitisation at all), and two new workflows (`ai-review.yaml` and
+`ai-review-respond.yaml`) that split the collect/review jobs on the trust boundary so fork
+PRs never see a write token and the reviewer's code runs from the base branch, not the PR.
 
 Enforcement is verified through code review and static analysis jobs in CI: `actionlint`
 validates schema and expression-injection safety; `zizmor` validates action SHA pins,
@@ -69,9 +70,11 @@ triggering run completing.
   `# vX.Y.Z` after the SHA.
 - Concurrency groups must not cancel `push: master` runs that gate publishing.
 
-**Scale/Scope**: 5 workflow files (~97 KB, `ci.yaml` alone is 60 KB / 1400 lines), 4
-composite actions, 1 Dependabot config, 26 jobs, 18 distinct external actions, 14 Go
-modules, 12 Dockerfiles. One new file: `.github/workflows/ai-review.yaml`.
+**Scale/Scope**: 5 baseline workflow files (~97 KB, `ci.yaml` alone is 60 KB / 1400 lines), 4
+composite actions, 1 Dependabot config, 26 baseline jobs, 18 distinct external actions, 14 Go
+modules, 12 Dockerfiles. Two new workflow files (splitting User Story 4's collect/review jobs
+on the trust boundary): `.github/workflows/ai-review.yaml` (collect, `pull_request` trigger)
+and `.github/workflows/ai-review-respond.yaml` (review, `workflow_run` trigger).
 
 ## Constitution Check
 
@@ -121,7 +124,8 @@ specs/008-hardened-github-actions/
 │   ├── publish-edge.yaml         # MODIFY — SHA pins, +timeouts, +job permissions
 │   ├── release.yaml              # MODIFY — SHA pins, +timeouts, +job permissions
 │   ├── republish-modules.yaml    # MODIFY — SHA pins, +timeouts, +job permissions
-│   └── ai-review.yaml            # NEW — fork-safe AI PR review (workflow_run split)
+│   ├── ai-review.yaml            # NEW — collect job (PR head, untrusted, pull_request trigger)
+│   └── ai-review-respond.yaml    # NEW — review job (base branch, privileged, workflow_run trigger)
 └── actions/
     ├── build-e2e-images/action.yml   # MODIFY — SHA pins
     ├── dump-cluster-state/action.yml # MODIFY — SHA pins + redaction filter (FR-014)
@@ -135,7 +139,10 @@ charts/ operator/ api/ agent/ web/ # UNCHANGED — no product code in this featu
 **Structure Decision**: This is a repository-automation feature, so none of the template's
 application layouts (single-project / web / mobile) apply. The tree above is the real
 scope: everything lives under `.github/`, with all changes to workflows and actions applied
-in-place and one new workflow file (`ai-review.yaml`) added.
+in-place and two new workflow files (`ai-review.yaml` and `ai-review-respond.yaml`) added.
+The split is required by the collect/review trust boundary: a workflow has a single `on:` block
+for the entire file, so expressing both a `pull_request` trigger and a `workflow_run` trigger
+in one file would require guard clauses that collapse the security boundary.
 
 ## Phase Sequencing
 

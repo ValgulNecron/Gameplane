@@ -74,9 +74,15 @@ Dependabot's `github-actions` ecosystem owns the transition after landing; the p
 
 ## E3. Job Permission & Timeout Matrix
 
-One row per job across all 5 workflows — 26 at baseline, 28 after this feature (adds
-`collect`/`review` in the new `ai-review.yaml`). Authoritative copy in
-[contracts/permissions-matrix.md](./contracts/permissions-matrix.md).
+One row per job across all 7 workflows — 26 at baseline, 28 after this feature (adds
+`collect`/`review` across two new workflows: `ai-review.yaml` and `ai-review-respond.yaml`).
+Authoritative copy in [contracts/permissions-matrix.md](./contracts/permissions-matrix.md).
+
+**Note on the AI review workflows**: User Story 4 requires two files because a GitHub workflow has
+a single `on:` block for the entire file, making it impossible to express both a `pull_request`
+trigger (for the untrusted `collect` job) and a `workflow_run` trigger (for the privileged
+`review` job) in one file without collapsing the trust boundary. `ai-review-respond.yaml`'s
+`workflows: ["ai-review"]` reference must match `ai-review.yaml`'s top-level `name:` exactly.
 
 | Field | Type | Rule |
 |---|---|---|

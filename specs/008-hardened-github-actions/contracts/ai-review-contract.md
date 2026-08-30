@@ -2,12 +2,32 @@
 
 **Feature**: 008-hardened-github-actions | **Date**: 2026-08-29
 
-Behavioral contract for `.github/workflows/ai-review.yaml`. Satisfies FR-022…FR-025 and
-SC-006. Design rationale in research.md D-05 and D-06.
+Behavioral contract for `.github/workflows/ai-review.yaml` and `.github/workflows/ai-review-respond.yaml`.
+Satisfies FR-022…FR-025 and SC-006. Design rationale in research.md D-05 and D-06.
+
+## Why Two Files
+
+A GitHub workflow has a single `on:` block for the entire file, so multiple independent triggers
+cannot be expressed within one file. The collect/review split **requires two files** because the
+two jobs must fire on different events (PR submission vs. workflow completion) and respond to
+different trust postures.
+
+More fundamentally: a `workflow_run` job executes the workflow definition from the **base branch**
+(the target of the PR), not from the PR head itself. This is the security control that stops a
+malicious PR from editing the reviewer to grant itself the API key. A `pull_request`-triggered job
+would run the PR's own definition, allowing an attacker to modify the review workflow. By keeping
+both jobs in one file and using `if: github.event_name == ...` guards, the reviewer's own code
+would be privileged and thus vulnerable. The split into two files is not an implementation detail —
+it is the mechanism that makes the whole design safe.
+
+- **`ai-review.yaml`** (`collect`): triggered on `pull_request` (opened/synchronized/reopened),
+  runs against the PR head (untrusted), has no secrets, `permissions: contents: read`.
+- **`ai-review-respond.yaml`** (`review`): triggered on `workflow_run` (completing the above),
+  has the API key, `permissions: pull-requests: write`, runs against the base branch only.
 
 > ⚠️ The trust split, the `pull_request_target` ban and the re-validation requirement follow
 > from FR-023/FR-025. The limits and marker below are governed by OPEN-DECISIONS.md D-G.
-> Each limit is a named constant in `ai-review.yaml` carrying a comment stating its justification.
+> Each limit is a named constant in the respective workflow file carrying a comment stating its justification.
 
 ---
 
