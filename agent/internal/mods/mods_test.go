@@ -585,6 +585,60 @@ func TestUnzipInto_RejectsSymlinks(t *testing.T) {
 	}
 }
 
+// TestUnzipInto_RejectsSymlinksWithoutUnixCreator covers the adversarial
+// shape: an entry carrying the Unix symlink type bits in ExternalAttrs but
+// leaving CreatorVersion zero, so archive/zip's FileHeader.Mode falls back to
+// the MS-DOS attribute bits and never reports os.ModeSymlink. A guard that
+// trusted Mode() alone would let this through.
+func TestUnzipInto_RejectsSymlinksWithoutUnixCreator(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "symlink-nocreator.zip")
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	zw := zip.NewWriter(f)
+	// Note: ExternalAttrs is set directly and CreatorVersion is left zero,
+	// unlike SetMode which would stamp the Unix creator byte.
+	h := &zip.FileHeader{Name: "escape-link", Method: zip.Store, ExternalAttrs: 0o120777 << 16}
+	w, err := zw.CreateHeader(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("../../../../etc/passwd")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Guard the premise: if a future Go release taught Mode() to decode these
+	// bits without the creator byte, this test would silently stop covering
+	// the fallback branch it exists for.
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := zr.File[0].Mode(); got&os.ModeSymlink != 0 {
+		t.Fatalf("premise broken: Mode() = %v already reports ModeSymlink without a Unix creator", got)
+	}
+	if err := zr.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(dir, "out")
+	if err := unzipInto(zipPath, dst, 1<<20); !errors.Is(err, errSymlinkEntry) {
+		t.Fatalf("unzipInto symlink without unix creator = %v, want errSymlinkEntry", err)
+	}
+	if _, err := os.Lstat(filepath.Join(dst, "escape-link")); !os.IsNotExist(err) {
+		t.Fatalf("escape-link should not exist after rejection: %v", err)
+	}
+}
+
 func TestInstall_ExtractBadArchive(t *testing.T) {
 	allowLoopback(t)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
