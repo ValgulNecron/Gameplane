@@ -535,6 +535,13 @@ func (h *handler) swapInArchive(tmpZip, folder string, maxBytes int64) error {
 	return nil
 }
 
+// Unix mode type bits as stored in a zip entry's external attributes
+// (S_IFMT and S_IFLNK). archive/zip keeps its own unexported copies.
+const (
+	unixTypeMask    = 0o170000
+	unixTypeSymlink = 0o120000
+)
+
 // unzipInto extracts zipPath into dst, guarding against zip-slip and
 // capping the total uncompressed size.
 func unzipInto(zipPath, dst string, maxBytes int64) error {
@@ -559,6 +566,17 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 		target = filepath.Clean(target)
 		if target != dstClean && !strings.HasPrefix(target, dstClean+string(os.PathSeparator)) {
 			return fmt.Errorf("zip-slip: %w", ErrEscapesRoot)
+		}
+		// Reject symlink entries outright: a symlink's target is resolved at use
+		// time and therefore cannot be confined by a path check at extraction time.
+		//
+		// Test the raw Unix type bits as well as Mode(). archive/zip decodes them
+		// only when the entry declares a Unix creator (FileHeader.Mode falls back
+		// to the MS-DOS attribute bits otherwise, which carry no symlink type), and
+		// the archive is untrusted input — a crafted entry can set the symlink type
+		// in ExternalAttrs while leaving CreatorVersion zero.
+		if f.Mode()&os.ModeSymlink != 0 || (f.ExternalAttrs>>16)&unixTypeMask == unixTypeSymlink {
+			return fmt.Errorf("zip-slip: %w", errSymlinkEntry)
 		}
 		if f.FileInfo().IsDir() {
 			if err := os.MkdirAll(target, 0o750); err != nil {
@@ -798,6 +816,7 @@ var (
 	errTooLarge       = errors.New("download exceeds size limit")
 	errHostNotAllowed = errors.New("redirect host not allowed")
 	errBadArchive     = errors.New("not a valid archive")
+	errSymlinkEntry   = errors.New("symlink archive entry")
 )
 
 // ssrfPolicy decides whether the agent may dial an address. It defaults to

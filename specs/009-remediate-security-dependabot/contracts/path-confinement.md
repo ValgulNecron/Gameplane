@@ -201,6 +201,35 @@ After both `ConfinePath` and `ConfineRelPath` are defined, all call sites MUST:
 
 ---
 
+## Deliberate Deviation: Inline Re-checks Retained at Four Call Sites (2026-08-30)
+
+**Amendment Status**: Item 4 is intentionally **not applied** at four locations in `agent/internal/mods/mods.go`:
+
+| Function | Lines | Inline Check Retained |
+|----------|-------|----------------------|
+| `removeEntry` | ~389–393 | Yes |
+| `swapInArchive` | ~521–526 | Yes |
+| `unzipInto` | ~559–562 | Yes |
+| `remove` | ~647–652 | Yes |
+
+**Rationale for Deviation**
+
+Feature 009 Phase A's primary goal was to make path-confinement guards legible to CodeQL's taint-tracking model, allowing automated detection of path-escape attempts. At these four call sites, an inline re-check (Join+Clean+HasPrefix) is **retained after calling the helper**, with a comment: "Re-check inline so the guard is visible at the point of use."
+
+This placement at the point of OS file operation (e.g., immediately before `os.RemoveAll(target)`) appears to be what allows CodeQL to track the validated path through to the system call. Removing it without evidence risks re-raising CodeQL alerts #7–#13 (the original security findings that motivated this contract) without gaining any additional safety.
+
+**Invariant Preserved**
+
+Item 3 of the Migration Pattern is **fully honored**: the value passed to the file operation is always the result returned by the helper (never re-derived from the raw input). The helper remains the sole source of validated paths. The inline re-check adds defence-in-depth—it re-asserts a postcondition the helper already guarantees, but makes that guarantee visible to static analysis at the critical juncture.
+
+**Future Review**
+
+This deviation should be reconsidered if:
+- A future CodeQL run demonstrates that inline re-checks are no longer necessary for alerts #7–#13 to remain clear.
+- The confinement helpers are strengthened or static analysis tools evolve in ways that make the redundancy plainly safe to remove.
+
+---
+
 ## Testing Requirements
 
 ### For ConfinePath:
