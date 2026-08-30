@@ -51,12 +51,24 @@ Two findings deserve emphasis because they are worse than "not yet done":
 ## D-01: SHA pinning method and comment format
 
 **Decision**: Pin all 18 actions to full 40-character commit SHAs resolved from the current
-floating tag, with a trailing `# vX.Y.Z` comment. Resolve via `git ls-remote --tags --refs`,
-not by hand.
+floating tag, with a trailing `# vX.Y.Z` comment. Resolve via `git ls-remote --tags <repo>`
+(WITHOUT `--refs`), and take the `refs/tags/<tag>^{}` line's SHA when one exists, falling
+back to `refs/tags/<tag>` when it does not.
 
 ```yaml
 - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 ```
+
+**Why this matters**: An annotated tag's `refs/tags/X` is the tag object, not the commit;
+GitHub Actions resolves `@<sha>` to a commit, and a tag-object SHA simply does not resolve.
+The `^{}` line holds the peeled commit for annotated tags; lightweight tags have no `^{}`
+line, so fall back to the plain `refs/tags/X`. The old method with `--refs` stripped these
+lines silently and yielded broken pins for any annotated-tag repo.
+
+An audit on 2026-08-30 checked all 19 distinct pinned actions and found exactly one affected:
+`anthropics/claude-code-action` uses an annotated tag; the other 18 use lightweight tags where
+`refs/tags/X` is the commit, so those pins remain correct. `zizmor/ref-version-mismatch`
+now catches this class of mistake automatically — it is what found the broken pin.
 
 **Rationale**: A tag is a mutable pointer — an attacker with push access to an action repo
 can re-point `v7` at a malicious commit and every consumer silently picks it up on the next

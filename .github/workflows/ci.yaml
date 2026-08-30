@@ -646,8 +646,15 @@ jobs:
           # so run it from the checkout root.
           cd "$GITHUB_WORKSPACE"
           "$tmp/actionlint"
+      # This gate makes SC-001 ("100% SHA-pinned") mechanically true by failing on
+      # unpinned uses and ref-version mismatches. The four deferred rules and their
+      # tracking are defined in .github/zizmor.yml.
       - name: zizmor
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          inputs: .github
+          advanced-security: false
+          persona: regular
 
   # Unit tests for probe protocol packages (minecraft, terraria, etc).
   # These are in test/e2e but are untagged Go unit tests, not integration

@@ -396,3 +396,59 @@ Sequencing matters here: documentation written mid-flight describes a CI that ne
 D-J **corrects** the "unpinned/malformed action refs" clause in D-H's coverage list. D-H's own text remains as the historical record; D-J supersedes that one claim.
 
 **Implementation detail, not decided by this ruling:** Job layout (whether zizmor runs inside the same `workflow-lint` job as actionlint or as its own job) and zizmor's ruleset/severity are deferred to execution-order step 5 in the next session.
+
+---
+
+## D-K: Zizmor scoping and gating
+
+**Finding:**
+
+(i) Zizmor's first real run found a broken pin: `claude-code-action` was pinned to an
+annotated tag's TAG OBJECT (`50b26a71...`) rather than its commit (`a874e9ec...`), because
+`research.md` D-01's documented method used `git ls-remote --tags --refs` and `--refs` strips
+the peeled `^{}` lines that carry the commit SHA for annotated tags. One pin affected;
+the method has been corrected; every other pinned action uses a lightweight tag, where
+`refs/tags/X` IS the commit, so those were unaffected. The audit covered the 20 distinct
+pins present in `.github/` — note that `zizmorcore/zizmor-action` is pinned in `ci.yaml`
+but was never added to `contracts/action-pins.md`'s registry table, so that table lists 19.
+It resolves correctly; the gap is documentation, not a bad pin.
+
+(ii) The zizmor step exited 0 and the job went green, because `zizmor-action` defaults to
+`advanced-security: true` — uploading SARIF to code scanning instead of failing the job.
+D-J's "fail on any finding" was therefore not implemented: the zizmor step did not gate.
+
+**Response:** Scope zizmor to `.github/` only (the 171 findings in `test/e2e/testdata/lint-gate/*`
+are deliberately-broken fixture workflows whose purpose is to prove the lint gate can fail;
+they cannot be fixed without destroying the tests). Make the job fail. Gate now on
+`unpinned-uses` (the rule D-J adopted zizmor for — it is what makes SC-001's "100% SHA-pinned"
+mechanically true) and `ref-version-mismatch` (which just caught the pin in finding (i) and
+would have caught it earlier). Defer the remaining real findings as a recorded backlog.
+
+**Status**: **RESOLVED** 2026-08-30. Zizmor is scoped to `.github/` only and configured with
+`advanced-security: false`, so its own exit code fails the job rather than being absorbed by
+a SARIF upload.
+
+Stated precisely, because the shorthand is misleading: `.github/zizmor.yml` DISABLES the four
+backlogged rules below. Every other zizmor rule remains enabled and gates the build — that
+includes the two the tool was adopted for, `unpinned-uses` and `ref-version-mismatch`, and
+also the ~35 rules that produced zero findings on 2026-08-30. Leaving those on costs nothing
+today and catches regressions for free, so the gate is broader than "two rules".
+
+The remaining zizmor findings—those outside the two gated rules—are deferred as backlog, not
+silently accepted. This inventory is as of 2026-08-30:
+
+| Rule | Count | Deferred to |
+|---|---|---|
+| `artipacked` | 58 | follow-up feature |
+| `dependabot-cooldown` | 56 | follow-up feature |
+| `template-injection` | 33 | follow-up feature |
+| `dangerous-triggers` | 2 | see note below |
+
+**Note on `dangerous-triggers`:** This rule fires on `workflow_run`, which in this design IS
+the security control — the `workflow_run` job runs the base branch's definition, which stops
+a PR from granting itself the API key. This is the rule being wrong for a justified case
+(CLAUDE.md rule 4), not a defect to fix. It is recorded here as accepted-but-misgated rather
+than as a bug to resolve.
+
+D-K implements D-J's "fail on any finding" with an explicitly bounded and recorded starting
+rule set. D-K **supersedes nothing** in D-J; it completes D-J's implementation detail.

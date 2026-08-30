@@ -1,0 +1,43 @@
+# Deferred findings, by maintainer ruling on 2026-08-30 (OPEN-DECISIONS.md D-K).
+# These are NOT accepted as correct. They are a recorded backlog with counts, and
+# each entry says why it is queued rather than fixed.
+#
+# What this file does and does not do: it disables the four rules listed below.
+# Every other zizmor rule stays ON and fails the build -- including the two the
+# gate was adopted for, `unpinned-uses` (which is what makes SC-001's "100%
+# SHA-pinned" mechanically true) and `ref-version-mismatch` (which caught the
+# claude-code-action pin that named an annotated tag object instead of a commit).
+# The rules not listed here produced zero findings on 2026-08-30, so leaving them
+# enabled costs nothing today and catches regressions for free.
+#
+# Removing an entry below re-enables that rule. Do that as each backlog item is
+# actually fixed -- not to quiet a new finding.
+
+rules:
+  # artipacked: 58 findings
+  # checkout without persist-credentials: false
+  # Deferred: touches every checkout in the repo. Not accepted as correct --
+  # a persisted token in .git/config is a real exposure; it is queued, not dismissed.
+  artipacked:
+    disable: true
+
+  # dependabot-cooldown: 56 findings
+  # dependabot.yml declares no cooldown
+  # Deferred: configuration change affecting update frequency; requires
+  # maintainer decision on update cadence.
+  dependabot-cooldown:
+    disable: true
+
+  # template-injection: 33 findings
+  # ${{ }} inside run: bodies
+  # Deferred: requires analysis of each run block; many are intentional template
+  # expansions in shell scripts. Blanket fix would require rewriting ~30 run steps.
+  template-injection:
+    disable: true
+
+  # dangerous-triggers: 2 findings
+  # fires on workflow_run, which in ai-review-respond.yaml IS the security control:
+  # a workflow_run job executes the BASE branch's definition, which is what stops
+  # a PR granting itself the API key. This rule is wrong for this justified case.
+  dangerous-triggers:
+    disable: true

@@ -40,10 +40,20 @@ done
 | 16 | `helm/kind-action` | `@v1` | `fa81e57adff234b2908110485695db0f181f3c67` | `v1.7.0` | verified |
 | 17 | `oras-project/setup-oras` | `@v2` | `38de303aac69abb66f3e6255b7198bff35f323e3` | `v2.0.0` | verified |
 | 18 | `sigstore/cosign-installer` | `@v4.1.2` | `6f9f17788090df1f26f669e9d70d6ae9567deba6` | `v4.1.2` | verified |
-| 19 | `anthropics/claude-code-action` | *(new)* | `50b26a71effe456d50842a733597491c5636cb6f` | `v1.0.210` | verified |
+| 19 | `anthropics/claude-code-action` | *(new)* | `a874e9ecd7bb36efdad65429c6b35815f5a08f10` | `v1.0.210` | verified |
 
 Entry 19 is not in the tree yet; it arrives with `ai-review.yaml` (T033–T036). Resolved
 2026-08-30 by the same method as the rest of the table.
+
+**Note:** `v1.0.210` is an **annotated tag** in the claude-code-action repository — the only
+one among the pinned actions. Annotated tags have two entries in `git ls-remote --tags` output:
+the tag object itself (line 1: `50b26a71effe456d50842a733597491c5636cb6f  refs/tags/v1.0.210`)
+and the peeled commit (line 2: `a874e9ecd7bb36efdad65429c6b35815f5a08f10  refs/tags/v1.0.210^{}`).
+GitHub Actions resolves `uses: owner/repo@<sha>` to a commit, so the pin must use the peeled
+commit SHA from the `^{}` line, not the tag object. The resolution method documented here
+(`git ls-remote --tags --refs`) strips the `^{}` entries, which is why this was caught after
+deployment. The corrected method: read `git ls-remote --tags` without `--refs`, and prefer the
+`refs/tags/X^{}` line when present.
 
 `dorny/paths-filter` is the sole `community`-tier action and drives the `changes` job that
 gates every other job's execution. It is the highest-value pin in the table.
