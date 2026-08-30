@@ -161,31 +161,47 @@ func TestUpload_Unconfigured(t *testing.T) {
 	}
 }
 
-// TestUpload_NonExtractRejectsTraversalWithConfinePath verifies that the
-// non-extract upload handler uses ConfinePath to validate the destination
-// and rejects traversal attempts.
-func TestUpload_NonExtractRejectsTraversalWithConfinePath(t *testing.T) {
+// TestUpload_NonExtractRejectsSymlinkEscape verifies that the non-extract
+// upload handler rejects a destination that is a symlink pointing outside
+// h.dir, thus covering the ConfinePath symlink-resolution error branch.
+// This is the only case that ConfinePath adds beyond safeName: safeName
+// already rejects path components with "/" and "..", so symlink resolution
+// is the key differentiator that the old filepath.Clean code lacked.
+func TestUpload_NonExtractRejectsSymlinkEscape(t *testing.T) {
 	root := t.TempDir()
+	escaped := t.TempDir() // A directory outside root, the attack target
+
+	// Create the mods directory and a symlink inside it pointing outside.
+	modsDir := filepath.Join(root, "mods")
+	if err := os.MkdirAll(modsDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	linkPath := filepath.Join(modsDir, "escape.jar")
+	if err := os.Symlink(escaped, linkPath); err != nil {
+		t.Fatalf("Symlink failed: %v", err)
+	}
+
 	srv := newSrv(t, root, modsSpec("mods", nil))
 
-	// upload should accept a valid name and save the file.
+	// Verify that a valid upload to a normal file works (positive case).
 	status, body := postUpload(t, srv, "file", "valid.jar", []byte("VALIDDATA"))
 	if status != http.StatusOK {
 		t.Errorf("valid upload status=%d, want 200; body=%s", status, body)
 	}
-	if _, err := os.Stat(filepath.Join(root, "mods", "valid.jar")); err != nil {
+	if _, err := os.Stat(filepath.Join(modsDir, "valid.jar")); err != nil {
 		t.Errorf("valid file should exist: %v", err)
 	}
 
-	// upload should reject traversal attempts via ConfinePath validation.
-	for _, bad := range []string{"../escape", "a/b", "..", ".hidden"} {
-		status, _ := postUpload(t, srv, "file", bad, []byte("BADDATA"))
-		if status != http.StatusBadRequest {
-			t.Errorf("upload name=%q status=%d, want 400", bad, status)
-		}
-		// Verify the malicious file did not escape h.dir.
-		if _, err := os.Stat(filepath.Join(root, "escape")); !os.IsNotExist(err) {
-			t.Errorf("traversal escape should not exist: %v", err)
-		}
+	// Verify that upload to the symlink name is rejected by ConfinePath
+	// due to the symlink pointing outside the mods directory.
+	status, _ = postUpload(t, srv, "file", "escape.jar", []byte("BADDATA"))
+	if status != http.StatusBadRequest {
+		t.Errorf("upload to symlink escape status=%d, want 400", status)
+	}
+
+	// Verify the attack target (outside mods dir) was not touched.
+	entries, _ := os.ReadDir(escaped)
+	if len(entries) != 0 {
+		t.Errorf("escape target must remain untouched, but contains %d entries", len(entries))
 	}
 }
