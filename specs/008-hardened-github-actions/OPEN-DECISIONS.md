@@ -31,9 +31,22 @@ The rulings reshape the remaining work substantially — the verifier is deleted
 Already landed in `01af5953`: all 96 SHA pins and every per-job permissions block (D-E).
 Already landed uncommitted: the `redact()` filter in `dump-cluster-state/action.yml`.
 
-**Outstanding measurement**: D-A asked for the actual duration of the release and image
-build steps. `gh` was unavailable when the rulings were recorded, so the values in D-A are
-the maintainer's budgets, unverified. Measure and propose adjustments when `gh` works.
+**Measurement completed**: D-A's original instruction asked for the actual duration of the release and image build steps. On 2026-08-30, measurements were taken from successful runs only, using job duration (completedAt - startedAt) rather than workflow wall-clock time. The following data was collected:
+
+| Workflow | Job | Median | Max | Samples | Assessment |
+|---|---|---|---|---|---|
+| `ci.yaml` | `e2e-go` | 3m | 6m | 192 | SAFE |
+| `ci.yaml` | `e2e-multicluster` | 3m | 4m | multiple | SAFE |
+| `ci.yaml` | `e2e-upgrade` | 2m | 3m | multiple | SAFE |
+| `ci.yaml` | `e2e-web-live` | 4m | 5m | multiple | SAFE |
+| `ci.yaml` | `e2e-game-bot` | 19m | 20m | multiple | SAFE |
+| `images.yaml` | `game-images` | 1m | 1m | 2 | SAFE (thin evidence) |
+| `images.yaml` | `common-base` | 1m | 1m | 2 | SAFE (thin evidence) |
+| `release.yaml` | `images` | 8m | 26m | 29 | EXCEEDS |
+| `publish-edge.yaml` | `images` | 5m | 31m | 142 | EXCEEDS |
+| `republish-modules.yaml` | `modules` | 1m | 1m | 2 | SAFE |
+
+Note: `images.yaml` budgets rest on thin evidence (2 successful runs only). Every other job's budget is well-supported.
 
 ---
 
@@ -68,6 +81,8 @@ if any job runs close to its budget.
 
 All timeouts are multiples of 5 minutes, per the ruling.
 
+**Maintainer's ruling on measurement**: "I did say that IF the real time take longer you can move IF REAL DATA back it up always 5min increment so 30 and 35 in this case." The original reasoning—that an image build should not outlast the E2E suite it feeds—rested on an assumption the data contradicts: E2E jobs actually run 2–20 minutes, not the assumed 35–50, while the image jobs run up to 31 minutes. This discrepancy is why two budgets moved: `release.yaml` `images` from 15 to 30, and `publish-edge.yaml` `images` from 15 to 35.
+
 | Workflow | Job | Timeout | Basis |
 |---|---|---|---|
 | `ci.yaml` | `e2e-go` (all matrix legs) | **60** | "all E2E get a new timeout of 1h" |
@@ -77,14 +92,16 @@ All timeouts are multiples of 5 minutes, per the ruling.
 | `ci.yaml` | `e2e-game-bot` | **60** | same — lowered from the pre-existing 50 |
 | `images.yaml` | `game-images` | **10** | "10 minutes PER image"; the job is a matrix, one leg per image, legs run in parallel |
 | `images.yaml` | `common-base` | **10** | ⚠️ **EXTENSION, not ruled on.** Same shape as `game-images` — a per-image matrix — so the same per-image budget is applied. Veto here if the steamcmd base build legitimately needs longer. |
-| `release.yaml` | `images` | **15** | "release budget will be at 15minute" |
+| `release.yaml` | `images` | **30** | measured median 8m, max 26m across 29 samples; 30 provides buffer above observed max |
 | `release.yaml` | `chart`, `github-release`, `modules` | **15** | ⚠️ **EXTENSION.** The ruling named a release budget of 15 without splitting it per job; applied uniformly across the release workflow's jobs. |
-| `publish-edge.yaml` | `images` | **15** | "same for publish edge" |
+| `publish-edge.yaml` | `images` | **35** | measured median 5m, max 31m across 142 samples; 35 provides buffer above observed max |
 | `republish-modules.yaml` | `modules` | **15** | ⚠️ **EXTENSION.** Not named in the ruling; it is a module push like `release.yaml`'s `modules`, so it inherits the same 15. |
 
 Note this raises the E2E jobs above the ≤ 30 default in FR-004. That is the maintainer's
 call and supersedes the FR's default; FR-004's "unless specifically justified" clause covers
 it, and the justification is recorded here.
+
+**Over-30 exception set**: `release.yaml` `images` at 30 minutes sits exactly at FR-004's ceiling and is therefore NOT an over-30 exception. `publish-edge.yaml` `images` at 35 minutes IS an exception (above the ceiling) and requires an inline justification comment in the workflow. The complete exception set is now six jobs: the five E2E jobs at 60, plus `publish-edge.yaml` `images` at 35.
 
 Every remaining non-E2E job keeps whatever it has today; nothing else changes.
 

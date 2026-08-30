@@ -4,11 +4,7 @@
 
 The target state for every job in the repository. Permissions misuse is enforced by the workflow-lint gate (zizmor); this matrix's specific per-job scopes are code-review-only. Timeout configuration is code-review-only.
 
-> ⚠️ **Timeouts are ratified.** See OPEN-DECISIONS.md D-A. The E2E jobs run with a 60-minute
-> budget, which exceeds FR-004's ≤30 default; this is the maintainer's explicit call, justified
-> because "an image build has no business taking longer than the entire E2E suite it feeds."
-> Values marked **[EXTENSION]** are applied by extension of the ruling and may be vetoed by the
-> maintainer. Removed [UNRATIFIED] markers where the ruling settled the value.
+> ⚠️ **Timeouts are ratified.** See OPEN-DECISIONS.md D-A. Jobs exceeding FR-004's ≤30 default: five E2E jobs at 60 (e2e-go, e2e-multicluster, e2e-upgrade, e2e-web-live, e2e-game-bot), plus publish-edge.images at 35. The E2E budget is the maintainer's explicit call, justified because "an image build has no business taking longer than the entire E2E suite it feeds." Release.images at 30 is at the ceiling, not above it. Values marked **[EXTENSION]** are applied by extension of the ruling and may be vetoed by the maintainer. Removed [UNRATIFIED] markers where the ruling settled the value.
 >
 > The `packages: write` top-level blocks have been corrected — FR-001 holds strictly.
 > See OPEN-DECISIONS.md D-E (already implemented in commit 01af5953).
@@ -101,7 +97,7 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `images` | `contents: read`, `packages: write`, `id-token: write` | 15 | Multi-arch buildx + cosign. Add `id-token: write` only if keyless signing is in use; this repo signs keyed/offline with `COSIGN_PRIVATE_KEY`, so **omit it** unless verified otherwise during implementation. |
+| `images` | `contents: read`, `packages: write`, `id-token: write` | 35 | Multi-arch buildx + cosign. Observed max 31m across 142 samples (12 runs). Exceeds FR-004 ≤30 default; measured data backs the increase. Add `id-token: write` only if keyless signing is in use; this repo signs keyed/offline with `COSIGN_PRIVATE_KEY`, so **omit it** unless verified otherwise during implementation. |
 
 Concurrency block already present and correct (`group: publish-edge`).
 
@@ -117,7 +113,7 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `images` | `contents: read`, `packages: write` | 15 | Multi-arch buildx + cosign. |
+| `images` | `contents: read`, `packages: write` | 30 | Multi-arch buildx + cosign. Observed max 26m across 29 samples (5 runs). At FR-004 ≤30 ceiling; measured data backs the value. |
 | `chart` | `contents: read`, `packages: write` | 15 **[EXTENSION]** | Release budget. |
 | `github-release` | `contents: write` | 15 **[EXTENSION]** | **Only** job needing `contents: write` — it creates the GitHub Release. Release budget. |
 | `modules` | `contents: read`, `packages: write` | 15 **[EXTENSION]** | Release budget. |

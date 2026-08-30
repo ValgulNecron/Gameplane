@@ -112,21 +112,21 @@ explicit and non-negotiable, preventing accidental inheritance creep.
 
 ## D-03: Timeout policy
 
-**Decision**: Every job gets `timeout-minutes`. Ceiling is 30 minutes; per ruling D-A the five
-E2E jobs are the only documented exceptions above it, each requiring an inline comment stating
-why:
+**Decision**: Every job gets `timeout-minutes`. Ceiling is 30 minutes; per ruling D-A six
+jobs are documented exceptions above it, each requiring an inline comment stating why:
 
 | Job | Timeout | Justification |
 |---|---|---|
-| `e2e-go` (all matrix legs) | 60 | Boots a kind cluster, installs the chart, runs the bucket's suite. |
-| `e2e-multicluster` | 60 | Same, across two clusters. |
-| `e2e-upgrade` | 60 | Same, plus a chart upgrade across versions. |
-| `e2e-web-live` | 60 | Same, plus a live dashboard drive. |
-| `e2e-game-bot` | 60 | Pulls multi-GB game images, boots real servers, runs protocol joins. |
+| `ci.yaml` `e2e-go` (all matrix legs) | 60 | Boots a kind cluster, installs the chart, runs the bucket's suite. |
+| `ci.yaml` `e2e-multicluster` | 60 | Same, across two clusters. |
+| `ci.yaml` `e2e-upgrade` | 60 | Same, plus a chart upgrade across versions. |
+| `ci.yaml` `e2e-web-live` | 60 | Same, plus a live dashboard drive. |
+| `ci.yaml` `e2e-game-bot` | 60 | Pulls multi-GB game images, boots real servers, runs protocol joins. |
+| `publish-edge.yaml` `images` | 35 | Observed max 31m across 142 job samples (2026-08-30 measurement). |
 
 The remaining D-A budgets sit at or below the 30 ceiling and are not exceptions:
-`images.game-images` 10, `images.common-base` 10 [EXTENSION], `release.images` 15,
-`release.chart`/`github-release`/`modules` 15 [EXTENSION], `publish-edge.images` 15,
+`images.game-images` 10, `images.common-base` 10 [EXTENSION], `release.images` 30,
+`release.chart`/`github-release`/`modules` 15 [EXTENSION],
 `republish-modules.modules` 15 [EXTENSION].
 
 Everything else is ≤ 30. The 9 currently-unbounded jobs are all in the publish/release

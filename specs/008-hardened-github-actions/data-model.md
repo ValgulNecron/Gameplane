@@ -29,18 +29,19 @@ satisfy. Not a file itself; the security invariant all workflows must preserve.
 
 **Timeout exception list** (the only values > 30 permitted, per ruling D-A):
 
-| Workflow | Job | Max |
-|---|---|---|
-| `ci.yaml` | `e2e-go` (all matrix legs) | 60 |
-| `ci.yaml` | `e2e-multicluster` | 60 |
-| `ci.yaml` | `e2e-upgrade` | 60 |
-| `ci.yaml` | `e2e-web-live` | 60 |
-| `ci.yaml` | `e2e-game-bot` | 60 |
+| Workflow | Job | Max | Justification |
+|---|---|---|---|
+| `ci.yaml` | `e2e-go` (all matrix legs) | 60 | Boots kind cluster, installs chart, runs bucket suite. |
+| `ci.yaml` | `e2e-multicluster` | 60 | Same, across two clusters. |
+| `ci.yaml` | `e2e-upgrade` | 60 | Same, plus chart upgrade across versions. |
+| `ci.yaml` | `e2e-web-live` | 60 | Same, plus live dashboard drive. |
+| `ci.yaml` | `e2e-game-bot` | 60 | Pulls multi-GB game images, boots real servers, runs protocol joins. |
+| `publish-edge.yaml` | `images` | 35 | Observed max 31m across 142 job samples (2026-08-30 measurement). |
 
 Every other job is ≤ 30 and needs no exception: `images.yaml`'s `game-images` and
-`common-base` are 10, and the release, publish-edge and republish-modules jobs are 15.
-D-A raises the E2E set above FR-004's ≤ 30 default by the maintainer's explicit call;
-the justification is recorded in OPEN-DECISIONS.md D-A.
+`common-base` are 10, `release.images` is 30, and the release chart/github-release/modules and republish-modules jobs are 15 [EXTENSION].
+D-A raises the E2E set and publish-edge.images above FR-004's ≤ 30 default by the maintainer's explicit call;
+the justifications are recorded in OPEN-DECISIONS.md D-A.
 
 **Validation**: Expression-injection patterns in `run:` bodies are enforced by actionlint in the `workflow-lint` job. Action `uses:` pinning, permissions misuse, and `pull_request_target` exclusion are enforced by zizmor (also in the workflow-lint gate). The following rows are upheld by code review and are not automatically enforced: `workflow.permissions` and `job.permissions` (presence and scope requirements), `job.timeout-minutes` (presence and value; actionlint enforces only malformed keys), `workflow.concurrency` (presence and fields), `secret references` (confinement to approved workflows), `step.uses (local)` (exemption from pinning), and the `# vX.Y.Z` comment convention for external action refs.
 
