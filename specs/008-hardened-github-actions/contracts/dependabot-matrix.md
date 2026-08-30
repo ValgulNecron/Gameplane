@@ -2,13 +2,13 @@
 
 **Feature**: 008-hardened-github-actions | **Date**: 2026-08-29
 
-Target contents of `.github/dependabot.yml`. Enforced by `.github/workflows-verify.sh`
-rule **R7**.
+Target contents of `.github/dependabot.yml`. **Note: R7 (Dependabot<->tree parity check)
+is a known coverage gap — no longer automatically enforced.** See OPEN-DECISIONS.md D-F.
 
-> ⚠️ **Ratified vs proposed.** R7 enforces only what `spec.md` states: directory parity with
-> `go.work` and the Dockerfile set (FR-017/FR-019), the presence of `groups` and a declared
-> `open-pull-requests-limit` (FR-021), the `chore(deps)` prefix (FR-021), and manifest
-> liveness. Everything below marked **[PROPOSED]** — the specific limit numbers, the group
+> ⚠️ **Ratified vs proposed.** The directory parity requirement with `go.work` and the
+> Dockerfile set (FR-017/FR-019), the presence of `groups`, and a declared
+> `open-pull-requests-limit` (FR-021), the `chore(deps)` prefix (FR-021) are ratified.
+> Everything below marked **[PROPOSED]** — the specific limit numbers, the group
 > names and shapes, and the 04:00 npm stagger — is an agent suggestion and is **not**
 > enforced. See OPEN-DECISIONS.md D-B, D-C, D-D.
 
@@ -187,7 +187,14 @@ chore(deps): bump k8s.io/api from 0.35.0 to 0.36.4
 
 ---
 
-## Verification (R7)
+## Verification
+
+**Coverage gap (R7): The Dependabot<->tree parity check is no longer automatically enforced.**
+This requirement was deleted along with the verifier system (ruling D-F). Adding a 15th Go
+module or a 13th Dockerfile will **not** redden CI until someone manually updates
+`dependabot.yml`.
+
+The intended checks were:
 
 ```sh
 # gomod entries must equal go.work's module list, exactly
@@ -202,11 +209,9 @@ diff <(find . -name Dockerfile -not -path './website/*' \
           .github/dependabot.yml | sort)
 ```
 
-Both diffs must be empty. This is the rule that keeps SC-003 true as the repo grows: adding
-a 15th Go module or a 13th Dockerfile reddens CI until `dependabot.yml` is updated in the
-same change.
+Both diffs should be empty. Code review is the only current enforcement.
 
-Additionally asserted:
+Additionally required (not automatically checked, but expected):
 
 - Every entry declares `groups` with ≥ 1 group (prevents PR floods).
 - Every entry declares `open-pull-requests-limit`.

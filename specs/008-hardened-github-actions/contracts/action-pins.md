@@ -94,16 +94,16 @@ Where each pin must be applied. Every file below is modified by this feature.
 
 ## Verification
 
-Enforced by `.github/workflows-verify.sh` rule **R1**. The check, in essence:
+The workflow-lint gate (actionlint + zizmor) enforces the required form:
 
-```sh
-# every `uses:` naming owner/repo must carry a 40-hex ref and a version comment
-grep -rnE '^\s*(-\s+)?uses:\s+[^./]' .github/workflows .github/actions \
-  | grep -vE '@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+\s*$'
-# any output = failure
-```
+- **actionlint** validates schema and type errors, malformed `uses:` keys, expression
+  injection into `run:` bodies, and deprecated syntax. It does not enforce SHA pinning.
+- **zizmor** detects unpinned `uses:` refs — validating that every action reference is a
+  40-character lowercase hex SHA, not a tag or branch. This is the control that makes
+  SC-001 mechanically verifiable.
 
-The verifier's real implementation parses YAML with `python3` rather than grepping, so a
-`uses:` inside a comment or a heredoc cannot produce a false positive or a false negative.
+The `# vX.Y.Z` comment convention is upheld by code review only; it is not enforced by
+tooling. This comment syntax enables Dependabot to parse and propose version upgrades.
 
-**SC-001 is satisfied when this check returns no output across all 10 files.**
+**SC-001 is satisfied when zizmor reports no unpinned actions across all workflow and
+action files.**

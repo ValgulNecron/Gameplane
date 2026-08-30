@@ -70,8 +70,8 @@ no token, which keeps the resolution reproducible by any contributor.
   nothing about a re-pointed tag between runs. It is a freshness tool, not an integrity one.
 - *`pinact` / `frizbee` / `ratchet` as a CI auto-fixer* — rejected for now: adds a
   third-party binary to the trust base of the very gate meant to reduce third-party trust.
-  The verifier only needs to *detect* an unpinned ref, which is a one-line regex; fixing is
-  a human action. Worth revisiting if pins start drifting in practice.
+  Detection of unpinned refs is now handled by `zizmor` (adopted per ruling D-J); fixing is a
+  human action. Worth revisiting if pins start drifting in practice.
 - *Vendor the actions into `.github/actions/`* — rejected: enormous maintenance burden,
   and it forks security patches away from upstream.
 
@@ -95,8 +95,8 @@ untrusted PR-authored test code inside a cluster. Only the coverage-publishing s
 **Rationale**: An inherited token is a token available to every `run:` step, every
 downloaded dependency, and every test binary in that job. Declaring per-job permissions
 makes the blast radius of a compromised step equal to what that step legitimately needs.
-Writing the block even when it is just `contents: read` is what makes the verifier's rule
-enforceable without a growing allowlist of exempt jobs.
+Writing the block even when it is just `contents: read` makes the permissions audit surface
+explicit and non-negotiable, preventing accidental inheritance creep.
 
 **Alternatives considered**:
 - *Top-level `permissions: {}` with per-job grants only* — this is the strictest posture and
@@ -139,9 +139,9 @@ undesirable.
 
 ## D-04: Script-injection posture
 
-**Decision**: Keep the existing "user input via `env:` only" convention and encode it as a
-verifier rule that fails on any `${{ github.event.*.title | *.body | *.ref | *.label.* |
-*.head.ref }}` or `${{ github.head_ref }}` appearing inside a `run:` block.
+**Decision**: Keep the existing "user input via `env:` only" convention. Enforce it by linting
+for expression-injection, detecting any `${{ github.event.*.title | *.body | *.ref |
+*.label.* | *.head.ref }}` or `${{ github.head_ref }}` appearing inside a `run:` block.
 
 **Measured**: the current tree is **already clean**. Four interpolations of `github.event.*`
 exist (`ci.yaml:490, 1039, 1042, 1379`) and all four bind to an `env:` key first —
@@ -154,10 +154,12 @@ value into the process environment where the shell treats it as data. The conven
 today; the risk is a future PR reintroducing it, which is precisely what a mechanical gate
 prevents. FR-006 is therefore a *lock-in*, not a repair.
 
-**Alternatives considered**: `actionlint` in CI — genuinely good and catches more than this
-one rule. Rejected for this feature to avoid adding a third-party binary and a second,
-overlapping gate; noted as a strong candidate for a follow-up spec once the in-repo
-verifier's rules are settled.
+**Enforcement**: `actionlint` in CI. It is purpose-built for this analysis and catches
+expression-injection patterns (including the `github.event.*` cases here) via real expression
+parsing rather than heuristics. Originally rejected as adding external dependencies; **REVERSED
+by ruling D-H** in favor of adoption per the maintainer's reasoning: "adding new third party is
+not an issue if it would really improve CI". `actionlint` is maintained externally and does this
+job better than a hand-written rule would.
 
 ---
 
@@ -244,6 +246,12 @@ the *emit* boundary inside the composite action, not at the consumer, because ar
 step summaries are both retained and both readable by anyone who can see the run — on a
 public repo, that is everyone.
 
+**Enforcement**: The `redact()` filter itself is implemented. The automated wiring check
+(R10 in the now-deleted verifier) is **no longer enforced**, so nothing will fail CI if the
+filter is accidentally removed or unwired. This is a known gap (per the ruling D-F). The
+responsibility to keep the filter wired rests on code review and the testing that validates
+the filter works.
+
 **Alternatives considered**:
 - *Rely on GitHub's automatic secret masking* — rejected: it masks only values registered
   via `secrets.*` or `add-mask`. Tokens minted *inside* the cluster at test time are
@@ -275,10 +283,11 @@ The tree says otherwise:
 Final: 12 docker directories, exactly matching `find . -name Dockerfile -not -path
 './website/*'`. The 14 gomod directories come from `go.work` verbatim.
 
-**Rationale**: A Dependabot entry pointing at a directory with no manifest is not an error —
-it is silently ignored, which is how `gomod: /` and `docker: /` have been dead in this repo
-for its whole life. Deriving from the tree makes the config self-checking, and the verifier
-asserts the two lists stay in sync as modules and images are added.
+**Enforcement**: The two lists must stay in sync as modules and images are added. This is a
+manual discipline; nothing now fails CI when a 15th Go module or 13th Dockerfile is added
+without updating Dependabot, which is precisely the failure that left all 14 Go modules
+unmonitored for this repo's whole life. This is a known gap (per the ruling D-F). Code review
+is the control; consider revisiting this check (~40 lines) if it becomes a recurring problem.
 
 **Alternatives considered**: `directories:` (plural, glob-capable) in one entry per
 ecosystem — supported by Dependabot and much shorter. Rejected because per-directory
@@ -324,45 +333,54 @@ produces PRs that cannot compile in isolation.
 
 ---
 
-## D-10: Enforcement gate — `.github/workflows-verify.sh`
+## D-10: Enforcement approach — verifier deleted, actionlint and zizmor adopted
 
-**Decision**: A new POSIX-shell script with a `verify` subcommand, mirroring
-`test/e2e/buckets.sh`. Parses every file under `.github/workflows/` and `.github/actions/`
-and fails non-zero on any violation, printing file:line for each.
+**History**: A POSIX-shell verification script (`.github/workflows-verify.sh`) with nine rules
+was designed to enforce SC-001…SC-004 as "100%" claims. It was never requested and was
+included as the justification for passing a constitution gate it should not have needed. Per
+ruling D-F, the entire verifier subsystem is **deleted**: the script, its Python rule modules,
+and all references to it in spec artifacts.
 
-Rules implemented:
+**Enforcement**: Enforcement moves to the workflow-lint gate (actionlint + zizmor), per ruling D-H and extended per ruling D-J.
 
-| # | Rule | Enforces |
-|---|---|---|
-| R1 | Every `uses:` referencing `owner/repo` matches `@[0-9a-f]{40} # v` | FR-003, SC-001 |
-| R2 | Every workflow declares top-level `permissions` | FR-001 |
-| R3 | Every job declares `permissions` | FR-002, SC-002 |
-| R4 | Every job declares `timeout-minutes`, ≤ 30 unless on the documented exception list | FR-004, SC-002/004 |
-| R5 | Every `push`/`pull_request` workflow declares `concurrency` with `cancel-in-progress` | FR-005 |
-| R6 | No attacker-controllable `${{ github.event.* }}` / `github.head_ref` inside a `run:` block | FR-006 |
-| R7 | Dependabot gomod dirs == `go.work` module list; docker dirs == `find -name Dockerfile` | FR-017/019, SC-003 |
-| R8 | No workflow other than the four publish/release workflows references `COSIGN_PRIVATE_KEY` or registry credentials | Assumptions, SC-006 |
-| R9 | No workflow uses `pull_request_target` | D-05, FR-023 |
+`actionlint` is externally maintained and purpose-built for GitHub Actions linting. It provides:
 
-**Wiring**: a new `workflows-verify` job in `ci.yaml`, gated on a new `github` output from
-the `changes` path filter, `timeout-minutes: 5`, `permissions: contents: read`, added to
-`report`'s `needs` list and its `NEEDS_ORDER`/`JOB_MATCHERS` tables.
+- Detection of malformed `timeout-minutes` keys via workflow schema validation
+- Detection of expression-injection into `run:` bodies via real GitHub expression parsing
+- Schema and syntax validation, deprecated syntax detection, and shellcheck-level analysis of script bodies
 
-**Rationale**: SC-001 through SC-004 are all "100%" claims. A 100% claim that is checked by
-reading a diff decays on the first busy week. This is the same reasoning that produced
-`buckets.sh verify` and the "e2e bucket coverage" CI job, and it is why R7 exists — it makes
-adding the 15th Go module or the 13th Dockerfile fail CI until Dependabot is updated too.
+`zizmor` (adopted per ruling D-J to close gaps left by actionlint's coverage) provides:
 
-Implementation note: parse with `python3` (preinstalled on all GitHub runners, and already
-used by `.specify/scripts/bash/common.sh`) rather than `grep` heuristics, so a rule cannot
-be fooled by a comment or a string literal. Keep the script dependency-free otherwise.
+- Detection of unpinned `uses:` references (the old R1, necessary for SC-001)
+- Detection of permissions misuse (the old R2)
+- Detection of `pull_request_target` misuse (the old R9)
 
-**Alternatives considered**:
-- *`actionlint` + `zizmor`* — both are excellent and would cover R1/R4/R6 and more. Rejected
-  for this pass on the same grounds as D-04: adding third-party binaries to a supply-chain
-  hardening feature needs its own risk discussion, and R7/R8 are repo-specific rules no
-  off-the-shelf linter has. Strong candidate for a follow-up once these rules are proven.
-- *A Go test under `test/e2e/`* — rejected, see plan.md Complexity Tracking.
+**Why zizmor was necessary**: Ruling D-H's claim that actionlint covers "unpinned and malformed
+action `uses:` references" was verified against actionlint's own `docs/checks.md` and found to be
+false. Actionlint's "Action format in uses:" check validates only the syntactic shape
+`owner/repo@ref` and accepts `v4` tags; it has no SHA-pinning rule. Zizmor closes this gap plus
+two others (permissions and pull_request_target misuse), making it the single dependency needed
+to close the three integrity controls the verifier previously enforced separately.
+
+**Known gaps** (not covered by the workflow-lint gate and enforced by code review only):
+
+- **Dependabot↔tree parity check**: adding a 15th Go module or 13th Dockerfile will no
+  longer fail CI unless Dependabot is updated. This is the precise failure mode that left
+  all 14 Go modules unmonitored for this repo's entire life. Code review is the control; the
+  check itself (~40 lines) is a strong candidate for resurrection if this becomes a recurring problem.
+- **`dump-cluster-state` redaction wiring**: nothing verifies the filter remains wired, only
+  that it was initially implemented. The filter itself stays; the check does not.
+- **Timeout PRESENCE and VALUES**: `actionlint` catches malformed `timeout-minutes` keys (schema
+  only) but does not enforce presence on every job or validate that values match the policy set
+  in D-03. Ruling D-A sets the specific thresholds; code review is the enforcement.
+- **Concurrency PRESENCE**: no automated check that every job needing it has a `concurrency` block.
+- **SHA-pin comments**: the `# vX.Y.Z` convention beside each pinned action SHA is not machine-checked.
+  It is essential for Dependabot upgrade rewrites to work; code review must verify the format.
+
+**Wiring**: Implementation adds a `workflow-lint` job to `ci.yaml`, gated on a new `github`
+path filter, running `actionlint` and `zizmor` over `.github/workflows/`. The actions are SHA-pinned like
+every other dependency, and the job is added to `report`'s `needs`, `NEEDS_ORDER`, and
+`JOB_MATCHERS` (all three, or it is silently missing from the PR comment).
 
 ---
 
@@ -372,7 +390,8 @@ None blocking. Two judgement calls to confirm during implementation:
 
 - The exact `anthropics/claude-code-action` version to pin — resolve at implementation time
   with the same `git ls-remote` method, since it is the one action not currently in the tree.
-- Whether `images.yaml` should gain a `concurrency` group. It triggers on
-  `workflow_dispatch` + `pull_request` + `push`; R5 as written would require one. Leaning
-  yes, keyed on `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`
-  for PRs only, since cancelling a master publish mid-push is undesirable.
+- Whether `images.yaml` should gain a `concurrency` group with `cancel-in-progress`. It
+  triggers on `workflow_dispatch` + `pull_request` + `push`, and concurrency would be useful
+  for PRs. Leaning yes, keyed on `${{ github.workflow }}-${{ github.ref }}` with
+  `cancel-in-progress: true` for PRs only, since cancelling a master publish mid-push is
+  undesirable.

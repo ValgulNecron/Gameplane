@@ -24,38 +24,35 @@ Plus two additions: a redaction filter in `dump-cluster-state` (currently dumps 
 logs with no sanitisation at all), and a new `ai-review.yaml` workflow built on the
 `pull_request_target`-free `workflow_run` pattern so fork PRs never see a write token.
 
-Enforcement is not left to review discipline: a new `.github/workflows-verify.sh` gate,
-wired into the existing `changes`/`report` CI structure, mechanically asserts SC-001
-through SC-004 on every run, in the same style as the existing `buckets.sh verify` and
-`lint-gate-verify.sh verify` gates.
+Enforcement is verified through code review and static analysis jobs in CI: `actionlint`
+validates schema and expression-injection safety; `zizmor` validates action SHA pins,
+permissions declarations, and `pull_request_target` misuse.
 
 ## Technical Context
 
-**Language/Version**: YAML (GitHub Actions workflow schema) + POSIX `sh`/Bash 5 for the
-verifier and composite-action steps. Node 24 for the existing inline `render.cjs` reporter.
+**Language/Version**: YAML (GitHub Actions workflow schema) + POSIX `sh`/Bash 5 for
+composite-action steps. Node 24 for the existing inline `render.cjs` reporter.
 No Go or TypeScript source changes.
 
 **Primary Dependencies**: GitHub Actions runners (`ubuntu-latest`, `ubuntu-24.04-arm`);
 18 external third-party actions (inventory in [contracts/action-pins.md](./contracts/action-pins.md));
 `anthropics/claude-code-action` for User Story 4; `gh` CLI (preinstalled on runners);
-`yq`/`python3` (preinstalled) for the verifier's YAML parsing.
+`actionlint` for workflow validation.
 
 **Storage**: N/A — all state is workflow-run artifacts and GitHub's own status/comment APIs.
 
-**Testing**: `.github/workflows-verify.sh verify` (new, runs in CI and locally); existing
-`test/e2e/buckets.sh verify`, `test/e2e/lint-gate-verify.sh verify`,
+**Testing**: Existing `test/e2e/buckets.sh verify`, `test/e2e/lint-gate-verify.sh verify`,
 `test/e2e/joincoverage.sh verify`. End-to-end proof is the CI run itself on this branch
-(Constitution Principle VI) plus a deliberate-regression check documented in
-[quickstart.md](./quickstart.md).
+(Constitution Principle VI) plus `actionlint` validation and a deliberate-regression check
+documented in [quickstart.md](./quickstart.md).
 
 **Target Platform**: GitHub-hosted runners on a public repository (ARM64 runners are free
 for public repos, which the existing matrix already relies on).
 
 **Project Type**: CI/CD and repository automation configuration.
 
-**Performance Goals**: No CI wall-clock regression. The verifier job must complete in
-< 60 s and run only on `.github/**` changes. SHA pinning is a parse-time change with zero
-runtime cost. The AI review workflow must post its comment within 5 minutes of the
+**Performance Goals**: No CI wall-clock regression. SHA pinning is a parse-time change with
+zero runtime cost. The AI review workflow must post its comment within 5 minutes of the
 triggering run completing.
 
 **Constraints**:
@@ -74,8 +71,7 @@ triggering run completing.
 
 **Scale/Scope**: 5 workflow files (~97 KB, `ci.yaml` alone is 60 KB / 1400 lines), 4
 composite actions, 1 Dependabot config, 26 jobs, 18 distinct external actions, 14 Go
-modules, 12 Dockerfiles. Two new files: `.github/workflows/ai-review.yaml`,
-`.github/workflows-verify.sh`.
+modules, 12 Dockerfiles. One new file: `.github/workflows/ai-review.yaml`.
 
 ## Constitution Check
 
@@ -84,12 +80,12 @@ modules, 12 Dockerfiles. Two new files: `.github/workflows/ai-review.yaml`,
 
 | Principle | Applies? | Assessment |
 |---|---|---|
-| **I. E2E-Tested Delivery** (NON-NEGOTIABLE) | **UNRESOLVED** | This feature has no user- or operator-facing runtime path — no CRD, API, agent or dashboard behavior changes — so there is no `test/e2e/` Go test to write and no bucket to add. That much is factual. What follows was not: the plan proposed `.github/workflows-verify.sh` as the equivalent proof and then cited it as satisfying this principle, but the verifier is an agent invention that `spec.md` never requested (OPEN-DECISIONS.md D-F). A principle cannot be satisfied by an artifact invented for the purpose without the maintainer agreeing that substitution is acceptable. **Needs a ruling**: accept the verifier as the Principle I equivalent, or declare the principle inapplicable to configuration-only work. |
+| **I. E2E-Tested Delivery** (NON-NEGOTIABLE) | **UNRESOLVED** | This feature has no user- or operator-facing runtime path — no CRD, API, agent or dashboard behavior changes — so there is no `test/e2e/` Go test to write and no bucket to add. That much is factual. **Needs a ruling**: declare the principle inapplicable to configuration-only work. |
 | **II. Design-First for User-Facing Change** | No | No dashboard or website visual surface is touched. `design.pen` and `website.pen` are not opened, read, or edited. Explicitly exempt: "Backend-only, API-only, and operator-only changes are exempt" — CI configuration is further from the visual surface still. |
-| **III. Language & Ecosystem Best Practice** | Yes | No in-source suppression is introduced anywhere. The hardening moves in the opposite direction — the new verifier makes a class of defect (unpinned action, unbounded job, over-broad token) mechanically uncheckable-around. `.golangci.yml` and `web/eslint.config.js` are not touched. Shell follows the repo's existing `set -euo pipefail` convention from `buckets.sh`. |
+| **III. Language & Ecosystem Best Practice** | Yes | No in-source suppression is introduced anywhere. `.golangci.yml` and `web/eslint.config.js` are not touched. Shell follows the repo's existing `set -euo pipefail` convention from `buckets.sh`. |
 | **IV. Spec-Driven Development** | Yes | Following the lifecycle: spec.md exists, this plan is `/speckit-plan`, `/speckit-tasks` next. No `specs.md` module file is affected — `.github/` is not a Go module, `web/`, or a `modules/<game>/` directory, so the per-module `specs.md` requirement does not reach it. |
 | **V. Delegate to Workflows & Subagents** | **VIOLATED** | This planning session ran entirely in the main loop. Principle V requires the main loop to delegate through `Workflow`, and CLAUDE.md rule 13 states the same. There is no exemption for planning work. Recorded in Complexity Tracking as an unjustified violation, not a waiver. |
-| **VI. CI Bears the Heavy Lifting** | Yes | Load-bearing here: this feature *is* CI. Nothing is validated locally beyond `workflows-verify.sh` (a static parser, not a suite) and YAML syntax checks. Correctness is proven by pushing the branch and watching the run green — which for this feature is both the test and the subject under test. |
+| **VI. CI Bears the Heavy Lifting** | Yes | Load-bearing here: this feature *is* CI. Correctness is proven by pushing the branch and watching the run green — which for this feature is both the test and the subject under test. |
 
 **Gate result**: FAIL — one violated principle (V) and one unresolved (I). Both are recorded
 in Complexity Tracking per the Governance requirement that a violation be stated explicitly
@@ -119,7 +115,6 @@ specs/008-hardened-github-actions/
 ```text
 .github/
 ├── dependabot.yml                # REWRITE — 4 entries → 28 entries with groups
-├── workflows-verify.sh           # NEW — the SC-001…SC-004 enforcement gate
 ├── workflows/
 │   ├── ci.yaml                   # MODIFY — job permissions, SHA pins, injection audit
 │   ├── images.yaml               # MODIFY — SHA pins, +timeouts, +job permissions
@@ -139,41 +134,41 @@ charts/ operator/ api/ agent/ web/ # UNCHANGED — no product code in this featu
 
 **Structure Decision**: This is a repository-automation feature, so none of the template's
 application layouts (single-project / web / mobile) apply. The tree above is the real
-scope: everything lives under `.github/`, with one new sibling script
-(`.github/workflows-verify.sh`) placed next to what it verifies rather than in `test/e2e/`
-— it validates repository configuration, not cluster behavior, and has no Kind or Go
-dependency. It follows the `verify` subcommand convention of `test/e2e/buckets.sh` so the
-CI wiring and the developer muscle-memory match.
+scope: everything lives under `.github/`, with all changes to workflows and actions applied
+in-place and one new workflow file (`ai-review.yaml`) added.
 
 ## Phase Sequencing
 
 Ordered by dependency, mapping to the spec's priorities:
 
-1. **Foundation — pins and the verifier** (US1, FR-001…FR-006, SC-001/002). SHA-pin all 18
-   actions across 9 files; add missing `timeout-minutes` and per-job `permissions`; write
-   `workflows-verify.sh` and wire it into `ci.yaml`. Everything downstream inherits this.
+1. **Foundation — pins and timeouts** (US1, FR-001…FR-006, SC-001/002). SHA-pin all 18
+   actions across 9 files; add missing `timeout-minutes` and per-job `permissions`; wire
+   the workflow-lint gate (actionlint + zizmor) into `ci.yaml` to validate schema, action
+   pins, and injection safety. Everything downstream inherits this.
 2. **E2E diagnostics hardening** (US2, FR-012…FR-016, SC-005). Redaction filter in
    `dump-cluster-state`; confirm the artifact-reuse and concurrency invariants the spec
-   asserts already hold and lock them in the verifier.
+   asserts already hold.
 3. **Dependabot rewrite** (US3, FR-017…FR-021, SC-003). Independent of 1 and 2 — can land
    in parallel. Directory list is derived mechanically from `go.work` and `find -name
    Dockerfile`, not from the spec's prose list (see research.md D-08 for the correction).
 4. **AI review workflow** (US4, FR-022…FR-025, SC-006). Depends on 1 for the pin
-   convention and the verifier, which the new file must satisfy on arrival.
+   convention and workflow-lint validation (actionlint + zizmor) that the new file must
+   satisfy on arrival.
 
 ## Complexity Tracking
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |---|---|---|
-| **Principle I** satisfied by a static verifier rather than a `test/e2e/` Go test in a bucket | The feature's entire surface is repository configuration evaluated by GitHub's own runner. There is no live control plane, CRD reconciliation, dashboard flow, or wire protocol to exercise — an e2e test would have nothing to connect to. `workflows-verify.sh` provides the same guarantee the principle exists to give: a mechanical, CI-enforced check that reddens on regression, proven to fail before it is trusted. | Writing a Go e2e test that shells out to parse `.github/*.yaml` would add a Kind cluster boot, a bucket slot, and a login budget to a check that needs none of them — strictly more cost for strictly less clarity, and it would misfile a config gate as a cluster test. Relying on human review instead was rejected outright: SC-001 is a 100% claim, and 18-of-18 pins cannot be held by discipline across future PRs. |
+| **Principle I** — coverage for configuration-only work | The feature's entire surface is repository configuration evaluated by GitHub's own runner. There is no live control plane, CRD reconciliation, dashboard flow, or wire protocol to exercise — an e2e test would have nothing to connect to. | Writing a Go e2e test that shells out to parse `.github/*.yaml` would add a Kind cluster boot, a bucket slot, and a login budget to a check that needs none of them — strictly more cost for strictly less clarity, and it would misfile a config gate as a cluster test. Relying on human review instead was rejected outright: SC-001 is a 100% claim, and 18-of-18 pins cannot be held by discipline across future PRs. |
 | **Principle V** not applied — planning and implementation both ran in the main loop | **Not justified.** A harness default ("do not use workflows unless the user requested it") was treated as outranking rule 13 and Principle V, which are themselves a standing instruction from the maintainer to delegate. The condition "unless the user requested it" was already satisfied. | Nothing. This should have been a Workflow from the start. Left recorded rather than quietly fixed, per the Governance requirement that violations be stated explicitly. |
 
 ## Proposed out of scope — NOT RULED ON
 
 These are the agent's suggestions, not decisions. They were originally written as settled
-scope exclusions without being asked; see OPEN-DECISIONS.md D-H. `actionlint` in particular
-deserves a real answer, since it covers R1/R4/R6 better than hand-written rules and would
-shrink the verifier considerably.
+scope exclusions without being asked; see OPEN-DECISIONS.md D-H and the resolution in D-J.
+The claim that `actionlint` covers R1/R4/R6 was disproven by ruling D-J: actionlint covers
+R6 (injection) only; R1 (pins) is covered by `zizmor`; R4 (timeouts) has no mechanical
+enforcement and is code-review-only (per ENFORCEMENT REALITY in D-J).
 
 Suggested for exclusion:
 

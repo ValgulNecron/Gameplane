@@ -2,16 +2,16 @@
 
 **Feature**: 008-hardened-github-actions | **Date**: 2026-08-29
 
-The target state for every job in the repository. Enforced by
-`.github/workflows-verify.sh` rules **R2**, **R3**, **R4**, **R8**.
+The target state for every job in the repository. Permissions misuse is enforced by the workflow-lint gate (zizmor); this matrix's specific per-job scopes are code-review-only. Timeout configuration is code-review-only.
 
 > ⚠️ **Not all of this is ratified.** The `permissions` column follows FR-001/FR-002. The
 > `timeout-minutes` column does not: FR-004 gives a 30-minute default and names game-bot as
 > its one example, so every other number below is an agent proposal. Values marked
-> **[UNRATIFIED]** are not enforced by R4. See OPEN-DECISIONS.md D-A.
+> **[UNRATIFIED]** are not automatically enforced. See OPEN-DECISIONS.md D-A.
 >
 > The `packages: write` top-level blocks below also contradict FR-001, which permits only
-> `contents: read` or `{}` at the top level. R2 now flags them. See OPEN-DECISIONS.md D-E.
+> `contents: read` or `{}` at the top level. Code review is expected to enforce this.
+> See OPEN-DECISIONS.md D-E.
 
 ---
 
@@ -56,17 +56,14 @@ permissions:
 | `e2e-web-live` | `contents: read` | 25 | |
 | `e2e-game-bot` | `contents: read` | 50 | **Exception** — multi-GB game images + real protocol joins. Inline comment required. |
 | `report` | `contents: read`, `statuses: read`, `pull-requests: write` | 5 | Already correct. Fork-degradation already handled. |
-| `workflows-verify` *(new)* | `contents: read` | 5 | Gated on the new `github` path-filter output. |
+| `workflow-lint` *(new)* | `contents: read` | 5 | The workflow-lint gate runs actionlint and zizmor over `.github/workflows/`. Gated on the new `github` path-filter output. |
 
-**`e2e-go` note**: `timeout-minutes: ${{ matrix.job_timeout }}` is an expression, so the
-verifier cannot read a literal. R4 resolves the matrix's `job_timeout` values and checks
-each against the ceiling, or the rule would be trivially bypassable by any future job that
-switches to an expression. Doing so surfaced a leg the plan had assumed away: the
-`operator` bucket is 35, not ≤ 30. It is legitimate — 8-way parallel behind a 20m test
-timeout, plus cluster-boot headroom — so it is recorded in R4's exception table rather than
-lowered, which would have reddened a real bucket.
+**`e2e-go` note**: `timeout-minutes: ${{ matrix.job_timeout }}` is an expression. Timeout
+values are resolved from the matrix and each is checked against reasonable ceilings. The
+`operator` bucket is 35, not ≤ 30 — legitimate due to 8-way parallel behind a 20m test
+timeout, plus cluster-boot headroom. This is recorded as an exception rather than lowered.
 
-**`report` wiring**: adding `workflows-verify` requires three edits in the reporter — the
+**`report` wiring**: adding `workflow-lint` requires three edits in the reporter — the
 `needs:` list, the `NEEDS_ORDER` array, and the `JOB_MATCHERS` map. Miss any one and the new
 job is silently absent from the PR comment.
 
@@ -86,7 +83,7 @@ permissions:
 | `game-images` | `contents: read`, `packages: write` | 60 **[UNRATIFIED]** | Currently unbounded. Nobody timed this; 60 is a guess at SteamCMD download cost. |
 
 Also: this workflow triggers on `push`, `pull_request`, and `workflow_dispatch` but has no
-`concurrency` block. R5 requires one. Recommended:
+`concurrency` block. A concurrency block should be added. Recommended:
 
 ```yaml
 concurrency:
@@ -133,8 +130,8 @@ This is the second-biggest privilege reduction in the feature: `contents: write`
 currently granted to all four release jobs, including the three that only read the tree and
 push to a registry. Only `github-release` writes to the repository.
 
-No `concurrency` block — R5 exempts it (`on: push: tags` only, not `push`-to-branch or
-`pull_request`), and cancelling an in-flight release is undesirable regardless.
+No `concurrency` block needed (`on: push: tags` only, not `push`-to-branch or
+`pull_request`); cancelling an in-flight release is undesirable regardless.
 
 ---
 
@@ -150,7 +147,7 @@ permissions:
 |---|---|---|---|
 | `modules` | `contents: read`, `packages: write` | 30 **[UNRATIFIED]** | Currently unbounded. |
 
-`workflow_dispatch` only — R5 exempt.
+`workflow_dispatch` only — no concurrency block needed.
 
 ---
 
@@ -170,16 +167,15 @@ jobs declare exactly what they need, and neither fetches a private submodule.
 
 ---
 
-## Secret confinement (R8)
+## Secret confinement
 
-| Secret | Permitted in | Forbidden in |
-|---|---|---|
-| `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD` | `images.yaml`, `publish-edge.yaml`, `release.yaml`, `republish-modules.yaml` | `ci.yaml`, `ai-review.yaml` |
-| Registry credentials (`docker/login-action`) | same four | `ci.yaml`, `ai-review.yaml` |
-| `ANTHROPIC_API_KEY` | `ai-review.yaml` job `review` **only** | everywhere else, including `ai-review.yaml` job `collect` |
+| Secret | Permitted in | Forbidden in | Enforced by |
+|---|---|---|---|
+| `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD` | `images.yaml`, `publish-edge.yaml`, `release.yaml`, `republish-modules.yaml` | `ci.yaml`, `ai-review.yaml` | Code review — not automatically enforced. |
+| Registry credentials (`docker/login-action`) | same four | `ci.yaml`, `ai-review.yaml` | Code review — not automatically enforced. |
+| `ANTHROPIC_API_KEY` | `ai-review.yaml` job `review` **only** | everywhere else, including `ai-review.yaml` job `collect` | Code review — not automatically enforced. |
 
-R8 fails on any reference to a confined secret outside its permitted file, and on any
-reference to `ANTHROPIC_API_KEY` inside the `collect` job.
+These constraints follow from the trust model (ai-review-contract.md) and are validated during code review.
 
 ---
 

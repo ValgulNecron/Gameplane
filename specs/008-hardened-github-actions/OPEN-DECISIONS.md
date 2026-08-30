@@ -23,7 +23,7 @@ The rulings reshape the remaining work substantially — the verifier is deleted
 | 2 | Strip verifier references from `plan.md`, `research.md`, `tasks.md`, `quickstart.md`, `contracts/*.md` | D-F |
 | 3 | Add `timeout-minutes` to every job per the D-A table | D-A |
 | 4 | Rewrite `.github/dependabot.yml`: 28 entries, one group per module, limits 5/10/5/5, all Monday 03:00 | D-B, D-C, D-D |
-| 5 | Add the `actionlint` job to `ci.yaml`, wired into `report` (needs + `NEEDS_ORDER` + `JOB_MATCHERS`) | D-H |
+| 5 | Add the workflow-lint gate (`actionlint` + `zizmor`) to `ci.yaml`, wired into `report` (needs + `NEEDS_ORDER` + `JOB_MATCHERS`) | D-H, D-J |
 | 6 | Write `.github/workflows/ai-review.yaml` with named, documented constants | D-G |
 | 7 | Add the `concurrency` block to `images.yaml` | FR-005 |
 | 8 | **Last:** update `docs/contributing.md` and `docs/security.md` to the final CI state | D-I |
@@ -341,3 +341,41 @@ Sequencing matters here: documentation written mid-flight describes a CI that ne
   citation is removed and the violation is now recorded as unjustified.
 - **`.gitignore`.** Two Python patterns were appended for `.github/verify-rules/`, outside
   the scope the plan itself declared. Kept only if D-F is resolved as "keep".
+
+---
+
+## D-J: actionlint does not enforce SHA pinning
+
+**Spec says** (cited in D-H's coverage list): `actionlint` covers "unpinned/malformed action refs" as part of replacing the deleted verifier's R1.
+
+**FINDING**: Actionlint's own documentation (`docs/checks.md`) states its "Action format in uses:" check validates only the syntactic shape `owner/repo@ref`. It accepts `actions/checkout@v4` (a floating ref) and does not reject it. Actionlint has no SHA-pinning rule. Therefore actionlint cannot enforce SC-001 ("100% of actions SHA-pinned") on its own — the deleted verifier's R1 was the actual pin check, and D-H's replacement claim is false. With R1 deleted and actionlint unable to replace it, SC-001 would have no automated enforcement at all.
+
+**RESPONSE**: Adopt `zizmor` alongside `actionlint`.
+
+**Status**: **RESOLVED** 2026-08-30. Zizmor is a workflow security auditor that covers unpinned `uses:` refs (closing the gap left by deleting R1), plus `permissions` misuse and `pull_request_target` misuse—three control gaps with one dependency. D-H itself identified zizmor as a candidate; this ruling authorizes it.
+
+**Enforcement reality after this ruling:**
+
+*Actionlint enforces (in the `workflow-lint` gate):*
+- Schema and type errors (including invalid event names, malformed keys)
+- Expression-injection into `run:` bodies (the old R6)
+- Shellcheck findings in `run:` bodies
+- Deprecated syntax
+- **MALFORMED** `timeout-minutes`/`permissions` keys (schema only — never presence, never value)
+
+*Zizmor enforces (in the `workflow-lint` gate):*
+- **Unpinned `uses:` refs** (the old R1) — this is what makes SC-001 mechanically true
+- Permissions misuse
+- `pull_request_target` misuse
+
+*Nothing automatically enforces (code review only, each must be stated as a gap):*
+- Dependabot ↔ tree parity (the old R7)
+- `dump-cluster-state` redaction wiring (the old R10)
+- Secret confinement
+- `timeout-minutes` **PRESENCE** and **VALUES** (D-A sets the values; nothing checks them)
+- `concurrency` **PRESENCE**
+- The "# vX.Y.Z" comment convention beside each SHA pin
+
+D-J **corrects** the "unpinned/malformed action refs" clause in D-H's coverage list. D-H's own text remains as the historical record; D-J supersedes that one claim.
+
+**Implementation detail, not decided by this ruling:** Job layout (whether zizmor runs inside the same `workflow-lint` job as actionlint or as its own job) and zizmor's ruleset/severity are deferred to execution-order step 5 in the next session.

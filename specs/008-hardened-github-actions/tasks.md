@@ -8,13 +8,7 @@ description: "Task list for 008-hardened-github-actions"
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md)
 
-**Tests**: This feature has no Go/TS test suite. The plan proposed `.github/workflows-verify.sh`
-as its executable proof — but that verifier is an agent invention `spec.md` never asked for,
-and Principle I's status is unresolved pending a maintainer ruling (OPEN-DECISIONS.md D-F).
-The falsification discipline below is applied because it is good practice, not because the
-constitution demands it of a config gate. The verifier rules are therefore written in Phase 2 and each
-user story's rules land **before** the config they check — the rule fails first, the fix
-makes it pass. That ordering is deliberate, not incidental; do not reorder it.
+**Tests**: This feature has no Go/TS test suite. A `workflow-lint` job in ci.yaml (ruling D-H, amended by D-J) runs `actionlint` and `zizmor` to validate expression-injection safety, YAML schema, shellcheck findings, and SHA pinning. Permissions presence/values, timeout presence/values, concurrency gating, and Dependabot parity are code-review-only. Falsification is via the quickstart scenarios: each task is validated by running a scenario that exercises the hardening after the fix lands.
 
 **Organization**: Grouped by user story. US1 and US2 are both P1; US1 is the MVP.
 
@@ -25,53 +19,34 @@ makes it pass. That ordering is deliberate, not incidental; do not reorder it.
 
 ## Path Conventions
 
-Everything lives under `.github/`. No product code (Go, TypeScript, CRDs, charts) is touched
-by any task in this file. Two new trees:
-
-- `.github/workflows-verify.sh` — dispatcher
-- `.github/verify-rules/` — one Python module per rule, so rules can be authored in parallel
+Everything lives under `.github/` and `docs/`. No product code (Go, TypeScript, CRDs, charts) is touched
+by any task in this file. Hardening is applied directly to workflow and action files. The workflow-lint gate (actionlint + zizmor) validates expression-injection safety and SHA pinning; permissions, timeouts, concurrency, and Dependabot parity are enforced by code review.
 
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Scaffolding the rest of the feature builds on.
+**Purpose**: Resolve action SHAs used throughout the hardening tasks.
 
-- [X] T001 Create `.github/verify-rules/_common.py` — YAML loading via `python3` + PyYAML with a `yq`-free fallback, a `Violation(file, line, rule, message)` dataclass, repo-root resolution, and iterators `iter_workflows()`, `iter_jobs()`, `iter_uses()`, `iter_run_blocks()` that every rule consumes. Must preserve line numbers so violations are clickable.
-- [X] T002 Create `.github/workflows-verify.sh` — dispatcher with a `verify` subcommand (`set -euo pipefail`), discovering and running every `.github/verify-rules/r*.py` module, printing `R<n> pass: <summary>` or `R<n> FAIL` with `file:line` per violation, exiting non-zero if any rule fails. Mirrors the `verify` subcommand convention of `test/e2e/buckets.sh`. `chmod +x`.
 - [X] T003 [P] Re-resolve every SHA in [contracts/action-pins.md](./contracts/action-pins.md) with `git ls-remote --tags --refs` and correct any drift since 2026-08-29; additionally resolve `anthropics/claude-code-action` (row 19) and record it in the same table.
 
-**Checkpoint**: `.github/workflows-verify.sh verify` runs and reports zero rules registered.
+**Checkpoint**: Action pins in contracts/action-pins.md are current.
 
 ---
 
-## Phase 2: Foundational (Blocking Prerequisites)
+## Phase 2: Foundational (No Blocking Prerequisites)
 
-**Purpose**: The rule-authoring contract every story's rules must satisfy.
+**Purpose**: T004 (the rule-module interface contract) was deleted per ruling D-H — it was an agent invention, not requested in the spec. Phase 1 is now sufficient to unblock all user stories.
 
-**⚠️ CRITICAL**: No user story may begin until T004 fixes the rule interface — rules written against a moving interface get rewritten.
-
-- [X] T004 Define and document the rule-module contract at the top of `.github/verify-rules/_common.py`: each `r*.py` exposes `RULE_ID`, `DESCRIPTION`, and `check(ctx) -> list[Violation]`; `ctx` carries parsed workflows, parsed composite actions, the parsed `dependabot.yml`, the `go.work` module list, and the `find`-derived Dockerfile list, each computed once and shared. Add a `--rule R<n>` flag to `.github/workflows-verify.sh` so a single rule can be exercised in isolation during development.
-
-**Checkpoint**: Foundation ready — US1–US4 rule modules can now be authored in parallel.
+**Checkpoint**: Ready to begin user stories US1–US4 in parallel.
 
 ---
 
 ## Phase 3: User Story 1 — Hardened Static Quality & Multi-Module Lint Gates (Priority: P1) 🎯 MVP
 
-**Goal**: Every workflow and composite action is SHA-pinned, least-privileged, bounded by a timeout, concurrency-gated, and free of script-injection surface — with a CI gate that keeps it that way.
+**Goal**: Every workflow and composite action is SHA-pinned (enforced by `zizmor`) and free of script-injection surface (enforced by `actionlint`); all jobs are least-privileged with explicit minimal permissions, bounded by explicit timeouts, and concurrency-gated (enforced by code review).
 
-**Independent Test**: `.github/workflows-verify.sh verify` exits 0 on rules R1–R6; quickstart.md scenarios 1, 2 and 4 all produce their expected empty output; a deliberate regression of any one rule (quickstart scenario 6) exits non-zero.
-
-### Rules for User Story 1
-
-> Written first. Each MUST fail against the current tree before the config tasks below fix it.
-
-- [X] T005 [P] [US1] Implement R1 (action SHA pinning) in `.github/verify-rules/r1_action_pins.py` — every `uses:` naming `owner/repo` matches `@[0-9a-f]{40}` followed by exactly `# vX.Y.Z`; local `./.github/` refs exempt; additionally assert no version skew (one `owner/repo` never pins two different SHAs). Per [contracts/action-pins.md](./contracts/action-pins.md).
-- [X] T006 [P] [US1] Implement R2 + R3 (permissions) in `.github/verify-rules/r2_permissions.py` — every workflow declares top-level `permissions`; every job declares its own `permissions` block, no exceptions and no allowlist. Per [contracts/permissions-matrix.md](./contracts/permissions-matrix.md).
-- [X] T007 [P] [US1] Implement R4 (timeouts) in `.github/verify-rules/r4_timeouts.py` — every job declares `timeout-minutes` ≤ 30, except the four documented exceptions which must additionally carry an inline justification comment. **Must resolve `timeout-minutes: ${{ matrix.job_timeout }}` back to the matrix's literal values and check each**, or the rule is bypassable by any job switching to an expression.
-- [X] T008 [P] [US1] Implement R5 (concurrency) in `.github/verify-rules/r5_concurrency.py` — any workflow whose `on:` includes `push` or `pull_request` declares `concurrency` with both `group` and `cancel-in-progress`. Tag-only and `workflow_dispatch`-only workflows are exempt.
-- [X] T009 [P] [US1] Implement R6 (script injection) in `.github/verify-rules/r6_injection.py` — no `${{ github.head_ref }}` or `${{ github.event.*.{title,body,ref,name,label} }}` inside a `run:` block. Must distinguish `run:` bodies from `env:` bindings by parsing, not grepping — the safe pattern (`env:` binding, `"$VAR"` in the script) must not trip the rule.
+**Independent Test**: quickstart.md scenarios 1, 2, 4, and 6 validate the hardening. Scenario 6 deliberately introduces a regression and confirms a non-zero exit.
 
 ### Implementation for User Story 1
 
@@ -85,18 +60,14 @@ by any task in this file. Two new trees:
 - [ ] T015 [P] [US1] Pin the 3 actions in `.github/actions/build-e2e-images/action.yml` (setup-buildx, bake-action, upload-artifact).
 - [ ] T016 [P] [US1] Pin `actions/download-artifact` in `.github/actions/e2e-images/action.yml`.
 - [ ] T017 [P] [US1] Pin `actions/setup-go` and `actions/cache` in `.github/actions/go-cache/action.yml`.
+- [ ] T018 [US1] Add `zizmor` to the `workflow-lint` job in `.github/workflows/ci.yaml` — pin the zizmor action to a SHA (resolved in T003 or via lookup), configure it to enforce unpinned `uses:` refs, permissions misuse, and `pull_request_target` misuse. Wire the job into the `report` job's `needs:`, `NEEDS_ORDER`, and `JOB_MATCHERS` so failures propagate to PR status. Job layout (whether zizmor runs in the same `workflow-lint` job as actionlint or as its own parallel job) and ruleset/severity are open questions — settle these during implementation.
 
-### CI wiring for User Story 1
 
-- [ ] T018 [US1] Add a `github` path filter output to the `changes` job in `.github/workflows/ci.yaml` covering `.github/**`, `go.work`, and `**/Dockerfile` — the last two so R7 re-runs when a module or image is added. Depends on T010.
-- [ ] T019 [US1] Add the `workflows-verify` job to `.github/workflows/ci.yaml` — `needs: [changes]`, `if: needs.changes.outputs.github == 'true'`, `runs-on: ubuntu-latest`, `timeout-minutes: 5`, `permissions: contents: read`, running `.github/workflows-verify.sh verify`. Depends on T018.
-- [ ] T020 [US1] Wire `workflows-verify` into the `report` job in `.github/workflows/ci.yaml` — all three places: the `needs:` list, the `NEEDS_ORDER` array, and the `JOB_MATCHERS` map. Missing any one leaves the job silently absent from the PR comment. Depends on T019.
+### Validation for User Story 1
 
-### Falsification for User Story 1
+- [ ] T021 [US1] Run quickstart.md scenario 6 — deliberately regress a zizmor-enforced control by removing a SHA pin from an action `uses:`, run `zizmor` locally on the modified file to confirm it exits non-zero (as the scenario demonstrates), then restore the tree. Paste the zizmor output into the PR description. Separately, optionally regress an actionlint-enforced control (e.g., inject a bash expression into a run: body) to demonstrate actionlint's catch. Manual review confirms that removing a permissions block or timeout would be caught in code review.
 
-- [ ] T021 [US1] Run quickstart.md scenario 6 against R1, R3, R4 and R5 — regress each rule one at a time, confirm a non-zero exit naming the file, line and rule, then restore the tree. Paste the output into the PR description. A gate that has only ever passed is indistinguishable from a gate that does nothing.
-
-**Checkpoint**: US1 is complete and independently shippable. SC-001, SC-002 and FR-001…FR-011 are satisfied and mechanically enforced.
+**Checkpoint**: US1 is complete and independently shippable. SC-001 and FR-003 are verified by `zizmor` (SHA pinning); FR-006 is verified by `actionlint` (expression-injection safety). SC-002, FR-001, FR-002, FR-004, FR-005, and FR-007–FR-011 are satisfied and enforced by code review (permissions presence/values, timeouts, concurrency, and static test suite).
 
 ---
 
@@ -108,7 +79,8 @@ by any task in this file. Two new trees:
 
 **Depends on**: Phase 2 only. Runs fully in parallel with US1, US3 and US4 — it touches one file none of them touch.
 
-- [X] T022 [P] [US2] Implement R10 (diagnostics safety) in `.github/verify-rules/r10_diagnostics.py` — assert `.github/actions/dump-cluster-state/action.yml` contains no `kubectl get secret` / `describe secret` in any form, and that every log/describe collection step pipes through the redaction filter. Fails against the current tree, which has neither.
+**Coverage gap (D-F)**: R10's dump-cluster-state redaction wiring check is no longer enforced. The `redact()` filter itself must be hand-audited: ensure it is applied at every emit boundary (steps writing to `$GITHUB_STEP_SUMMARY` or uploading artifacts).
+
 - [ ] T023 [US2] Add the redaction filter to `.github/actions/dump-cluster-state/action.yml` as a shared shell function applied at the **emit** boundary — before anything reaches `$GITHUB_STEP_SUMMARY` or an uploaded artifact. Patterns per [data-model.md](./data-model.md) E5: labelled key/value pairs (`password|passwd|token|secret|api[-_]?key|bearer|authorization`), bare JWTs (`eyJ...`), and PEM private-key blocks. **Redact values, preserve keys** — the dump must stay useful for debugging.
 - [ ] T024 [US2] Apply the filter to every collection step in `.github/actions/dump-cluster-state/action.yml`: `describe pods`, operator logs, API logs, game-server container logs, ephemeral capture-container logs, events, and the optional `helm history`. Audit all 178 lines — a single unfiltered stream defeats the whole control. Depends on T023.
 - [ ] T025 [US2] Confirm the artifact-reuse and cancellation invariants FR-012 and FR-005 assert already hold in `.github/workflows/ci.yaml` — `build-images`/`build-images-arm64` produce the tarball once and every e2e matrix job consumes it via `./.github/actions/e2e-images` with no rebuild, and the `concurrency` group cancels superseded PR runs. Record the finding; open a task only if something is actually broken. Depends on T010.
@@ -126,7 +98,8 @@ by any task in this file. Two new trees:
 
 **Depends on**: Phase 2 only. Fully parallel with US1, US2 and US4 — one file, touched by nothing else.
 
-- [X] T027 [P] [US3] Implement R7 (Dependabot parity) in `.github/verify-rules/r7_dependabot.py` — gomod directories must equal the `go.work` module list exactly; docker directories must equal `find . -name Dockerfile -not -path './website/*'` exactly; every entry must declare `groups` (≥ 1), `open-pull-requests-limit`, and `commit-message.prefix: chore(deps)`; **no entry may name a directory lacking its ecosystem's manifest** — the exact failure that silently disabled Go and Docker updates.
+**Coverage gap (D-F)**: R7's Dependabot<->tree parity check is no longer enforced. When a new Go module or Dockerfile is added, the corresponding Dependabot entry must be added in the same change — but CI will not fail if it is forgotten. Manual review required.
+
 - [ ] T028 [US3] Rewrite `.github/dependabot.yml` to the 28-entry matrix in [contracts/dependabot-matrix.md](./contracts/dependabot-matrix.md): 14 `gomod` + 1 `npm` + 12 `docker` + 1 `github-actions`. Drop the dead `gomod: /` and `docker: /` entries. Apply the FR-019 corrections from research.md D-08 — remove `/` and `/tunnel` (no Dockerfile), add `/test/e2e` and `/web` (they have one).
 - [ ] T029 [US3] Add the group definitions to `.github/dependabot.yml` — **group names and shapes are unratified (OPEN-DECISIONS.md D-C).** Proposed: per Go module, the `k8s` group (`k8s.io/*`, `sigs.k8s.io/*`) declared **before** the `<module>-minor-patch` catch-all, since Dependabot matches groups in declaration order and a catch-all listed first swallows everything. The k8s carve-out is not optional: those libraries are version-locked and a PR bumping one alone does not compile. Modules with no k8s dependency (`netguard`, `gameaction`, `gameproto`, `svcutil`) get only the minor-patch group. Depends on T028.
 - [ ] T030 [US3] Set limits and schedules in `.github/dependabot.yml` — **limit values and the npm stagger are unratified (OPEN-DECISIONS.md D-B, D-D); confirm before applying.** Proposed: gomod 3 / npm 10 / docker 5 / actions 5, weekly Monday 03:00 UTC with npm at 04:00. Note gomod 3 sits below the spec's own "max 5–10". `commit-message.prefix: "chore(deps)"` with `include: "scope"`, fixing the current `"chore: "` which yields a malformed `chore: (deps):` subject. Depends on T029.
@@ -141,10 +114,8 @@ by any task in this file. Two new trees:
 
 **Independent Test**: quickstart.md scenario 7 — all five sub-checks: same-repo comment, stickiness across a second push, fork PR green with no comment and a step-summary report, `collect` provably without the API key, and an injection attempt in the PR body that changes nothing.
 
-**Depends on**: Phase 2, plus T003 (the resolved `claude-code-action` pin) and T005 (R1, which the new file must satisfy on arrival).
+**Depends on**: Phase 2, plus T003 (the resolved `claude-code-action` pin) and T010-T017 (action SHA pinning, which the new file must satisfy on arrival).
 
-- [X] T031 [P] [US4] Implement R8 (secret confinement) in `.github/verify-rules/r8_secrets.py` — `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD` and registry credentials appear only in `images.yaml`, `publish-edge.yaml`, `release.yaml`, `republish-modules.yaml`; `ANTHROPIC_API_KEY` appears only in `ai-review.yaml`'s `review` job and **never** in its `collect` job.
-- [X] T032 [P] [US4] Implement R9 (no `pull_request_target`) in `.github/verify-rules/r9_pr_target.py` — reject the trigger repo-wide. It runs with full secrets *and* a write token; one added checkout of `head.sha` turns it into RCE against repository secrets.
 - [ ] T033 [US4] Create `.github/workflows/ai-review.yaml` with the `collect` job — `on: pull_request: types: [opened, synchronize, reopened]`, top-level `permissions: {}`, job `permissions: contents: read`, `timeout-minutes: 10`, **no secrets**. Checks out PR head with `fetch-depth: 0`, computes the base diff truncated to 200 KB, writes the metadata JSON (`pr_number`, `head_sha`, `base_ref`, `title`, `body`, `changed_files`), sanitises `title`/`body` (strip backticks and `${`, truncate 200/4000), uploads the `ai-review-payload` artifact.
 - [ ] T034 [US4] Add the `review` job to `.github/workflows/ai-review.yaml` — `on: workflow_run: {workflows: [ai-review], types: [completed]}`, guarded by `if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'`, `permissions: contents: read, pull-requests: write, actions: read`, `timeout-minutes: 15`. Downloads the artifact. **Must not check out PR code** — that would collapse the trust split the whole design rests on. Depends on T033.
 - [ ] T035 [US4] Add re-validation of every artifact field at the top of the `review` job in `.github/workflows/ai-review.yaml` per [contracts/ai-review-contract.md](./contracts/ai-review-contract.md) — `pr_number` `^[0-9]+$`, `head_sha` `^[0-9a-f]{40}$`, `base_ref` `^[\w./-]+$`, re-sanitise and re-truncate `title`/`body`/`diff`. `collect` ran next to the attacker's code, so nothing it produced is trusted — including its claim to have sanitised. Same boundary discipline `gameaction/` applies between API and agent. Depends on T034.
@@ -160,16 +131,11 @@ by any task in this file. Two new trees:
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-> T041 and T042 edit docs nobody asked to have edited, and both depend on the verifier
-> surviving the D-F ruling. **Blocked pending maintainer review** — see OPEN-DECISIONS.md
-> D-F and D-I.
-
-- [ ] T041 [P] **[BLOCKED — D-I]** Document the verifier in `docs/contributing.md` — what `.github/workflows-verify.sh verify` checks, how to run it before pushing, and how to add a rule.
-- [ ] T042 [P] **[BLOCKED — D-I]** Add a short "CI hardening" section to `docs/security.md` covering the SHA-pinning policy, the least-privilege permission model, secret confinement, and the AI reviewer's trust split.
 - [ ] T043 Run the full local pre-push check from quickstart.md ("Full local pre-push check") and confirm `PRE-PUSH OK`.
 - [ ] T044 Push the branch and confirm a **fully green** CI run — including every pre-existing e2e bucket. Not a formality: the hardening narrows every job's token and repins every action, and a green e2e tier is what proves nothing was quietly relying on the over-broad `statuses: write`. Per Constitution Principle VI, nothing here is validated until this run is green.
 - [ ] T045 Complete quickstart.md's Definition of Done table — all 8 evidence rows, with the scenario 5 and 7 run URLs and the scenario 6 falsification output in the PR description. Depends on T044.
-- [ ] T046 Merge to `master` and delete the branch, remote and local, per CLAUDE.md rule 12. Depends on T045.
+- [ ] T041 **[Last]** — after all other tasks are complete, update `docs/contributing.md` and `docs/security.md` to describe the final CI: the SHA-pinning policy and how Dependabot maintains the pins, the lowest-privilege per-job permission model, the `actionlint` gate, the timeout budgets from D-A, secret confinement, and the AI reviewer's trust split. Written against the merged state — no forward references to work not yet done. Depends on T045.
+- [ ] T046 Merge to `master` and delete the branch, remote and local, per CLAUDE.md rule 12. Depends on T041.
 
 ---
 
@@ -178,7 +144,7 @@ by any task in this file. Two new trees:
 ### Phase Dependencies
 
 - **Phase 1 (Setup)**: no dependencies.
-- **Phase 2 (Foundational)**: depends on T001–T002. **Blocks every user story** — the rule-module interface must be fixed before rules are written against it.
+- **Phase 2 (Foundational)**: depends on Phase 1. Unblocks all user stories.
 - **Phase 3–6 (US1–US4)**: all depend only on Phase 2. **All four can run concurrently.**
 - **Phase 7 (Polish)**: depends on the stories being merged.
 
@@ -186,10 +152,10 @@ by any task in this file. Two new trees:
 
 | Story | Depends on | Notes |
 |---|---|---|
-| **US1** (P1) | Phase 2 | The MVP. Nothing depends on it except US4's pin convention (T005). |
+| **US1** (P1) | Phase 2 | The MVP. SHA pinning verified by `zizmor`; expression-injection safety verified by `actionlint`; permissions, timeouts, and concurrency enforced by code review. |
 | **US2** (P1) | Phase 2 | Touches only `dump-cluster-state/action.yml` — zero file overlap with US1/US3/US4. T025 alone waits on T010. |
-| **US3** (P2) | Phase 2 | Touches only `dependabot.yml`. Fully independent. |
-| **US4** (P2) | Phase 2, T003, T005 | New file must arrive already satisfying R1. |
+| **US3** (P2) | Phase 2 | Touches only `dependabot.yml`. Fully independent. Note R7 gap: no CI enforcement of parity. |
+| **US4** (P2) | Phase 2, T003, T010–T017 | New file must arrive already satisfying action SHA pins. |
 
 ### File-Conflict Map
 
@@ -197,7 +163,7 @@ The constraint that actually governs parallelism here — one file, one writer a
 
 | File | Tasks | Concurrency |
 |---|---|---|
-| `.github/workflows/ci.yaml` | T010 → T018 → T019 → T020 | **Strictly serial.** The single longest chain. |
+| `.github/workflows/ci.yaml` | T010, T018 | **Critical path**, T010 must land first; T018 depends on T010. |
 | `.github/workflows/images.yaml` | T011 | free |
 | `.github/workflows/publish-edge.yaml` | T012 | free |
 | `.github/workflows/release.yaml` | T013 | free |
@@ -206,31 +172,14 @@ The constraint that actually governs parallelism here — one file, one writer a
 | `.github/actions/dump-cluster-state/action.yml` | T023 → T024 | serial pair |
 | `.github/dependabot.yml` | T028 → T029 → T030 | serial chain |
 | `.github/workflows/ai-review.yaml` | T033 → T034 → … → T039 | serial chain, 7 deep |
-| `.github/verify-rules/r*.py` | T005–T009, T022, T027, T031, T032 | **9 files, 9 writers, all free** |
 
 ### Parallel Opportunities
 
-- **T005–T009, T022, T027, T031, T032** — nine rule modules, nine separate files, no shared state. The single largest fan-out in the feature; launch all nine at once once T004 lands.
-- **T011–T017** — seven independent config files, launchable together with T010.
+- **T011–T017** — seven independent config files, launchable together with T010 (but not T018, which depends on T010).
+- **T018** — wired into ci.yaml by T010, depends on T010 landing first.
 - **US1, US2, US3, US4** — four fully independent streams after Phase 2.
-- **T041, T042** — two different docs files.
 
 ---
-
-## Parallel Example: the rule wave
-
-```bash
-# After T004 fixes the rule interface — nine agents, nine files, zero contention:
-Task: "Implement R1 action SHA pinning in .github/verify-rules/r1_action_pins.py"
-Task: "Implement R2+R3 permissions in .github/verify-rules/r2_permissions.py"
-Task: "Implement R4 timeouts in .github/verify-rules/r4_timeouts.py"
-Task: "Implement R5 concurrency in .github/verify-rules/r5_concurrency.py"
-Task: "Implement R6 script injection in .github/verify-rules/r6_injection.py"
-Task: "Implement R7 dependabot parity in .github/verify-rules/r7_dependabot.py"
-Task: "Implement R8 secret confinement in .github/verify-rules/r8_secrets.py"
-Task: "Implement R9 no pull_request_target in .github/verify-rules/r9_pr_target.py"
-Task: "Implement R10 diagnostics safety in .github/verify-rules/r10_diagnostics.py"
-```
 
 ## Parallel Example: the config wave
 
@@ -263,14 +212,15 @@ Setup + Foundational → **US1 (MVP, ship)** → US2 (diagnostics, ship) → US3
 
 After Phase 2, fan out four streams. Per Constitution Principle V and CLAUDE.md rule 13, `/speckit-implement` delegates each wave through a Workflow with `model` set explicitly on every `agent()` call, starting at `haiku` and escalating one tier only on demonstrated failure — then reviews the combined output one tier up before accepting it.
 
-The rule wave (nine files) and the config wave (seven files) are the two places where fan-out actually pays; the `ci.yaml`, `ai-review.yaml`, and `dependabot.yml` chains are serial no matter how many agents are available, and `ci.yaml` (T010 → T020) is the critical path.
+The config wave (seven files) and the `ai-review.yaml`/`dependabot.yml` chains are the places where fan-out and serialism constrain parallelism. T010 is the critical path since every parallel task in T011–T017 depends on it landing first.
 
 ---
 
 ## Notes
 
-- Rules land **before** the config they check. Each must be observed failing against the pre-fix tree — that observation is the feature's substitute for an E2E test (plan.md Complexity Tracking), and T021 is where it gets recorded.
+- Hardening is validated by quickstart scenarios: each task tests its changes without relying on CI gates.
 - Commit per task or per logical group, signed (`git commit -s`), conventional prefixes — `ci:` for workflow changes, `chore:` for dependabot, `docs:` for Phase 7.
-- No product code is touched. A diff outside `.github/`, `docs/`, and `specs/` means scope has drifted.
-- Do not run test or lint suites locally (Principle VI). `.github/workflows-verify.sh verify` is a static parser, not a suite, and is permitted — as is a YAML parse check.
-- Out of scope, named in plan.md so they don't creep in: reusable-workflow refactoring, splitting the 1400-line `ci.yaml`, `actionlint`/`zizmor` adoption, bucket restructuring, branch protection rules.
+- No product code is touched. A diff outside `.github/` and `docs/` means scope has drifted.
+- Do not run test or lint suites locally (Principle VI). A YAML parse check is fine.
+- The workflow-lint gate (actionlint + zizmor) validates expression injection, YAML schema, and shellcheck findings (actionlint) and SHA pinning (zizmor) via a new `workflow-lint` job in ci.yaml (ruling D-H, amended by D-J). Permissions, timeouts, concurrency, and Dependabot parity are code-review-enforced. The old verifier (workflows-verify.sh + .github/verify-rules/) is deleted.
+- Out of scope, named in plan.md so they don't creep in: reusable-workflow refactoring, splitting the 1400-line `ci.yaml`, additional linters beyond `actionlint`, bucket restructuring, branch protection rules.

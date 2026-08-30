@@ -9,17 +9,15 @@ CI is the system of record, and nothing here is "validated" until the branch is 
 **Prerequisites**: `git`, `python3`, `yq` (or `python3` + PyYAML), `gh` CLI authenticated
 for scenarios 5 and 7. No cluster, no Go toolchain, no Node.
 
+For Scenario 6, you also need:
+- `actionlint`: see <https://github.com/rhysd/actionlint#install>
+- `zizmor`: see <https://github.com/woodruffw/zizmor#installation>
+
 ---
 
 ## Scenario 1 — Every external action is SHA-pinned (SC-001, FR-003)
 
-```sh
-.github/workflows-verify.sh verify
-```
-
-Expected: exits 0, prints `R1 pass: 18/18 external actions pinned`.
-
-Independent cross-check, not relying on the verifier:
+Verify by inspecting the workflow files directly:
 
 ```sh
 grep -rnE '^\s*(-\s+)?uses:\s+[^./]' .github/workflows .github/actions \
@@ -41,13 +39,9 @@ Expected: **no output**. Anything printed is an action pinned to two different S
 
 ## Scenario 2 — Least privilege and bounded runtime (SC-002, FR-001/002/004)
 
-```sh
-.github/workflows-verify.sh verify
-```
+Verify by inspecting the workflow files directly:
 
-Expected: `R2/R3/R4 pass: 28/28 jobs declare permissions and timeouts`.
-
-Spot-check the headline change — `statuses: write` no longer inherited by all 26 jobs:
+Spot-check the headline change — `statuses: write` no longer inherited by all jobs:
 
 ```sh
 # top-level ci.yaml permissions must be contents: read ONLY
@@ -77,13 +71,11 @@ justification comment.
 
 ## Scenario 3 — Dependabot covers every module and image (SC-003, FR-017/019)
 
-```sh
-.github/workflows-verify.sh verify
-```
+Verify by inspecting the configuration and comparing against actual modules/images:
 
-Expected: `R7 pass: gomod 14/14, docker 12/12, npm 1, actions 1`.
-
-Independent cross-check:
+**Known gap**: CI no longer enforces parity — if a new Go module or Dockerfile is added
+without a matching Dependabot entry, CI will not fail. Run these checks manually before
+each release or major dependency update:
 
 ```sh
 # gomod entries vs go.work
@@ -132,14 +124,7 @@ once merged.
 
 ## Scenario 4 — No injection surface, no `pull_request_target` (FR-006, D-05)
 
-```sh
-.github/workflows-verify.sh verify
-```
-
-Expected: `R6 pass: no user-controlled interpolation in run: blocks`, `R9 pass: no
-pull_request_target`.
-
-Independent cross-check:
+Verify by inspecting the workflow files directly:
 
 ```sh
 grep -rn 'pull_request_target' .github/
@@ -153,8 +138,8 @@ grep -rnE '\$\{\{\s*github\.(head_ref|event\.(pull_request|issue|comment)\.[a-z_
 ```
 
 Expected: no hit that sits inside a `run:` block. Hits inside `env:` blocks are correct and
-expected — that is the safe pattern. The verifier distinguishes the two by parsing; this
-grep does not, so read each hit's context.
+expected — that is the safe pattern. This grep does not distinguish context, so read each
+hit's context to verify it is not in a `run:` block.
 
 ---
 
@@ -198,63 +183,51 @@ artifacts.
 
 6. Revert steps 1–2 before merging.
 
+**Known gap**: CI no longer automatically verifies that the redaction filter wiring is correct
+in the dump-cluster-state action. The `redact()` filter function itself remains and step 4
+proves at runtime that redaction works, but the static wiring check that used to catch
+configuration errors is gone. To verify wiring manually: inspect
+`.github/actions/dump-cluster-state/action.yml` and ensure the `redact()` function is invoked
+on all manifest outputs before they are saved to artifacts.
+
 Run this once at implementation time and record the run URL in the PR. It is the only
 evidence that satisfies SC-005's "100% of failure runs" claim.
 
 ---
 
-## Scenario 6 — The verifier actually fails (Principle I)
+## Scenario 6 — Actionlint and zizmor catch real violations (Principle I)
 
-The verifier is this feature's substitute for an E2E test, so it carries the same burden a
-join probe does: **it must be proven to fail before it is trusted.** A gate that has only
-ever passed is indistinguishable from a gate that does nothing.
+The workflow-lint gate (actionlint + zizmor) must be proven to fail before it is trusted.
+A gate that has only ever passed is indistinguishable from a gate that does nothing.
 
-Regress one rule at a time, confirm a non-zero exit and a useful message, then revert:
+Test that these tools catch violations they are designed to catch — schema (actionlint),
+SHA-pinning (zizmor) — on a throwaway branch:
 
 ```sh
 git stash list  # ensure clean start
 
-# R1 — unpin an action
+# Violation 1 — unpin an action (zizmor catches this)
 sed -i '0,/uses: actions\/checkout@[0-9a-f]\{40\}/s//uses: actions\/checkout@v7/' \
   .github/workflows/ci.yaml
-.github/workflows-verify.sh verify; echo "exit=$?"   # expect non-zero, names the file:line
+zizmor .github/workflows/ci.yaml; echo "exit=$?"   # expect non-zero
 git checkout .github/workflows/ci.yaml
 
-# R3 — strip a job's permissions
-python3 - <<'EOF'
-import re
-p='.github/workflows/ci.yaml'; s=open(p).read()
-open(p,'w').write(s.replace('    permissions:\n      contents: read\n','',1))
-EOF
-.github/workflows-verify.sh verify; echo "exit=$?"   # expect non-zero
-git checkout .github/workflows/ci.yaml
-
-# R4 — remove a timeout
-sed -i '0,/^    timeout-minutes: 5$/d' .github/workflows/ci.yaml
-.github/workflows-verify.sh verify; echo "exit=$?"   # expect non-zero
-git checkout .github/workflows/ci.yaml
-
-# R7 — delete a dependabot entry
-python3 - <<'EOF'
-import yaml
-d=yaml.safe_load(open('.github/dependabot.yml'))
-d['updates']=[u for u in d['updates'] if u.get('directory')!='/operator' or u['package-ecosystem']!='gomod']
-yaml.safe_dump(d,open('.github/dependabot.yml','w'),sort_keys=False)
-EOF
-.github/workflows-verify.sh verify; echo "exit=$?"   # expect non-zero
-git checkout .github/dependabot.yml
-
-# R9 — introduce pull_request_target
-sed -i 's/^  pull_request:$/  pull_request_target:/' .github/workflows/ci.yaml
-.github/workflows-verify.sh verify; echo "exit=$?"   # expect non-zero
+# Violation 2 — invalid event name (actionlint catches schema errors)
+sed -i 's/^  pull_request:$/  pull_requests:/' .github/workflows/ci.yaml
+actionlint .github/workflows/ci.yaml; echo "exit=$?"   # expect non-zero
 git checkout .github/workflows/ci.yaml
 
 git diff --quiet && echo "tree restored" || echo "TREE DIRTY — restore before committing"
 ```
 
-Expected: every regression exits non-zero with a message naming the file, line, and rule;
-the tree is clean afterwards. **Record this output in the PR description.** An unfalsified
-gate is not evidence.
+Expected: each violation exits non-zero with a message naming the file and line. The tree
+is clean afterwards. **Record this output in the PR description.** An unfalsified gate is
+not evidence.
+
+**Note**: actionlint validates workflow schema and detects expression injection in `run:` blocks.
+Zizmor validates SHA pinning and detects `permissions:` and `pull_request_target` misuse.
+Manual checks (Scenarios 1–4) verify requirements beyond what the workflow-lint gate
+can express — permissions scoping details, timeout bounds, and Dependabot parity.
 
 ---
 
@@ -299,14 +272,17 @@ gate is not evidence.
 Everything runnable without CI, in one block:
 
 ```sh
-.github/workflows-verify.sh verify \
+actionlint .github/workflows/ \
   && python3 -c "import yaml,glob,sys; [yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yaml')+glob.glob('.github/actions/*/action.yml')]" \
   && python3 -c "import yaml; yaml.safe_load(open('.github/dependabot.yml'))" \
   && echo "PRE-PUSH OK"
 ```
 
 This is a static check, not a test suite — permitted under Principle VI's compile-check
-carve-out. It is not evidence the feature works; a green CI run on the pushed branch is.
+carve-out. It validates workflow schema (actionlint), but does not verify pinning
+(which zizmor catches in CI), manual requirements like permissions scoping, timeout bounds,
+or Dependabot parity. It is not evidence the feature works; a green CI run on the pushed
+branch is.
 
 ---
 

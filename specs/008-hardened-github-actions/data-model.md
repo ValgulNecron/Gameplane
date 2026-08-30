@@ -5,7 +5,7 @@
 There is no database and no runtime object graph in this feature. The "entities" are
 declarative configuration structures evaluated by GitHub's workflow engine, plus the
 artifacts they produce. Each is defined below with its fields, validation rules (all
-mechanically enforced by `.github/workflows-verify.sh` unless noted), and — where it has
+enforced in CI unless noted), and — where it has
 one — its lifecycle.
 
 ---
@@ -13,7 +13,7 @@ one — its lifecycle.
 ## E1. Workflow Security Policy
 
 The cross-cutting policy every file under `.github/workflows/` and `.github/actions/` must
-satisfy. Not a file itself; the invariant the verifier encodes.
+satisfy. Not a file itself; the security invariant all workflows must preserve.
 
 | Field | Type | Rule |
 |---|---|---|
@@ -36,7 +36,7 @@ satisfy. Not a file itself; the invariant the verifier encodes.
 | `release.yaml` | `images` | 45 |
 | `publish-edge.yaml` | `images` | 45 |
 
-**Validation**: verifier rules R1–R6, R8, R9.
+**Validation**: Expression-injection patterns in `run:` bodies are enforced by actionlint in the `workflow-lint` job. Action `uses:` pinning, permissions misuse, and `pull_request_target` exclusion are enforced by zizmor (also in the workflow-lint gate). The following rows are upheld by code review and are not automatically enforced: `workflow.permissions` and `job.permissions` (presence and scope requirements), `job.timeout-minutes` (presence and value; actionlint enforces only malformed keys), `workflow.concurrency` (presence and fields), `secret references` (confinement to approved workflows), `step.uses (local)` (exemption from pinning), and the `# vX.Y.Z` comment convention for external action refs.
 
 ---
 
@@ -68,8 +68,7 @@ Dependabot's `github-actions` ecosystem owns the transition after landing; the p
 ## E3. Job Permission & Timeout Matrix
 
 One row per job across all 5 workflows — 26 at baseline, 28 after this feature (adds
-`workflows-verify` in `ci.yaml`, plus `collect`/`review` in the new `ai-review.yaml`, minus
-none). Authoritative copy in
+`collect`/`review` in the new `ai-review.yaml`). Authoritative copy in
 [contracts/permissions-matrix.md](./contracts/permissions-matrix.md).
 
 | Field | Type | Rule |
@@ -109,7 +108,7 @@ The full contents of `.github/dependabot.yml`. Authoritative copy in
 | `open-pull-requests-limit` | integer | gomod 3, npm 10, docker 5, github-actions 5. |
 | `groups` | map | ≥ 1 group per entry. Each group has `patterns` and/or `update-types`. |
 
-**Entry count invariant** — the load-bearing rule, enforced as verifier R7:
+**Entry count invariant** — the load-bearing rule:
 
 ```
 count(gomod entries)  == count(module lines in go.work)                  == 14
@@ -119,8 +118,7 @@ count(github-actions entries) == 1
                                                             total entries = 28
 ```
 
-Adding a 15th Go module or a 13th Dockerfile without a matching Dependabot entry fails CI.
-This is the mechanism that keeps SC-003 true over time rather than only on the day it lands.
+**COVERAGE GAP**: Adding a 15th Go module or a 13th Dockerfile without a matching Dependabot entry is no longer automatically caught in CI. This check was previously enforced but has been removed. Maintainers must manually verify Dependabot entries remain in sync with `go.work` and actual Dockerfiles to keep SC-003 true over time.
 
 ---
 
@@ -157,7 +155,7 @@ that is the entire internet.
 
 **Validation**: quickstart.md scenario 5 seeds a known sentinel value into a pod's
 environment, fails the job deliberately, and asserts the sentinel does not appear in either
-sink.
+sink. **COVERAGE GAP**: CI does not automatically verify that all `dump-cluster-state` call sites apply the redaction filter before emit; this was previously checked but is no longer enforced. The redaction filter implementation itself is present and functional.
 
 ---
 
