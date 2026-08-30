@@ -356,7 +356,25 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	} else {
-		finalPath := filepath.Clean(filepath.Join(h.dir, name))
+		// Use ConfinePath to validate and resolve the destination within h.dir.
+		// ConfinePath consolidates validation and symlink resolution in one function,
+		// making the guard legible to CodeQL taint analysis.
+		finalPath, err := ConfinePath(h.dir, name)
+		if err != nil {
+			_ = os.Remove(tmpName)
+			slog.Warn("mod upload confinement", "err", err)
+			httpjson.Error(w, http.StatusBadRequest, "file name is not valid for this mod path")
+			return
+		}
+		// Re-check inline so the guard is visible at the point of use.
+		rootClean := filepath.Clean(h.dir)
+		finalPath = filepath.Clean(finalPath)
+		if finalPath != rootClean && !strings.HasPrefix(finalPath, rootClean+string(os.PathSeparator)) {
+			_ = os.Remove(tmpName)
+			slog.Warn("mod upload escape attempt", "path", finalPath)
+			httpjson.Error(w, http.StatusBadRequest, "path escape attempt")
+			return
+		}
 		if err := os.Rename(tmpName, finalPath); err != nil {
 			_ = os.Remove(tmpName)
 			slog.Warn("mod upload rename", "err", err)
