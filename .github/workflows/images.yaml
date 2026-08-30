@@ -128,12 +128,14 @@ jobs:
         name: record base digest
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          echo "**Common Base Images**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "SteamCMD base digest (pin this in game Dockerfiles):" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${owner_lc}/gameplane/common-steamcmd@${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "**Common Base Images**"
+            echo ""
+            echo "SteamCMD base digest (pin this in game Dockerfiles):"
+            echo "\`\`\`"
+            echo "ghcr.io/${owner_lc}/gameplane/common-steamcmd@${{ steps.build.outputs.digest }}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Stage 2: Build game-specific images that depend on the common base.
   # Each game image is a separate matrix entry and receives the base digest or tag via build args.
@@ -167,7 +169,7 @@ jobs:
       - id: owner-lowercase
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          echo "name=${owner_lc}" >> $GITHUB_OUTPUT
+          echo "name=${owner_lc}" >> "$GITHUB_OUTPUT"
       # On PRs, build the base image and export as OCI layout.
       # The buildx builder is isolated (docker-container driver), so it cannot read from the Docker daemon.
       # We export to OCI format and pass it as a named context to the game build via oci-layout:// URI.
@@ -208,8 +210,10 @@ jobs:
             base_image="ghcr.io/${OWNER}/gameplane/common-steamcmd@${DIGEST}"
             build_contexts=""
           fi
-          echo "image=${base_image}" >> $GITHUB_OUTPUT
-          echo "build-contexts=${build_contexts}" >> $GITHUB_OUTPUT
+          {
+            echo "image=${base_image}"
+            echo "build-contexts=${build_contexts}"
+          } >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
@@ -290,9 +294,11 @@ jobs:
         name: record game image digest
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          echo "**Game Images**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "${{ matrix.game }} image digest (pin this in module template.yaml):" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${owner_lc}/gameplane/${{ matrix.game }}@${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "**Game Images**"
+            echo ""
+            echo "${{ matrix.game }} image digest (pin this in module template.yaml):"
+            echo "\`\`\`"
+            echo "ghcr.io/${owner_lc}/gameplane/${{ matrix.game }}@${{ steps.build.outputs.digest }}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -457,7 +457,8 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: |
           [ -x "$HOME/go/bin/setup-envtest" ] || go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.24
-          export KUBEBUILDER_ASSETS=$("$HOME"/go/bin/setup-envtest use 1.36.2 -p path)
+          KUBEBUILDER_ASSETS=$("$HOME"/go/bin/setup-envtest use 1.36.2 -p path)
+          export KUBEBUILDER_ASSETS
           go test -tags=envtest -timeout 10m \
             -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/envtest.out ./...

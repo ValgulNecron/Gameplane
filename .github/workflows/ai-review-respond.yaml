@@ -48,12 +48,12 @@ jobs:
         run: |
           # Check if artifact was downloaded
           if [ ! -f /tmp/ai-review-payload.json ]; then
-            echo "Artifact file not found or malformed" >> $GITHUB_STEP_SUMMARY
+            echo "Artifact file not found or malformed" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
           payload=$(cat /tmp/ai-review-payload.json 2>/dev/null) || {
-            echo "Failed to read payload JSON" >> $GITHUB_STEP_SUMMARY
+            echo "Failed to read payload JSON" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           }
 
@@ -67,19 +67,19 @@ jobs:
 
           # Validate pr_number (must be digits only)
           if ! printf "%s" "$pr_number" | grep -qE '^[0-9]+$'; then
-            echo "Invalid pr_number format" >> $GITHUB_STEP_SUMMARY
+            echo "Invalid pr_number format" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
           # Validate head_sha (must be 40 hex chars)
           if ! printf "%s" "$head_sha" | grep -qE '^[0-9a-f]{40}$'; then
-            echo "Invalid head_sha format" >> $GITHUB_STEP_SUMMARY
+            echo "Invalid head_sha format" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
           # Validate base_ref (word chars, dots, slashes, hyphens)
           if ! printf "%s" "$base_ref" | grep -qE '^[a-zA-Z0-9._/-]+$'; then
-            echo "Invalid base_ref format" >> $GITHUB_STEP_SUMMARY
+            echo "Invalid base_ref format" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -116,7 +116,7 @@ jobs:
             echo "diff<<DIFF_EOF"
             printf "%s" "$diff"
             echo "DIFF_EOF"
-          } >> $GITHUB_OUTPUT
+          } >> "$GITHUB_OUTPUT"
 
       - name: checkout base branch for context
         if: steps.validate.outputs.pr_number != ''
@@ -148,7 +148,7 @@ jobs:
             echo "claudemd<<CLAUDE_EOF"
             printf "%s" "$claudemd"
             echo "CLAUDE_EOF"
-          } >> $GITHUB_OUTPUT
+          } >> "$GITHUB_OUTPUT"
 
       - name: call claude for review
         id: review
@@ -198,6 +198,7 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ steps.validate.outputs.pr_number }}
           HEAD_SHA: ${{ steps.validate.outputs.head_sha }}
           REVIEW_RESULT: ${{ steps.review.outputs.result }}
@@ -211,29 +212,34 @@ jobs:
           ---
           **Note:** This review is advisory and non-blocking."
 
-          # Find existing marked comment by the bot (any bot user)
-          comment_id=$(gh api repos/${{ github.repository }}/issues/$PR_NUMBER/comments \
-            --jq '.[] | select(.user.type == "Bot") | select(.body | startswith("'"$STICKY_MARKER"'")) | .id | tostring' \
-            2>/dev/null | head -1)
+          # Find existing marked comment by the bot (any bot user).
+          # The marker goes to jq through --arg rather than being spliced into
+          # the filter text: embedding a shell variable inside a single-quoted
+          # jq program needs quote-juggling that is easy to get subtly wrong,
+          # and getting it wrong fails silently — the filter stops matching, so
+          # every run posts a new comment instead of updating the sticky one.
+          comment_id=$(gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" 2>/dev/null \
+            | jq -r --arg marker "$STICKY_MARKER" \
+              '[.[] | select(.user.type == "Bot") | select(.body | startswith($marker)) | .id] | first // empty')
 
           # Attempt to upsert the comment
           if [ -n "$comment_id" ] && [ "$comment_id" != "null" ] && [ "$comment_id" != "" ]; then
             # Update existing comment
-            if gh api repos/${{ github.repository }}/issues/comments/$comment_id \
+            if gh api "repos/$GH_REPO/issues/comments/$comment_id" \
               -X PATCH -F body="$comment_body" 2>/dev/null; then
               echo "Updated existing review comment ($comment_id)"
             else
               # PATCH failed (likely 403 on fork PR)
-              echo "$comment_body" >> $GITHUB_STEP_SUMMARY
+              echo "$comment_body" >> "$GITHUB_STEP_SUMMARY"
             fi
           else
             # Create new comment
-            if gh api repos/${{ github.repository }}/issues/$PR_NUMBER/comments \
+            if gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
               -F body="$comment_body" 2>/dev/null; then
               echo "Created new review comment"
             else
               # POST failed (likely 403 on fork PR)
-              echo "$comment_body" >> $GITHUB_STEP_SUMMARY
+              echo "$comment_body" >> "$GITHUB_STEP_SUMMARY"
             fi
           fi
 
@@ -248,7 +254,7 @@ jobs:
         run: |
           result="$REVIEW_RESULT"
           if [ -z "$result" ]; then
-            echo "**AI Review:** Could not complete review (API failure, timeout, or unavailable)" >> $GITHUB_STEP_SUMMARY
+            echo "**AI Review:** Could not complete review (API failure, timeout, or unavailable)" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "$result" >> $GITHUB_STEP_SUMMARY
+            echo "$result" >> "$GITHUB_STEP_SUMMARY"
           fi

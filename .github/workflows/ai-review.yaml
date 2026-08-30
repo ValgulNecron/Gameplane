@@ -37,7 +37,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           # Compute the diff from origin/base to HEAD, truncate to MAX_DIFF_BYTES
-          diff_output=$(git diff origin/$BASE_REF...HEAD 2>/dev/null || git diff $BASE_REF...HEAD 2>/dev/null || echo "")
+          diff_output=$(git diff "origin/$BASE_REF...HEAD" 2>/dev/null || git diff "$BASE_REF...HEAD" 2>/dev/null || echo "")
 
           # Truncate if needed
           diff_bytes=$(printf "%s" "$diff_output" | wc -c)
@@ -74,14 +74,11 @@ jobs:
             printf "%s" "$input"
           }
 
-          title=$(sanitise "$TITLE" "$MAX_TITLE_CHARS")
-          body=$(sanitise "$BODY" "$MAX_BODY_CHARS")
-
-          # Read diff from file (already truncated)
-          diff_content=$(cat /tmp/diff.txt)
+          title=$(sanitise "${TITLE:-}" "$MAX_TITLE_CHARS")
+          body=$(sanitise "${BODY:-}" "$MAX_BODY_CHARS")
 
           # Count changed files
-          changed_files=$(git diff --name-only origin/$BASE_REF...HEAD 2>/dev/null | wc -l)
+          changed_files=$(git diff --name-only "origin/$BASE_REF...HEAD" 2>/dev/null | wc -l)
 
           # Build JSON payload with jq for safe escaping
           jq -n \
@@ -90,7 +87,7 @@ jobs:
             --arg base "$BASE_REF" \
             --arg title "$title" \
             --arg body "$body" \
-            --arg diff "$diff_content" \
+            --rawfile diff /tmp/diff.txt \
             --arg files "$changed_files" \
             '{
               pr_number: $pr,
