@@ -173,7 +173,7 @@ raw collected text — do not re-derive redaction per sink.
 environment, fails the job deliberately, and asserts the sentinel does not appear in either
 sink. **COVERAGE GAP**: CI does not automatically verify that all `dump-cluster-state` call sites apply the redaction filter before emit; this was previously checked but is no longer enforced. The redaction filter implementation itself is present and functional.
 
-**KNOWN LIMITATION — quoted/JSON-embedded values.** The value pattern matches a
+**KNOWN LIMITATION — quoted/JSON-embedded values** (tracked as issue #306). The value pattern matches a
 delimiter that follows the key directly (after optional whitespace), so
 `token: abc` and `token=abc` are caught but `"token":"abc"` is **not** — the
 quote sits between the key and the `:`. `kubectl` output is unaffected (the

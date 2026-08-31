@@ -145,7 +145,7 @@ by any task in this file. Hardening is applied directly to workflow and action f
 - [X] T044 Push the branch and confirm a **fully green** CI run — including every pre-existing e2e bucket. Not a formality: the hardening narrows every job's token and repins every action, and a green e2e tier is what proves nothing was quietly relying on the over-broad `statuses: write`. Per Constitution Principle VI, nothing here is validated until this run is green.
 - [X] T045 Complete quickstart.md's Definition of Done table — all 8 evidence rows, with the scenario 5 and 7 run URLs and the scenario 6 falsification output in the PR description. Depends on T044.
 - [X] T041 **[Last]** — after all other tasks are complete, update `docs/contributing.md` and `docs/security.md` to describe the final CI: the SHA-pinning policy and how Dependabot maintains the pins, the lowest-privilege per-job permission model, the workflow-lint gate (`actionlint` + `zizmor`), the timeout budgets from D-A, secret confinement, and the CodeRabbit integration (path_instructions configuration and automated PR review). Written against the merged state — no forward references to work not yet done. Depends on T045.
-- [ ] T046 Merge to `master` and delete the branch, remote and local, per CLAUDE.md rule 12. Depends on T041.
+- [X] T046 Merge to `master` and delete the branch, remote and local, per CLAUDE.md rule 12. Depends on T041. Merged on maintainer approval once CI run 33426793190 confirmed green; the quoted/JSON-value redaction residual recorded in E5 is tracked separately as issue #306 rather than blocking the merge.
 
 ---
 
