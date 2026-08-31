@@ -5,7 +5,7 @@
 # Everything this stage needs lives under web/, so only web/ is copied in.
 
 # ---- build the SPA ----
-FROM node:24-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 WORKDIR /src/web
 
 # Install deps first (cached until the lockfile changes), then build.
