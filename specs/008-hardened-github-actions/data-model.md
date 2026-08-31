@@ -154,9 +154,15 @@ reaches the job log:
 
 | Pattern (case-insensitive) | Replacement |
 |---|---|
-| `(password\|passwd\|token\|secret\|api[-_]?key\|bearer\|authorization)\s*[:=]\s*.*` | key preserved, value → `***REDACTED***` (to end of line) |
+| `(password\|passwd\|token\|secret\|api[-_]?key\|bearer\|authorization)["']*\s*[:=]\s*["']*.*` | key preserved, value → `***REDACTED***` (to end of line) |
 | `eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+` | `***REDACTED-JWT***` |
 | `-----BEGIN [A-Z ]*PRIVATE KEY-----` … `-----END [A-Z ]*PRIVATE KEY-----` | `***REDACTED-KEY***` |
+
+This table is written in normalised regex notation (`\s`, `+`, `{10,}`) for readability. The shipped
+expressions are POSIX **BRE** — `sed` is invoked with no `-E`/`-r` — so they render the same
+patterns as `[[:space:]]`, `\{10,\}` and explicit repetition. Compare semantics, not spelling, when
+checking the table against `.github/actions/dump-cluster-state/action.yml`; the quote tolerance in
+the first row (added for issue #306) is the part that must match.
 
 **Lifecycle**: `job fails` → `if: failure()` fires → collect → **redact** → write to
 stdout → captured as the job log.
