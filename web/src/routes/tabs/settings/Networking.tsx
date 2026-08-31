@@ -449,6 +449,7 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
       )}
 
       <AddressAssignmentSection
+        key={`${draft.metadata.namespace}/${draft.metadata.name}`}
         draft={draft}
         net={net}
         setNet={setNet}
@@ -484,13 +485,10 @@ function AddressAssignmentSection({
   // snapshot and the second edit could resurrect the first one's clear.
   // Tracking them locally makes consecutive edits within one render
   // cumulative instead of independently-stale.
+  // React remounts this component (via a key on the parent) when the server
+  // identity changes, so useState automatically re-initializes with the new net values.
   const [addressPool, setAddressPool] = useState(net.addressPool ?? "");
   const [address, setAddress] = useState(net.address ?? "");
-
-  useEffect(() => {
-    setAddressPool(net.addressPool ?? "");
-    setAddress(net.address ?? "");
-  }, [draft.metadata.name, draft.metadata.namespace]);
 
   const updateAddressPool = (value: string) => {
     setAddressPool(value);
