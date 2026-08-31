@@ -30,7 +30,6 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
   const tunnel = net.tunnel;
   const serverName = draft.metadata.name;
   const serverNamespace = draft.metadata.namespace;
-  const [validityError, setValidityError] = useState<string | null>(null);
 
   // Credential entry state — NOT part of the spec form's dirty tracking.
   const [showCredentialInput, setShowCredentialInput] = useState(false);
@@ -101,15 +100,8 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
   });
 
   // Compute tunnel configuration validity.
-  useEffect(() => {
-    if (!tunnel?.enabled) {
-      // Tunnel not enabled, no validation needed.
-      setValidityError(null);
-      onValidityChange?.(true);
-      return;
-    }
-
-    // Tunnel is enabled — check required fields.
+  let computedValidityError: string | null = null;
+  if (tunnel?.enabled) {
     const errors: string[] = [];
 
     // Credentials must be configured (either already in spec or being entered).
@@ -141,10 +133,14 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
     }
     // tailscale and playit have no additional required fields beyond credentials.
 
-    const isValid = errors.length === 0;
-    setValidityError(isValid ? null : errors[0]);
+    computedValidityError = errors.length === 0 ? null : errors[0];
+  }
+
+  // Call validity change callback whenever computed result changes.
+  useEffect(() => {
+    const isValid = computedValidityError === null;
     onValidityChange?.(isValid);
-  }, [tunnel, onValidityChange, credentialValue, credentialStatus]);
+  }, [computedValidityError, onValidityChange]);
 
   return (
     <div className="space-y-6">
@@ -380,15 +376,15 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                     Public address assigned at runtime
                   </div>
                   <div className="pt-0.5 text-xs text-info/80">
-                    The tunnel's public address will be assigned by playit.gg and displayed on the connection card.
+                    The tunnel&apos;s public address will be assigned by playit.gg and displayed on the connection card.
                   </div>
                 </div>
               )}
-              {validityError && (
+              {computedValidityError && (
                 <div className="rounded-md border-l-4 border-danger bg-danger/10 p-3 text-sm">
                   <div className="flex gap-2">
                     <AlertCircle className="h-5 w-5 shrink-0 text-danger" />
-                    <div className="text-xs text-danger">{validityError}</div>
+                    <div className="text-xs text-danger">{computedValidityError}</div>
                   </div>
                 </div>
               )}
@@ -494,7 +490,7 @@ function AddressAssignmentSection({
   useEffect(() => {
     setAddressPool(net.addressPool ?? "");
     setAddress(net.address ?? "");
-  }, [draft.metadata.name, draft.metadata.namespace, net.addressPool, net.address]);
+  }, [draft.metadata.name, draft.metadata.namespace]);
 
   const updateAddressPool = (value: string) => {
     setAddressPool(value);
@@ -517,7 +513,7 @@ function AddressAssignmentSection({
             <div className="flex items-center gap-2">
               <span className="text-sm text-fg">{currentAddress.host}</span>
               {currentAddress.pool && (
-                <span className="text-xs text-muted">from pool '{currentAddress.pool}'</span>
+                <span className="text-xs text-muted">from pool &apos;{currentAddress.pool}&apos;</span>
               )}
             </div>
           </div>
@@ -684,7 +680,7 @@ function AddressStatusField({
                   }
                   className="text-primary hover:underline"
                 >
-                  GameServer "{conflictingServer.name}"
+                  GameServer &quot;{conflictingServer.name}&quot;
                 </Link>
                 .
               </>

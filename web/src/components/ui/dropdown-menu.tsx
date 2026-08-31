@@ -1,3 +1,4 @@
+import * as React from "react";
 import { forwardRef, type ReactNode } from "react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { Check } from "lucide-react";
@@ -96,3 +97,4 @@ export const DropdownMenuCheckboxItem = forwardRef<
     <span>{children}</span>
   </Menu.CheckboxItem>
 ));
+DropdownMenuCheckboxItem.displayName = "DropdownMenuCheckboxItem";

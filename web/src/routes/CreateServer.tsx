@@ -364,7 +364,8 @@ export function CreateServerWizard() {
           const detail = errorText(err, String(err));
           throw new Error(
             `Server created but credential save failed: ${detail}. ` +
-            `The server exists with tunnel enabled. You can set the credential from the server's Networking settings.`
+            `The server exists with tunnel enabled. You can set the credential from the server's Networking settings.`,
+            { cause: err }
           );
         }
       }
