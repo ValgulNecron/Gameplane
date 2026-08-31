@@ -65,10 +65,6 @@ func TestGameServer_MinecraftJavaBot_Joined(t *testing.T) {
 			"SPAWN_PROTECTION": "0",
 			"ENABLE_RCON":      "true",
 			"RCON_PORT":        "25575",
-			// T026 redaction proof: canary variable that SHOULD be redacted (matches 'token' pattern)
-			"GAMEPLANE_API_TOKEN": "canary-SHOULDNOTAPPEAR-8f3a2b",
-			// T026 redaction proof: control variable that should NOT be redacted (doesn't match any pattern)
-			"GAMEPLANE_CONTROL_CANARY": "control-SHOULDAPPEAR-4b1c7d",
 		},
 		Ports: []gamePort{
 			{Name: "game", Port: 25565, Protocol: "TCP"},
@@ -137,7 +133,4 @@ func TestGameServer_MinecraftJavaBot_Joined(t *testing.T) {
 			ExpectRaw: "Saved the game",
 		},
 	})
-
-	// T026 redaction proof: force failure to trigger dump-cluster-state while the pod with canary env vars is running
-	t.Fatal("forced failure for redaction proof (T026) — revert before merge")
 }

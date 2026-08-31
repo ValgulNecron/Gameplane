@@ -1034,6 +1034,26 @@ jobs:
         uses: ./.github/actions/e2e-images
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
+      # TEMPORARY — T026 redaction proof (spec 008, quickstart Scenario 5). This
+      # step and the "force failure" step below MUST be reverted before this
+      # branch is ever merged: they exist only to prove dump-cluster-state's
+      # redact() filter strips secret VALUES while preserving KEYS on a
+      # long-lived pod that survives past `go test` exit (a test's own pod does
+      # not: it's deleted by t.Cleanup before this job's separate dump step
+      # runs). GAMEPLANE_API_TOKEN matches redact()'s `token` pattern and MUST
+      # NOT appear in the dumped `kubectl describe pod` output; the value of
+      # GAMEPLANE_CONTROL_CANARY matches nothing and MUST appear, proving the
+      # dump collected data at all.
+      - name: T026 inject redaction canary env into gameplane-api
+        run: |
+          kubectl set env deployment/gameplane-api -n gameplane-system \
+            GAMEPLANE_API_TOKEN=canary-SHOULDNOTAPPEAR-8f3a2b \
+            GAMEPLANE_CONTROL_CANARY=control-SHOULDAPPEAR-4b1c7d \
+            --context "$CTX"
+          kubectl rollout status deployment/gameplane-api -n gameplane-system \
+            --context "$CTX" --timeout=120s
+      - name: T026 force failure to trigger dump-cluster-state
+        run: exit 1
       - name: run go e2e (game bot)
         # Blocking. The bot runs as a Job inside the cluster and dials the game
         # Service directly, removing the `kubectl port-forward` hop this job's
