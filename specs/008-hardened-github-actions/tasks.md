@@ -234,3 +234,12 @@ The config wave (seven files) and the `ai-review.yaml`/`dependabot.yml` chains a
 - Do not run test or lint suites locally (Principle VI). A YAML parse check is fine.
 - The workflow-lint gate (actionlint + zizmor) validates expression injection, YAML schema, and shellcheck findings (actionlint) and SHA pinning (zizmor) via a new `workflow-lint` job in ci.yaml (ruling D-H, amended by D-J). Permissions, timeouts, concurrency, and Dependabot parity are code-review-enforced. The old verifier (workflows-verify.sh + .github/verify-rules/) is deleted.
 - Out of scope, named in plan.md so they don't creep in: reusable-workflow refactoring, splitting the 1400-line `ci.yaml`, additional linters beyond `actionlint`, bucket restructuring, branch protection rules.
+
+---
+
+## Phase 8: Convergence
+
+- [ ] T052 Add an `npm run lint` step to the `web` job in `.github/workflows/ci.yaml` (alongside `npm ci` / `npm run build` / `npm run test:cover`) so ESLint (`web/eslint.config.js`) actually runs in CI per FR-008 (partial)
+- [ ] T053 Add a `package-ecosystem: "docker"` entry for directory `/tunnel` to `.github/dependabot.yml`, matching the schedule, `chore(deps): ` commit-message prefix, open-PR limit and grouping conventions of the other docker entries — `/tunnel` holds `Dockerfile.frp`, `Dockerfile.playit` and `Dockerfile.tailscale` and is currently covered only by a `gomod` entry per FR-019 (missing)
+- [ ] T054 Add a `concurrency` block (`group: release-${{ github.ref }}`, `cancel-in-progress: true`) to `.github/workflows/release.yaml`, which is push-triggered on `v*` tags and is the only workflow without one per FR-005 (partial)
+- [ ] T055 Add a path-exclusion entry to `.coderabbit.yaml` so `*.pen` design-source files are omitted from CodeRabbit review per T047 (missing)
