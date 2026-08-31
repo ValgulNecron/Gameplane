@@ -241,5 +241,5 @@ The config wave (seven files) and the `ai-review.yaml`/`dependabot.yml` chains a
 
 - [X] T052 Add an `npm run lint` step to the `web` job in `.github/workflows/ci.yaml` (alongside `npm ci` / `npm run build` / `npm run test:cover`) so ESLint (`web/eslint.config.js`) actually runs in CI per FR-008 (partial)
 - [X] T053 Add a `package-ecosystem: "docker"` entry for directory `/tunnel` to `.github/dependabot.yml`, matching the schedule, `chore(deps): ` commit-message prefix, open-PR limit and grouping conventions of the other docker entries — `/tunnel` holds `Dockerfile.frp`, `Dockerfile.playit` and `Dockerfile.tailscale` and is currently covered only by a `gomod` entry per FR-019 (missing)
-- [ ] T054 Add a `concurrency` block (`group: release-${{ github.ref }}`, `cancel-in-progress: true`) to `.github/workflows/release.yaml`, which is push-triggered on `v*` tags and is the only workflow without one per FR-005 (partial)
+- [X] T054 Add a `concurrency` block (`group: release-${{ github.ref }}`, `cancel-in-progress: true`) to `.github/workflows/release.yaml`, which is push-triggered on `v*` tags and is the only workflow without one per FR-005 (partial)
 - [X] T055 Add a path-exclusion entry to `.coderabbit.yaml` so `*.pen` design-source files are omitted from CodeRabbit review per T047 (missing)

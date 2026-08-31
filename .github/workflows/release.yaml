@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
 
+# Keyed on github.ref, so distinct tags never contend — this only ever fires
+# when the same tag is re-pushed, where the newer run is the one we want.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
