@@ -18,8 +18,9 @@ npm view @typescript-eslint/parser@canary version peerDependencies.typescript
 
 (A registry lookup is a read, not a build — it is exempt from the no-local-execution rule in rule 8.)
 
-- **Still blocked** if the peer range ends below `<7` (measured 2026-08-30: `latest` 8.68.0 and `canary`
-  8.68.1-alpha.6 both declare `typescript >=4.8.4 <6.1.0`).
+- **Still blocked** if the peer range ends below `<7` (measured 2026-08-31: `latest` 8.69.0 and `canary`
+  8.69.1-alpha.0 both still declare `typescript >=4.8.4 <6.1.0` — unchanged from the 2026-08-30
+  reading of 8.68.0 / 8.68.1-alpha.6).
 - **Unblocked** as soon as a published release accepts TypeScript 7.
 
 **Why it is blocked:** Dependabot PR #272 bumps `web/` from typescript 6.0.3 to 7.0.2. Because no
@@ -610,7 +611,13 @@ This project standing-orders agents to commit after each logical unit of work. T
 Every piece of work goes on its own branch (rule 8). The moment that branch is merged into `main`, **delete it** — both the remote (`git push origin --delete <branch>`) and any local copy (`git branch -d <branch>`). Don't leave merged branches lying around.
 
 - *Why:* stale merged branches pile up and make the branch list useless — 53 had accumulated here (49 already merged but never deleted) before this rule. A clean branch list should show only `main` plus genuinely in-progress work.
-- **Mechanics:** finish the branch → get it merged into `main` (PR-merge, or — since `main` is unprotected — a `--no-ff` merge pushed to main; CI also runs on `push: [main]`) → immediately delete the branch remote + local. Before ending a session, confirm no merged branch is left behind.
+- **Mechanics:** finish the branch → open a PR → **the maintainer approves and merges** → immediately delete the branch remote + local. Before ending a session, confirm no merged branch is left behind.
+- **`master` is protected — an agent cannot merge its own work.** A repository *ruleset* named `protect main` (id 18692396, active) enforces `pull_request`, `update`, `non_fast_forward` and `deletion` rules on `master`. Consequences an agent must plan around:
+  - `required_approving_review_count: 1`, and GitHub will not accept a self-approval from the PR author. So a PR you opened is **blocked on a human**, always. Do not report work as "merged" or "done" when it is sitting at `mergeStateStatus: BLOCKED`.
+  - Direct pushes to `master` are refused, so the old `--no-ff` merge-and-push route no longer exists. It was documented here until 2026-08-31 and is now wrong — do not try it.
+  - `dismiss_stale_reviews_on_push: true`: pushing another commit after approval **drops the approval**. Get the branch green *before* asking for review, or you will burn the maintainer's approval on a fixup.
+  - Never reach for `gh pr merge --admin` to get around any of this. Bypassing a protection the maintainer configured is not yours to decide.
+  - Note the classic branch-protection API returns `404 Branch not protected` for `master` — that is a false negative, because the protection is a ruleset. Check `gh api repos/ValgulNecron/Gameplane/rules/branches/master` instead.
 - Never delete a branch whose work is **not** yet in `main`, and never `--delete-branch` a stacked child whose descendants still depend on it (merge bottom-up first).
 
 ### 13. Delegate through Workflows — always, in bulk, smallest model first
@@ -654,8 +661,22 @@ Every pull request MUST carry at least one `type:` label and at least one `area:
 
 - *Why:* the label taxonomy is what makes the PR and issue lists navigable and what lets release notes be assembled by category. An unlabelled PR is invisible to every filter and has to be re-read from scratch months later to work out what it was.
 - **The taxonomy:** `type:` is one of `feature`, `fix`, `refactor`, `test`, `ci`, `chore`, `docs`, `security`. `area:` is one of `operator`, `api`, `agent`, `web`, `modules`, `chart`, `e2e`, `specs`, `shared`, `optional-components`. A breaking CRD/API/chart change gets the `breaking` label. Optional: use `status:` labels (`blocked`, `needs-maintainer`, `in-progress`).
-- **Mechanics:** apply with `gh pr edit <n> --add-label "type: fix" --add-label "area: api"`. The label should match the conventional-commit prefix already used in the branch's commits — a PR of `fix:` commits gets `type: fix`. A PR spanning several components takes several `area:` labels rather than being left unlabelled.
+- **Mechanics:** the label should match the conventional-commit prefix already used in the branch's commits — a PR of `fix:` commits gets `type: fix`. A PR spanning several components takes several `area:` labels rather than being left unlabelled.
+- **`gh pr edit` does not work on this repo — use the REST API.** Every `gh pr edit` call (`--add-label`, `--body`, …) fails with `GraphQL: Projects (classic) is being deprecated … (repository.pullRequest.projectCards)` and exits non-zero **without applying the change**. It fails silently enough to look like it worked, so verify afterwards. Use instead:
+  - labels: `gh api -X POST repos/ValgulNecron/Gameplane/issues/<n>/labels -f "labels[]=type: fix" -f "labels[]=area: api"`
+  - body: write it to a file, then `gh api -X PATCH repos/ValgulNecron/Gameplane/pulls/<n> --input <json-with-a-body-key>`
+  - verify: `gh api repos/ValgulNecron/Gameplane/issues/<n>/labels -q '[.[].name]|join(", ")'`
+  `gh pr create`, `gh pr view` and `gh run *` are unaffected — it is specifically `gh pr edit`.
 - **Automation:** the labels `dependencies`, `go`, and `javascript` are applied automatically by Dependabot and should not be applied by hand or deleted.
+
+### 15. A feature's intent is the whole `specs/<feature>/` folder, not just spec/plan/tasks
+
+When assessing what a feature requires — `/speckit-converge`, `/speckit-analyze`, a review, or any "is this implemented?" question — read **every** artifact in `specs/<feature>/`, not only `spec.md`, `plan.md` and `tasks.md`. `data-model.md`, `contracts/`, `research.md`, `quickstart.md` and `OPEN-DECISIONS.md` carry binding rulings too, and they routinely record the **exceptions** to a requirement's blanket wording.
+
+- *Why:* this has already produced a false finding. On 2026-08-31 a converge run flagged `.github/workflows/release.yaml` for lacking a concurrency group against FR-005's blanket "all push and pull request workflows MUST implement concurrency groups", and a task was written, implemented, reviewed and committed before anyone noticed that `data-model.md` E1 already said: *"Exception: `release.yaml` is tag-only (`push: tags:`) so concurrency is not required (a tag push is a one-shot publish; cancelling it in flight would abort a release mid-way)."* The whole cycle was wasted, and the maintainer was asked to rule on a question the feature had settled weeks earlier.
+- **A requirement's prose is the rule; the data model and contracts are where its exceptions live.** Finding a bare FR that the code appears to violate is *not* a finding until you have checked whether another artifact in the same folder exempts it. Cite the artifact you checked.
+- **When an implementing agent's judgement contradicts a spec line, that is a signal to go read more — not to override it.** In the case above the small model independently reached the data model's exact conclusion and was overruled toward the literal spec text. It was right. Treat that disagreement as evidence the spec is incomplete somewhere, and go find where.
+- **Withdraw, don't delete.** A task that turns out not to be a real gap gets marked withdrawn in `tasks.md` with a citation to the artifact that settles it, so the next converge run does not rediscover it.
 
 ---
 
