@@ -608,7 +608,7 @@ This project standing-orders agents to commit after each logical unit of work. T
 
 ### 12. One branch per unit of work — delete it once merged
 
-Every piece of work goes on its own branch (rule 8). The moment that branch is merged into `master`, **delete it** — both the remote (`git push origin --delete <branch>`) and any local copy (`git branch -d <branch>`). Don't leave merged branches lying around.
+Every piece of work goes on its own branch — rule 8 is *why* there is a branch at all: tests run on GitHub Actions, not locally, so pushing a feature branch is how work gets verified. This rule adds the other half: **one** unit of work per branch, and the branch dies when it lands. The moment that branch is merged into `master`, **delete it** — both the remote (`git push origin --delete <branch>`) and any local copy (`git branch -d <branch>`). Don't leave merged branches lying around.
 
 - *Why:* stale merged branches pile up and make the branch list useless — 53 had accumulated here (49 already merged but never deleted) before this rule. A clean branch list should show only `master` plus genuinely in-progress work.
 - **Mechanics:** finish the branch → open a PR → **the maintainer approves and merges** → immediately delete the branch remote + local. Before ending a session, confirm no merged branch is left behind.
