@@ -477,18 +477,37 @@ function AddressAssignmentSection({
   const currentAddress = draft.status?.endpoints?.[0];
 
   // Locally-tracked field values, seeded from the spec and re-synced whenever
-  // the underlying draft changes them (e.g. switching servers, or a save
-  // round-trip). Deriving these two fields from `net` alone — the way the
-  // rest of this form does — breaks when a caller edits both fields back to
-  // back without an intervening re-render carrying the updated draft back
-  // in as props: each edit would recompute against the same stale `net`
-  // snapshot and the second edit could resurrect the first one's clear.
-  // Tracking them locally makes consecutive edits within one render
-  // cumulative instead of independently-stale.
-  // React remounts this component (via a key on the parent) when the server
-  // identity changes, so useState automatically re-initializes with the new net values.
-  const [addressPool, setAddressPool] = useState(net.addressPool ?? "");
-  const [address, setAddress] = useState(net.address ?? "");
+  // the underlying draft changes them (e.g. switching servers, a save
+  // round-trip, or SettingsTab.reload replacing draft with server-returned
+  // values). Deriving these two fields from `net` alone — the way the rest
+  // of this form does — breaks when a caller edits both fields back to back
+  // without an intervening re-render carrying the updated draft back in as
+  // props: each edit would recompute against the same stale `net` snapshot
+  // and the second edit could resurrect the first one's clear. Tracking them
+  // locally makes consecutive edits within one render cumulative instead of
+  // independently-stale.
+  //
+  // The parent's `key={namespace/name}` remounts this component on identity
+  // change, which re-initializes useState — but identity and value are two
+  // different things (two different servers can share the same addressPool
+  // string, and the same server's net.addressPool/net.address can change
+  // without its identity changing, e.g. reload() or a successful save
+  // echoing back a normalized value). So local state is also re-seeded
+  // in-render, without an effect, whenever the incoming addressPool/address
+  // values differ (by value) from what was last synced from props. This is
+  // React's documented "adjust state during render" pattern rather than an
+  // effect, so it neither violates react-hooks/set-state-in-effect nor needs
+  // its own dependency array to get right.
+  const nextAddressPool = net.addressPool ?? "";
+  const nextAddress = net.address ?? "";
+  const [syncedFrom, setSyncedFrom] = useState({ pool: nextAddressPool, address: nextAddress });
+  const [addressPool, setAddressPool] = useState(nextAddressPool);
+  const [address, setAddress] = useState(nextAddress);
+  if (syncedFrom.pool !== nextAddressPool || syncedFrom.address !== nextAddress) {
+    setSyncedFrom({ pool: nextAddressPool, address: nextAddress });
+    setAddressPool(nextAddressPool);
+    setAddress(nextAddress);
+  }
 
   const updateAddressPool = (value: string) => {
     setAddressPool(value);

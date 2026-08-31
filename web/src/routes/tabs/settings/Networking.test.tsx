@@ -180,6 +180,70 @@ describe("NetworkingSection", () => {
       );
     });
 
+    it("re-syncs address pool and address fields when the server identity is unchanged (regression)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: {
+            addressPool: "pool-us-west",
+            address: "203.0.113.50",
+          },
+        },
+      };
+      const onChange = vi.fn();
+      const { client, rerender } = renderWithQuery(
+        <NetworkingSection draft={draft} onChange={onChange} />,
+      );
+
+      expect((screen.getByPlaceholderText("pool-name") as HTMLInputElement).value).toBe(
+        "pool-us-west",
+      );
+      expect(
+        (screen.getByPlaceholderText("e.g. 203.0.113.50") as HTMLInputElement).value,
+      ).toBe("203.0.113.50");
+
+      // Same server identity (name/namespace unchanged), but addressPool and
+      // address changed underneath — e.g. SettingsTab.reload() or a
+      // successful save echoing back server-normalized values.
+      const reloaded = {
+        ...draft,
+        spec: {
+          ...draft.spec,
+          networking: {
+            addressPool: "pool-eu-central",
+            address: "198.51.100.7",
+          },
+        },
+      };
+      rerender(
+        <QueryClientProvider client={client}>
+          <NetworkingSection draft={reloaded} onChange={onChange} />
+        </QueryClientProvider>,
+      );
+
+      expect((screen.getByPlaceholderText("pool-name") as HTMLInputElement).value).toBe(
+        "pool-eu-central",
+      );
+      expect(
+        (screen.getByPlaceholderText("e.g. 203.0.113.50") as HTMLInputElement).value,
+      ).toBe("198.51.100.7");
+
+      // The real hazard CodeRabbit flagged: a later edit writing STALE values
+      // back through setNet. Editing the address field calls updateAddress,
+      // which writes `addressPool` from local state — so if the re-sync did not
+      // happen, this would silently push "pool-us-west" back over the reloaded
+      // "pool-eu-central". Edit the address field, not an unrelated one: the
+      // hostname handler spreads `net` straight from props and would pass
+      // whether or not the local state re-synced.
+      fireEvent.change(screen.getByPlaceholderText("e.g. 203.0.113.50"), {
+        target: { value: "198.51.100.9" },
+      });
+      const lastCall = onChange.mock.calls.at(-1)![0];
+      expect(lastCall.spec.networking.addressPool).toEqual("pool-eu-central");
+      expect(lastCall.spec.networking.address).toEqual("198.51.100.9");
+    });
+
     it("preserves addressPool and address fields when editing unrelated settings (T047)", () => {
       const draft = {
         ...baseDraft,

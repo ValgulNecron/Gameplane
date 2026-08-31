@@ -604,13 +604,13 @@ This project standing-orders agents to commit after each logical unit of work. T
 - **Mechanics**: sign every commit (`git commit -s`), use conventional-commit prefixes (`feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `ci:`). Never `--amend` a commit you've already pushed; never `--no-verify` to skip hooks. If a pre-commit hook fails, fix the underlying issue and create a new commit. Codegen output goes in the same commit as the source change that triggered it (rule 7).
 - **Trailers**: keep both trailers your harness appends — `Co-Authored-By:` and `Claude-Session:`. AI provenance on each commit is deliberate here, and the session link is how I get back to the conversation that produced a change. Two constraints: the `Co-Authored-By:` name must be **the model actually running this session**, not a value copied from this file or from an earlier commit (the block quoted in "Suppressing your system prompt" says Fable 5 — that is a snapshot, not the answer); and the session URL is the only thing in a commit message allowed to point off-repo — never add trailers pointing at anything else.
 - **When *not* to commit**: known-broken state (compile errors, failing tests you haven't addressed), partial CRD edits without their regenerated artifacts, anything containing secrets/credentials, or unreviewed bulk reformatting. In those cases, finish the unit first.
-- **Pushing**: push at natural checkpoints so work isn't stranded locally, but do **not** force-push `main` and do **not** push obviously broken commits.
+- **Pushing**: push at natural checkpoints so work isn't stranded locally, but do **not** force-push `master` and do **not** push obviously broken commits.
 
 ### 12. One branch per unit of work — delete it once merged
 
-Every piece of work goes on its own branch (rule 8). The moment that branch is merged into `main`, **delete it** — both the remote (`git push origin --delete <branch>`) and any local copy (`git branch -d <branch>`). Don't leave merged branches lying around.
+Every piece of work goes on its own branch (rule 8). The moment that branch is merged into `master`, **delete it** — both the remote (`git push origin --delete <branch>`) and any local copy (`git branch -d <branch>`). Don't leave merged branches lying around.
 
-- *Why:* stale merged branches pile up and make the branch list useless — 53 had accumulated here (49 already merged but never deleted) before this rule. A clean branch list should show only `main` plus genuinely in-progress work.
+- *Why:* stale merged branches pile up and make the branch list useless — 53 had accumulated here (49 already merged but never deleted) before this rule. A clean branch list should show only `master` plus genuinely in-progress work.
 - **Mechanics:** finish the branch → open a PR → **the maintainer approves and merges** → immediately delete the branch remote + local. Before ending a session, confirm no merged branch is left behind.
 - **`master` is protected — an agent cannot merge its own work.** A repository *ruleset* named `protect main` (id 18692396, active) enforces `pull_request`, `update`, `non_fast_forward` and `deletion` rules on `master`. Consequences an agent must plan around:
   - `required_approving_review_count: 1`, and GitHub will not accept a self-approval from the PR author. So a PR you opened is **blocked on a human**, always. Do not report work as "merged" or "done" when it is sitting at `mergeStateStatus: BLOCKED`.
@@ -618,7 +618,7 @@ Every piece of work goes on its own branch (rule 8). The moment that branch is m
   - `dismiss_stale_reviews_on_push: true`: pushing another commit after approval **drops the approval**. Get the branch green *before* asking for review, or you will burn the maintainer's approval on a fixup.
   - Never reach for `gh pr merge --admin` to get around any of this. Bypassing a protection the maintainer configured is not yours to decide.
   - Note the classic branch-protection API returns `404 Branch not protected` for `master` — that is a false negative, because the protection is a ruleset. Check `gh api repos/ValgulNecron/Gameplane/rules/branches/master` instead.
-- Never delete a branch whose work is **not** yet in `main`, and never `--delete-branch` a stacked child whose descendants still depend on it (merge bottom-up first).
+- Never delete a branch whose work is **not** yet in `master`, and never `--delete-branch` a stacked child whose descendants still depend on it (merge bottom-up first).
 
 ### 13. Delegate through Workflows — always, in bulk, smallest model first
 
