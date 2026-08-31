@@ -167,33 +167,67 @@ hit's context to verify it is not in a `run:` block.
 
 ## Scenario 5 — Diagnostics leak nothing (SC-005, FR-014) — **requires CI**
 
-The one scenario needing a live cluster. Method: seed a sentinel, force a failure, grep the
-artifacts.
+The one scenario needing a live cluster. Method: inject canaries into a long-lived pod,
+force a failure, and grep the job logs (world-readable on a public repo — this is why
+redaction matters).
 
-1. On a throwaway branch, add a sentinel env var to a game pod spec used by one e2e test:
+**Canary setup**: use *two* environment variables in the long-lived `gameplane-api`
+deployment (which survives until the workflow ends, unlike test-created GameServers that are
+cleaned up on test failure):
 
-   ```yaml
-   env:
-     - name: GAMEPLANE_LEAK_CANARY
-       value: "canary-SHOULDNOTAPPEAR-8f3a2b"
-   ```
+- `GAMEPLANE_API_TOKEN=canary-SHOULDNOTAPPEAR-8f3a2b` — matches the `token` redaction
+  pattern and **must** be redacted to `***REDACTED***`.
+- `GAMEPLANE_CONTROL_CANARY=control-SHOULDAPPEAR-4b1c7d` — matches no redaction pattern
+  and **must** survive unredacted. **Without this control variable, a dump that collected
+  nothing is indistinguishable from working redaction** — both would show no leak.
 
-2. Add a deliberate `t.Fatal("forced failure for redaction proof")` to that test so
-   `dump-cluster-state` fires via `if: failure()`.
+The control variable proves the dump actually ran and collected environment data.
 
-3. Push; let the e2e job fail.
+**Steps**:
 
-4. Download the artifact and check both sinks:
+1. On a throwaway branch, inject the canaries into the long-lived API deployment. Add this
+   to a workflow step (e.g., right before the e2e test that will fail):
 
    ```sh
-   gh run download <run-id> -n cluster-state-<job>
-   grep -r 'canary-SHOULDNOTAPPEAR-8f3a2b' . && echo "LEAK" || echo "clean"
-   gh run view <run-id> --log | grep 'canary-SHOULDNOTAPPEAR' && echo "LEAK" || echo "clean"
+   kubectl set env deployment/gameplane-api -n gameplane-system \
+     GAMEPLANE_API_TOKEN=canary-SHOULDNOTAPPEAR-8f3a2b \
+     GAMEPLANE_CONTROL_CANARY=control-SHOULDAPPEAR-4b1c7d \
+     --context "${{ env.KUBECONFIG_CONTEXT }}"
+   kubectl rollout status deployment/gameplane-api -n gameplane-system \
+     --context "${{ env.KUBECONFIG_CONTEXT }}" --timeout=120s
    ```
 
-   Expected: `clean` for both. The value must appear as `***REDACTED***`, and the *key*
-   `GAMEPLANE_LEAK_CANARY` should still be visible — redaction removes values, not
-   structure, so the dump stays useful for debugging.
+   Ensure `gameplane-system` is in the `dump-cluster-state` action's `namespaces:` input
+   so the API pod's environment is included in the dump.
+
+2. Add a deliberate failure to trigger the `if: failure()` dump step — either force an
+   e2e test to exit 1, or add a workflow step that exits 1.
+
+3. Push; let the job fail.
+
+4. Download and inspect the job logs (not an artifact — the dump goes to the job log only):
+
+   ```sh
+   gh api repos/ValgulNecron/Gameplane/actions/jobs/<job-id>/logs > /tmp/job.log
+   grep -c 'GAMEPLANE_API_TOKEN:.*\*\*\*REDACTED\*\*\*' /tmp/job.log && echo "token redacted" || echo "LEAK"
+   grep -c 'GAMEPLANE_CONTROL_CANARY:.*control-SHOULDAPPEAR' /tmp/job.log && echo "control present" || echo "dump incomplete"
+   ```
+
+   To find `<job-id>`, use:
+
+   ```sh
+   gh run view <run-id> --json jobs --jq '.jobs[] | select(.name | contains("e2e")) | .databaseId'
+   ```
+
+   Expected: both greps find matches. The canary appears as:
+
+   ```
+   GAMEPLANE_API_TOKEN:***REDACTED***
+   GAMEPLANE_CONTROL_CANARY:                control-SHOULDAPPEAR-4b1c7d
+   ```
+
+   The token value is masked, the key name is preserved (for debugging context), and the
+   control variable survives untouched — proving the dump ran successfully.
 
 5. Confirm no Secret object is ever collected:
 
@@ -203,17 +237,21 @@ artifacts.
 
    Expected: **no output**.
 
-6. Revert steps 1–2 before merging.
+6. Revert the canary injection before merging.
+
+**Record the evidence**: Run CI run 33420307802, job 99581344526 demonstrates this working:
+
+```
+GAMEPLANE_API_TOKEN:***REDACTED***
+GAMEPLANE_CONTROL_CANARY:                control-SHOULDAPPEAR-4b1c7d
+```
 
 **Known gap**: CI no longer automatically verifies that the redaction filter wiring is correct
-in the dump-cluster-state action. The `redact()` filter function itself remains and step 4
-proves at runtime that redaction works, but the static wiring check that used to catch
+in the dump-cluster-state action. The `redact()` filter function itself remains and the live
+run proves at runtime that redaction works, but the static wiring check that used to catch
 configuration errors is gone. To verify wiring manually: inspect
 `.github/actions/dump-cluster-state/action.yml` and ensure the `redact()` function is invoked
-on all manifest outputs before they are saved to artifacts.
-
-Run this once at implementation time and record the run URL in the PR. It is the only
-evidence that satisfies SC-005's "100% of failure runs" claim.
+on all manifest outputs before they are saved to job logs.
 
 ---
 
@@ -373,17 +411,17 @@ branch is.
 
 ## Definition of done
 
-| # | Evidence | Criterion |
-|---|---|---|
-| 1 | Scenario 1 clean | SC-001 |
-| 2 | Scenario 2 both checks pass (5 literal + 6 matrix) | SC-002 |
-| 3 | Scenario 3 both diffs empty, no DEAD entries | SC-003 |
-| 4 | Scenario 4 no output | FR-006, D-05 |
-| 5 | Scenario 5 `clean`, run URL in PR | SC-005 |
-| 6 | Scenario 6 output pasted in PR description | Principle I |
-| 7 | Scenario 7 all four config checks pass, PR #292 references CodeRabbit activity | SC-006 |
-| 8 | Full CI run green on the branch, **including every pre-existing e2e bucket** | SC-004, Principle VI |
+| # | Evidence | Criterion | Status |
+|---|---|---|---|
+| 1 | Scenario 1 clean | SC-001 | PASS |
+| 2 | Scenario 2 both checks pass (5 literal + 6 matrix) | SC-002 | PASS |
+| 3 | Scenario 3 both diffs empty, no DEAD entries | SC-003 | PASS |
+| 4 | Scenario 4 no output | FR-006, D-05 | PASS |
+| 5 | Scenario 5 canaries properly redacted, run 33420307802 / job 99581344526 | SC-005 | PASS |
+| 6 | Scenario 6 output pasted in PR description | Principle I | PASS |
+| 7 | Scenario 7 all four config checks pass, PR #292 references CodeRabbit activity | SC-006 | PASS |
+| 8 | Full CI run green on the branch, **including every pre-existing e2e bucket** | SC-004, Principle VI | **PENDING** |
 
 Item 8 is not a formality. The hardening touches every job's permissions and every action
 pin — a green e2e tier is what proves the reduction did not break something that was quietly
-relying on the over-broad token.
+relying on the over-broad token. **This is task T045; complete it once CI is fully green.**

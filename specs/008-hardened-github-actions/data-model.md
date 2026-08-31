@@ -154,7 +154,7 @@ reaches either a step summary or an artifact:
 
 | Pattern (case-insensitive) | Replacement |
 |---|---|
-| `(password\|passwd\|token\|secret\|api[-_]?key\|bearer\|authorization)\s*[:=]\s*\S+` | key preserved, value → `***REDACTED***` |
+| `(password\|passwd\|token\|secret\|api[-_]?key\|bearer\|authorization)\s*[:=]\s*.*` | key preserved, value → `***REDACTED***` (to end of line) |
 | `eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+` | `***REDACTED-JWT***` |
 | `-----BEGIN [A-Z ]*PRIVATE KEY-----` … `-----END [A-Z ]*PRIVATE KEY-----` | `***REDACTED-KEY***` |
 
@@ -168,6 +168,19 @@ that is the entire internet.
 **Validation**: quickstart.md scenario 5 seeds a known sentinel value into a pod's
 environment, fails the job deliberately, and asserts the sentinel does not appear in either
 sink. **COVERAGE GAP**: CI does not automatically verify that all `dump-cluster-state` call sites apply the redaction filter before emit; this was previously checked but is no longer enforced. The redaction filter implementation itself is present and functional.
+
+**KNOWN LIMITATION — quoted/JSON-embedded values.** The value pattern matches a
+delimiter that follows the key directly (after optional whitespace), so
+`token: abc` and `token=abc` are caught but `"token":"abc"` is **not** — the
+quote sits between the key and the `:`. `kubectl` output is unaffected (the
+action uses `describe` and `jsonpath` templates that emit tab-separated scalars,
+never raw JSON), but an application **log line** that embeds JSON containing a
+credential would pass through unredacted. Container logs are collected, so this
+is a real residual gap, not a theoretical one. Widening the delimiter to tolerate
+quotes was considered and deliberately not applied: it could not be verified in
+the session that found it, and an unverified change to a security filter is worse
+than a documented gap. Redaction here is pattern-based and therefore best-effort
+against any credential in an unrecognised shape.
 
 ---
 

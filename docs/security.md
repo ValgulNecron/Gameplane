@@ -519,10 +519,17 @@ a self-hosted API-key reviewer:
   filesystem. The CodeRabbit app is a GitHub App, not a personal API key — it
   integrates via GitHub's OAuth flow and never places a repository secret
   alongside untrusted code.
-- **No trust in PR content**: Review is advisory (cannot block a merge) and
-  treats PR content as data to review, not as instructions to follow or commands
-  to execute. The app's configuration (`path_instructions`, `labeling_instructions`)
-  is repository-local and not influenced by PR branches.
+- **PR content treated as data, not instructions**: Review is advisory (cannot
+  block a merge) and does not execute instructions from PR body, title, or branch
+  name. However, the app's configuration (`.coderabbit.yaml`) is read from the
+  PR's HEAD branch — meaning a pull request, including one from a fork, can modify
+  `path_instructions` and `labeling_instructions` and thereby change how the review
+  is conducted. This is a real limitation of the GitHub App model: the bot's advice
+  is weaker or differently-oriented on that PR than intended. It does **not** grant
+  the PR repository permission, exfiltrate a secret (no repo secret is in the
+  review path at all), or block or force a merge — the review remains advisory.
+  The mitigation is the same as for any PR that edits CI workflows: human review
+  should scrutinize changes to `.coderabbit.yaml`.
 - **No implicit privilege escalation**: The app cannot request scopes it was not
   granted at install time, and it cannot modify its own permissions.
 
