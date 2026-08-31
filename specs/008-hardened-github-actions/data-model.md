@@ -173,18 +173,29 @@ raw collected text — do not re-derive redaction per sink.
 environment, fails the job deliberately, and asserts the sentinel does not appear in either
 sink. **COVERAGE GAP**: CI does not automatically verify that all `dump-cluster-state` call sites apply the redaction filter before emit; this was previously checked but is no longer enforced. The redaction filter implementation itself is present and functional.
 
-**KNOWN LIMITATION — quoted/JSON-embedded values** (tracked as issue #306). The value pattern matches a
-delimiter that follows the key directly (after optional whitespace), so
-`token: abc` and `token=abc` are caught but `"token":"abc"` is **not** — the
-quote sits between the key and the `:`. `kubectl` output is unaffected (the
-action uses `describe` and `jsonpath` templates that emit tab-separated scalars,
-never raw JSON), but an application **log line** that embeds JSON containing a
-credential would pass through unredacted. Container logs are collected, so this
-is a real residual gap, not a theoretical one. Widening the delimiter to tolerate
-quotes was considered and deliberately not applied: it could not be verified in
-the session that found it, and an unverified change to a security filter is worse
-than a documented gap. Redaction here is pattern-based and therefore best-effort
-against any credential in an unrecognised shape.
+**Resolved issue #306 — quoted/JSON-embedded values.** Previously, the delimiter pattern
+matched only when quotes did not sit between the key and the operator, so `token: abc` and
+`token=abc` were caught but `"token":"abc"` was not. This left JSON-formatted credentials
+in container logs unredacted on public repos — a real gap, not theoretical, since the action
+collects container logs. The delimiter pattern was widened from
+`\([[:space:]]*[=:][[:space:]]*\)` to `\(["']*[[:space:]]*[=:][[:space:]]*["']*\)` — POSIX BRE, as
+`sed` is invoked here with no `-E`/`-r` — to tolerate optional quotes on either side of the
+key/delimiter/value sequence. All six inlined `redact()` copies in `dump-cluster-state`'s
+`action.yml` were updated together and remain byte-identical; the first `-e` argument moved from a
+single-quoted to a double-quoted shell string so the literal `'` inside the bracket expression does
+not need close-escape-reopen. Verified against the issue #306 fixtures: A1–A7 secret values are
+redacted (including `{"password":"hunter2"}` and `{"level":"info","authorization":"Bearer abc"}`),
+and B1–B7 non-secrets survive unchanged — critically `GAMEPLANE_CONTROL_CANARY`, the control that
+distinguishes working redaction from a dump that collected nothing.
+
+Redaction here remains **pattern-based and therefore best-effort** against credentials in an
+unrecognised shape. Known residuals, documented rather than claimed fixed: XML/SGML-style
+attributes (`<password="value">`), bare base64 blobs with no adjacent key name, and values split
+across lines. Separately and pre-existing (not introduced by #306, confirmed by diffing against the
+old pattern): because the rule consumes the rest of the line after the key, `kubectl describe`
+`Environment:` descriptor lines such as
+`DATABASE_PASSWORD: <set to the key 'password' in secret 'x'>  Optional: false` lose their
+secret-*reference* metadata even though no secret value was present.
 
 ---
 
