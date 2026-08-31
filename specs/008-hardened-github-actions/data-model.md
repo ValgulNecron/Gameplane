@@ -150,7 +150,7 @@ What `dump-cluster-state` emits when an e2e job fails.
 | Secret objects | — | **NEVER collected.** No `kubectl get secret`, no `describe secret`, in any form. |
 
 **Redaction contract** — applied to every text field above, at the point of emit, before it
-reaches either a step summary or an artifact:
+reaches the job log:
 
 | Pattern (case-insensitive) | Replacement |
 |---|---|
@@ -159,11 +159,15 @@ reaches either a step summary or an artifact:
 | `-----BEGIN [A-Z ]*PRIVATE KEY-----` … `-----END [A-Z ]*PRIVATE KEY-----` | `***REDACTED-KEY***` |
 
 **Lifecycle**: `job fails` → `if: failure()` fires → collect → **redact** → write to
-`$GITHUB_STEP_SUMMARY` + upload artifact → artifact retained per repo policy.
+stdout → captured as the job log.
 
-Redaction sits between collect and write. It is not a post-processing step on the consumer
-side, because both sinks are readable by anyone who can see the run — and on a public repo
-that is the entire internet.
+Redaction sits between collect and write. `dump-cluster-state`'s `action.yml` has no
+`upload-artifact` step and no `$GITHUB_STEP_SUMMARY` write (`grep -cE
+'upload-artifact|GITHUB_STEP_SUMMARY' .github/actions/dump-cluster-state/action.yml` → `0`)
+— the redacted stream's only sink today is the job log, which is readable by anyone who can
+see the run, and on a public repo that is the entire internet. **Forward-looking rule**: if
+either sink is ever added, it must be fed from the already-redacted stream, never from the
+raw collected text — do not re-derive redaction per sink.
 
 **Validation**: quickstart.md scenario 5 seeds a known sentinel value into a pod's
 environment, fails the job deliberately, and asserts the sentinel does not appear in either

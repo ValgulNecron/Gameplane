@@ -417,10 +417,10 @@ branch is.
 | 2 | Scenario 2 both checks pass (5 literal + 6 matrix) | SC-002 | PASS |
 | 3 | Scenario 3 both diffs empty, no DEAD entries | SC-003 | PASS |
 | 4 | Scenario 4 no output | FR-006, D-05 | PASS |
-| 5 | Scenario 5 canaries properly redacted, run 33420307802 / job 99581344526 | SC-005 | PASS |
+| 5 | Scenario 5 canaries properly redacted, run 33420307802 / job 99581344526 | SC-005 | PASS for the tested canary forms — the quoted/JSON-embedded-value gap noted in data-model.md E5 (`"token":"abc"` is not matched) is a known residual, not exercised by this scenario |
 | 6 | Scenario 6 output pasted in PR description | Principle I | PASS |
 | 7 | Scenario 7 all four config checks pass, PR #292 references CodeRabbit activity | SC-006 | PASS |
-| 8 | Full CI run green on the branch, **including every pre-existing e2e bucket** | SC-004, Principle VI | **PENDING** |
+| 8 | Full CI run green on the branch, **including every pre-existing e2e bucket** — run 33424028996 (`d8c19312`), 71/71 jobs success | SC-004, Principle VI | PASS |
 
 Item 8 is not a formality. The hardening touches every job's permissions and every action
 pin — a green e2e tier is what proves the reduction did not break something that was quietly
