@@ -22,7 +22,7 @@ satisfy. Not a file itself; the security invariant all workflows must preserve.
 | `job.timeout-minutes` | integer | REQUIRED. `1 ≤ n ≤ 30`, unless the job is on the exception list, which additionally requires an inline `#` comment stating why. |
 | `step.uses` (external) | string | MUST match `^[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40}$`, followed by a `# vX.Y.Z` comment. |
 | `step.uses` (local) | string | MUST start with `./.github/` — local composite actions are exempt from pinning (they are versioned by the repo checkout itself). |
-| `workflow.concurrency` | map | REQUIRED when `on:` includes `push` or `pull_request`. Must set `group` and `cancel-in-progress`. |
+| `workflow.concurrency` | map | REQUIRED when `on:` includes `push` or `pull_request`. Must set `group` and `cancel-in-progress`. Exception: `release.yaml` is tag-only (`push: tags:`) so concurrency is not required (a tag push is a one-shot publish; cancelling it in flight would abort a release mid-way). |
 | `run:` script body | string | MUST NOT contain `${{ github.event.*.{title,body,ref,label,name} }}`, `${{ github.head_ref }}`, or any interpolation of a user-writable field. Such values pass through `env:`. |
 | `on:` triggers | list | MUST NOT include `pull_request_target`. |
 | secret references | string | `COSIGN_PRIVATE_KEY`, `GHCR_*`, registry credentials permitted only in `images.yaml`, `publish-edge.yaml`, `release.yaml`, `republish-modules.yaml`. |
@@ -74,15 +74,14 @@ Dependabot's `github-actions` ecosystem owns the transition after landing; the p
 
 ## E3. Job Permission & Timeout Matrix
 
-One row per job across all 7 workflows — 26 at baseline, 28 after this feature (adds
-`collect`/`review` across two new workflows: `ai-review.yaml` and `ai-review-respond.yaml`).
+One row per job across all 7 workflows — 26 at baseline.
 Authoritative copy in [contracts/permissions-matrix.md](./contracts/permissions-matrix.md).
 
-**Note on the AI review workflows**: User Story 4 requires two files because a GitHub workflow has
-a single `on:` block for the entire file, making it impossible to express both a `pull_request`
-trigger (for the untrusted `collect` job) and a `workflow_run` trigger (for the privileged
-`review` job) in one file without collapsing the trust boundary. `ai-review-respond.yaml`'s
-`workflows: ["ai-review"]` reference must match `ai-review.yaml`'s top-level `name:` exactly.
+> ⚠️ **Superseded — AI review infrastructure moved**: The AI review infrastructure
+> originally designed as `ai-review.yaml` + `ai-review-respond.yaml` has been retired and
+> replaced by the CodeRabbit GitHub App integration (see OPEN-DECISIONS.md D-L and the
+> superseded banner on `contracts/ai-review-contract.md`). The matrix entry below is
+> archived; the contract document (linked above) carries the full rationale for the change.
 
 | Field | Type | Rule |
 |---|---|---|
@@ -90,7 +89,7 @@ trigger (for the untrusted `collect` job) and a `workflow_run` trigger (for the 
 | `job_id` | string | YAML key under `jobs:`. Unique within a workflow. |
 | `permissions` | map | Explicit. Minimum viable set for that job's steps. |
 | `timeout_minutes` | integer | Explicit. Per E1's rule. |
-| `justification` | string | REQUIRED when `permissions` exceeds `contents: read` or `timeout_minutes > 30`. Rendered as an inline YAML comment. |
+| `justification` | string | REQUIRED when `permissions` exceeds `contents: read` or `timeout_minutes > 30`. Rendered as an inline YAML comment. (Note: `workflow-lint` is 10 minutes — not a justification; it is a linter gate and does not require inline commentary.) |
 
 **State transition** — the only one in this feature, and it is imposed by GitHub, not by us:
 

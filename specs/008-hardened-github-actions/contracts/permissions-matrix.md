@@ -52,7 +52,7 @@ permissions:
 | `e2e-web-live` | `contents: read` | 60 | |
 | `e2e-game-bot` | `contents: read` | 60 | E2E suite timeout per D-A. |
 | `report` | `contents: read`, `statuses: read`, `pull-requests: write` | 5 | Already correct. Fork-degradation already handled. |
-| `workflow-lint` *(new)* | `contents: read` | 5 | The workflow-lint gate runs actionlint and zizmor over `.github/workflows/`. Gated on the new `github` path-filter output. |
+| `workflow-lint` | `contents: read` | 10 | The workflow-lint gate runs actionlint and zizmor over `.github/workflows/`. Gated on the new `github` path-filter output. |
 
 
 **`report` wiring**: adding `workflow-lint` requires three edits in the reporter — the
@@ -97,7 +97,7 @@ permissions:
 
 | Job | `permissions` | `timeout-minutes` | Notes |
 |---|---|---|---|
-| `images` | `contents: read`, `packages: write`, `id-token: write` | 35 | Multi-arch buildx + cosign. Observed max 31m across 142 samples (12 runs). Exceeds FR-004 ≤30 default; measured data backs the increase. Add `id-token: write` only if keyless signing is in use; this repo signs keyed/offline with `COSIGN_PRIVATE_KEY`, so **omit it** unless verified otherwise during implementation. |
+| `images` | `contents: read`, `packages: write` | 35 | Multi-arch buildx + cosign. Observed max 31m across 142 samples (12 runs). Exceeds FR-004 ≤30 default; measured data backs the increase. This repo signs keyed/offline with `COSIGN_PRIVATE_KEY` (no OIDC keyless signing), so `id-token: write` is omitted. |
 
 Concurrency block already present and correct (`group: publish-edge`).
 
@@ -143,19 +143,13 @@ permissions:
 
 ---
 
-## `ai-review.yaml` *(new)*
+## `ai-review.yaml` *(superseded)*
 
-```yaml
-permissions: {}       # top-level: nothing by default
-```
-
-| Job | `permissions` | `timeout-minutes` | Notes |
-|---|---|---|---|
-| `collect` | `contents: read` | 10 | Untrusted: checks out PR head. **No secrets.** Produces the artifact only. |
-| `review` | `contents: read`, `pull-requests: write`, `actions: read` | 15 | Privileged: holds `ANTHROPIC_API_KEY`. **Never checks out PR code.** `actions: read` is needed to download the artifact from the triggering run. |
-
-The empty top-level default is deliberate here and safe — unlike the other workflows, both
-jobs declare exactly what they need, and neither fetches a private submodule.
+> ⚠️ **Archived**: The AI review infrastructure originally designed as `ai-review.yaml` +
+> `ai-review-respond.yaml` workflows has been retired and replaced by the CodeRabbit GitHub
+> App integration. See OPEN-DECISIONS.md D-L and the superseded banner on the
+> `contracts/ai-review-contract.md` artifact. This matrix row is retained for historical
+> reference only.
 
 ---
 
@@ -163,11 +157,10 @@ jobs declare exactly what they need, and neither fetches a private submodule.
 
 | Secret | Permitted in | Forbidden in | Enforced by |
 |---|---|---|---|
-| `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD` | `images.yaml`, `publish-edge.yaml`, `release.yaml`, `republish-modules.yaml` | `ci.yaml`, `ai-review.yaml` | Code review — not automatically enforced. |
-| Registry credentials (`docker/login-action`) | same four | `ci.yaml`, `ai-review.yaml` | Code review — not automatically enforced. |
-| `ANTHROPIC_API_KEY` | `ai-review.yaml` job `review` **only** | everywhere else, including `ai-review.yaml` job `collect` | Code review — not automatically enforced. |
+| `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD` | `images.yaml`, `publish-edge.yaml`, `release.yaml`, `republish-modules.yaml` | `ci.yaml` | Code review — not automatically enforced. |
+| Registry credentials (`docker/login-action`) | same four | `ci.yaml` | Code review — not automatically enforced. |
 
-These constraints follow from the trust model (ai-review-contract.md) and are validated during code review.
+These constraints follow from the security model (secrets are confinement-gated to publishing workflows only) and are validated during code review.
 
 ---
 
@@ -180,6 +173,5 @@ Two jobs are affected:
 |---|---|---|
 | `ci.yaml` → `web` | `POST /statuses/{sha}` | Already `continue-on-error: true` with `|| true`. Keep. |
 | `ci.yaml` → `report` | upsert PR comment | Already detects and skips quietly. Keep. |
-| `ai-review.yaml` → `review` | upsert PR comment | Must fall back to `$GITHUB_STEP_SUMMARY`. **New code — must implement.** |
 
 A fork PR must never show a red job for a permission it was never going to be granted.

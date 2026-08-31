@@ -124,6 +124,8 @@ jobs:
             github:
               - '.github/workflows/**'
               - '.github/actions/**'
+              - '.github/zizmor.yml'
+              - '.github/dependabot.yml'
       - id: combine
         # Fold the raw filters into single-token booleans so every downstream
         # `if:` is one expression (fewer chances to get wrong when the only way
