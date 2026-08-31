@@ -4,7 +4,8 @@
 
 Authoritative SHA pins for every external GitHub Action referenced in this repository.
 Resolved with `git ls-remote --tags --refs https://github.com/<owner>/<repo>`, taking the
-highest `sort -V` tag matching the currently-referenced major.
+highest `sort -V` tag matching the currently-referenced major — **sorting on the tag field,
+not the raw `ls-remote` line** (see the warning immediately below; this is not optional).
 
 **Reproduce this table**:
 
@@ -12,9 +13,47 @@ highest `sort -V` tag matching the currently-referenced major.
 for a in actions/checkout@v7 actions/cache@v6 ... ; do
   repo=${a%@*}; tag=${a#*@}
   git ls-remote --tags --refs "https://github.com/$repo" \
-    | grep -E "refs/tags/${tag}(\.[0-9]+)*$" | sort -V | tail -1
+    | awk -F'refs/tags/' '{print $2, $1}' \
+    | grep -E "^${tag}(\.[0-9]+)*( |$)" | sort -V | tail -1
 done
 ```
+
+**Why the `awk` step is required — do not drop it.** `git ls-remote` prints
+`<SHA>\t<ref>`, SHA first. Piping that straight into `sort -V` sorts on the *SHA*, which is
+effectively random hex, not on the version tag that comes after it — `sort -V` never sees a
+version number to compare. The `awk -F'refs/tags/' '{print $2, $1}'` step reorders each line
+to `<tag> <SHA>` first, so `sort -V` finally sorts what it's supposed to.
+
+**Incident, so this isn't just a warning nobody reads.** The original (broken) recipe was the
+plain `grep ... | sort -V | tail -1` form, no `awk`. Run against `helm/kind-action` it returned
+`fa81e57adff234b2908110485695db0f181f3c67` / **v1.7.0** (released 2023) instead of the true
+latest, **v1.14.0** (`ef37e7f390d99f746eb8b610417061a60e82a6cc`) — because the SHA `fa81e57…`
+happens to sort higher than `ef37e7f…` under `sort -V`, and the broken recipe was comparing
+SHAs, not tags. `kind-action@v1.7.0` defaults to kind v0.19.0, whose node image is
+`kindest/node:v1.27.1` — **Kubernetes 1.27**, one minor below this project's documented
+1.28+ target (CLAUDE.md) and built against `client-go` v0.35.0. Result: `e2e web live` failed
+on **four consecutive CI runs** with `[vite] http proxy error` / `Error: read ECONNRESET` /
+`seed template … failed: 502`. `master` never saw it, because `master` still floats `@v1`
+(which resolves live to v1.14.0) — so the same job passed on `master` the same day running
+*newer* application code (`ad3e30a2`, 2026-08-30), while the branch failed running *older*
+code (identical to the 2026-08-28 fork point) pinned to a three-year-stale action. That
+inversion is the tell: it rules out an application regression and points squarely at the pin. Fixed in
+commit `ced90c58` (all five `ci.yaml` call sites re-pinned to `ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0`).
+
+**Measured scope — don't overstate this.** The broken (SHA-sorting) recipe was re-run against
+every pinned action in the table below that has a bare major tag. It diverges from the correct
+answer for exactly **two**:
+
+- `helm/kind-action` — v1.7.0 vs v1.14.0 (severe: 7 minor versions, ~3 years stale; see incident above).
+- `actions/checkout` — v7.0.0 vs v7.0.1 (trivial: one patch. The current `v7.0.0` pin is
+  fine as-is; upgrading it is Dependabot's job, not something to change in this fix).
+
+The other six bare-major pins (`actions/cache`, `actions/setup-go`, `actions/setup-node`,
+`docker/bake-action`, `docker/login-action`, `docker/metadata-action`) happened to return the
+*correct* SHA under the broken recipe too — but that is a coincidence of how their SHAs
+happen to sort as hex strings, not evidence the method was sound. A method that is right by
+luck is still broken; hence the fix above, applied uniformly rather than only where it was
+caught diverging.
 
 ---
 
@@ -37,7 +76,7 @@ done
 | 13 | `docker/setup-qemu-action` | `@v4` | `ce360397dd3f832beb865e1373c09c0e9f86d70a` | `v4.0.0` | verified |
 | 14 | `dorny/paths-filter` | `@v4` | `fbd0ab8f3e69293af611ebaee6363fc25e6d187d` | `v4.0.1` | community |
 | 15 | `golangci/golangci-lint-action` | `@v9` | `e7fa5ac41e1cf5b7d48e45e42232ce7ada589601` | `v9.1.0` | verified |
-| 16 | `helm/kind-action` | `@v1` | `fa81e57adff234b2908110485695db0f181f3c67` | `v1.7.0` | verified |
+| 16 | `helm/kind-action` | `@v1` | `ef37e7f390d99f746eb8b610417061a60e82a6cc` | `v1.14.0` | verified |
 | 17 | `oras-project/setup-oras` | `@v2` | `38de303aac69abb66f3e6255b7198bff35f323e3` | `v2.0.0` | verified |
 | 18 | `sigstore/cosign-installer` | `@v4.1.2` | `6f9f17788090df1f26f669e9d70d6ae9567deba6` | `v4.1.2` | verified |
 | 19 | `anthropics/claude-code-action` | *(new)* | `a874e9ecd7bb36efdad65429c6b35815f5a08f10` | `v1.0.210` | verified |

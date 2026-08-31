@@ -53,7 +53,8 @@ Two findings deserve emphasis because they are worse than "not yet done":
 **Decision**: Pin all 18 actions to full 40-character commit SHAs resolved from the current
 floating tag, with a trailing `# vX.Y.Z` comment. Resolve via `git ls-remote --tags <repo>`
 (WITHOUT `--refs`), and take the `refs/tags/<tag>^{}` line's SHA when one exists, falling
-back to `refs/tags/<tag>` when it does not.
+back to `refs/tags/<tag>` when it does not. Critically, sort candidates on the **tag field**,
+not the raw `ls-remote` line — see the 2026-08-30 amendment below.
 
 ```yaml
 - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -89,6 +90,24 @@ no token, which keeps the resolution reproducible by any contributor.
 
 **Resolved pin table**: [contracts/action-pins.md](./contracts/action-pins.md) — all 18
 SHAs resolved and recorded, so implementation does not re-derive them.
+
+**Amendment (2026-08-30, found during T044 validation)**: the resolution recipe as originally
+written (`git ls-remote --tags --refs <repo> | grep ... | sort -V | tail -1`) has a second,
+independent bug from the annotated-tag one above: `ls-remote` prints `<SHA>\t<ref>`, so piping
+straight into `sort -V` sorts on the SHA, not the tag — `sort -V` never sees a version number.
+Fix: reorder each line to `<tag> <SHA>` first (`awk -F'refs/tags/' '{print $2, $1}'`) before
+sorting. Measured cost: `helm/kind-action` resolved to the stale `v1.7.0`
+(`fa81e57adff234b2908110485695db0f181f3c67`, 2023) instead of `v1.14.0`
+(`ef37e7f390d99f746eb8b610417061a60e82a6cc`), because `fa81e57…` outsorts `ef37e7f…` as a hex
+string. `kind-action@v1.7.0` defaults to Kubernetes 1.27, one minor below this project's 1.28+
+target, and caused `e2e web live` to fail on four consecutive CI runs
+(`ECONNRESET` / 502 on template seeding) before being caught. Of the other pinned actions with
+bare major tags, only `actions/checkout` diverged (trivially, one patch version); the rest
+matched by coincidence of SHA ordering, not because the original recipe was sound. Fixed in
+commit `ced90c58`; corrected recipe and full incident writeup in
+[contracts/action-pins.md](./contracts/action-pins.md). The original DECISION to pin — and
+the annotated-tag handling above — remain correct; only the sorting step of the resolution
+recipe was wrong.
 
 ---
 
