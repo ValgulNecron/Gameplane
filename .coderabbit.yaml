@@ -1,0 +1,313 @@
+# yaml-language-server: $schema=https://www.coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit Configuration for Gameplane
+# Replaces the anthropics/claude-code-action reviewer per the maintainer's directive
+# to use a free, open-source solution (CodeRabbit) instead.
+# See specs/008-hardened-github-actions/contracts/ai-review-contract.md for review criteria.
+
+language: en-US
+tone_instructions: >
+  Professional, direct, and constructive. Flag violations of the repo's house rules
+  with specific citations (CLAUDE.md rule X, Constitution Principle Y).
+
+early_access: false
+enable_free_tier: true
+
+reviews:
+  # Review automation and behavior
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_in_walkthrough: false
+  review_status: true
+  review_details: true
+  review_progress: true
+  commit_status: false
+  fail_commit_status: false
+  collapse_walkthrough: false
+  changed_files_summary: true
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  # Must stay true: labeling_instructions below only steers THIS feature.
+  # Setting it false silently makes the whole taxonomy inert (CLAUDE.md rule 14).
+  suggested_labels: true
+  suggested_reviewers: false
+  abort_on_close: true
+  disable_cache: false
+
+  # Auto-review: enable on all PRs
+  auto_review:
+    enabled: true
+    description_keyword: ""
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 5
+    ignore_title_keywords: []
+    labels: []
+    drafts: false
+    base_branches: []
+    ignore_usernames: []
+
+  # Path-specific review instructions encoding project rules
+  path_instructions:
+    # Go: error wrapping with %w, forbid lint suppressions
+    - path: "**/*.go"
+      instructions: |
+        CRITICAL: Gameplane's house rules forbid in-source lint suppressions. Flag and reject:
+        - //nolint directives (any form)
+        - //#nosec
+        - //lint:ignore
+        - Any other `//` suppression targeting linters or static checks
+
+        CRITICAL: Go errors MUST wrap the cause with %w, not string concatenation.
+        Flag any of these patterns:
+        - fmt.Errorf("message: " + err.Error()) — discards the cause; should be fmt.Errorf("message: %w", err)
+        - errors.New("message: " + err.Error()) — same issue
+        - Any error created with string concatenation that discards err or another error value
+
+        Wrap errors correctly so errors.Is() and errors.As() work up the stack.
+        Reference: CLAUDE.md rule 6.
+
+    # TypeScript: strict mode, no unjustified any, no floating promises
+    - path: "web/**/*.{ts,tsx}"
+      instructions: |
+        CRITICAL: TypeScript runs under strict mode. Flag and reject:
+        - Any any type without a one-line comment explaining why it is unavoidable
+          (e.g., // any: required for untyped third-party library interop)
+        - // @ts-ignore directives
+        - // eslint-disable-next-line or any eslint suppression in source code
+        - Floating promises (Promise returned but not awaited and not explicitly void-prefixed)
+          Example: fetchData() instead of await fetchData() or void fetchData()
+
+        Reference: CLAUDE.md rule 5, Constitution Principle III.
+
+    # CRD type edits: must include regenerated artifacts
+    - path: "operator/api/v1alpha1/*_types.go"
+      instructions: |
+        CRITICAL: After editing CRD Go types in this file, the SAME commit MUST include:
+        - operator/api/v1alpha1/zz_generated.deepcopy.go (regenerated)
+        - operator/config/crd/*.yaml (regenerated)
+        - operator/config/rbac/*.yaml (regenerated)
+        - charts/gameplane/crds/*.yaml (regenerated and synced)
+
+        If a CRD type changed but these regenerated files are absent, the PR is incomplete.
+        Run: make generate && make manifests
+
+        Reference: CLAUDE.md rule 7.
+
+    # API handlers: must not contain business logic that belongs in reconcilers
+    - path: "api/internal/handlers/**"
+      instructions: |
+        CRITICAL: The API is a UX layer only. The operator and its reconcilers are authoritative.
+        Flag any business logic in handlers that should live in operator/internal/controller/:
+        - Logic that mutates CRD state based on user input (should be a reconciler)
+        - Validation or transformation of CRD fields that belongs in a controller
+        - Side effects triggered by API calls that should happen via CRD reconciliation
+
+        Example: creating a default Backup when a GameServer is created should be in the
+        GameServer reconciler, not in the handler that POSTs the GameServer.
+
+        Reference: CLAUDE.md rule 10, Constitution Principle IV (spec-driven).
+
+    # Dashboard routes: visual changes require design.pen + export updates
+    - path: "web/src/routes/**"
+      instructions: |
+        CRITICAL: Any visual change to a dashboard screen MUST be preceded by a design update.
+        Flag if:
+        - The route file (*.tsx) shows visual changes but no matching design.pen update in the PR
+        - design.pen or website.pen was touched but design-export/ or website-export/ was not updated
+          with fresh JSON dumps and screenshots of the changed frames
+
+        Visual change means: added/changed components, layout shifts, color/style updates, new pages.
+        Backend-only logic changes do not require a design pass.
+
+        The design-export/ snapshot is critical: a stale export actively misleads future agents.
+        Both design.pen AND the export must be committed in the same change.
+
+        Reference: CLAUDE.md rule 1, Constitution Principle II.
+
+    # Login page: strict privacy — no user enumeration or pre-auth telemetry
+    - path: "web/src/routes/Login.tsx"
+      instructions: |
+        CRITICAL: The login page is internet-reachable on most installs.
+        FORBID any rendering of:
+        - Internal metrics or counts ("5 servers online")
+        - Hostnames, cluster names, or deployment identifiers ("prod-east-1")
+        - Version strings ("Gameplane v0.4.2-rc3")
+        - User-enumeration error messages ("user alice not found", "wrong password")
+        - Any other information that aids user enumeration or reveals cluster internals
+
+        ALLOW: brand, form, neutral error copy ("invalid credentials").
+        Reference: CLAUDE.md rule 3, Constitution Principle II.
+
+    # E2E tests: must be bucketed, call t.Parallel(), use unique resource names
+    - path: "test/e2e/**"
+      instructions: |
+        CRITICAL: Every new E2E test MUST:
+        1. Be added to a bucket in test/e2e/buckets.sh (the CI gate fails on unbucketed tests)
+        2. Call t.Parallel() to allow concurrent execution within its bucket
+        3. Use per-test unique resource names (not shared fixtures, except guarded ones like ociPushMu)
+
+        Flag if:
+        - A new _test.go file exists but the test is not bucketed in buckets.sh
+        - A test does not call t.Parallel()
+        - A test reuses hardcoded resource names that are not synchronized (ociPushMu, ensureResticRepo)
+
+        Reference: Constitution Principle I, CLAUDE.md rule 8.
+
+    # GitHub workflows and actions: SHA pins, permissions, timeout
+    - path: ".github/workflows/**"
+      instructions: |
+        CRITICAL: Every workflow MUST follow hardened-CI practices:
+        - All external actions MUST be pinned to a full 40-hex commit SHA (not a tag or branch)
+        - Each action SHA pin MUST include an inline version comment for human readability
+        - Workflows MUST declare explicit least-privilege permissions (jobs.permissions)
+        - Each job MUST declare timeout-minutes to prevent hung runners
+        - FORBID pull_request_target (zizmor enforces this repo-wide)
+
+        Example good:
+          - uses: actions/checkout@a5ac7e51b41094c7d3f0b638c29c7f29fcadb296  # v4.1.6
+
+        Reference: FR-003 (action pinning), specs/008-hardened-github-actions/.
+
+    - path: ".github/actions/**"
+      instructions: |
+        CRITICAL: Custom actions must follow the same hardened-CI rules:
+        - All external action calls (uses:) pinned to 40-hex SHA with version comment
+        - No inline script injection; all attacker-controlled values flow through env:, never direct ${{ }}
+        - Explicit permissions declared
+        - Reasonable timeout-minutes
+
+        Reference: specs/008-hardened-github-actions/contracts/ai-review-contract.md.
+
+    # Test files: never weaken or delete tests without maintainer approval
+    - path: "**/*_test.go"
+      instructions: |
+        CRITICAL: Flag test deletions or weakening:
+        - A test removed or commented out (sign: test file size decreased)
+        - A test case removed from a table-driven test
+        - A test condition relaxed (e.g., comparison changed from == to >)
+        - A test assertion removed or replaced with a no-op
+
+        The repo treats removing a test as requiring explicit maintainer sign-off.
+        If a test is genuinely obsolete, the code it tested should no longer exist,
+        or its removal must be justified in the commit message.
+
+        Reference: CLAUDE.md rule 11 ("When not to commit").
+
+    # Behavior changes: must include specs.md updates
+    - path: "**/*.go"
+      instructions: |
+        CRITICAL: Behavior changes must update the relevant module's specs.md.
+        Flag if:
+        - The PR changes how a reconciler works, a handler route responds, or an agent component behaves
+        - But the matching specs.md (in the same directory or parent module) is not updated
+        - Example: changing GameServer reconciliation logic requires updating operator/specs.md
+
+        Each module folder (operator/, api/, agent/, etc.) maintains a specs.md documenting
+        its responsibilities, protocols, inputs/outputs, and invariants. A behavior change
+        without a matching specs.md update is incomplete.
+
+        Reference: Constitution Principle IV.
+
+    - path: "**/*.tsx"
+      instructions: |
+        CRITICAL: Behavior changes must update the relevant module's specs.md.
+        Flag if:
+        - The PR changes how a web route fetches data, handles state, or responds to user input
+        - But web/specs.md is not updated to reflect the change
+
+        Reference: Constitution Principle IV.
+
+  # PR and issue labels: applied automatically based on code changes and commit prefixes
+  labeling_instructions:
+    - label: "type: feature"
+      instructions: Apply when the PR's commits are prefixed with `feat:` or when new functionality is added (new API endpoint, new CRD field, new dashboard page, new module).
+    - label: "type: fix"
+      instructions: Apply when the PR's commits are prefixed with `fix:` or when a bug is corrected (reconciler logic error, handler regression, agent crash fix).
+    - label: "type: refactor"
+      instructions: Apply when the PR's commits are prefixed with `refactor:` or when code is restructured without changing its behavior (extracting helpers, renaming, moving logic between packages).
+    - label: "type: test"
+      instructions: Apply when the PR's commits are prefixed with `test:` or when new tests are added or existing tests improved (new envtest case, new web test, e2e coverage).
+    - label: "type: ci"
+      instructions: Apply when the PR's commits are prefixed with `ci:` or when GitHub Actions workflows and CI configuration change (workflow fixes, action SHA pins, zizmor gates).
+    - label: "type: chore"
+      instructions: Apply when the PR's commits are prefixed with `chore:` or when maintenance not visible to users is done (dependency updates, Makefile changes, reorganization).
+    - label: "type: docs"
+      instructions: Apply when the PR's commits are prefixed with `docs:` or when documentation or specs are updated (README, CLAUDE.md, architecture.md, inline godoc, specs/).
+    - label: "type: security"
+      instructions: Apply when the PR addresses a security issue (fixing a CWE, tightening permissions, removing credentials, patching a vulnerability).
+    - label: "area: operator"
+      instructions: Apply when changes touch operator/ (the controller-runtime reconcilers and CRD types in operator/api/v1alpha1/).
+    - label: "area: api"
+      instructions: Apply when changes touch api/ (the REST and WebSocket server, handlers, auth, RBAC, notifications).
+    - label: "area: agent"
+      instructions: Apply when changes touch agent/ (the in-pod sidecar for console, files, logs, players, RCON).
+    - label: "area: web"
+      instructions: Apply when changes touch web/ (the React 18 dashboard, routes, components, styles, tests).
+    - label: "area: modules"
+      instructions: Apply when changes touch modules/ (the game template OCI bundles submodule, or module-authoring docs).
+    - label: "area: chart"
+      instructions: Apply when changes touch charts/gameplane/ or Helm value definitions (CRD manifests, RBAC, Helm hooks).
+    - label: "area: e2e"
+      instructions: Apply when changes touch test/e2e/ (end-to-end test suite, kind cluster setup, buckets.sh, E2E test cases).
+    - label: "area: specs"
+      instructions: Apply when changes touch specs/ or spec.md files (specs/008-hardened-github-actions/, design contracts, decision records).
+    - label: "area: shared"
+      instructions: Apply when changes touch shared Go packages (netguard/, gameaction/, gameproto/, svcutil/) used by operator, api, and agent.
+    - label: "area: optional-components"
+      instructions: Apply when changes touch optional or sidecar components (sentinel/, capture-sidecar/, mcp-server/, tunnel/, audit-syslog-bridge/, telemetry-receiver/).
+    - label: "breaking"
+      instructions: Apply when the PR introduces a breaking change (CRD schema incompatibility, REST API contract change, Helm chart value renamed/removed, database migration backward-incompatible).
+
+  # Tools: enable the linters and security checkers the repo uses
+  tools:
+    golangci-lint:
+      enabled: true
+      config_file: .golangci.yml
+
+    eslint:
+      enabled: true
+      config_file: web/eslint.config.js
+
+    actionlint:
+      enabled: true
+
+    zizmor:
+      enabled: true
+
+    shellcheck:
+      enabled: true
+
+    yamllint:
+      enabled: true
+
+    gitleaks:
+      enabled: true
+
+# Chat integration
+chat:
+  art: true
+  allow_non_org_members: true
+  auto_reply: false
+
+# Knowledge base: use the repo's own guidelines
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: false
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - CLAUDE.md
+      - specs/**/spec.md
+      - .specify/memory/constitution.md
+  learnings:
+    scope: local
+    approval_delay: 0
+  issues:
+    scope: auto
+  pull_requests:
+    scope: auto
+  automatic_repository_linking: false

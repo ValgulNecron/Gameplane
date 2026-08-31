@@ -390,6 +390,152 @@ database — e.g. a K8s Secret the API process reads but never writes back),
 which would raise the bar to compromising that external key as well. Not
 implemented today; tracked in [`roadmap.md`](roadmap.md).
 
+## GitHub Actions supply chain and CI security
+
+Gameplane's release binaries and container images are built via GitHub Actions.
+The CI pipeline is a trust boundary: compromised build steps can inject malicious
+code into what users deploy. Several controls harden the pipeline:
+
+### Action pinning and mutable-tag defense
+
+External GitHub Actions in `.github/workflows/` and `.github/actions/` are pinned
+to a 40-character commit SHA with an inline `# vX.Y.Z` semver comment, never to
+a mutable tag like `@v4`. The threat this closes: a compromised or malicious
+action maintainer can repoint the tag at new code, giving arbitrary code execution
+inside CI with that workflow's `GITHUB_TOKEN` privileges — a supply-chain attack
+on the entire user base.
+
+Pinning to an immutable commit SHA is enforced mechanically by the `zizmor` linter
+in the `workflow-lint` job (`.github/zizmor.yml` config). Dependabot's
+`github-actions` ecosystem entry maintains pins through reviewable pull requests,
+so the operational trade-off — pins grow stale and miss security updates — is
+managed rather than ignored: every update lands as a visible, auditable PR before
+it ships.
+
+### Least-privilege token grants and scope confinement
+
+The threat: a compromised or buggy build step can use the full scope of the
+`GITHUB_TOKEN`. An over-broad top-level `permissions` grants those scopes to
+every job and step, multiplying the blast radius.
+
+The defense: `.github/workflows/ci.yaml` and `release.yaml` now grant
+`permissions: {contents: read}` at the top level — the minimum viable scope —
+and elevate scopes only on the specific job(s) that need them, in an explicit
+per-job `permissions` block. Concrete reductions from earlier config:
+
+- **ci.yaml**: `statuses: write` (needed only for the `web` job to mark PR
+  checks) was inherited by every job; it now lives on `web` alone.
+- **release.yaml**: top-level `permissions` was `{contents: write}`, granting
+  write access to every release job; it is now `{contents: read}` at the top,
+  with `contents: write` elevated only to the `github-release` job.
+
+Every job in every workflow has an explicit `timeout-minutes` to bound the
+duration a compromised job can run (see below).
+
+### Expression injection and shell-escaping discipline
+
+The threat: attacker-controlled PR text — `github.event.pull_request.title`,
+`.body`, `github.head_ref` — can be interpolated directly into a `run:` shell
+body without quoting, giving arbitrary shell execution. A malicious PR title
+like `"; rm -rf /; #"` then becomes a command.
+
+The safe pattern: pass attacker-controlled values through the `env:` block and
+reference them as quoted shell variables (`"$VAR"`, not `$VAR`), so they are
+treated as data, not code. Example:
+
+```yaml
+env:
+  PR_TITLE: ${{ github.event.pull_request.title }}
+run: echo "Title is: \"$PR_TITLE\""
+```
+
+The `actionlint` linter (run in the `workflow-lint` job) detects the unsafe form
+— direct interpolation of `github.event.*` or `github.head_ref` into `run:` —
+and rejects it. This repo does not use `pull_request_target` (the trigger that
+runs workflows on untrusted fork code with the base repo's `GITHUB_TOKEN`),
+closing the attack surface entirely: `pull_request_target` was designed for
+workflows that *must* access repo secrets (e.g., automated releases), but it
+introduces risk if any step trusts PR body content as code.
+
+### Timeouts as denial-of-service and cost bounds
+
+Every job carries an explicit `timeout-minutes` to bound job duration. The threat
+is twofold: a compromised job could hang indefinitely (DoS on CI capacity and
+cost), and a build failure could leave a job in a partially-modified state if the
+termination is not clean.
+
+Default timeout budget is ≤30 minutes. Documented exceptions with inline
+justification comments:
+
+- The five e2e jobs in ci.yaml run at 60 minutes (the `e2e-go` job uses a
+  `job_timeout` matrix value; `e2e-multicluster`, `e2e-upgrade`, `e2e-web-live`,
+  `e2e-game-bot` set it directly). E2E test suites on kind clusters are
+  inherently slow; 60 minutes is measured from prior runs.
+- **publish-edge.yaml**: the `images` job runs at 35 minutes (measured 31-minute
+  historical max for full image build and push across all components).
+
+### Diagnostics redaction and secret confinement
+
+The threat: CI failures on a public repository produce world-readable artifacts
+(downloaded test logs, pod state dumps, `$GITHUB_STEP_SUMMARY` markdown). Any
+unredacted secret — a pod env var, a log line, a manifest dump — becomes public
+and compromised immediately. Multi-cluster environments and complex setups make
+this harder to spot: a cluster dump is hundreds of lines and secrets can hide in
+labels, annotation values, or environment variable lists.
+
+The defense: `.github/actions/dump-cluster-state/action.yml` applies a `redact()`
+filter at **every** emit boundary — before any data reaches `$GITHUB_STEP_SUMMARY`,
+before any artifact is uploaded, before logs are written. The filter is
+**conservative**: it redacts *values* (preserving *keys* so dumps stay debuggable)
+by matching known patterns:
+
+- Labelled key/value pairs: any value for keys containing `password`, `passwd`,
+  `token`, `secret`, `api`, `key`, `bearer`, or `authorization`
+  (case-insensitive, with optional dashes/underscores).
+- Bare tokens: JWT-shaped values (`eyJ...`), PEM private-key blocks.
+
+An important limitation: **redaction is pattern-based and therefore best-effort.**
+A credential in an unrecognised shape — a long hex string, a custom token format,
+or a value buried in a JSON log without a recognisable key — may not be caught.
+No Kubernetes Secret object is ever collected into dumps (`for obj in deployments
+statefulsets daemonsets jobs configmaps`), so high-entropy database passwords and
+OIDC secrets bound to the pod via Secrets are outside the dump scope entirely.
+
+Operators should: treat CI artifacts as sensitive (not suitable for sharing with
+untrusted parties without review), verify no live credentials appear in failures,
+and rotate any that do immediately. This is not a substitute for not logging
+credentials in the first place.
+
+### Automated code review and trust model
+
+Optional feature: the repository uses the **CodeRabbit GitHub App** for automated
+code review (configured in `.coderabbit.yaml`). The app is structurally safer than
+a self-hosted API-key reviewer:
+
+- **No repository secret in untrusted job**: A self-hosted API-key reviewer would
+  require placing a repository secret (e.g., `ANTHROPIC_API_KEY`) inside a job
+  that checks out untrusted fork code. If the fork is malicious, it can
+  exfiltrate the secret from `$GITHUB_TOKEN`, env vars, or the runner's
+  filesystem. The CodeRabbit app is a GitHub App, not a personal API key — it
+  integrates via GitHub's OAuth flow and never places a repository secret
+  alongside untrusted code.
+- **PR content treated as data, not instructions**: Review is advisory (cannot
+  block a merge) and does not execute instructions from PR body, title, or branch
+  name. However, the app's configuration (`.coderabbit.yaml`) is read from the
+  PR's HEAD branch — meaning a pull request, including one from a fork, can modify
+  `path_instructions` and `labeling_instructions` and thereby change how the review
+  is conducted. This is a real limitation of the GitHub App model: the bot's advice
+  is weaker or differently-oriented on that PR than intended. It does **not** grant
+  the PR repository permission, exfiltrate a secret (no repo secret is in the
+  review path at all), or block or force a merge — the review remains advisory.
+  The mitigation is the same as for any PR that edits CI workflows: human review
+  should scrutinize changes to `.coderabbit.yaml`.
+- **No implicit privilege escalation**: The app cannot request scopes it was not
+  granted at install time, and it cannot modify its own permissions.
+
+The review is advisory — a human reviewer must still validate changes before merge
+— and the tool can be disabled at any time via GitHub's app management UI.
+
 ## mcp-server (optional)
 
 The optional MCP server (`mcpServer.enabled`, see [`mcp-server/README.md`](../mcp-server/README.md))

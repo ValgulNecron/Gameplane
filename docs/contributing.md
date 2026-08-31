@@ -25,6 +25,38 @@ Backend/operator/API changes do not need a Pencil pass.
 - **TypeScript**: strict mode on. ESLint + Prettier. No `any` without a justification comment.
 - **Comments**: default to writing none — let naming carry the weight. Add one only when the *why* is non-obvious (hidden invariant, workaround, or constraint a reader would ask about).
 
+## CI and workflows
+
+This repo pins every external GitHub Action to a full 40-hexadecimal commit SHA with a `# vX.Y.Z` trailing comment, enforced by the `zizmor` security scanner in the `workflow-lint` gate. If you're modifying a workflow or adding a new action:
+
+1. Resolve the action's commit SHA using:
+   ```sh
+   git ls-remote --tags --refs https://github.com/<owner>/<repo>
+   ```
+2. Pin it in the workflow file:
+   ```yaml
+   - uses: owner/action@<40-hex-SHA> # vX.Y.Z
+   ```
+3. Dependabot's `github-actions` entry keeps all pins current — do not bump them by hand.
+
+Before pushing changes to `.github/workflows/` or `.github/actions/`, run the workflow-lint checks locally (the one exception to the "don't run suites locally" rule, since they are static checks):
+
+```sh
+go install github.com/rhysd/actionlint/cmd/actionlint@latest
+actionlint .github/workflows/*.yml
+
+uv tool install zizmor
+zizmor .github/workflows/ .github/actions/
+```
+
+`actionlint` catches workflow schema errors and runs `shellcheck` against `run:` bodies. `zizmor` verifies SHA pinning, least-privilege permissions, dangerous triggers, and other security concerns.
+
+Every job in every workflow must have:
+- An explicit `permissions` block granting only what that job needs (top-level default is `contents: read`; anything more is granted only to the specific job that needs it)
+- An explicit `timeout-minutes` (default budget is ≤30 minutes; anything above it requires an inline justification comment)
+
+Documented exceptions with longer timeouts are the five e2e jobs (60 minutes each) and the image build in `publish-edge.yaml` (35 minutes).
+
 ## Testing
 
 Run the whole suite:
@@ -87,13 +119,18 @@ the same review, lint, and test gates below.
 ## Submitting a change
 
 1. Fork + feature branch
-2. Ensure `make lint && make test` pass
+2. **Do not run `make test` or `make lint` locally.** A quick compile check (`go build ./...` or `tsc --noEmit`) is fine to avoid pushing obviously-broken code, but the full test and lint suites run only on CI (GitHub Actions) — that is where they are gated and where failures surface. The exception is workflow changes: if you modify `.github/workflows/` or `.github/actions/`, run `actionlint` and `zizmor` locally before pushing (see CI and workflows section above).
 3. For UI work, include the Pencil node id(s) touched in the PR description
 4. Sign commits (`git commit -s`)
+5. **PR labels**: every PR must carry at least one `type:` and one `area:` label. CodeRabbit (see Code review below) applies them automatically, but you are responsible for verifying they are correct. The `type:` taxonomy is `feature` / `fix` / `refactor` / `test` / `ci` / `chore` / `docs` / `security`. The `area:` taxonomy is `operator` / `api` / `agent` / `web` / `modules` / `chart` / `e2e` / `specs` / `shared` / `optional-components`. A breaking CRD, API, or chart-value change also takes `breaking`. The `status:` labels (`blocked`, `needs-maintainer`, `in-progress`) are optional. A PR spanning several components takes several `area:` labels rather than being left unlabelled.
 
 Game-module changes (`modules/`) belong in the separate **`gameplane-module`**
 repo, which this repo vendors as a submodule. Open the module PR there; once it
 merges, bump the submodule pointer here (`git add modules`) in a follow-up PR.
+
+## Code review
+
+PRs receive an automated advisory review from the CodeRabbit GitHub App, configured by `.coderabbit.yaml`. CodeRabbit's rules encode the repo's style guide and house rules — wrapping errors with `%w`, no unjustified `any`, fix rather than silence linter warnings, etc. Its feedback does not block merges. If you think a rule is wrong, raise it with the maintainers rather than working around it — this keeps the rules canonical and consistent across the codebase.
 
 ## Release process
 

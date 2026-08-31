@@ -37,57 +37,100 @@ runs:
     - name: dump cluster state (resources and pods)
       shell: bash
       run: |
+        redact() {
+          sed \
+            -e 's/\([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]\|[Pp][Aa][Ss][Ss][Ww][Dd]\|[Tt][Oo][Kk][Ee][Nn]\|[Ss][Ee][Cc][Rr][Ee][Tt]\|[Aa][Pp][Ii][-_]\?[Kk][Ee][Yy]\|[Bb][Ee][Aa][Rr][Ee][Rr]\|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]\)\([[:space:]]*[=:][[:space:]]*\).*/\1\2***REDACTED***/g' \
+            -e 's/eyJ[A-Za-z0-9_-]\{10,\}\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/***REDACTED-JWT***/g' \
+            -e '/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/-----END [A-Z ]*PRIVATE KEY-----/c\***REDACTED-KEY***'
+        }
+
         ctx="${{ inputs.context }}"
 
         # Always dump top-level resources
-        kubectl --context "$ctx" get all -A || true
+        kubectl --context "$ctx" get all -A 2>&1 | redact || true
 
         # Describe pods in specified namespaces
         IFS=',' read -ra NS_ARRAY <<< "${{ inputs.namespaces }}"
         for ns in "${NS_ARRAY[@]}"; do
           ns=$(echo "$ns" | xargs)  # trim whitespace
-          kubectl --context "$ctx" describe pods -n "$ns" || true
+          kubectl --context "$ctx" describe pods -n "$ns" 2>&1 | redact || true
         done
 
     - name: dump operator logs
       if: inputs.include-operator-logs == 'true'
       shell: bash
       run: |
+        redact() {
+          sed \
+            -e 's/\([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]\|[Pp][Aa][Ss][Ss][Ww][Dd]\|[Tt][Oo][Kk][Ee][Nn]\|[Ss][Ee][Cc][Rr][Ee][Tt]\|[Aa][Pp][Ii][-_]\?[Kk][Ee][Yy]\|[Bb][Ee][Aa][Rr][Ee][Rr]\|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]\)\([[:space:]]*[=:][[:space:]]*\).*/\1\2***REDACTED***/g' \
+            -e 's/eyJ[A-Za-z0-9_-]\{10,\}\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/***REDACTED-JWT***/g' \
+            -e '/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/-----END [A-Z ]*PRIVATE KEY-----/c\***REDACTED-KEY***'
+        }
+
         ctx="${{ inputs.context }}"
-        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 2>&1 | redact || true
 
         if [ "${{ inputs.include-previous-logs }}" = "true" ]; then
-          kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
+          kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 2>&1 | redact || true
         fi
 
     - name: dump API logs
       if: inputs.include-api-logs == 'true'
       shell: bash
       run: |
+        redact() {
+          sed \
+            -e 's/\([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]\|[Pp][Aa][Ss][Ss][Ww][Dd]\|[Tt][Oo][Kk][Ee][Nn]\|[Ss][Ee][Cc][Rr][Ee][Tt]\|[Aa][Pp][Ii][-_]\?[Kk][Ee][Yy]\|[Bb][Ee][Aa][Rr][Ee][Rr]\|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]\)\([[:space:]]*[=:][[:space:]]*\).*/\1\2***REDACTED***/g' \
+            -e 's/eyJ[A-Za-z0-9_-]\{10,\}\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/***REDACTED-JWT***/g' \
+            -e '/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/-----END [A-Z ]*PRIVATE KEY-----/c\***REDACTED-KEY***'
+        }
+
         ctx="${{ inputs.context }}"
-        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 2>&1 | redact || true
 
     - name: dump helm history (optional)
       if: inputs.include-helm-history == 'true'
       shell: bash
       run: |
+        redact() {
+          sed \
+            -e 's/\([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]\|[Pp][Aa][Ss][Ss][Ww][Dd]\|[Tt][Oo][Kk][Ee][Nn]\|[Ss][Ee][Cc][Rr][Ee][Tt]\|[Aa][Pp][Ii][-_]\?[Kk][Ee][Yy]\|[Bb][Ee][Aa][Rr][Ee][Rr]\|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]\)\([[:space:]]*[=:][[:space:]]*\).*/\1\2***REDACTED***/g' \
+            -e 's/eyJ[A-Za-z0-9_-]\{10,\}\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/***REDACTED-JWT***/g' \
+            -e '/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/-----END [A-Z ]*PRIVATE KEY-----/c\***REDACTED-KEY***'
+        }
+
         ctx="${{ inputs.context }}"
-        helm --kube-context "$ctx" history gameplane -n gameplane-system || true
+        helm --kube-context "$ctx" history gameplane -n gameplane-system 2>&1 | redact || true
 
     - name: dump jobs (optional)
       if: inputs.include-get-jobs == 'true'
       shell: bash
       run: |
+        redact() {
+          sed \
+            -e 's/\([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]\|[Pp][Aa][Ss][Ss][Ww][Dd]\|[Tt][Oo][Kk][Ee][Nn]\|[Ss][Ee][Cc][Rr][Ee][Tt]\|[Aa][Pp][Ii][-_]\?[Kk][Ee][Yy]\|[Bb][Ee][Aa][Rr][Ee][Rr]\|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]\)\([[:space:]]*[=:][[:space:]]*\).*/\1\2***REDACTED***/g' \
+            -e 's/eyJ[A-Za-z0-9_-]\{10,\}\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/***REDACTED-JWT***/g' \
+            -e '/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/-----END [A-Z ]*PRIVATE KEY-----/c\***REDACTED-KEY***'
+        }
+
         ctx="${{ inputs.context }}"
-        kubectl --context "$ctx" get jobs -n gameplane-system || true
+        kubectl --context "$ctx" get jobs -n gameplane-system 2>&1 | redact || true
 
     - name: dump game pod container logs and statuses
       shell: bash
       run: |
         set +e
+
+        redact() {
+          sed \
+            -e 's/\([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]\|[Pp][Aa][Ss][Ss][Ww][Dd]\|[Tt][Oo][Kk][Ee][Nn]\|[Ss][Ee][Cc][Rr][Ee][Tt]\|[Aa][Pp][Ii][-_]\?[Kk][Ee][Yy]\|[Bb][Ee][Aa][Rr][Ee][Rr]\|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]\)\([[:space:]]*[=:][[:space:]]*\).*/\1\2***REDACTED***/g' \
+            -e 's/eyJ[A-Za-z0-9_-]\{10,\}\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/***REDACTED-JWT***/g' \
+            -e '/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/-----END [A-Z ]*PRIVATE KEY-----/c\***REDACTED-KEY***'
+        }
+
         ctx="${{ inputs.context }}"
 
-        echo "=== Game pod container logs and statuses ==="
+        echo "=== Game pod container logs and statuses ===" | redact
 
         # Parse namespaces; fall back to gameplane-games if none specified.
         namespaces="${{ inputs.namespaces }}"
@@ -138,13 +181,13 @@ runs:
                 echo "Container: $container"
 
                 echo "--- Current logs (last 100 lines) ---"
-                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --tail=100 2>&1
+                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --tail=100 2>&1 | redact
 
                 echo "--- Previous logs (if restarted, last 100 lines) ---"
-                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --previous --tail=100 2>&1
+                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --previous --tail=100 2>&1 | redact
 
                 echo "--- Container status ---"
-                kubectl --context "$ctx" get pod "$pod" -n "$ns" -o jsonpath="{range .status.containerStatuses[?(@.name==\"$container\")]}{.name}{'\t'}{.ready}{'\t'}{.restartCount}{'\t'}{.state}{'\t'}{.lastState}{'\n'}{end}" 2>&1
+                kubectl --context "$ctx" get pod "$pod" -n "$ns" -o jsonpath="{range .status.containerStatuses[?(@.name==\"$container\")]}{.name}{'\t'}{.ready}{'\t'}{.restartCount}{'\t'}{.state}{'\t'}{.lastState}{'\n'}{end}" 2>&1 | redact
               done
             fi
 
@@ -160,13 +203,13 @@ runs:
                 echo "Ephemeral Container: $container"
 
                 echo "--- Current logs (last 100 lines) ---"
-                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --tail=100 2>&1
+                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --tail=100 2>&1 | redact
 
                 echo "--- Previous logs (if restarted, last 100 lines) ---"
-                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --previous --tail=100 2>&1
+                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --previous --tail=100 2>&1 | redact
 
                 echo "--- Ephemeral container status ---"
-                kubectl --context "$ctx" get pod "$pod" -n "$ns" -o jsonpath="{range .status.ephemeralContainerStatuses[?(@.name==\"$container\")]}{.name}{'\t'}{.ready}{'\t'}{.restartCount}{'\t'}{.state}{'\t'}{.lastState}{'\n'}{end}" 2>&1
+                kubectl --context "$ctx" get pod "$pod" -n "$ns" -o jsonpath="{range .status.ephemeralContainerStatuses[?(@.name==\"$container\")]}{.name}{'\t'}{.ready}{'\t'}{.restartCount}{'\t'}{.state}{'\t'}{.lastState}{'\n'}{end}" 2>&1 | redact
               done
             fi
           done

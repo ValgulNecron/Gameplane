@@ -137,10 +137,10 @@ Contributors and maintainers benefit from automated AI-assisted code review and 
 - **FR-021**: Dependabot configuration MUST define update schedules (e.g., weekly on Mondays), commit message prefixes (`chore(deps): `), open pull request limits, and dependency groups to batch minor and patch version bumps together.
 
 #### GitHub AI Review Action Hardening & Integration
-- **FR-022**: An AI review workflow MUST be defined to evaluate incoming pull requests against repository standards, Constitution rules, and specification requirements.
-- **FR-023**: The AI review action MUST execute in a secure security posture: using read-only permissions on fork pull requests, preventing execution of arbitrary untrusted workflows, and withholding production signing or deployment secrets.
-- **FR-024**: The AI review action MUST maintain an idempotent sticky comment on the pull request, updating the evaluation summary when new commits are pushed.
-- **FR-025**: The AI action MUST sanitize PR metadata and diffs prior to prompt evaluation, ensuring prompt injection payloads within user code diffs cannot hijack or alter the AI reviewer's instructions.
+- **FR-022**: Every pull request MUST be evaluated against repository standards, Constitution principles, per-module specification requirements, and documented coding rules via AI review. Findings MUST be posted as advisory feedback that cannot block PR merges.
+- **FR-023**: AI review MUST be structurally incapable of accessing repository write tokens, elevated permissions, or signing secrets (e.g., `COSIGN_PRIVATE_KEY`) when evaluating external fork PRs. No mechanism may allow untrusted code to escalate to privileged operations.
+- **FR-024**: AI review findings MUST be presented via a single, updating presence on the PR that reflects the latest commit, not duplicated or spammed across multiple comments.
+- **FR-025**: AI review MUST treat PR content (diffs, commit messages, file metadata) as untrusted data, not as instructions. Prompt injection attempts embedded in code diffs MUST not alter the evaluation criteria or bypass system boundaries.
 
 ---
 
@@ -163,7 +163,7 @@ Contributors and maintainers benefit from automated AI-assisted code review and 
 - **SC-003**: Dependabot monitors all 14 Go submodules, frontend npm packages, all Dockerfile locations, and GitHub Actions without omitting any repository component.
 - **SC-004**: CI static and E2E feedback is delivered reliably, with zero unbudgeted job hangs (no job running indefinitely beyond its configured timeout).
 - **SC-005**: 100% of E2E failure runs produce comprehensive, sanitized diagnostic summaries without leaking credentials or secrets.
-- **SC-006**: AI review workflows run safely on both internal branches and external fork PRs without permission errors or secret exposure.
+- **SC-006**: AI review runs safely on both internal branches and external fork PRs with zero permission escalation, secret exposure, or credential leakage to untrusted job contexts.
 
 ---
 
@@ -171,6 +171,6 @@ Contributors and maintainers benefit from automated AI-assisted code review and 
 
 - Standard GitHub-hosted runners (`ubuntu-latest` and `ubuntu-24.04-arm`) are used for CI jobs, with public repository allowances for ARM runners.
 - Go version 1.25/1.26 and Node.js 24 remain the target toolchains for backend and frontend workflows respectively.
-- For AI actions, a secure API key or GitHub token is provided via repository secrets (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or standard GitHub App token), with fork PR execution handled safely (e.g. read-only analysis without leaking keys or using GitHub Actions OIDC / workflow_run where needed).
+- AI review is provided by a GitHub App (CodeRabbit, free for public repositories) chosen by the maintainer on 2026-08-30. Evaluation rules and configuration live in `.coderabbit.yaml`, versioned and reviewable with every commit. No API keys or privileged credentials are stored in repository secrets for AI review operations. See OPEN-DECISIONS.md for the full rationale behind this choice.
 - Dependabot grouped updates reduce pull request volume while keeping dependencies current.
 - Production signing secrets (`COSIGN_PRIVATE_KEY`) remain strictly restricted to master branch and release tag workflows (`publish-edge.yaml`, `release.yaml`, `images.yaml`, `republish-modules.yaml`) and are never exposed to test or review workflows.
