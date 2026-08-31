@@ -40,9 +40,9 @@ jobs:
       steamcmd-digest: ${{ steps.build.outputs.digest }}
       steamcmd-tags: ${{ steps.meta.outputs.tags }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       # Login only when pushing to registry; skip on PRs to avoid unnecessary token operations.
       # Fork PRs have read-only GITHUB_TOKEN anyway, so login would fail confusingly.
       - if: github.event_name != 'pull_request'
@@ -59,7 +59,7 @@ jobs:
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
       - id: build
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: images/common/${{ matrix.base }}
           # Common base images support both architectures (Ubuntu 26.04 LTS-based).
@@ -155,9 +155,9 @@ jobs:
           - game: nuclear-option
             context: images/games/nuclear-option
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       # Login only when pushing to registry; skip on PRs to avoid unnecessary token operations.
       # Fork PRs have read-only GITHUB_TOKEN anyway, so login would fail confusingly.
       - if: github.event_name != 'pull_request'
@@ -177,7 +177,7 @@ jobs:
       # Build amd64 only (game binary is x86_64-only; loading multi-platform is not supported).
       - if: github.event_name == 'pull_request'
         id: build-base-pr
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: images/common/steamcmd
           platforms: linux/amd64
@@ -222,7 +222,7 @@ jobs:
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
       - id: build
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ${{ matrix.context }}
           # Game server binaries are x86_64 only (e.g., Unity runtime for Nuclear Option).
