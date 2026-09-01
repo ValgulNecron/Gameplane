@@ -1,8 +1,8 @@
 # Tasks: Complete Module Specifications & Compliance Verification
 
-**Input**: Feature spec from `/specs/011-add-missing-module-specs/`
+**Input**: Feature spec from `/specs/done_011-add-missing-module-specs/`
 
-**Prerequisites**: All artifacts in `/specs/011-add-missing-module-specs/` (spec.md, plan.md, research.md, data-model.md, contracts/, OPEN-DECISIONS.md, quickstart.md)
+**Prerequisites**: All artifacts in `/specs/done_011-add-missing-module-specs/` (spec.md, plan.md, research.md, data-model.md, contracts/, OPEN-DECISIONS.md, quickstart.md)
 
 **Tests**: No unit/E2E tests requested. Verification: CI runs the positive check (all modules have non-empty specs.md) on every lint run; the negative path (missing/empty specs.md → non-zero exit) is verified locally per D6 and quickstart.md Scenarios 3-4.
 
@@ -78,7 +78,7 @@
 
 - [X] T008 [P] [US3] Update `docs/module-authoring.md` to add game module specification guideline: add subsection (e.g., "Module Documentation" or "Specifications") stating that each `modules/<game>/` directory should include `specs.md` documenting purpose, protocol/RCON details, configuration, game-specific notes; reference canonical structure in `contracts/specs-md-structure.md`; note that enforcement is in `gameplane-module` repo's own CI per D2; satisfy D2 ruling (guideline only, not CI-enforced in Gameplane repo)
 
-- [X] T009 [P] [US3] Update `CLAUDE.md` § Lint section (around line 456 in ### Lint & coverage section) to add single-line mention of `make check-specs` integration: add text like "The `make check-specs` target validates that all workspace modules have non-empty specs.md per Constitution Principle IV. See `hack/check-specs.sh` and `specs/011-add-missing-module-specs/contracts/check-specs.md` for details." per plan.md Lint section requirement
+- [X] T009 [P] [US3] Update `CLAUDE.md` § Lint section (around line 456 in ### Lint & coverage section) to add single-line mention of `make check-specs` integration: add text like "The `make check-specs` target validates that all workspace modules have non-empty specs.md per Constitution Principle IV. See `hack/check-specs.sh` and `specs/done_011-add-missing-module-specs/contracts/check-specs.md` for details." per plan.md Lint section requirement
 
 **Checkpoint**: Automated compliance check fully implemented and integrated into CI; US3 ready for commit per rule 11
 
@@ -211,7 +211,7 @@ US1 alone (writing `svcutil` and `tunnel` specs) satisfies Constitution Principl
 
 - **CI enforcement**: Per rule 8 and Principle VI, CI runs the positive check (all modules have non-empty specs.md) on every lint run; work is verified by pushing to branch and watching CI run **green** (not by local test/lint runs). The negative path (missing/empty specs.md) is verified locally per D6 and quickstart.md Scenarios 3-4. Local `make check-specs` is permitted as a pre-flight compile-check exception per D6 and CLAUDE.md rule 8.
 
-- **After merge**: Once the PR is approved and merged into `master`, per CLAUDE.md rule 12, delete the branch both remotely (`git push origin --delete 011-add-missing-module-specs`) and locally (`git branch -d 011-add-missing-module-specs`). Per rule 16, the spec folder will be renamed from `specs/011-add-missing-module-specs/` to `specs/done_011-add-missing-module-specs/` in a separate commit after merge, updating all cross-references per rule 16's rename requirement. The done_ rename is **not** a task in this file (happens after merge per rule 16).
+- **After merge**: Once the PR is approved and merged into `master`, per CLAUDE.md rule 12, delete the branch both remotely (`git push origin --delete 011-add-missing-module-specs`) and locally (`git branch -d 011-add-missing-module-specs`). Per rule 16, the spec folder will be renamed from `specs/done_011-add-missing-module-specs/` to `specs/done_011-add-missing-module-specs/` in a separate commit after merge, updating all cross-references per rule 16's rename requirement. The done_ rename is **not** a task in this file (happens after merge per rule 16).
 
 - **PR labels** (per CLAUDE.md rule 14, to be added when opening the PR):
   - `type: docs` (svcutil/specs.md, tunnel/specs.md, docs/module-authoring.md, CLAUDE.md updates)
