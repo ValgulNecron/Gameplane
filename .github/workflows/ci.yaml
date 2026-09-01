@@ -341,6 +341,10 @@ jobs:
       - name: verify lint gate configuration
         if: matrix.module == 'netguard'
         run: ./test/e2e/lint-gate-verify.sh verify
+      # Repository-wide check; gated to one matrix entry so it runs once per lint run (ruling D5).
+      - name: check specs compliance
+        if: matrix.module == 'netguard'
+        run: make check-specs
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: lint-${{ matrix.module }}
