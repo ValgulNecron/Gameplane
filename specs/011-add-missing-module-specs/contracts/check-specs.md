@@ -57,7 +57,7 @@ When one or more modules lack a `specs.md` file or have an empty/whitespace-only
 1. One diagnostic line per offending module, naming the expected path and the specific problem:
    ```
    ✗ svcutil/specs.md: missing
-   ✗ tunnel/specs.md: missing (0 bytes)
+   ✗ tunnel/specs.md: empty (0 bytes)
    ✗ web/specs.md: empty (whitespace only)
    ```
 
@@ -88,7 +88,7 @@ All diagnostic output goes to stdout (not stderr) so it can be captured and revi
 If `go.work` is absent or cannot be parsed:
 
 1. The script outputs an error message to stdout:
-   ```
+   ```text
    ✗ Error: go.work not found or unreadable
    ```
 

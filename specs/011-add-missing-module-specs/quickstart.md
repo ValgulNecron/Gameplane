@@ -20,7 +20,7 @@ This guide walks through validating that the specification check (feature 011) i
 2. Confirm each contains sections: Purpose, Responsibilities, Non-goals/boundaries, Directory layout, External interface/Configuration, Key invariants, Dependencies, Security considerations, Testing & coverage, References
 3. Compare section ordering and formatting against `contracts/specs-md-structure.md`
 
-**Expected outcome**: Both files follow the established pattern (see research findings in `RESEARCH.md`); no structural deviations.
+**Expected outcome**: Both files follow the established pattern (see research findings in `research.md`); no structural deviations.
 
 ## Scenario 2: `make check-specs` Passes
 
@@ -32,11 +32,13 @@ This guide walks through validating that the specification check (feature 011) i
 make check-specs
 ```
 
-**Expected output**: A summary listing all 15 checked modules:
-- Go modules from `go.work`: netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, capture-sidecar, mcp-server, svcutil, tunnel, test/e2e
-- Plus web/
+**Expected output**: One aggregate success line:
 
-All modules confirm "✓" with non-empty `specs.md` files. Exit code 0.
+```
+✓ Checked 15 modules: all have non-empty specs.md
+```
+
+Exit code 0.
 
 See `contracts/check-specs.md` for full output contract.
 
@@ -44,22 +46,29 @@ See `contracts/check-specs.md` for full output contract.
 
 **Validation**: The check detects a missing `specs.md` and exits non-zero.
 
-**Commands** (do this in a temporary subdirectory to avoid polluting the branch):
+**Commands**:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
+
 # Temporarily move svcutil/specs.md
-cd /home/valgul/project/Gameplane
-git mv svcutil/specs.md /tmp/svcutil-specs-backup.md
+mv svcutil/specs.md svcutil/specs.md.bak
 
 # Run the check (expect it to fail)
 make check-specs
-# Expected exit code: 1, error message names svcutil/specs.md
+# Expected exit code: 1
 
 # Restore immediately
-git mv /tmp/svcutil-specs-backup.md svcutil/specs.md
+mv svcutil/specs.md.bak svcutil/specs.md
 ```
 
-**Expected outcome**: Check fails with a clear error like "svcutil: missing or empty specs.md" and exits 1. After restoring, `make check-specs` passes again.
+**Expected outcome**: Check fails with:
+```
+✗ svcutil/specs.md: missing
+✗ 1 module has missing or empty specs.md
+```
+
+Exit code 1. After restoring, `make check-specs` passes again.
 
 ## Scenario 4: Negative Test — Empty specs.md
 
@@ -68,23 +77,29 @@ git mv /tmp/svcutil-specs-backup.md svcutil/specs.md
 **Commands**:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
+
 # Save the current specs.md
-cp /home/valgul/project/Gameplane/tunnel/specs.md /tmp/tunnel-specs-backup.md
+cp tunnel/specs.md tunnel/specs.md.bak
 
 # Overwrite with empty file
-> /home/valgul/project/Gameplane/tunnel/specs.md
+> tunnel/specs.md
 
 # Run the check (expect it to fail)
-cd /home/valgul/project/Gameplane
 make check-specs
-# Expected exit code: 1, error message names tunnel/specs.md
+# Expected exit code: 1
 
 # Restore
-cp /tmp/tunnel-specs-backup.md /home/valgul/project/Gameplane/tunnel/specs.md
-rm /tmp/tunnel-specs-backup.md
+cp tunnel/specs.md.bak tunnel/specs.md
 ```
 
-**Expected outcome**: Check fails with "tunnel: missing or empty specs.md" and exits 1. After restoring, the check passes.
+**Expected outcome**: Check fails with:
+```
+✗ tunnel/specs.md: empty (0 bytes)
+✗ 1 module has missing or empty specs.md
+```
+
+Exit code 1. After restoring, the check passes.
 
 ## Scenario 5: CI Verification
 

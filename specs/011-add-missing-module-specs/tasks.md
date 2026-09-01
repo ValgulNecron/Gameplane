@@ -4,7 +4,7 @@
 
 **Prerequisites**: All artifacts in `/specs/011-add-missing-module-specs/` (spec.md, plan.md, research.md, data-model.md, contracts/, OPEN-DECISIONS.md, quickstart.md)
 
-**Tests**: No unit/E2E tests requested. Verification: negative test in CI (simulated missing specs.md exits 1); script correctness validated in CI lint job step per D6 and quickstart.md Scenario 5.
+**Tests**: No unit/E2E tests requested. Verification: CI runs the positive check (all modules have non-empty specs.md) on every lint run; the negative path (missing/empty specs.md → non-zero exit) is verified locally per D6 and quickstart.md Scenarios 3-4.
 
 **Organization**: Tasks grouped by user story (US1, US2, US3), with parallel opportunities marked [P]. Polish phase covers commits and CI verification per CLAUDE.md rules 8, 11.
 
@@ -205,11 +205,11 @@ US1 alone (writing `svcutil` and `tunnel` specs) satisfies Constitution Principl
 
 - **Per-task detail**: Every task specifies exact file path(s), section lists from `contracts/specs-md-structure.md`, FR(s) it satisfies (FR-001–FR-007), and maintainer ruling(s) it obeys (D1–D6).
 
-- **No E2E tests**: Per Principle I exception documented in plan.md Complexity Tracking, this feature (documentation + repository-hygiene tooling, no runtime path) has no E2E test. Verification is the automated check's own negative test (simulated missing/empty specs.md → non-zero exit) in CI, exercised in the lint job per D6.
+- **No E2E tests**: Per Principle I exception documented in plan.md Complexity Tracking, this feature (documentation + repository-hygiene tooling, no runtime path) has no E2E test. Verification: CI runs the positive check on every lint run; the negative path (missing/empty/whitespace-only specs.md → non-zero exit) is verified locally per D6 and quickstart.md Scenarios 3-4, and is not simulated in CI.
 
 - **Commit strategy**: Per rule 11, commit after each logical unit (specs authorship as one unit, audit as one, US3 implementation in separate logical units by concern). Signed commits, conventional-commit prefixes (docs:, feat:, ci:), `Co-Authored-By` with actual running model, `Claude-Session` URL. Never amend; create new commits for fixes.
 
-- **CI enforcement**: Per rule 8 and Principle VI, work is verified by pushing to branch and watching CI run **green** (not by local test/lint runs). Local `make check-specs` is permitted as a pre-flight compile-check exception per D6 and CLAUDE.md rule 8.
+- **CI enforcement**: Per rule 8 and Principle VI, CI runs the positive check (all modules have non-empty specs.md) on every lint run; work is verified by pushing to branch and watching CI run **green** (not by local test/lint runs). The negative path (missing/empty specs.md) is verified locally per D6 and quickstart.md Scenarios 3-4. Local `make check-specs` is permitted as a pre-flight compile-check exception per D6 and CLAUDE.md rule 8.
 
 - **After merge**: Once the PR is approved and merged into `master`, per CLAUDE.md rule 12, delete the branch both remotely (`git push origin --delete 011-add-missing-module-specs`) and locally (`git branch -d 011-add-missing-module-specs`). Per rule 16, the spec folder will be renamed from `specs/011-add-missing-module-specs/` to `specs/done_011-add-missing-module-specs/` in a separate commit after merge, updating all cross-references per rule 16's rename requirement. The done_ rename is **not** a task in this file (happens after merge per rule 16).
 

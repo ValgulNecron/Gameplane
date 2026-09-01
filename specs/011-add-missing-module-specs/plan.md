@@ -16,7 +16,7 @@ Complete the specification framework for all Gameplane modules by authoring the 
 
 **Storage**: N/A (documentation and scripts only)
 
-**Testing**: Negative test within CI lint job — simulating missing/empty `specs.md` → check exits non-zero. Exercised in `.github/workflows/ci.yaml` lint job via a new step added to the existing per-module matrix (e.g., gated to `matrix.module == 'netguard'`) that invokes `make check-specs`.
+**Testing**: CI runs the positive check (all modules have non-empty specs.md) on every lint run via a step in `.github/workflows/ci.yaml` (gated to `matrix.module == 'netguard'`) that invokes `make check-specs`. The negative path (missing/empty/whitespace-only specs.md → check exits non-zero) is verified locally per D6 and quickstart.md Scenarios 3-4, and is not simulated in CI.
 
 **Target Platform**: Linux CI runners + developer machines (any POSIX sh/bash environment)
 
@@ -34,7 +34,7 @@ Complete the specification framework for all Gameplane modules by authoring the 
 
 | Principle | Status | Justification |
 |-----------|--------|---------------|
-| **I. E2E-Tested Delivery** | PASS-WITH-JUSTIFICATION | This feature adds documentation and a repo-hygiene script with no user-facing runtime path (operator/user experience unchanged). Principle I's core mandate—verifiable end-to-end coverage—cannot literally apply. Verification: the check's own negative test (simulated missing/empty `specs.md` → non-zero exit, simulated complete coverage → exit 0) is exercised in CI via the lint job, providing reproducible validation. |
+| **I. E2E-Tested Delivery** | PASS-WITH-JUSTIFICATION | This feature adds documentation and a repo-hygiene script with no user-facing runtime path (operator/user experience unchanged). Principle I's core mandate—verifiable end-to-end coverage—cannot literally apply. Verification: the check's positive path (all modules have non-empty specs.md, exit 0) is exercised in CI via the lint job on every run; the negative path (missing/empty specs.md → non-zero exit) is verified locally per D6 and quickstart.md Scenarios 3-4. |
 | **II. Design-First for User-Facing Change** | N/A | No UI/dashboard changes; documentation only. |
 | **III. Language & Ecosystem Best Practice** | PASS | Shell script follows POSIX sh/bash idioms; Markdown specs follow existing formatting conventions established across `sentinel/specs.md`, `capture-sidecar/specs.md`, `api/specs.md`, and others. POSIX/bash correctness is verified by the tier+1 (sonnet) review pass and by CI actually executing the script (a syntax error would surface as the job failing), not by any dedicated bash linter. |
 | **IV. Spec-Driven Development** | PASS | This feature IS the remediation of Principle IV's per-module `specs.md` requirement. Completing missing specs for `svcutil` and `tunnel` directly fulfills the mandate; the compliance check enforces it going forward. |
@@ -101,7 +101,7 @@ The `docs/module-authoring.md` update codifies the guideline (not enforcement) f
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| Principle I exception: no E2E test | Feature adds docs + tooling with no runtime path; user/operator behavior unchanged. Verification must be the check's own negative test (simulated missing/empty specs.md files), exercised in CI lint job. | Cannot invent an artificial E2E test on a feature with no user-facing deliverable; would violate Principle I's spirit (testing real paths, not test infrastructure). The negative test in CI provides genuine reproducibility. |
+| Principle I exception: no E2E test | Feature adds docs + tooling with no runtime path; user/operator behavior unchanged. Verification: CI runs the positive check on every lint run; the negative path (missing/empty specs.md) is verified locally per D6 and quickstart.md Scenarios 3-4, and is not simulated in CI. | Cannot invent an artificial E2E test on a feature with no user-facing deliverable; would violate Principle I's spirit (testing real paths, not test infrastructure). The positive check in CI + local verification of negative paths provides genuine reproducibility. |
 
 ## Phase Summary
 

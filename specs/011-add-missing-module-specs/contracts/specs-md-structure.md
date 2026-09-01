@@ -86,7 +86,7 @@ Every `specs.md` MUST contain these sections in this order. Each section title u
 **Requirement**: Description of the module's internal file structure and package organization.
 
 **Example**:
-```
+```text
 netguard/
 ├── netguard.go           # Main dial-guard implementation
 ├── policies.go           # Policy decision logic
@@ -259,11 +259,11 @@ All `specs.md` files MUST observe these formatting conventions:
   ```
 
 - **Code fences with language tags**: Use triple backticks with a language identifier
-  ```markdown
+  ````markdown
   ```json
   { "example": "value" }
   ```
-  ```
+  ````
 
 - **Bold + code for symbols**: Refer to function names, environment variables, and constants as `**\`functionName()\`**` or `**\`ENV_VAR\`**`
 
