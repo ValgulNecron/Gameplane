@@ -226,8 +226,12 @@ test-web-e2e-live: ## Playwright tests against the live e2e cluster (requires e2
 	cd web && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:live
 
 # -------- lint --------
+.PHONY: check-specs
+check-specs: ## Verify all modules have valid, non-empty specs.md
+	hack/check-specs.sh
+
 .PHONY: lint
-lint: lint-go lint-web ## Run all linters
+lint: check-specs lint-go lint-web ## Run all linters
 
 .PHONY: lint-go
 lint-go: ## Run golangci-lint across all modules
