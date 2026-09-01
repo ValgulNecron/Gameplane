@@ -46,10 +46,28 @@ run_test() {
 		return 1
 	fi
 
-	# Run the verifier against the fixture
+	# CodeQL default setup auto-detects any go.work as a Go workspace and cannot
+	# be given a paths-ignore. Fixtures are stored as go.work.fixture and staged
+	# in a temp dir at test time, renamed to go.work for verifier execution.
+	local tmp
+	tmp=$(mktemp -d) || {
+		echo -e "${RED}✗${NC} $fixture ($rule): Failed to create temp dir"
+		TESTS_FAILED=$((TESTS_FAILED + 1))
+		return 1
+	}
+	trap "rm -rf '$tmp'" RETURN
+
+	cp -R "$fixture_path"/. "$tmp"/ || {
+		echo -e "${RED}✗${NC} $fixture ($rule): Failed to copy fixture"
+		TESTS_FAILED=$((TESTS_FAILED + 1))
+		return 1
+	}
+	[ -f "$tmp/go.work.fixture" ] && mv "$tmp/go.work.fixture" "$tmp/go.work"
+
+	# Run the verifier against the staged fixture
 	local output
 	local exit_code=0
-	output=$("$VERIFIER" verify --root "$fixture_path" 2>&1) || exit_code=$?
+	output=$("$VERIFIER" verify --root "$tmp" 2>&1) || exit_code=$?
 
 	# Check exit code is 1
 	if [ "$exit_code" -ne 1 ]; then
@@ -90,10 +108,28 @@ run_pass_test() {
 		return 1
 	fi
 
-	# Run the verifier against the fixture
+	# CodeQL default setup auto-detects any go.work as a Go workspace and cannot
+	# be given a paths-ignore. Fixtures are stored as go.work.fixture and staged
+	# in a temp dir at test time, renamed to go.work for verifier execution.
+	local tmp
+	tmp=$(mktemp -d) || {
+		echo -e "${RED}✗${NC} $fixture ($description): Failed to create temp dir"
+		TESTS_FAILED=$((TESTS_FAILED + 1))
+		return 1
+	}
+	trap "rm -rf '$tmp'" RETURN
+
+	cp -R "$fixture_path"/. "$tmp"/ || {
+		echo -e "${RED}✗${NC} $fixture ($description): Failed to copy fixture"
+		TESTS_FAILED=$((TESTS_FAILED + 1))
+		return 1
+	}
+	[ -f "$tmp/go.work.fixture" ] && mv "$tmp/go.work.fixture" "$tmp/go.work"
+
+	# Run the verifier against the staged fixture
 	local output
 	local exit_code=0
-	output=$("$VERIFIER" verify --root "$fixture_path" 2>&1) || exit_code=$?
+	output=$("$VERIFIER" verify --root "$tmp" 2>&1) || exit_code=$?
 
 	# Check exit code is 0
 	if [ "$exit_code" -ne 0 ]; then
