@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 # gameaction is an in-repo module tunnel depends on via a local replace
@@ -21,7 +21,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /out/tunnel .
 
 # Build stage to download and verify playit binary
-FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS playit-stage
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS playit-stage
 ARG PLAYIT_VERSION=1.0.10
 ARG TARGETARCH
 ARG PLAYIT_SHA256_amd64=2df7d9f10227ab312b1ad341853db4e8a8243df5cfcdbae58713a4271711c339
