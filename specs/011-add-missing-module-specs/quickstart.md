@@ -34,7 +34,7 @@ make check-specs
 
 **Expected output**: One aggregate success line:
 
-```
+```text
 ✓ Checked 15 modules: all have non-empty specs.md
 ```
 
@@ -63,7 +63,7 @@ mv svcutil/specs.md.bak svcutil/specs.md
 ```
 
 **Expected outcome**: Check fails with:
-```
+```text
 ✗ svcutil/specs.md: missing
 ✗ 1 module has missing or empty specs.md
 ```
@@ -103,13 +103,13 @@ cp tunnel/specs.md.bak tunnel/specs.md
 **Expected outcome**: 
 
 For Test 1 (zero-byte), check fails with:
-```
+```text
 ✗ tunnel/specs.md: empty (0 bytes)
 ✗ 1 module has missing or empty specs.md
 ```
 
 For Test 2 (whitespace-only), check fails with:
-```
+```text
 ✗ tunnel/specs.md: empty (whitespace only)
 ✗ 1 module has missing or empty specs.md
 ```

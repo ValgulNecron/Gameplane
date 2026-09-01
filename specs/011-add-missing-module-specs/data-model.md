@@ -102,8 +102,7 @@ The check assigns one of three internal statuses to each module in the Workspace
 | Exit Code | Condition | Interpretation |
 |-----------|-----------|-----------------|
 | **0** | All modules in the registry report `present` | Compliance verified; all modules have valid specs.md files |
-| **1** | At least one module reports `missing` or `empty` | Non-compliance detected; at least one module lacks a valid specs.md |
-| **2** (optional) | Script execution error (e.g., unable to read go.work, I/O failure) | Environmental issue; retry or investigate |
+| **1** | At least one module reports missing or empty, OR go.work is absent/unreadable/yields no use paths | Non-compliance detected; at least one module lacks a valid specs.md |
 
 ### Output Format
 

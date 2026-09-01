@@ -42,7 +42,7 @@ No environment variables are required or consumed by the check. The repository s
 
 When all checked modules have a valid, non-empty `specs.md`, the script outputs a single summary line to stdout:
 
-```
+```text
 ✓ Checked 15 modules: all have non-empty specs.md
 ```
 
@@ -55,20 +55,20 @@ The count includes the 14 Go modules listed in `go.work` (agent, api, audit-sysl
 When one or more modules lack a `specs.md` file or have an empty/whitespace-only file, the script outputs:
 
 1. One diagnostic line per offending module, naming the expected path and the specific problem:
-   ```
+   ```text
    ✗ svcutil/specs.md: missing
    ✗ tunnel/specs.md: empty (0 bytes)
    ✗ web/specs.md: empty (whitespace only)
    ```
 
 2. A summary line indicating total failures:
-   ```
+   ```text
    ✗ 3 modules have missing or empty specs.md
    ```
 
 The format for each offending module is:
 
-```
+```text
 ✗ <path>: <reason>
 ```
 
