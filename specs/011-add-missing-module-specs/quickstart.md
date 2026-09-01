@@ -70,9 +70,9 @@ mv svcutil/specs.md.bak svcutil/specs.md
 
 Exit code 1. After restoring, `make check-specs` passes again.
 
-## Scenario 4: Negative Test — Empty specs.md
+## Scenario 4: Negative Test — Empty and Whitespace-Only specs.md
 
-**Validation**: The check detects a whitespace-only or empty `specs.md` and exits non-zero.
+**Validation**: The check detects both zero-byte and whitespace-only `specs.md` files and exits non-zero.
 
 **Commands**:
 
@@ -82,10 +82,17 @@ cd "$(git rev-parse --show-toplevel)"
 # Save the current specs.md
 cp tunnel/specs.md tunnel/specs.md.bak
 
-# Overwrite with empty file
+# Test 1: Zero-byte file
 > tunnel/specs.md
 
 # Run the check (expect it to fail)
+make check-specs
+# Expected exit code: 1
+
+# Test 2: Whitespace-only file
+printf ' \n\t\n' > tunnel/specs.md
+
+# Run the check again (expect it to fail)
 make check-specs
 # Expected exit code: 1
 
@@ -93,13 +100,21 @@ make check-specs
 cp tunnel/specs.md.bak tunnel/specs.md
 ```
 
-**Expected outcome**: Check fails with:
+**Expected outcome**: 
+
+For Test 1 (zero-byte), check fails with:
 ```
 ✗ tunnel/specs.md: empty (0 bytes)
 ✗ 1 module has missing or empty specs.md
 ```
 
-Exit code 1. After restoring, the check passes.
+For Test 2 (whitespace-only), check fails with:
+```
+✗ tunnel/specs.md: empty (whitespace only)
+✗ 1 module has missing or empty specs.md
+```
+
+Exit code 1 in both cases. After restoring, `make check-specs` passes.
 
 ## Scenario 5: CI Verification
 

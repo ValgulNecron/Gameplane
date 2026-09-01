@@ -85,14 +85,15 @@ All diagnostic output goes to stdout (not stderr) so it can be captured and revi
 
 ## Behavior: Absent or Malformed `go.work`
 
-If `go.work` is absent or cannot be parsed:
+The script outputs an error and exits with code `1` if `go.work` is absent, not readable, or readable but yields zero module paths from its `use` directives:
 
-1. The script outputs an error message to stdout:
-   ```text
-   ✗ Error: go.work not found or unreadable
-   ```
+```text
+✗ Error: go.work not found or unreadable
+```
 
-2. The script exits with code `1`.
+The script parses two forms of `use` directives: single-line form `use ./path` and block form `use ( ... )` with paths on subsequent lines. Comments (`// ...`) are stripped from each line before path extraction.
+
+**No further workspace-syntax validation is performed.** A file with malformed syntax that still yields at least one parseable path is accepted and checked as-is. This constraint exists because the check is POSIX shell-only (ruling D4) and cannot invoke `go work edit -json` for structured workspace parsing.
 
 No attempt is made to hardcode a fallback module list; the `go.work` file is the source of truth for the active module set.
 

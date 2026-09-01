@@ -87,13 +87,15 @@ The registry is derived from:
 
 ### Per-Module Status
 
-For each module in the Workspace Module Registry, the check reports:
+The check assigns one of three internal statuses to each module in the Workspace Module Registry:
 
 | Status | Meaning | Implication |
 |--------|---------|-------------|
 | **present** | Module directory exists; `specs.md` file exists and is non-empty (after whitespace trim) | Module is compliant |
 | **missing** | Module directory exists; `specs.md` file does not exist | Module is non-compliant; check exits 1 |
 | **empty** | Module directory exists; `specs.md` file exists but is empty or contains only whitespace | Module is non-compliant per D3; check exits 1 |
+
+**Note on output emission**: The `present` status is **not** emitted as per-module output. Compliant modules are counted only in the aggregate summary line (`✓ Checked N modules: all have non-empty specs.md`), while `missing` and `empty` statuses each produce one diagnostic line (`✗ <path>: <reason>`) with reason strings per `contracts/check-specs.md` (reason is `missing` for absent files, or `empty (0 bytes)` / `empty (whitespace only)` for empty/whitespace-only files).
 
 ### Exit Code Semantics
 

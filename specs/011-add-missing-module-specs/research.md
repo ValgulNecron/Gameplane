@@ -120,23 +120,23 @@ Detection approach: `test -f <file> && [ -s <file> ]` for existence and non-empt
 
 ## Decision: Check Output Format & Exit Codes
 
-**Decision**: The check outputs:
-- A list of all checked modules (e.g., "Checked: agent, api, audit-syslog-bridge, ..., web (15 modules)").
-- For each missing or empty `specs.md`, an error line: `ERROR: <module>/specs.md is missing or empty`.
-- A final summary line: `N file(s) missing` or `All specs.md files present and non-empty`.
-- Exit code 0 if all modules have valid specs.md; exit code 1 if any module lacks a valid specs.md.
+**Decision**: The check outputs conform to `contracts/check-specs.md` § Outputs exactly:
 
-Example output:
+- **Success (exit 0)**: Single line `✓ Checked N modules: all have non-empty specs.md`.
+- **Failure (exit 1)**: One `✗ <path>: <reason>` line per offending module (reason ∈ `{missing, empty (0 bytes), empty (whitespace only)}`), then summary line `✗ N modules have missing or empty specs.md` (or singular `✗ 1 module has missing or empty specs.md` when count is 1).
+- **Error (exit 1)**: `✗ Error: go.work not found or unreadable` when `go.work` is absent, unreadable, or yields no module paths.
+- **All output**: stdout (not stderr).
+
+Example output (two failures):
+```text
+✗ svcutil/specs.md: missing
+✗ tunnel/specs.md: empty (0 bytes)
+✗ 2 modules have missing or empty specs.md
 ```
-Checked: agent, api, audit-syslog-bridge, ..., web (15 modules)
-ERROR: svcutil/specs.md is missing or empty
-ERROR: tunnel/specs.md is missing or empty
-2 file(s) missing
-```
 
-**Rationale**: Clear, machine-parseable output enables CI to report which modules are noncompliant. The exit code enables CI conditional logic (e.g., "lint job fails if check exits 1"). The summary line provides human-readable feedback at a glance.
+**Rationale**: The `✓`/`✗` prefix is readable in CI logs at a glance. Reason strings (`missing`, `empty (0 bytes)`, `empty (whitespace only)`) are actionable and distinguish the three failure modes. Exit code drives CI conditional logic. `contracts/check-specs.md` § Outputs is authoritative for exact string formats and supersedes any prior sketches from the research phase.
 
-**Alternatives considered**: JSON output would be more machine-friendly but adds complexity; plain text with error prefixes is sufficient for CI integration.
+**Alternatives considered**: JSON output would be more machine-friendly but adds complexity; plain text with clear prefixes and exit codes is sufficient for CI integration.
 
 ---
 
