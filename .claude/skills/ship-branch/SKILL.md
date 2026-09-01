@@ -7,9 +7,11 @@ description: "Use when a branch is ready to become a PR, or a merged PR needs cl
 
 1. Ensure the branch is signed and all commits have the full trailer:
    ```
-   Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+   Co-Authored-By: <model actually running this session> <noreply@anthropic.com>
    Claude-Session: https://claude.ai/code/session_<id>
    ```
+   
+   The Co-Authored-By name MUST be the model actually running — never a value copied from CLAUDE.md, this skill, or a prior commit.
 
 2. Push the feature branch (never to `master`):
    ```sh

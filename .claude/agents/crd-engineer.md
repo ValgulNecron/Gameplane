@@ -25,6 +25,8 @@ The operator reconciles these CRDs (operator/api/v1alpha1/):
 - Cluster (`cluster_types.go`)
 - NetworkCapture (`networkcapture_types.go`)
 
+Note: CLAUDE.md still says 8 CRDs — it predates NetworkCapture; the maintainer has been asked to update it.
+
 ## Exact Edit Chain (from CLAUDE.md)
 
 Follow these steps in order:
@@ -103,7 +105,8 @@ git commit -s -m "feat: add <field> to <Kind>
 
 Description of the new behavior.
 
-Co-Authored-By: Claude Haiku <noreply@anthropic.com>"
+Co-Authored-By: <model actually running this session> <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_<id>"
 ```
 
 ## Local Testing Discipline (CLAUDE.md Rule 8)
