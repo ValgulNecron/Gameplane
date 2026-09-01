@@ -8,22 +8,27 @@ on:
     # set still triggers the full run. "website" (no slash) matches the
     # submodule gitlink itself — a plain submodule pointer bump; the /**
     # variant covers any future in-tree files under that path.
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "design.pen"
-      - "website"
-      - "website/**"
-      - "LICENSE"
+    # paths + negations (not paths-ignore, which cannot re-include) so that a
+    # change touching only a specs.md still runs make check-specs (ruling D5).
+    paths:
+      - "**"
+      - "!**.md"
+      - "!docs/**"
+      - "!design.pen"
+      - "!website"
+      - "!website/**"
+      - "!LICENSE"
+      - "**/specs.md"
   pull_request:
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "design.pen"
-      - "website"
-      - "website/**"
-      - "LICENSE"
-
+    paths:
+      - "**"
+      - "!**.md"
+      - "!docs/**"
+      - "!design.pen"
+      - "!website"
+      - "!website/**"
+      - "!LICENSE"
+      - "**/specs.md"
 # Cancel superseded runs so rapid pushes to the same ref don't waste
 # runner minutes on stale commits.
 concurrency:
@@ -73,6 +78,7 @@ jobs:
       weblive: ${{ steps.combine.outputs.weblive }}
       images: ${{ steps.combine.outputs.images }}
       github: ${{ steps.combine.outputs.github }}
+      specs: ${{ steps.combine.outputs.specs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -126,6 +132,9 @@ jobs:
               - '.github/actions/**'
               - '.github/zizmor.yml'
               - '.github/dependabot.yml'
+            specs:
+              - '**/specs.md'
+              - 'hack/check-specs.sh'
       - id: combine
         # Fold the raw filters into single-token booleans so every downstream
         # `if:` is one expression (fewer chances to get wrong when the only way
@@ -140,6 +149,7 @@ jobs:
           GAMECOVERAGE: ${{ steps.filter.outputs.gamecoverage }}
           CI: ${{ steps.filter.outputs.ci }}
           GITHUB: ${{ steps.filter.outputs.github }}
+          SPECS: ${{ steps.filter.outputs.specs }}
         run: |
           gov=false;  { [ "$GO" = true ]     || [ "$CI" = true ]; } && gov=true
           webv=false; { [ "$WEB" = true ]    || [ "$CI" = true ]; } && webv=true
@@ -147,6 +157,7 @@ jobs:
           e2ev=false; { [ "$GO" = true ] || [ "$CHARTS" = true ] || [ "$E2ETREE" = true ] || [ "$GAMECOVERAGE" = true ] || [ "$CI" = true ]; } && e2ev=true
           wlv=false;  { [ "$e2ev" = true ] || [ "$WEB" = true ] || [ "$CI" = true ]; } && wlv=true
           ghv=false;  { [ "$GITHUB" = true ] || [ "$CI" = true ]; } && ghv=true
+          specsv=false; { [ "$SPECS" = true ] || [ "$CI" = true ]; } && specsv=true
           {
             echo "go=$gov"
             echo "web=$webv"
@@ -155,6 +166,7 @@ jobs:
             echo "weblive=$wlv"
             echo "images=$wlv"
             echo "github=$ghv"
+            echo "specs=$specsv"
           } >> "$GITHUB_OUTPUT"
 
   # Build the operator/api/agent (+ gameprobe) images ONCE and publish them as
@@ -327,7 +339,7 @@ jobs:
   lint:
     name: lint (${{ matrix.module }})
     needs: [changes]
-    if: needs.changes.outputs.go == 'true'
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.specs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -341,6 +353,10 @@ jobs:
       - name: verify lint gate configuration
         if: matrix.module == 'netguard'
         run: ./test/e2e/lint-gate-verify.sh verify
+      # Repository-wide check; gated to one matrix entry so it runs once per lint run (ruling D5).
+      - name: check specs compliance
+        if: matrix.module == 'netguard'
+        run: make check-specs
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: lint-${{ matrix.module }}

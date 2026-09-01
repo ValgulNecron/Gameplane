@@ -459,10 +459,13 @@ cd web      && npm test
 make lint            # gofmt + go vet + golangci-lint + ESLint
 make lint-go         # only Go
 make lint-web        # only web
+make check-specs     # verify every go.work module + web/ has a non-empty specs.md
 
 make cover           # full coverage with threshold gates (CI-equivalent)
 make cover-ratchet   # measured-vs-threshold delta per module
 ```
+
+`make check-specs` runs `hack/check-specs.sh`, which verifies that every module in `go.work` plus `web/` has a non-empty `specs.md` (constitution Principle IV). `make lint` depends on it, and CI runs it once in the lint job. It is read-only and permitted locally as a pre-flight check (ruling D6); contract: `specs/011-add-missing-module-specs/contracts/check-specs.md`.
 
 All 14 Go modules — netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, capture-sidecar, mcp-server, svcutil, tunnel, and test/e2e — are gated by golangci-lint in CI (`lint` job in `.github/workflows/ci.yaml`). API and operator runs also pass `--build-tags=envtest` so tag-gated files are analysed; test/e2e runs with `--build-tags=e2e` to catch e2e-only build issues.
 
