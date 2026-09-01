@@ -385,7 +385,7 @@ describe("SourceDialog", () => {
     rendered.unmount();
 
     onConfirm = vi.fn();
-    rendered = renderWithQuery(
+    renderWithQuery(
       <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={onConfirm} />,
     );
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upload-src" } });

@@ -215,7 +215,7 @@ updates:
       npm-minor-patch:
         update-types: ["minor", "patch"]
 
-  # Docker — 12 entries (base images and service containers)
+  # Docker — 13 entries (base images and service containers)
   - package-ecosystem: "docker"
     directory: "/agent"
     schedule:
@@ -368,6 +368,20 @@ updates:
     open-pull-requests-limit: 5
     groups:
       test-e2e-docker-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "docker"
+    directory: "/tunnel"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    open-pull-requests-limit: 5
+    groups:
+      tunnel-docker-minor-patch:
         update-types: ["minor", "patch"]
 
   - package-ecosystem: "docker"

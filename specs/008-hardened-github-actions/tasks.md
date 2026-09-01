@@ -234,3 +234,12 @@ The config wave (seven files) and the `ai-review.yaml`/`dependabot.yml` chains a
 - Do not run test or lint suites locally (Principle VI). A YAML parse check is fine.
 - The workflow-lint gate (actionlint + zizmor) validates expression injection, YAML schema, and shellcheck findings (actionlint) and SHA pinning (zizmor) via a new `workflow-lint` job in ci.yaml (ruling D-H, amended by D-J). Permissions, timeouts, concurrency, and Dependabot parity are code-review-enforced. The old verifier (workflows-verify.sh + .github/verify-rules/) is deleted.
 - Out of scope, named in plan.md so they don't creep in: reusable-workflow refactoring, splitting the 1400-line `ci.yaml`, additional linters beyond `actionlint`, bucket restructuring, branch protection rules.
+
+---
+
+## Phase 8: Convergence
+
+- [X] T052 Add an `npm run lint` step to the `web` job in `.github/workflows/ci.yaml` (alongside `npm ci` / `npm run build` / `npm run test:cover`) so ESLint (`web/eslint.config.js`) actually runs in CI per FR-008 (partial)
+- [X] T053 Add a `package-ecosystem: "docker"` entry for directory `/tunnel` to `.github/dependabot.yml`, matching the schedule, `chore(deps)` commit-message prefix, open-PR limit and grouping conventions of the other docker entries — `/tunnel` holds `Dockerfile.frp`, `Dockerfile.playit` and `Dockerfile.tailscale` and is currently covered only by a `gomod` entry per FR-019 (missing)
+- [~] T054 **WITHDRAWN on review — not a gap.** Convergence reported `.github/workflows/release.yaml` as missing a concurrency group per FR-005, but `data-model.md` E1 already records the ruling: "Exception: `release.yaml` is tag-only (`push: tags:`) so concurrency is not required (a tag push is a one-shot publish; cancelling it in flight would abort a release mid-way)." The converge pass read spec.md, plan.md and tasks.md but did not cross-check data-model.md, so it re-opened a question the feature had already settled. The block was added, then reverted on the maintainer's call; `release.yaml` is unchanged from master.
+- [X] T055 Add a path-exclusion entry to `.coderabbit.yaml` so `*.pen` design-source files are omitted from CodeRabbit review per T047 (missing)

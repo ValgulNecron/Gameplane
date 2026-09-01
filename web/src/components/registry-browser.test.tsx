@@ -228,7 +228,7 @@ describe("RegistryBrowser", () => {
   });
 
   it("filters by category", async () => {
-    let lastRequest: any = null;
+    let lastRequest: Record<string, string> | null = null;
     server.use(
       http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([

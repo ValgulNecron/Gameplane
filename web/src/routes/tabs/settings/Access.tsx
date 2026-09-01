@@ -1,3 +1,4 @@
+import type React from "react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
@@ -22,6 +23,22 @@ export function AccessSection({ gs }: Props) {
   const [addInput, setAddInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const setCollab = useMutation({
+    mutationFn: async (body: { userIds?: number[]; usernames?: string[] }) => {
+      if (!gs) return;
+      const namespace = gs.metadata.namespace ?? "gameplane-games";
+      return Servers.setCollaborators(gs.metadata.name, namespace, body);
+    },
+    onSuccess: () => {
+      setAddInput("");
+      setError(null);
+      return qc.invalidateQueries({ queryKey: ["server", gs?.metadata.name] });
+    },
+    onError: (err) => {
+      setError(errMsg(err));
+    },
+  });
+
   if (!gs) {
     return <div className="p-6 text-sm text-muted">Loading…</div>;
   }
@@ -44,21 +61,6 @@ export function AccessSection({ gs }: Props) {
   // have different lengths, the annotations were modified outside the dashboard.
   const isAligned = collaboratorIDs.length === collaboratorNames.length;
   const canEditCollaborators = canManage && isAligned;
-
-  const setCollab = useMutation({
-    mutationFn: async (body: { userIds?: number[]; usernames?: string[] }) => {
-      if (!gs) return;
-      return Servers.setCollaborators(gs.metadata.name, namespace, body);
-    },
-    onSuccess: () => {
-      setAddInput("");
-      setError(null);
-      return qc.invalidateQueries({ queryKey: ["server", gs.metadata.name] });
-    },
-    onError: (err) => {
-      setError(errMsg(err));
-    },
-  });
 
   const handleAddCollaborator = () => {
     const name = addInput.trim();
@@ -102,7 +104,7 @@ export function AccessSection({ gs }: Props) {
             <div className="text-sm font-medium text-fg">Collaborators</div>
             <div className="pt-1 text-xs text-muted">
               Collaborators get full control of this server (console, files, settings). They
-              can't transfer ownership or edit this list.
+              can&apos;t transfer ownership or edit this list.
             </div>
           </div>
 

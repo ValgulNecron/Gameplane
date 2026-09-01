@@ -49,6 +49,12 @@ reviews:
     base_branches: []
     ignore_usernames: []
 
+  # Path filters: exclude design-source files from review
+  # .pen files are multi-megabyte machine-generated JSON design sources (CLAUDE.md rule 2)
+  # and should be reviewed visually in Pencil, not textually by code review.
+  path_filters:
+    - "!**/*.pen"
+
   # Path-specific review instructions encoding project rules
   path_instructions:
     # Go: error wrapping with %w, forbid lint suppressions

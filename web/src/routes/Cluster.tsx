@@ -176,7 +176,7 @@ export function ClusterPage() {
               <div className="flex-1 space-y-1">
                 <div className="text-sm font-medium">Game data storage class</div>
                 <p className="text-xs text-muted">
-                  StorageClass for new GameServers' game-data volumes — set by the
+                  StorageClass for new GameServers&apos; game-data volumes — set by the
                   operator.gameDataStorage.storageClassName Helm value and applied by the operator to
                   every new PVC; the API is passed the same value as --game-data-storage-class only to
                   report it here.{" "}
