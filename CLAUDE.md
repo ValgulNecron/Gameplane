@@ -678,6 +678,17 @@ When assessing what a feature requires — `/speckit-converge`, `/speckit-analyz
 - **When an implementing agent's judgement contradicts a spec line, that is a signal to go read more — not to override it.** In the case above the small model independently reached the data model's exact conclusion and was overruled toward the literal spec text. It was right. Treat that disagreement as evidence the spec is incomplete somewhere, and go find where.
 - **Withdraw, don't delete.** A task that turns out not to be a real gap gets marked withdrawn in `tasks.md` with a citation to the artifact that settles it, so the next converge run does not rediscover it.
 
+### 16. A finished feature's spec folder is renamed `done_<NNN>-<slug>`
+
+When a feature is complete, rename its folder from `specs/<NNN>-<slug>/` to `specs/done_<NNN>-<slug>/`. The prefix is how a fresh session tells finished work from live work without opening every folder. Constitution Principle IV carries the governing rule; this is the mechanics.
+
+- **"Complete" means both**: every task in `tasks.md` is `[X]` or explicitly withdrawn (rule 15), **and** the feature's branch is merged into `master`. A feature that is code-complete but sitting in a `BLOCKED` PR is not done — feature 009 is the standing example, parked on T055/T056 behind the TypeScript 7 blocker, and stays un-prefixed until that lands.
+- **Mechanics**: `git mv specs/<NNN>-<slug> specs/done_<NNN>-<slug>`, then fix every in-repo reference to the old path in the **same commit** — `grep -rIn "specs/<NNN>-" --exclude-dir=.git .` before committing. Paths are cross-referenced from `CLAUDE.md`, `.specify/memory/constitution.md`, `.coderabbit.yaml`, Go source comments (e.g. `agent/internal/rcon/nuclearoption.go`), and sibling spec folders. Commit it on its own as `docs: mark feature <NNN> complete`, signed, never folded into unrelated work.
+- **Don't** un-prefix a `done_` folder to reopen work — open a new numbered spec that cites the old one. **Don't** delete or move a spec folder out of `specs/`; the artifacts stay binding after the rename (rule 15 still applies to `done_` folders in full — the prefix marks the *work* finished, not the *document* expired).
+- **Don't** rename speculatively. If you cannot point at the merge commit, it is not done.
+
+*Why:* `specs/` only grows, and without the marker every session re-reads finished features to work out whether they still need doing — a converge run has already re-litigated a feature that shipped weeks earlier. The convention predates this rule (`done_001-gameprotocol-e2e-coverage`, `done_003`, `done_004`, `done_005`, `done_006`); it is written down here so it stops being folklore.
+
 ---
 
 ## Architecture quick reference
