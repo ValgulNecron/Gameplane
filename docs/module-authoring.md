@@ -28,6 +28,19 @@ modules/<name>/
 submodule mounts the `gameplane-module` repo root at `modules/`, so the paths
 below still resolve.
 
+### Module documentation (`specs.md`)
+
+Each module directory should include a `specs.md` documenting the game and its
+Gameplane integration. This is the canonical reference for operators authoring or
+troubleshooting servers: console protocol details (message framing, authentication,
+command syntax), available console modes (RCON protocol/port, telnet, WebSocket,
+stdin pod-attach), configuration schema fields and their semantics, and
+game-specific implementation notes (workarounds, quirks, gotchas the template
+handles). Follow the structure documented in
+`../specs/011-add-missing-module-specs/contracts/specs-md-structure.md`. Enforcement
+(validation that specs.md exists and conforms to the structure) lives in the
+gameplane-module repo's own CI, not in this repo's `make check-specs`.
+
 ### Editor schemas
 
 Both YAML files carry a first-line `# yaml-language-server: $schema=…` modeline

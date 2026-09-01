@@ -194,6 +194,12 @@ Implication: Upon completion of FR-001 and FR-003 (writing svcutil/specs.md and 
 
 **Alternatives considered**: Pre-creating empty placeholder files at svcutil/specs.md and tunnel/specs.md to "pass" the check would violate the spirit of the feature; writing proper specs is the whole point.
 
+**Audit verification (T004, 2026-09-01, on branch `011-add-missing-module-specs`)**:
+- Before US1: re-ran the inventory over the 14 `go.work` `use` entries + `web/` — 13 of 15 had a non-empty `specs.md`; `svcutil/specs.md` and `tunnel/specs.md` were absent (`ls` → "No such file"). Matches the findings above.
+- After US1: all 15 registry members have a non-empty, non-whitespace-only `specs.md`; `hack/check-specs.sh` reports `✓ Checked 15 modules: all have non-empty specs.md` (SC-001).
+- Infrastructure directories (data-model.md § Exclusions): `charts/gameplane/` (Chart.yaml, values.yaml, templates/, crds/, crd-manifests/, dashboards/) and `deploy/kind/` (cluster.yaml, up.sh, down.sh, upgrade.sh, e2e.sh) carry no README or specs.md of their own; they are documented by `docs/install.md`, `CLAUDE.md` (§ Common commands, rule 7 for the CRD apply hook) and the `Makefile` targets that drive them. They are deployment concerns, not workspace modules, and are outside the check's scope.
+- `modules/<game>/*` (git submodule): out of scope per D2; guideline recorded in `docs/module-authoring.md` (T008).
+
 ---
 
 ## Decision: modules/<game>/specs.md Guideline Placement
