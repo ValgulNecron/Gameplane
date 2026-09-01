@@ -37,7 +37,7 @@ command syntax), available console modes (RCON protocol/port, telnet, WebSocket,
 stdin pod-attach), configuration schema fields and their semantics, and
 game-specific implementation notes (workarounds, quirks, gotchas the template
 handles). Follow the structure documented in
-`../specs/011-add-missing-module-specs/contracts/specs-md-structure.md`. Enforcement
+`../specs/done_011-add-missing-module-specs/contracts/specs-md-structure.md`. Enforcement
 (validation that specs.md exists and conforms to the structure) lives in the
 gameplane-module repo's own CI, not in this repo's `make check-specs`.
 

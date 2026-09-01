@@ -2,7 +2,7 @@
 
 **Branch**: `011-add-missing-module-specs` | **Date**: 2026-09-01 | **Spec**: [./spec.md](./spec.md)
 
-**Input**: Feature specification from `specs/011-add-missing-module-specs/spec.md`
+**Input**: Feature specification from `specs/done_011-add-missing-module-specs/spec.md`
 
 ## Summary
 
@@ -48,7 +48,7 @@ Complete the specification framework for all Gameplane modules by authoring the 
 ### Documentation (this feature)
 
 ```text
-specs/011-add-missing-module-specs/
+specs/done_011-add-missing-module-specs/
 ├── plan.md                      # This file
 ├── research.md                  # Phase 0 research output
 ├── data-model.md                # Phase 1 data model (module audit results, check design)
