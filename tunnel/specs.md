@@ -86,7 +86,7 @@ Whitespace (leading/trailing newlines, spaces) is trimmed from credential values
 | tailscale | `/tmp/gameplane-tunnel-tailscaled.json` | JSON | Rendered by `renderTailscaleConfig`; read by tailscaled via `--config` flag |
 | playit | `/tmp/gameplane-tunnel-playit-auth` | Raw text (secret key) | Rendered by `renderPlayitConfig`; read by playitd via `--secret-path` flag |
 
-All files are created with mode `0o600` (read/write by owner only). Files are cleaned up automatically when the relay process exits or the pod is terminated.
+All files are written with mode `0o600` (read/write by owner only) via `os.WriteFile` — see `renderFrpConfig`, `renderTailscaleConfig`, `renderPlayitConfig` in `main.go`. Files are cleaned up automatically when the relay process exits or the pod is terminated.
 
 ### Relay Binaries and Command-Line Arguments
 
@@ -203,7 +203,7 @@ No third-party dependencies. The operator provides provider-specific binaries (f
 
 ## Security Considerations
 
-1. **Secret mounting (read-only):** Credentials are mounted from Kubernetes Secrets into the pod at `/etc/gameplane/tunnel-auth`, read-only. The secret key files are not world-readable (mode 0o600 credentials read, ownership checked via `filepath.Rel` defense-in-depth).
+1. **Secret mounting (read-only):** Credentials are mounted from Kubernetes Secrets into the pod at `/etc/gameplane/tunnel-auth` as a read-only VolumeMount. The credential files are accessed only after a path-containment check via `filepath.Rel` to ensure the resolved path does not escape the mount directory, providing defense-in-depth against directory traversal.
 
 2. **Credentials never on argv:** All three providers accept secrets via file-based config (embedded in TOML/JSON for frp/tailscale, separate `--secret-path` file for playitd). This ensures secrets don't appear in `/proc/<pid>/cmdline`.
 
@@ -234,7 +234,7 @@ No third-party dependencies. The operator provides provider-specific binaries (f
 **Test doubles:**
 
 - **`withCredentialsDir`:** Temporary directory helper that repoints the package-level `credentialsDir` var at `t.TempDir()` for the duration of a test, allowing credential reads to be exercised without touching the real mount point.
-- **Real system binaries in some tests:** `TestRunCommandContextCancellation` uses the real `sleep` command (no relay binary needed) to verify context cancellation and SIGTERM forwarding end-to-end, with real `net.Conn` semantics and CloseWrite (half-close) behavior.
+- **Real system binaries in some tests:** `TestRunCommandContextCancellation` uses the real `sleep` command (no relay binary needed) to verify that context cancellation triggers SIGTERM forwarding, allowing the child to exit cleanly within the 10-second grace period.
 
 **Coverage gate:** 70% per `.testcoverage.yml`. Uncovered paths include error cases in relay binary spawning (operator-level validation and pod constraints already catch most configuration issues before the tunnel binary runs) and platform-specific signal handling edge cases.
 

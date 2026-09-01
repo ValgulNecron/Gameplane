@@ -54,7 +54,7 @@ Single package; no subdirectories or internal structure.
 
 2. **Empty-string semantics.** `Or` distinguishes unset (`os.LookupEnv` returns `ok=false`) from empty-but-set (`os.LookupEnv` returns `v=""` with `ok=true`). Unset uses fallback; empty-but-set returns empty string (no fallback). This preserves user intent when an env var is intentionally cleared.
 
-3. **Bounded shutdown.** `RunHTTP` calls `srv.Shutdown` with a deadline-bounded context derived from `shutdownTimeout`. If the timeout expires, the deadline context is cancelled, causing `srv.Shutdown` to return and the goroutine to exit promptly. Long-running in-flight requests are interrupted; no indefinite hangs.
+3. **Bounded shutdown.** `RunHTTP` calls `srv.Shutdown` with a deadline-bounded context derived from `shutdownTimeout`. If the timeout expires before all connections close, `srv.Shutdown` returns with a deadline-exceeded error and `RunHTTP` exits promptly. However, in-flight handlers continue running until they naturally complete or the process exits; the timeout bounds only how long `RunHTTP` waits, not handler execution. This prevents indefinite hangs in `RunHTTP` itself while preserving handler cleanup.
 
 4. **Success mapping.** `RunHTTP` explicitly maps `http.ErrServerClosed` (the success path from `srv.Shutdown`) to `nil`, so callers see nil on clean shutdown and a non-nil error only on failure.
 
@@ -69,20 +69,23 @@ Single package; no subdirectories or internal structure.
 
 - **No secrets in env vars.** This package reads environment variables for configuration only; credentials or sensitive values must be injected via files or mounts, not environment variables (which are visible in process listings and pod describe).
 - **Graceful defaults prevent misconfiguration crashes.** Services that fail to start due to invalid log levels or port numbers in the environment are difficult to debug in containerized environments. Non-crashing fallbacks reduce incident severity (service starts, logs at info level, operator can adjust).
-- **Bounded shutdown prevents hanging.** A service hung in shutdown — waiting indefinitely for in-flight requests — can leave resources locked or cause deployment failures. `shutdownTimeout` bounds the wait; Kubernetes `terminationGracePeriodSeconds` (usually 30 seconds) provides the outermost bound.
+- **Bounded shutdown prevents hanging.** A service hung in shutdown — with `RunHTTP` waiting indefinitely for in-flight requests to close — can leave resources locked or cause deployment failures. `shutdownTimeout` bounds how long `RunHTTP` waits; Kubernetes `terminationGracePeriodSeconds` (usually 30 seconds) provides the outermost bound. Handlers themselves are not force-terminated by this timeout and may continue running after `RunHTTP` returns.
 
 ## Testing & coverage
 
 **Test structure:**
 - Unit tests in `env_test.go` cover `Or`, `OrInt`, `ParseLogLevel` with table-driven cases for set/unset/invalid/empty/default scenarios.
-- Unit tests in `server_test.go` cover `RunHTTP` with cases for clean shutdown, listen errors, pre-cancelled context, shutdown timeout, and `http.ErrServerClosed` mapping.
+- Unit tests in `server_test.go` cover `RunHTTP` lifecycle:
+  - `TestRunHTTPCleanShutdown`: clean context cancellation and graceful shutdown.
+  - `TestRunHTTPListenError`: immediate return on listen errors.
+  - `TestRunHTTPContextCancelledBeforeListen`: pre-cancelled context triggers shutdown.
+  - `TestRunHTTPServerClosedError`: verification that `http.ErrServerClosed` is not returned to callers.
+  - `TestRunHTTPShutdownTimeout`: shutdown timeout mechanism bounds `RunHTTP`'s wait time.
 
 **Coverage gate:** 90% (`.testcoverage.yml`, total threshold).
 
-**Uncovered paths:** The small 10% gap accounts for hard-to-trigger graceful-shutdown race conditions:
-- Context timeout during `srv.Shutdown` (difficult to race reliably in tests).
-- Platform-specific signal handling edge cases in goroutine scheduling.
-- Listener errors that are difficult to synthesize without system-level faults.
+**Uncovered paths:** The small 10% gap accounts for the following shutdown edge case:
+- Shutdown returning context.DeadlineExceeded because a handler is still active past the deadline: no test currently holds a request open past the timeout to verify that `RunHTTP` returns the deadline error while the handler continues running. This path is difficult to test reliably without introducing flaky timing assumptions.
 
 These edge cases are acceptable because:
 1. They occur only during service shutdown/restart, not during steady-state operation.
