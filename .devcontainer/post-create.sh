@@ -57,9 +57,6 @@ fi
 # linters and removes deprecated ones).
 GOLANGCI_VERSION="v2.12.2"
 GOLANGCI_BIN="/go/bin/golangci-lint"
-
-# specify (spec-kit CLI for GitHub specs)
-SPECKIT_VERSION="v1.0.3"
 if ! "$GOLANGCI_BIN" --version 2>/dev/null | grep -qE 'version v?2\.'; then
 	log "installing golangci-lint ${GOLANGCI_VERSION}"
 	GOBIN=/go/bin go install \
@@ -95,6 +92,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 # ---------- specify (spec-kit CLI for GitHub specs) ----------
+SPECKIT_VERSION="v1.0.3"
 if ! command -v specify >/dev/null 2>&1; then
 	log "installing specify (spec-kit) ${SPECKIT_VERSION}"
 	uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@${SPECKIT_VERSION}"
