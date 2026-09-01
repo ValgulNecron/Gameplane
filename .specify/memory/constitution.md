@@ -1,6 +1,19 @@
 <!--
 Sync Impact Report
-- Version change: 2.0.1 → 2.1.0
+- Version change: 2.1.0 → 2.2.0
+- Bump rationale: MINOR. Principle IV is materially expanded with a completed-feature
+  folder-naming rule: a finished feature's `specs/<NNN>-<slug>/` is renamed to
+  `specs/done_<NNN>-<slug>/`. Nothing previously compliant becomes non-compliant — the
+  convention was already in use for five folders (done_001, done_003, done_004,
+  done_005, done_006) and is now written down with its completion criteria, its
+  reference-update requirement, and the explicit statement that a `done_` folder stays
+  binding rather than becoming skippable.
+- Modified principles: IV. Spec-Driven Development — adds the `done_` rename rule.
+- Downstream consistency: CLAUDE.md gains rule 16 stating the same rule operationally;
+  rule 15 (read the whole specs/<feature>/ folder) is unaffected and reinforced by the
+  "still binding" bullet.
+
+Previous report (2.0.1 → 2.1.0)
 - Bump rationale: MINOR. Principle V's scope is narrowed to the MAIN LOOP and the
   blanket prohibition is lifted: subagents and workflows may now use the `Agent` tool.
   Nothing previously compliant becomes non-compliant; a restriction is relaxed. (The preceding 2.0.0 bump was MAJOR: it removed Principle V's permitted
@@ -149,12 +162,41 @@ speaks, or the CRDs a controller reconciles), its inputs/outputs, and the invari
 other modules depend on. `specs.md` MUST be updated in the same change that alters the
 behavior it documents — a behavior change without a matching `specs.md` update is
 incomplete.
+
 Rationale: this repo has repeatedly lost work to agents re-deriving intent from scratch
 mid-session or drifting from what was actually agreed. A written spec is the artifact
 that survives context resets and hand-offs between sessions and agents. Per-module
 `specs.md` files extend that same guarantee to a module's ongoing behavior, not just its
 initial feature spec — critical for game protocols in particular, which are often
 undocumented upstream and were previously reconstructed from scratch each time.
+
+A feature's spec folder MUST be renamed from `specs/<NNN>-<slug>/` to
+`specs/done_<NNN>-<slug>/` once that feature is complete — meaning every task in its
+`tasks.md` is checked off or explicitly withdrawn, and the feature's branch has been
+merged into `master`. The rename is the completion marker; an in-flight feature keeps the
+bare `<NNN>-<slug>` name. Requirements:
+
+- Rename with `git mv` so history follows the folder, and commit it as its own
+  `docs:` unit of work — never bundled into an unrelated change.
+- Update every in-repo reference to the old path in the same commit. Spec folders are
+  cross-referenced from `CLAUDE.md`, this constitution, source comments, `.coderabbit.yaml`,
+  and each other; a rename that leaves a dangling `specs/<NNN>-...` path is incomplete.
+- Never rename a folder whose feature is unmerged, partially implemented, or blocked. A
+  feature parked on an external blocker stays un-prefixed however long it waits.
+- The `done_` prefix is terminal. Reopening work on a completed feature means a new
+  numbered spec folder that cites the old one, not un-prefixing the old folder.
+- A `done_`-prefixed folder is still binding and still read in full: its artifacts govern
+  the shipped behavior, and the prefix marks the work as finished, not the document as
+  expired or safe to skip.
+
+Rationale: `specs/` is the durable record of intent and grows monotonically — without a
+completion marker in the folder name itself, every fresh session must open each folder
+and reconstruct whether its work still needs doing, and converge runs have re-litigated
+features that shipped weeks earlier. The prefix moves that signal into the directory
+listing, where it costs nothing to read. It is a rename rather than a deletion or an
+archive move because the artifacts remain binding: a completed feature's `data-model.md`
+and `contracts/` still carry the exceptions that govern today's code, so they must stay
+in place, in `specs/`, and in git history.
 
 ### V. Delegate to Workflows & Subagents
 The main agent loop's job is decomposition, orchestration, judgment, and verification —
@@ -270,4 +312,4 @@ explicitly in the plan's Complexity Tracking section or the change MUST be redes
 to comply. Use `CLAUDE.md` for the day-to-day runtime guidance this constitution
 intentionally leaves at a higher level of abstraction.
 
-**Version**: 2.1.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-23
+**Version**: 2.2.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-09-01
