@@ -242,7 +242,7 @@ Delete, in one commit:
   `r8`, `r9`, `r10`)
 - the `__pycache__/` + `*.py[cod]` block appended to `.gitignore` — it existed only for
   these modules
-- `specs/008-hardened-github-actions/baseline-violations.txt` — the verifier's own output
+- `specs/done_008-hardened-github-actions/baseline-violations.txt` — the verifier's own output
 
 Then strip every reference to it from the spec artifacts: `plan.md` (Summary, Technical
 Context, Project Structure, and the Principle I row of the Constitution Check),

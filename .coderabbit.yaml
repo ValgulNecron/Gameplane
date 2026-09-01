@@ -2,7 +2,7 @@
 # CodeRabbit Configuration for Gameplane
 # Replaces the anthropics/claude-code-action reviewer per the maintainer's directive
 # to use a free, open-source solution (CodeRabbit) instead.
-# See specs/008-hardened-github-actions/contracts/ai-review-contract.md for review criteria.
+# See specs/done_008-hardened-github-actions/contracts/ai-review-contract.md for review criteria.
 
 language: en-US
 tone_instructions: >
@@ -175,7 +175,7 @@ reviews:
         Example good:
           - uses: actions/checkout@a5ac7e51b41094c7d3f0b638c29c7f29fcadb296  # v4.1.6
 
-        Reference: FR-003 (action pinning), specs/008-hardened-github-actions/.
+        Reference: FR-003 (action pinning), specs/done_008-hardened-github-actions/.
 
     - path: ".github/actions/**"
       instructions: |
@@ -185,7 +185,7 @@ reviews:
         - Explicit permissions declared
         - Reasonable timeout-minutes
 
-        Reference: specs/008-hardened-github-actions/contracts/ai-review-contract.md.
+        Reference: specs/done_008-hardened-github-actions/contracts/ai-review-contract.md.
 
     # Test files: never weaken or delete tests without maintainer approval
     - path: "**/*_test.go"
@@ -259,7 +259,7 @@ reviews:
     - label: "area: e2e"
       instructions: Apply when changes touch test/e2e/ (end-to-end test suite, kind cluster setup, buckets.sh, E2E test cases).
     - label: "area: specs"
-      instructions: Apply when changes touch specs/ or spec.md files (specs/008-hardened-github-actions/, design contracts, decision records).
+      instructions: Apply when changes touch specs/ or spec.md files (specs/done_008-hardened-github-actions/, design contracts, decision records).
     - label: "area: shared"
       instructions: Apply when changes touch shared Go packages (netguard/, gameaction/, gameproto/, svcutil/) used by operator, api, and agent.
     - label: "area: optional-components"

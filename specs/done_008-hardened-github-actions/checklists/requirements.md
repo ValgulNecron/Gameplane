@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-27
-**Feature**: [spec.md](file:///home/valgul/project/Gameplane/specs/008-hardened-github-actions/spec.md)
+**Feature**: [spec.md](file:///home/valgul/project/Gameplane/specs/done_008-hardened-github-actions/spec.md)
 
 ## Content Quality
 
