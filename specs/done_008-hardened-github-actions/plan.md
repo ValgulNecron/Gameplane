@@ -2,7 +2,7 @@
 
 **Branch**: `008-hardened-github-actions` | **Date**: 2026-08-29 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/008-hardened-github-actions/spec.md`
+**Input**: Feature specification from `/specs/done_008-hardened-github-actions/spec.md`
 
 ## Summary
 
@@ -99,7 +99,7 @@ or the change be redesigned. Neither is waived here.
 ### Documentation (this feature)
 
 ```text
-specs/008-hardened-github-actions/
+specs/done_008-hardened-github-actions/
 ├── plan.md                       # This file
 ├── research.md                   # Phase 0 — 10 decisions, all NEEDS CLARIFICATION resolved
 ├── data-model.md                 # Phase 1 — the 5 config entities and their validation rules

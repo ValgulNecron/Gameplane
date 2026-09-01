@@ -4,7 +4,7 @@ description: "Task list for 008-hardened-github-actions"
 
 # Tasks: Hardened GitHub Actions CI/CD, AI Automation & Multi-Module Dependabot
 
-**Input**: Design documents from `/specs/008-hardened-github-actions/`
+**Input**: Design documents from `/specs/done_008-hardened-github-actions/`
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md)
 
