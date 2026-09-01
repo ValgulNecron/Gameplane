@@ -29,37 +29,56 @@ if [[ ! -f go.work ]] || [[ ! -r go.work ]]; then
 fi
 
 # Parse go.work to extract module directories
-# Extract lines between "use (" and ")" that contain "./", then strip leading "./"
+# Supports both single-line form "use ./x" and block form "use ( ... )"
+# Strips trailing comments (// ...) from each line
 modules=()
 in_use_block=false
 while IFS= read -r line; do
+    # Remove trailing comment (// ...)
+    line_no_comment=$(printf '%s\n' "$line" | sed 's|//.*||')
+
     # Detect start of use block
-    if [[ "$line" =~ ^use\ *\( ]]; then
+    if echo "$line_no_comment" | grep -q '^use[[:space:]]*($'; then
         in_use_block=true
         continue
     fi
 
     # Detect end of use block
-    if [[ "$in_use_block" == true && "$line" =~ ^\) ]]; then
+    if [[ "$in_use_block" == true ]] && echo "$line_no_comment" | grep -q '^ *)$'; then
         in_use_block=false
+        continue
+    fi
+
+    # Handle single-line form "use ./path" (not followed by "(")
+    if echo "$line_no_comment" | grep -q '^use[[:space:]]*\.\/'; then
+        module_path=$(printf '%s\n' "$line_no_comment" | sed 's/^use[[:space:]]*\.\///;s/[[:space:]]*$//')
+        if [[ -n "$module_path" ]]; then
+            modules+=("$module_path")
+        fi
         continue
     fi
 
     # Process lines inside use block
     if [[ "$in_use_block" == true ]]; then
         # Skip blank lines and comments
-        line_trimmed=$(printf '%s\n' "$line" | awk '{gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print}')
-        if [[ -z "$line_trimmed" ]] || [[ "$line_trimmed" =~ ^# ]]; then
+        line_trimmed=$(printf '%s\n' "$line_no_comment" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [[ -z "$line_trimmed" ]] || echo "$line_trimmed" | grep -q '^#'; then
             continue
         fi
 
         # Extract path: remove leading ./ and quotes
-        module_path=$(printf '%s\n' "$line_trimmed" | awk '{gsub(/^\.\//, ""); gsub(/^"|"$/, ""); print}')
+        module_path=$(printf '%s\n' "$line_trimmed" | sed 's/^\.\///;s/^"//;s/"$//')
         if [[ -n "$module_path" ]]; then
             modules+=("$module_path")
         fi
     fi
 done < go.work
+
+# If go.work was readable but no modules extracted, error
+if [[ ${#modules[@]} -eq 0 ]]; then
+    echo "✗ Error: go.work not found or unreadable"
+    exit 1
+fi
 
 # Append web (FR-006)
 modules+=("web")
