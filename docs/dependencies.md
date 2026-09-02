@@ -363,10 +363,8 @@ The Helm chart itself (`charts/gameplane/Chart.yaml`) declares **no chart
   `go vet` (Go) and `npm run build`/`test:cover` (web) are CI-gated. Lint
   is a devcontainer/local (`make lint`) and `docs/contributing.md`
   pre-PR-checklist step today, not an automated CI gate.
-- **Two workspace-wide `k8s.io/*` version cohorts.** `operator`, `api`,
-  and `mcp-server` are on `k8s.io/api|apimachinery|client-go v0.35.0` +
-  `sigs.k8s.io/controller-runtime v0.23.3` (`operator` itself is on
-  controller-runtime v0.19.0, an outlier even within that cohort).
-  `agent` and `test/e2e` are still on `v0.31.1`. Because `go.work` links
-  independent modules rather than a single root `go.mod`, nothing forces
-  these to move together — each module upgrades on its own schedule.
+- **Workspace-wide `k8s.io/*` versions.** All six client-go consumers
+  (`operator`, `api`, `agent`, `mcp-server`, `sentinel`, `test/e2e`) are
+  aligned at `k8s.io/api|apimachinery|client-go v0.37.0`. Because `go.work`
+  links independent modules rather than a single root `go.mod`, versions
+  could drift across the workspace, but they currently align.

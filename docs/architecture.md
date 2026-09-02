@@ -276,7 +276,7 @@ for the registration flow.
   a genuine join from a server-list ping without corrupting the connection stream.
   UDP-only games (Valheim, Factorio, etc.) have no connection to hold, so the
   sentinel uses a generic packets-in-window heuristic instead. See `gameproto/`.
-- **API → audit-syslog-bridge**: plaintext or TLS syslog forward
+- **API → audit-syslog-bridge**: HTTP-JSON webhook; the bridge forwards plaintext or TLS syslog to the collector
   for the audit trail, enabled via `api.audit.webhook.syslogBridge.enabled`.
 - **API → telemetry-receiver**: the anonymous daily usage report
   (admin-toggle gated), auto-wired via `api.telemetry.receiver.enabled` or
