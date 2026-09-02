@@ -7,6 +7,7 @@
 #
 # Triggers:
 # - on: push tags v* (automatic on release tag; opened PR triggers CI normally)
+# - on: push branch 012-docs-refresh-and-outreach (TEMPORARY feature 012 bootstrap; remove once first screenshot PR lands)
 # - on: workflow_dispatch (manual on-demand capture; requires SCREENSHOT_BOT_PAT secret)
 #
 # Credential: Fine-grained Personal Access Token `SCREENSHOT_BOT_PAT` (this repo only,
@@ -24,6 +25,9 @@ on:
   push:
     tags:
       - "v*"
+    # TEMPORARY (feature 012 bootstrap): registers the workflow and captures the first gallery before merge; remove once the first screenshot PR has landed.
+    branches:
+      - "012-docs-refresh-and-outreach"
   workflow_dispatch:
 
 permissions:
@@ -73,6 +77,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
           GH_TOKEN: ${{ secrets.SCREENSHOT_BOT_PAT }}
+          REF: ${{ github.ref }}
           REF_NAME: ${{ github.ref_name }}
           EVENT_NAME: ${{ github.event_name }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -88,9 +93,7 @@ jobs:
           fi
 
           base="$DEFAULT_BRANCH"
-          if [ "$EVENT_NAME" = workflow_dispatch ]; then
-            base="$REF_NAME"
-          fi
+          case "$REF" in refs/tags/*) ;; *) base="$REF_NAME" ;; esac
 
           branch="chore/screenshot-refresh-${REF_NAME}"
 
