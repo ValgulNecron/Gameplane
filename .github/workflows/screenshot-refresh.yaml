@@ -7,7 +7,6 @@
 #
 # Triggers:
 # - on: push tags v* (automatic on release tag; opened PR triggers CI normally)
-# - on: push branch 012-docs-refresh-and-outreach (TEMPORARY feature 012 bootstrap; remove once first screenshot PR lands)
 # - on: workflow_dispatch (manual on-demand capture; requires SCREENSHOT_BOT_PAT secret)
 #
 # Credential: Fine-grained Personal Access Token `SCREENSHOT_BOT_PAT` (this repo only,
@@ -25,9 +24,6 @@ on:
   push:
     tags:
       - "v*"
-    # TEMPORARY (feature 012 bootstrap): registers the workflow and captures the first gallery before merge; remove once the first screenshot PR has landed.
-    branches:
-      - "012-docs-refresh-and-outreach"
   workflow_dispatch:
 
 permissions:
