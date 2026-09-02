@@ -3,6 +3,7 @@
 // each test's afterEach to keep it explicit.
 
 import WS from "vitest-websocket-mock";
+import { screenshotLogLines } from "./screenshotData";
 
 export function mockWS(url: string) {
   const server = new WS(url);
@@ -10,6 +11,12 @@ export function mockWS(url: string) {
     server,
     sendLine(line: string) {
       server.send(line);
+    },
+    // Helper to stream screenshot log lines for console/logs tabs
+    streamScreenshotLogs() {
+      screenshotLogLines.forEach((line) => {
+        server.send(line);
+      });
     },
     close() {
       WS.clean();

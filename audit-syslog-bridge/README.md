@@ -1,6 +1,6 @@
 # audit-syslog-bridge
 
-A tiny, generic **HTTP-JSON → syslog** relay. It accepts an HTTP `POST` whose
+The **audit-syslog-bridge** [optional] is a tiny, generic **HTTP-JSON → syslog** relay. It accepts an HTTP `POST` whose
 body is a single JSON document and re-emits that document as an
 [RFC 5424](https://www.rfc-editor.org/rfc/rfc5424) syslog message to a
 configured collector (TCP, TCP over TLS, or UDP).

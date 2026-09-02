@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:cover": "vitest run --coverage",
     "test:e2e:mock": "GAMEPLANE_E2E_TARGET=mock playwright test",
-    "test:e2e:live": "GAMEPLANE_E2E_TARGET=live playwright test"
+    "test:e2e:live": "GAMEPLANE_E2E_TARGET=live playwright test",
+    "screenshots": "GAMEPLANE_E2E_TARGET=mock GAMEPLANE_SCREENSHOTS=1 playwright test"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

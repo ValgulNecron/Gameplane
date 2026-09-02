@@ -1,6 +1,6 @@
 # mcp-server
 
-A strictly **read-only** [Model Context Protocol](https://modelcontextprotocol.io/)
+The **mcp-server** [optional] is a strictly **read-only** [Model Context Protocol](https://modelcontextprotocol.io/)
 (MCP) server for Gameplane clusters. It lets an AI assistant read cluster
 state — the 7 Gameplane CRDs, Pods, Events, and pod logs — and get a
 suggested fix as plain text (YAML and/or `kubectl` commands) for a human

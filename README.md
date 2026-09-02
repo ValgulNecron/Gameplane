@@ -7,7 +7,7 @@ clusters without changing the operational model.
 
 > Status: **beta** (`v0.2.0-beta.8`). The operator, API, agent, and dashboard
 > are feature-complete for the v1 scope and stabilized for external testing.
-> See [Beta status & known limitations](#beta-status--known-limitations) before
+> See [Beta status & known limitations](#beta-status--limitations) before
 > running it for anything you can't afford to lose.
 
 **Website:** <https://valgulnecron.github.io/gameplane-website/> — features,
@@ -17,13 +17,21 @@ mounted here as the `website/` submodule.
 
 ## Screenshots
 
+Screenshots are captured against mocked data for consistency and reproducibility; all UI layouts and components reflect the current dashboard.
+
 | | |
 |---|---|
-| ![Dashboard showing fleet health: running/stopped/failed server counts, cluster CPU/memory/storage usage, node status, and recent activity](docs/img/dashboard.jpg) | ![Servers list with live status, CPU, memory, and node placement for every game server in the cluster](docs/img/servers-list.jpg) |
+| ![Sign-in form with username and password fields, an OIDC sign-in button, the Gameplane logo, and a feature sidebar](docs/img/login.jpg) | ![Create Server wizard step 1 showing the game template grid with icons, names, versions, and descriptions beside a YAML preview panel](docs/img/create-server-template-select.jpg) |
+| Login — local account or OIDC | Create server — pick a game template |
+| ![Server Events tab listing Kubernetes events for a failed server, from scheduling and image pull to CrashLoopBackOff, with All, Info, and Warnings filters](docs/img/server-detail-events.jpg) | ![Admin Settings General section with instance name, external URL, and default namespace fields beside the settings navigation](docs/img/admin-settings-general.jpg) |
+| Server detail — Events (diagnosing a failed start) | Admin Settings — General |
+| ![Cluster page showing three node cards with readiness, uptime, pod counts, CPU cores, and CPU and memory usage bars](docs/img/cluster-nodes.jpg) | ![Server Logs tab streaming container output with timestamps, log-level filters, a text filter, and a download button](docs/img/server-detail-logs.jpg) |
+| Cluster — nodes at a glance | Server detail — Logs |
+| ![Dashboard with running-server, players-online, vCPU, storage, and node tiles, a fleet status bar, cluster resource meters, recent activity, and recent backups](docs/img/dashboard.jpg) | ![Servers page listing every game server with game, status badge, players, and node placement columns beside summary tiles and filters](docs/img/servers-list.jpg) |
 | Dashboard — fleet health at a glance | Servers — every game server, one list |
-| ![Server detail Overview tab showing CPU, memory, and disk usage plus quick actions and connection info](docs/img/server-overview.jpg) | ![Mods tab registry browser showing a grid of Thunderstore mods for Valheim with download counts](docs/img/mods-registry-browse.jpg) |
+| ![Server detail Overview tab with CPU, memory, and disk usage tiles, recent events, connection host and port, and players online](docs/img/server-overview.jpg) | ![Mods tab registry browser showing a grid of Thunderstore mods for a Valheim server with authors and download counts](docs/img/mods-registry-browse.jpg) |
 | Server detail — Overview | Mods — browsing a registry (Thunderstore) |
-| ![Live streaming console output for a Terraria server, showing world-save progress](docs/img/server-console.jpg) | ![Admin Settings Mod registries screen showing CurseForge and Steam Workshop configured, Nexus Mods not configured](docs/img/admin-mod-registries.jpg) |
+| ![Live console for a Minecraft server streaming startup, player join, and auto-save lines over WebSocket with Clear, Download, and Fullscreen controls](docs/img/server-console.jpg) | ![Admin Settings Mod registries section showing CurseForge and Steam Workshop configured and Nexus Mods not configured](docs/img/admin-mod-registries.jpg) |
 | Console — live output over WebSocket | Admin Settings — Mod registries |
 
 ## Beta Status & Limitations
@@ -32,7 +40,7 @@ Gameplane is currently in **beta** (`v0.2.0-beta.8`). Core workflows — server 
 
 Here are a few items to keep in mind:
 
-- **Multi-cluster streaming**: You can register and manage multiple clusters from a single dashboard, but WebSocket console/log streaming is currently scoped to the local control-plane cluster.
+- **Multi-cluster streaming**: You can register and manage multiple clusters from a single dashboard, but WebSocket console/log streaming is currently scoped to the local control-plane cluster [local cluster only].
 - **Idle auto-sleep & wake-on-connect**: Sleeping servers require normal game boot time when waking up. Minecraft Java and Terraria support full protocol handshake parsing to hold client connections while waking; other games use packet heuristics where players reconnect once the server is ready.
 - **Relay Tunnels**: Integrated `frp`, `Tailscale`, and `playit` relays run as supervised sidecar pods. For `playit`, port-forward mappings are managed directly through your playit.gg account.
 - **Production readiness**: Automated release upgrade testing runs on every PR. Disaster-recovery runbooks and fine-tuned workload resource guidance are actively being finalized (see [`docs/roadmap.md`](docs/roadmap.md)).
@@ -44,6 +52,26 @@ Here are a few items to keep in mind:
 Popular panels like AMP or Pterodactyl work well for single Docker hosts. However, if you want to scale from a single homelab machine running one server to a multi-node cluster hosting dozens of game servers across a community or hosting service, traditional panels force you to change your infrastructure setup.
 
 Gameplane uses standard Kubernetes primitives (CRDs, operators, StatefulSets, PVCs) so the exact same control plane handles everything from single-node k3s installs to large multi-node clusters seamlessly.
+
+Gameplane is compared to Pterodactyl and CubeCoders AMP (both control panels)
+and Agones (a Kubernetes operator library). While not direct competitors,
+Agones is included as a reference point for teams building on Kubernetes
+primitives.
+
+Status: **beta** (`v0.2.0-beta.8`). The operator, API, agent, and dashboard
+are feature-complete for the v1 scope and stabilized for external testing.
+
+| Dimension | Gameplane | Pterodactyl | CubeCoders AMP | Agones |
+|-----------|-----------|-------------|----------------|--------|
+| Deployment/runtime model | Kubernetes-native CRDs and controller-runtime operator; scales from k3s homelab to multi-node clusters. [BETA] [G-a](docs/comparison-sources.md#gameplane-row-a) | Self-hosted Panel with PHP/MySQL/Redis dependencies; Wings backend manages Docker containers. [P-a](docs/comparison-sources.md#pterodactyl-row-a) | Web-based control panel supporting Windows (native) and Linux (Debian 10+). [C-a](docs/comparison-sources.md#cubecoders-row-a) | Kubernetes-native library extending K8s with GameServer/Fleet CRDs. [A-a](docs/comparison-sources.md#agones-row-a) |
+| Scaling & auto-sleep | Opt-in idle auto-sleep with configurable wake windows, manual wake button, or wake-on-connect. Minecraft/Terraria full protocol support; others use packet heuristics. [optional] [G-b](docs/comparison-sources.md#gameplane-row-b) | Multi-node support with cron-based power scheduling; no dedicated idle/auto-sleep feature. [P-b](docs/comparison-sources.md#pterodactyl-row-b) | Instance Automatic Sleep feature; multi-server architecture with controller managing instances. [C-b](docs/comparison-sources.md#cubecoders-row-b) | Fleet autoscaling via buffer/webhook strategies; no idle/sleep state. [A-b](docs/comparison-sources.md#agones-row-b) |
+| Inbound connectivity (NAT traversal, relay) | Integrated frp, Tailscale, playit relay sidecars; playit mappings user-managed via playit.gg account. [optional; disabled by default] [G-c](docs/comparison-sources.md#gameplane-row-c) | No integrated relay sidecars; manual proxy/port forwarding configuration required. [P-c](docs/comparison-sources.md#pterodactyl-row-c) | not publicly documented (checked 2026-09-02) [C-c](docs/comparison-sources.md#cubecoders-row-c) | No relay or NAT traversal features documented. [A-c](docs/comparison-sources.md#agones-row-c) |
+| Backup and restore | Restic snapshots to S3-compatible storage; on-demand or cron-scheduled via BackupSchedule; one-click restore. [G-d](docs/comparison-sources.md#gameplane-row-d) | Wings (local, default) or S3-compatible backup drivers; cron scheduling and on-demand backups. [P-d](docs/comparison-sources.md#pterodactyl-row-d) | not publicly documented (checked 2026-09-02) [C-d](docs/comparison-sources.md#cubecoders-row-d) | not applicable (Agones is a Kubernetes operator library) [A-d](docs/comparison-sources.md#agones-row-d) |
+| Access control & authentication | Local argon2id + OIDC (Keycloak/Google/GitHub); three built-in roles (admin/operator/viewer); custom roles supported. [G-e](docs/comparison-sources.md#gameplane-row-e) | 2FA configurable per account or admin-only; subuser management via Artisan CLI. [P-e](docs/comparison-sources.md#pterodactyl-row-e) | Role-based access control; OIDC single-sign-on in Advanced Edition. [C-e](docs/comparison-sources.md#cubecoders-row-e) | not applicable (Agones is a Kubernetes operator library) [A-e](docs/comparison-sources.md#agones-row-e) |
+| Game template distribution | OCI bundles via ModuleSource (git/http/oci/local/upload); optional cosign signature verification per source. 16 ready-to-use templates shipped. [G-f](docs/comparison-sources.md#gameplane-row-f) | Community eggs repository (eggs.pterodactyl.io) with nests and custom egg creation support. [P-f](docs/comparison-sources.md#pterodactyl-row-f) | Customizable templates framework; community-contributed templates available via external repositories. [C-f](docs/comparison-sources.md#cubecoders-row-f) | not applicable (Agones is a Kubernetes operator library) [A-f](docs/comparison-sources.md#agones-row-f) |
+| Multi-tenancy & multi-cluster | Cluster CRD for remote registration/monitoring; console/log streaming local-cluster only. [local cluster only for streaming] [G-g](docs/comparison-sources.md#gameplane-row-g) | Single Panel managing multiple nodes; no documented remote cluster or cross-cluster streaming. [P-g](docs/comparison-sources.md#pterodactyl-row-g) | Multi-server management via controller architecture; multi-tenancy not supported in AMP 2 (planned for AMP 3). [C-g](docs/comparison-sources.md#cubecoders-row-g) | Multi-cluster allocation via GameServerAllocationPolicy; allocator service with mTLS authentication. [A-g](docs/comparison-sources.md#agones-row-g) |
+| Licensing | GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). [G-h](docs/comparison-sources.md#gameplane-row-h) | MIT License (Panel and Wings). [P-h](docs/comparison-sources.md#pterodactyl-row-h) | Proprietary; per-instance tiers (Standard/Professional/Advanced/Enterprise). [C-h](docs/comparison-sources.md#cubecoders-row-h) | Apache License 2.0. [A-h](docs/comparison-sources.md#agones-row-h) |
+| Target operator scope (self-hosted vs. managed SaaS) | Self-hosted only; runs on Kubernetes (k3s, kubeadm, managed services); no managed SaaS offering. [G-i](docs/comparison-sources.md#gameplane-row-i) | Self-hosted only; requires Linux system capable of running Docker containers. [P-i](docs/comparison-sources.md#pterodactyl-row-i) | Self-installed on user hardware (Windows or Linux); no managed SaaS version. [C-i](docs/comparison-sources.md#cubecoders-row-i) | Self-hosted operator software; runs anywhere Kubernetes can run. [A-i](docs/comparison-sources.md#agones-row-i) |
 
 ## Features
 
@@ -107,9 +135,9 @@ Gameplane integrates with **10 mod registries**: Modrinth, CurseForge, Thunderst
 | `agent/` | Go | Sidecar running in each game pod for RCON, file ops, PTY console, and metrics. |
 | `api/` | Go | Front-end API gateway handling REST endpoints, WebSocket streaming, auth, and RBAC. |
 | `operator/` | Go | Kubernetes controller reconciling Gameplane CRDs into K8s workloads and resources. |
-| `sentinel/` | Go | Waker daemon listening on game ports while a server is sleeping to trigger wake-on-connect. |
-| `capture-sidecar/` | Go | Optional network packet capture sidecar, opt-in per server, admin-only. |
-| `tunnel/` | Go | Relay supervisor pod managing third-party tunnels (`frp`, `Tailscale`, `playit`). |
+| `sentinel/` | Go | Waker daemon listening on game ports while a server is sleeping to trigger wake-on-connect [optional]. |
+| `capture-sidecar/` | Go | Network packet capture sidecar [optional], opt-in per server, admin-only. |
+| `tunnel/` | Go | Relay supervisor pod managing third-party tunnels (`frp`, `Tailscale`, `playit`) [optional]. |
 | `web/` | TS + React | Modern dashboard UI built with Vite, TanStack Query, xterm.js, and Monaco Editor. |
 | `modules/` | YAML | 16 pre-packaged game templates (Minecraft, Valheim, Terraria, Rust, etc.) as OCI bundles. |
 | `charts/` | Helm | Official Helm deployment chart for operator, API gateway, ingress, and helper services. |
@@ -117,9 +145,9 @@ Gameplane integrates with **10 mod registries**: Modrinth, CurseForge, Thunderst
 | `gameaction/` | Go | Security guard and command renderer for custom module admin actions. |
 | `netguard/` | Go | SSRF protection layer for outgoing mod downloads and OCI module fetches. |
 | `svcutil/` | Go | Shared HTTP server lifecycle and environment configuration utilities. |
-| `audit-syslog-bridge/` | Go | Optional HTTP-JSON to syslog relay for audit logging infrastructure. |
-| `telemetry-receiver/` | Go | Optional collector for anonymous daily usage reports. |
-| `mcp-server/` | Go | Optional strictly read-only Model Context Protocol server for AI tools. |
+| `audit-syslog-bridge/` | Go | HTTP-JSON to syslog relay [optional] for audit logging infrastructure. |
+| `telemetry-receiver/` | Go | Collector [optional] for anonymous daily usage reports. |
+| `mcp-server/` | Go | Strictly read-only Model Context Protocol server [optional] for AI tools. |
 
 ### Custom Resource Definitions (CRDs)
 
@@ -192,7 +220,7 @@ cosign verify --key cosign.pub \
   ghcr.io/valgulnecron/gameplane/operator:<version>
 ```
 
-Pre-rotation releases (v0.2.0-beta.7 and earlier) were signed with the retired
+Pre-rotation releases (v0.2.0-beta.7 and earlier) were signed with the retired <!-- doc-versions: historical -->
 Ed25519 key and do not have transparency log entries — verify them with
 `cosign-legacy.pub` and `--insecure-ignore-tlog=true`. See
 [`docs/key-rotation.md`](docs/key-rotation.md) for details.

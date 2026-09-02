@@ -16,10 +16,28 @@ import { defineConfig, devices } from "@playwright/test";
 
 const target = (process.env.GAMEPLANE_E2E_TARGET ?? "mock") as "mock" | "live";
 
+// screenshot capture (web/e2e/specs/screenshots.spec.ts, tagged @screenshots)
+// is excluded from the regular mock/live runs and selected explicitly by
+// `npm run screenshots` (web/package.json), which sets GAMEPLANE_SCREENSHOTS=1 (OD-3b).
+//
+// A CLI --grep does NOT override a config-level grepInvert: Playwright
+// applies project.grepInvert while building the project's test suite
+// (runner/loadUtils.js createProjectSuite, unconditional), separately from
+// and before the CLI grep/grep-invert matcher built from --grep/--grep-invert
+// (same file, createRootSuite's cliTitleMatcher). An unconditional
+// `grepInvert: /@screenshots/` here would therefore remove every
+// @screenshots-tagged test from the suite before --grep ever runs,
+// leaving `npm run screenshots` matching zero tests. So the invert (and,
+// symmetrically, the positive grep for the screenshot run) must switch on
+// an environment variable set by the npm script, not CLI-sniffing.
+const screenshotsRequested = process.env.GAMEPLANE_SCREENSHOTS === "1";
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false, // login flow shares cookies; serial keeps it predictable
   forbidOnly: !!process.env.CI,
+  grep: screenshotsRequested ? /@screenshots/ : undefined,
+  grepInvert: screenshotsRequested ? undefined : /@screenshots/,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"], ["html", { open: "never" }]],

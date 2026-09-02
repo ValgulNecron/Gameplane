@@ -15,18 +15,18 @@ discovered along the way gets added. For what already works today, see
 
 These items have shipped and are reflected in current `main`.
 
-### Multi-cluster: dashboard cluster selector (PR #107)
+### Multi-cluster: dashboard cluster selector (PR #107) (shipped v0.2.0-beta.6) <!-- doc-versions: historical -->
 
 A Topbar cluster selector with per-cluster health, threading `?cluster=` through
 the API client and raw-fetch escape hatches, with `queryClient.clear()` on cluster
 switch. WebSocket streams remain local-cluster-scoped — a documented follow-up.
 
-### Multi-cluster: dual-cluster e2e coverage (PR #104)
+### Multi-cluster: dual-cluster e2e coverage (PR #104) (shipped v0.2.0-beta.6) <!-- doc-versions: historical -->
 
 A real `kind ×2` e2e test (multicluster bucket) asserting `?cluster=` dispatch
 lands a GameServer on cluster B and that a viewer scoped to cluster A cannot see it.
 
-### Audit log integrity (tamper evidence) (PR #103, dashboard banner PR #108)
+### Audit log integrity (tamper evidence) (PR #103, dashboard banner PR #108) (shipped v0.2.0-beta.6) <!-- doc-versions: historical -->
 
 Complete end-to-end. Backend: migration `005_audit_chain.sql`,
 `Auditor.insertChained`/`Auditor.Verify`, and `GET /admin/audit/verify`. The
@@ -61,7 +61,7 @@ remaining gap and is a candidate future hardening, not yet implemented.
 
 Threat-model context lives in [`security.md`](security.md#audit-log-integrity).
 
-### Upgrade testing (`e2e upgrade` bucket)
+### Upgrade testing (`e2e upgrade` bucket) (shipped v0.2.0-beta.8)
 
 `helm upgrade` was the most dangerous operation a user performs and the only
 one CI never exercised. It now runs on every PR, on both amd64 and arm64:
@@ -83,9 +83,9 @@ one. Note the caveat's own docs were stale and are corrected: the chart's
 while, but [`install.md`](install.md#helm-crd-caveat) still told users to run
 `kubectl apply` by hand.
 
-Not yet covered: upgrades skipping several releases at once, and Postgres.
+Not yet covered: upgrades skipping several releases at once, and Postgres [experimental].
 
-### Idle auto-sleep (backend PR #180, dashboard PR #182)
+### Idle auto-sleep (backend PR #180, dashboard PR #182) (shipped v0.2.0-beta.8)
 
 Opt-in per server (`spec.idle`): the operator scales a GameServer to zero once
 it has reported no online players for `afterMinutes`, and brings it back on a
@@ -128,9 +128,9 @@ browser would duplicate scheduling semantics the operator owns (rule 10).
 Persisting it on status is the right fix, and is a CRD change rather than a
 dashboard one.
 
-### Wake-on-connect for idle auto-sleep
+### Wake-on-connect for idle auto-sleep (shipped v0.2.0-beta.8)
 
-A sentinel component holds advertised ports while a server is asleep and wakes
+A sentinel [optional] component holds advertised ports while a server is asleep and wakes
 it on a genuine connection attempt. Opt-in per server via `spec.idle.wakeOnConnect`
 (default false), with per-port protocol awareness to avoid corrupting handshakes.
 
@@ -164,17 +164,17 @@ it on a genuine connection attempt. Opt-in per server via `spec.idle.wakeOnConne
 14 shipped modules use generic (they are UDP-only and have no connection to
 hold). Hostport is asymmetric as described.
 
-### Read-only MCP server (PR #105)
+### Read-only MCP server (PR #105) (shipped v0.2.0-beta.6) <!-- doc-versions: historical -->
 
 An [MCP](https://modelcontextprotocol.io) server letting an AI assistant read
 current cluster state and *propose* fixes — strictly read-only, no writes.
 
-A new optional component (distroless Docker image, Helm toggle) exposing only
+A new optional component [optional] (distroless Docker image, Helm toggle) exposing only
 `List` / `Get` / `Watch` over the Gameplane CRDs plus Pods, Events, and pod logs.
 "Propose a fix" returns suggested YAML or `kubectl` invocations as text — no
 create/update/delete/patch tool exists. See [`mcp-server/README.md`](../mcp-server/README.md).
 
-### Module signing: active for official bundles (ECDSA P-256, Rekor-logged)
+### Module signing: active for official bundles (ECDSA P-256, Rekor-logged) (shipped v0.2.0-beta.8)
 
 The keyed-cosign signing mechanism is implemented and e2e-proven, and
 `ModuleSource.spec.verify` can require a valid signature. It is now **active**
@@ -189,7 +189,7 @@ fail-closed when the key is absent. The operator's verify path remains
 offline/keyed, preserving air-gapped functionality. See
 [Signing official bundles](module-authoring.md#signing-official-bundles).
 
-### Hermetic module images (gameplane-module#35, docs in #178)
+### Hermetic module images (gameplane-module#35, docs in #178) (shipped v0.2.0-beta.8)
 
 Every shipped module's default image is now pinned by digest, so a server
 binary can no longer change underneath a user on pod restart with no version
@@ -215,7 +215,7 @@ production-readiness hardening below — tracked items, not code gaps.
 
 ## Wanted for v1, not blocking
 
-### Production-readiness hardening
+### Production-readiness hardening (planned)
 
 - A documented backup/restore **drill** — a runbook an operator can follow.
   The *coverage* half of this item is already done and was stale here:
@@ -225,7 +225,7 @@ production-readiness hardening below — tracked items, not code gaps.
   provisions. What is missing is the human-facing runbook, not the test.
 - Resource-limit guidance sized from real workloads rather than defaults.
 
-### Postgres driver: make the store fully driver-portable
+### Postgres driver: make the store fully driver-portable (planned)
 
 SQLite is the only production-tested driver. Postgres support (via build tag
 `-tags postgres`) is work-in-progress: the SQL written in migrations lacks
@@ -237,14 +237,14 @@ to the CI coverage matrix, and e2e testing against a real Postgres instance.
 
 ## Explicitly out of scope for v1
 
-- **A hosted/managed Gameplane.** The project targets self-hosted clusters, from
+- **A hosted/managed Gameplane (not planned).** The project targets self-hosted clusters, from
   a single-node k3s homelab to multi-node production.
 
 ---
 
 ## Known gaps tracked for completion
 
-### Game module template specifications
+### Game module template specifications (planned)
 
 Constitution IV requires a `specs.md` file per game module documenting the
 template's authoring and configuration — the game module itself, not its

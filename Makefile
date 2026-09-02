@@ -225,13 +225,25 @@ test-web-e2e-mock: ## Playwright tests against vite + MSW mocks (no cluster)
 test-web-e2e-live: ## Playwright tests against the live e2e cluster (requires e2e-up + Go e2e)
 	cd web && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:live
 
+.PHONY: screenshots
+screenshots: ## Capture dashboard screenshots via Playwright mock mode (CI or maintainers; agents do not run it locally, OD-15)
+	cd web && npm ci && npm run screenshots
+
 # -------- lint --------
 .PHONY: check-specs
 check-specs: ## Verify all modules have valid, non-empty specs.md
 	hack/check-specs.sh
 
+.PHONY: check-doc-versions
+check-doc-versions: ## Verify documentation version strings match the chart appVersion
+	hack/check-doc-versions.sh
+
+.PHONY: check-links
+check-links: ## Verify internal documentation links and anchors resolve
+	hack/check-links.sh
+
 .PHONY: lint
-lint: check-specs lint-go lint-web ## Run all linters
+lint: check-doc-versions check-links check-specs lint-go lint-web ## Run all linters
 
 .PHONY: lint-go
 lint-go: ## Run golangci-lint across all modules

@@ -217,7 +217,7 @@ Pod Security Standards `restricted` on the games namespace via
 
 ### Network Capture Security Exception
 
-The optional network capture feature (see
+The optional network capture feature [optional] (see
 [`docs/roadmap.md`](roadmap.md)) adds an ephemeral sidecar container to game pods when
 capture is enabled. This sidecar requires **`allowPrivilegeEscalation: true`** in
 its securityContext, which violates the Pod Security Standards `restricted`
@@ -538,7 +538,7 @@ The review is advisory — a human reviewer must still validate changes before m
 
 ## mcp-server (optional)
 
-The optional MCP server (`mcpServer.enabled`, see [`mcp-server/README.md`](../mcp-server/README.md))
+The optional MCP server [optional] (`mcpServer.enabled`, see [`mcp-server/README.md`](../mcp-server/README.md))
 is strictly read-only — no tool it exposes can create, update, patch,
 delete, or apply anything, enforced structurally (its tool handlers only
 ever hold a client whose exported methods are List/Get-shaped) and by RBAC
@@ -609,7 +609,7 @@ by several layers:
 ## Install-Time OIDC Role Mappings
 
 When OIDC authentication is configured at install time via Helm values
-(`api.oidc.groupsClaim`, `api.oidc.roleMappings`, `api.oidc.defaultRole`),
+(`api.oidc.groupsClaim`, `api.oidc.roleMappings`, `api.oidc.defaultRole`) (unreleased; ships in the next release),
 Gameplane automatically assigns roles to users based on their OIDC provider's
 group/role claims on every login. This eliminates the need for a bootstrap-admin
 account in OIDC-only deployments — an operator can configure group mappings at

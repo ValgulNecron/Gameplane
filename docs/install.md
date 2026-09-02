@@ -11,7 +11,7 @@
 
 The chart and its images are published to the GitHub Container Registry (GHCR)
 as OCI artifacts — no `helm repo add` needed. Install a tagged release straight
-from the registry (replace `<version>` with a release, e.g. `0.2.0-beta.7`):
+from the registry (replace `<version>` with a release, e.g. `0.2.0-beta.8`):
 
 ```sh
 helm upgrade --install gameplane oci://ghcr.io/valgulnecron/charts/gameplane \
@@ -51,7 +51,7 @@ cosign verify --key cosign.pub \
   ghcr.io/valgulnecron/gameplane/operator:<version>
 ```
 
-Pre-rotation releases (v0.2.0-beta.7 and earlier) used the retired Ed25519 key
+Pre-rotation releases (v0.2.0-beta.7 and earlier) used the retired Ed25519 key <!-- doc-versions: historical -->
 and lack transparency log entries — verify those with `cosign-legacy.pub` and
 `--insecure-ignore-tlog=true`. See [`key-rotation.md`](key-rotation.md) for the
 trust continuity proof. Module bundles are verified the same way; the chart
@@ -107,7 +107,7 @@ Top-level knobs (see `values.yaml` for the full list):
   where Docker Hub is unreachable. They map to the operator's
   `--config-init-image` / `--restic-image` flags, mirroring `operator.agentImage`
 - `operator.gameDataStorage.storageClassName` — install-time default storage class
-  for game server data volumes (default `""`). Empty string uses the cluster's
+  for game server data volumes (unreleased; ships in the next release) (default `""`). Empty string uses the cluster's
   default StorageClass. Applies to all GameServers where neither the GameTemplate
   nor GameServer-level override specifies a class. **Precedence**: GameServer
   override > GameTemplate default > install-time default > cluster default.
@@ -117,7 +117,7 @@ Top-level knobs (see `values.yaml` for the full list):
   GameServer enters Pending with a `PVCProvisioningFailed` condition (visible in
   the dashboard); no pod starts until resolved. Example:
   `--set operator.gameDataStorage.storageClassName=fast-nvme`
-- `api.db.driver` — `sqlite` (default, production-tested) or `postgres` (experimental, work-in-progress)
+- `api.db.driver` — `sqlite` (default, production-tested) or `postgres` [experimental] (work-in-progress)
 - `api.db.dsn` — connection string; SQLite default persists to a PVC
 - `api.oidc.enabled` + the following settings — wire OIDC login from Helm (shows
   up as the read-only `helm` provider). Providers can also be added at runtime
@@ -126,7 +126,7 @@ Top-level knobs (see `values.yaml` for the full list):
   - Core connection: `issuer` / `clientID` / `clientSecretRef` / `redirectURL` /
     `displayName` — OIDC provider credentials and endpoints. Per-IdP walkthroughs
     (Keycloak, Authentik, Google) live in [oidc.md](oidc.md)
-  - Role mapping (new, seeded at install time):
+  - Role mapping (new, seeded at install time) (unreleased; ships in the next release):
     - `groupsClaim` — OIDC claim name containing group memberships (default `""`).
       Typically `"groups"` or `"roles"` depending on your IdP. Empty/omitted =
       group-based role mapping disabled; new OIDC users default to `defaultRole`
@@ -161,7 +161,7 @@ Top-level knobs (see `values.yaml` for the full list):
     - `gameEgress.ports` — TCP ports for downloads (default 80, 443)
     - `gameEgress.privateCIDRs` — exclude private ranges from public-egress (anti-SSRF)
 - `clusterOps.enabled` — credential-minting cluster operations (Add node, Download kubeconfig) in the dashboard's Cluster page (default off; grants powerful kube-system + CSR-approval RBAC)
-- `mcpServer.enabled` — optional strictly read-only MCP (Model Context Protocol) server for AI assistants to read cluster state and propose fixes (default off); see [mcp-server/README.md](../mcp-server/README.md)
+- `mcpServer.enabled` — optional strictly read-only MCP (Model Context Protocol) server [optional] for AI assistants to read cluster state and propose fixes (default off); see [mcp-server/README.md](../mcp-server/README.md)
   - `mcpServer.replicas` — MCP server replicas (default 1)
 - `updates.channel` — informational release-channel label (e.g., `stable`, `edge`) shown read-only in the dashboard's Admin Settings → Updates section; purely informational (Gameplane upgrades via Helm, not auto-update)
 - `podSecurity.enforceRestricted` — label games namespace for Pod Security Standards
@@ -188,7 +188,7 @@ Top-level knobs (see `values.yaml` for the full list):
   directory of module bundles into the operator for `local`-type sources
 - `serviceMonitors.enabled` / `prometheusRules.enabled` / `grafanaDashboards.enabled`
   — opt-in Prometheus Operator integration (see [Observability](#observability))
-- `operator.sentinelImage` — the optional sentinel component for wake-on-connect (default
+- `operator.sentinelImage` — the optional sentinel [optional] component for wake-on-connect (default
   `ghcr.io/valgulnecron/gameplane/sentinel:<version>`). The sentinel holds
   advertised ports while a GameServer is asleep and wakes it on a genuine
   connection attempt; opt-in per server via `spec.idle.wakeOnConnect` (default
@@ -212,7 +212,7 @@ Top-level knobs (see `values.yaml` for the full list):
 
   Any other value fails the operator at startup. The operator never writes the
   deprecated `service.spec.loadBalancerIP`.
-- `capture.enabled` — the optional network packet capture sidecar for GameServers
+- `capture.enabled` — the optional network packet capture sidecar [optional] for GameServers
   (default `false`). When enabled cluster-wide, admins can opt individual GameServers
   into live AF_PACKET capture with BPF filtering and download PCAPNG files. Captures
   are always opt-in per server via `spec.capture.enabled` and admin-only (`captures:manage`
@@ -330,7 +330,7 @@ a slow or down sink never blocks or fails a request.
 - `api.audit.webhook.authSecretRef` — optional `Authorization` header for the
   webhook, sourced from a Secret (never a flag — see [security](security.md)).
 - `api.audit.webhook.syslogBridge.enabled` — deploy the bundled
-  [audit-syslog bridge](../audit-syslog-bridge/README.md) and point the webhook
+  [audit-syslog-bridge [optional]](../audit-syslog-bridge/README.md) and point the webhook
   at it automatically, so events are forwarded to a **syslog** collector. Set
   `syslogBridge.syslog.addr` to your collector `host:port` (required when
   enabled), and optionally `network` (`tcp`/`udp`), `tls`, `facility`, and
@@ -390,7 +390,7 @@ off by default) decides *whether*, and the chart decides *where*. With no
 destination configured (the default), the reporter never runs.
 
 - `api.telemetry.receiver.enabled` — deploy the bundled
-  [telemetry-receiver](../telemetry-receiver/README.md) next to the API
+  [telemetry-receiver](../telemetry-receiver/README.md) [optional] next to the API
   and point the API at it automatically. It logs each report and exposes
   aggregate Prometheus metrics (`gameplane_telemetry_reports_total` by
   version, fleet-size histograms) on its `/metrics`.
@@ -600,7 +600,7 @@ kubectl apply -f charts/gameplane/crds/
 
 ### SQLite database adoption (Kestrel → Gameplane)
 
-Installations that predate the Kestrel → Gameplane rename (v0.2.0-beta.2, July 2026)
+Installations that predate the Kestrel → Gameplane rename (v0.2.0-beta.2, June 2026) <!-- doc-versions: historical -->
 and use the SQLite database driver will have their legacy `kestrel.db` file
 automatically adopted on the first start of the new API. The adoption is
 one-time and atomic: the file is renamed to `gameplane.db` in place, and a

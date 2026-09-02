@@ -10,7 +10,7 @@ The address preference is optional—it only takes effect when expose mode is Lo
 
 ### Flavors
 
-Your cluster must have one of these configured via the Helm value `operator.addressManager` (see [`docs/install.md`](docs/install.md)):
+Your cluster must have one of these configured via the Helm value `operator.addressManager` (see [`install.md`](install.md)):
 
 **MetalLB**
 
@@ -191,5 +191,5 @@ The project's e2e test `TestAddressPool_ChangePoolOnRunningServer` verifies that
 
 ## Related
 
-- [`docs/install.md`](docs/install.md) — Helm chart values for `operator.addressManager` and cluster prerequisites.
+- [`install.md`](install.md) — Helm chart values for `operator.addressManager` and cluster prerequisites.
 - [`operator/api/v1alpha1/gameserver_types.go`](../operator/api/v1alpha1/gameserver_types.go) — CRD field definitions for `spec.networking.addressPool` and `spec.networking.address`.

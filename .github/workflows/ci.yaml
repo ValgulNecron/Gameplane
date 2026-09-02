@@ -10,6 +10,9 @@ on:
     # variant covers any future in-tree files under that path.
     # paths + negations (not paths-ignore, which cannot re-include) so that a
     # change touching only a specs.md still runs make check-specs (ruling D5).
+    # Docs re-inclusion entries run the lint job's automated doc gates (check-links,
+    # check-doc-versions) on docs-only changes so stale versions and broken links
+    # are caught without running unrelated test suites.
     paths:
       - "**"
       - "!**.md"
@@ -19,6 +22,11 @@ on:
       - "!website/**"
       - "!LICENSE"
       - "**/specs.md"
+      - "README.md"
+      - "docs/**"
+      - "audit-syslog-bridge/README.md"
+      - "mcp-server/README.md"
+      - "telemetry-receiver/README.md"
   pull_request:
     paths:
       - "**"
@@ -29,6 +37,11 @@ on:
       - "!website/**"
       - "!LICENSE"
       - "**/specs.md"
+      - "README.md"
+      - "docs/**"
+      - "audit-syslog-bridge/README.md"
+      - "mcp-server/README.md"
+      - "telemetry-receiver/README.md"
 # Cancel superseded runs so rapid pushes to the same ref don't waste
 # runner minutes on stale commits.
 concurrency:
@@ -79,6 +92,7 @@ jobs:
       images: ${{ steps.combine.outputs.images }}
       github: ${{ steps.combine.outputs.github }}
       specs: ${{ steps.combine.outputs.specs }}
+      docs: ${{ steps.combine.outputs.docs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -135,6 +149,27 @@ jobs:
             specs:
               - '**/specs.md'
               - 'hack/check-specs.sh'
+            docs:
+              - 'README.md'
+              - 'docs/architecture.md'
+              - 'docs/contributing.md'
+              - 'docs/dependencies.md'
+              - 'docs/game-coverage.md'
+              - 'docs/install.md'
+              - 'docs/key-rotation.md'
+              - 'docs/module-authoring.md'
+              - 'docs/networking.md'
+              - 'docs/notifications.md'
+              - 'docs/oidc.md'
+              - 'docs/roadmap.md'
+              - 'docs/security.md'
+              - 'docs/tunnels.md'
+              - 'audit-syslog-bridge/README.md'
+              - 'mcp-server/README.md'
+              - 'telemetry-receiver/README.md'
+              - 'docs/comparison-sources.md'
+              - 'hack/check-links.sh'
+              - 'hack/check-doc-versions.sh'
       - id: combine
         # Fold the raw filters into single-token booleans so every downstream
         # `if:` is one expression (fewer chances to get wrong when the only way
@@ -150,6 +185,7 @@ jobs:
           CI: ${{ steps.filter.outputs.ci }}
           GITHUB: ${{ steps.filter.outputs.github }}
           SPECS: ${{ steps.filter.outputs.specs }}
+          DOCS: ${{ steps.filter.outputs.docs }}
         run: |
           gov=false;  { [ "$GO" = true ]     || [ "$CI" = true ]; } && gov=true
           webv=false; { [ "$WEB" = true ]    || [ "$CI" = true ]; } && webv=true
@@ -158,6 +194,7 @@ jobs:
           wlv=false;  { [ "$e2ev" = true ] || [ "$WEB" = true ] || [ "$CI" = true ]; } && wlv=true
           ghv=false;  { [ "$GITHUB" = true ] || [ "$CI" = true ]; } && ghv=true
           specsv=false; { [ "$SPECS" = true ] || [ "$CI" = true ]; } && specsv=true
+          docsv=false; { [ "$DOCS" = true ] || [ "$CI" = true ]; } && docsv=true
           {
             echo "go=$gov"
             echo "web=$webv"
@@ -167,6 +204,7 @@ jobs:
             echo "images=$wlv"
             echo "github=$ghv"
             echo "specs=$specsv"
+            echo "docs=$docsv"
           } >> "$GITHUB_OUTPUT"
 
   # Build the operator/api/agent (+ gameprobe) images ONCE and publish them as
@@ -339,7 +377,7 @@ jobs:
   lint:
     name: lint (${{ matrix.module }})
     needs: [changes]
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.specs == 'true'
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.specs == 'true' || needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -353,6 +391,14 @@ jobs:
       - name: verify lint gate configuration
         if: matrix.module == 'netguard'
         run: ./test/e2e/lint-gate-verify.sh verify
+      # Repository-wide docs link check; gated to one matrix entry like check-specs (ruling D5).
+      - name: check documentation links
+        if: matrix.module == 'netguard'
+        run: make check-links
+      # Repository-wide docs version check; gated to one matrix entry like check-specs (ruling D5).
+      - name: check documentation versions
+        if: matrix.module == 'netguard'
+        run: make check-doc-versions
       # Repository-wide check; gated to one matrix entry so it runs once per lint run (ruling D5).
       - name: check specs compliance
         if: matrix.module == 'netguard'
