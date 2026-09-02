@@ -27,23 +27,39 @@ test.describe("@screenshots dashboard gallery", () => {
     });
   }
 
+  // Helper to login as admin
+  async function loginAsAdmin(page: Page): Promise<void> {
+    const login = new LoginPage(page);
+    const username =
+      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
+    const password =
+      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
+    await login.login(username, password);
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
+  }
+
+  // Helper to click a tab/section button with visibility assertion
+  async function clickTab(page: Page, name: string): Promise<void> {
+    const tab = page.getByRole("button", { name, exact: true });
+    await expect(tab).toBeVisible({ timeout: 10_000 });
+    await tab.click();
+  }
+
   // Ensure output directory exists before any test runs
   test.beforeAll(async () => {
     fs.mkdirSync(OUT, { recursive: true });
   });
 
-  test("capture gallery", async ({ page }) => {
-    // Enable screenshot dataset BEFORE any navigation
-    // This sets the localStorage flag that triggers MSW to load screenshot handlers
+  // Install dataset switch on every page
+  test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       try {
         localStorage.setItem("gameplane-e2e-dataset", "screenshots");
       } catch {}
     });
+  });
 
-    // ============================================================
-    // 1. LOGIN SCREEN (before authentication)
-    // ============================================================
+  test("login", async ({ page }) => {
     // Force 401 on /users/me so the SPA doesn't redirect to dashboard before
     // we can screenshot the login page. The cookie survives the navigation and
     // is needed before visiting /login because mock mode answers /users/me
@@ -56,127 +72,142 @@ test.describe("@screenshots dashboard gallery", () => {
       page.getByRole("textbox", { name: /Email or username/i })
     ).toBeVisible();
     await shoot(page, "login");
+  });
 
-    // ============================================================
-    // 2. AUTHENTICATE
-    // ============================================================
-    // Clear the force-401 cookie so login.login() succeeds
-    await page.context().clearCookies();
-    const login = new LoginPage(page);
-    const username =
-      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
-    const password =
-      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
-    await login.login(username, password);
-    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
+  test("dashboard", async ({ page }) => {
+    await loginAsAdmin(page);
 
-    // ============================================================
-    // 3. DASHBOARD (/): Fleet health overview
-    // ============================================================
+    // DASHBOARD (/): Fleet health overview
     await page.goto("/");
     // Wait for the sidebar navigation to render (Modules link is always visible after hydration)
     await expect(page.getByRole("link", { name: /modules/i }).first()).toBeVisible();
     await page.waitForTimeout(250); // Layout settle
     await shoot(page, "dashboard");
+  });
 
-    // ============================================================
-    // 4. SERVERS LIST (/servers): Game server table
-    // ============================================================
+  test("servers-list", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // SERVERS LIST (/servers): Game server table
     await page.goto("/servers");
     // Wait for page heading or table to be visible
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.waitForTimeout(250);
     await shoot(page, "servers-list");
+  });
 
-    // ============================================================
-    // 5. SERVER OVERVIEW (/servers/test-server-01)
-    // ============================================================
+  test("server-overview", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // SERVER OVERVIEW (/servers/test-server-01)
     await page.goto("/servers/test-server-01");
     // Click Overview tab to ensure we're on the right tab
-    await page.getByRole("button", { name: "Overview" }).click();
+    await clickTab(page, "Overview");
     // Wait for overview tab panel or a distinctive metric/heading
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.waitForTimeout(250);
     await shoot(page, "server-overview");
+  });
 
-    // ============================================================
-    // 6. SERVER MODS TAB (/servers/test-server-01)
-    // ============================================================
-    await page.goto("/servers/test-server-01");
-    // Click Mods tab to navigate to the correct tab
-    await page.getByRole("button", { name: "Mods" }).click();
-    // Wait for mods grid or a heading indicating mods are loaded
-    await expect(page.locator('[role="tabpanel"]')).toBeVisible();
+  test("mods-registry-browse", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // MODS REGISTRY BROWSER (/servers/test-server-02 — Valheim, Thunderstore)
+    // test-server-02's template (valheim-default) declares capabilities.mods
+    // with a Thunderstore registry, which is what makes the Mods tab visible
+    // (ServerDetail hides it otherwise). "Install mod" opens the install page,
+    // whose default mode is "Browse registry" when the template declares one.
+    await page.goto("/servers/test-server-02");
+    await clickTab(page, "Mods");
+    // Installed-mods header ("3 installed") proves the tab body loaded.
+    await expect(page.getByText(/\d+ installed/)).toBeVisible();
+    await clickTab(page, "Install mod");
+    // First registry card from the mocked Thunderstore search.
+    await expect(page.getByText("BepInExPack_Valheim").first()).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(250);
     await shoot(page, "mods-registry-browse");
+  });
 
-    // ============================================================
-    // 7. SERVER CONSOLE TAB (/servers/test-server-01)
-    // ============================================================
+  test("server-console", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // SERVER CONSOLE TAB (/servers/test-server-01)
     await page.goto("/servers/test-server-01");
     // Click Console tab to navigate to the correct tab
-    await page.getByRole("button", { name: "Console" }).click();
+    await clickTab(page, "Console");
     // Wait for actual console output from the WebSocket mock stream
     await expect(page.getByText("joined the game").first()).toBeVisible({
       timeout: 15_000,
     });
     await shoot(page, "server-console");
+  });
 
-    // ============================================================
-    // 8. CREATE SERVER WIZARD - TEMPLATE SELECTION (/servers/new)
-    // ============================================================
+  test("create-server-template-select", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // CREATE SERVER WIZARD - TEMPLATE SELECTION (/servers/new)
     await page.goto("/servers/new");
     // Wait for template grid or wizard heading
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.waitForTimeout(250);
     await shoot(page, "create-server-template-select");
+  });
 
-    // ============================================================
-    // 9. ADMIN SETTINGS - MOD REGISTRIES (/admin)
-    // ============================================================
+  test("admin-mod-registries", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // ADMIN SETTINGS - MOD REGISTRIES (/admin)
     await page.goto("/admin");
     // Click Mod registries button to navigate to the correct section
-    await page.getByRole("button", { name: "Mod registries" }).click();
+    await clickTab(page, "Mod registries");
     // Wait for admin settings section to load
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.waitForTimeout(250);
     await shoot(page, "admin-mod-registries");
+  });
 
-    // ============================================================
-    // 10. SERVER EVENTS TAB (test-server-04 with FAILED phase)
-    // ============================================================
+  test("server-detail-events", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // SERVER EVENTS TAB (test-server-04 with FAILED phase)
     await page.goto("/servers/test-server-04");
     // Click Events tab to navigate to the correct tab
-    await page.getByRole("button", { name: "Events" }).click();
+    await clickTab(page, "Events");
     // Wait for events tab panel or event list
     await expect(page.locator('[role="tabpanel"]')).toBeVisible();
     await page.waitForTimeout(250);
     await shoot(page, "server-detail-events");
+  });
 
-    // ============================================================
-    // 11. ADMIN SETTINGS - GENERAL (/admin)
-    // ============================================================
+  test("admin-settings-general", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // ADMIN SETTINGS - GENERAL (/admin)
     await page.goto("/admin");
     // Wait for admin general form or heading (General is the default section)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.waitForTimeout(250);
     await shoot(page, "admin-settings-general");
+  });
 
-    // ============================================================
-    // 12. CLUSTER PAGE (/cluster): Node list and stats
-    // ============================================================
+  test("cluster-nodes", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // CLUSTER PAGE (/cluster): Node list and stats
     await page.goto("/cluster");
     // Wait for cluster heading or node list
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.waitForTimeout(250);
     await shoot(page, "cluster-nodes");
+  });
 
-    // ============================================================
-    // 13. SERVER LOGS TAB (/servers/test-server-01)
-    // ============================================================
+  test("server-detail-logs", async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // SERVER LOGS TAB (/servers/test-server-01)
     await page.goto("/servers/test-server-01");
     // Click Logs tab to navigate to the correct tab
-    await page.getByRole("button", { name: "Logs" }).click();
+    await clickTab(page, "Logs");
     // Wait for actual log output from the WebSocket mock stream
     await expect(page.getByText("joined the game").first()).toBeVisible({
       timeout: 15_000,
