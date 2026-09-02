@@ -145,3 +145,12 @@ configured, the release job fails. A one-time key setup is required: run `cosign
 generate-key-pair`, set `COSIGN_PRIVATE_KEY`/`COSIGN_PASSWORD` as CI secrets,
 and publish `cosign.pub` at the repo root. See
 [`module-authoring.md`](module-authoring.md#signing-official-bundles) for details.
+
+## Community Visibility & Outreach
+
+[External Directory Submissions](../specs/012-docs-refresh-and-outreach/outreach.md)
+
+The project maintains a tracked list of external directory submissions
+(AlternativeTo, Awesome-Selfhosted, Awesome-Kubernetes) to grow
+visibility and discoverability. See the outreach tracker for submission
+status and history.
