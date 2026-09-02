@@ -573,6 +573,8 @@ export const handlers = [
  * factories so shapes stay in sync. Served when
  * localStorage.getItem("gameplane-e2e-dataset") === "screenshots".
  */
+const wsOrigin = typeof window !== "undefined" ? window.location.origin.replace(/^http/, "ws") : "ws://localhost:5173";
+
 export function buildScreenshotHandlers() {
   const data = getScreenshotData();
   return [
@@ -912,6 +914,24 @@ export function buildScreenshotHandlers() {
       return HttpResponse.json([]);
     }),
 
+    // Servers (additional endpoints)
+    http.get("/users/me/servers", () => HttpResponse.json({ items: data.servers })),
+    http.get("/servers/:name/status", () => HttpResponse.json([])),
+
+    // Mods
+    http.get("/servers/:name/mods/registry/providers", () =>
+      HttpResponse.json([{ provider: "thunderstore", available: true, modpacks: false }]),
+    ),
+    http.get("/servers/:name/mods/registry/search", () => HttpResponse.json(data.registryProjects)),
+    http.get("/servers/:name/mods/registry/projects/:project/versions", () =>
+      HttpResponse.json([]),
+    ),
+    http.get("/servers/:name/mods/updates", () =>
+      HttpResponse.json({ checkedAt: "2026-09-02T15:40:00Z", updates: [] }),
+    ),
+    http.get("/servers/:name/mods/ids", () => HttpResponse.json([])),
+    http.get("/servers/:name/mods", () => HttpResponse.json(data.installedMods)),
+
     // Players
     http.get("/servers/:name/players", () => HttpResponse.json(makePlayers())),
     http.get("/servers/:name/players/banned", () =>
@@ -1068,7 +1088,7 @@ export function buildScreenshotHandlers() {
     http.get("/admin/users", () => HttpResponse.json({ items: data.users })),
 
     // WebSocket: PTY Console (registered before RCON console to match narrower pattern first)
-    ws.link("ws://localhost:5173/ws/servers/*/console-pty*").addEventListener("connection", ({ client }) => {
+    ws.link(`${wsOrigin}/ws/servers/*/console-pty*`).addEventListener("connection", ({ client }) => {
       // Send initial attachment message
       setTimeout(() => {
         const attachMsg = "[PTY] Attached to terminal\r\n";
@@ -1104,7 +1124,7 @@ export function buildScreenshotHandlers() {
     }),
 
     // WebSocket: RCON Console
-    ws.link("ws://localhost:5173/ws/servers/*/console*").addEventListener("connection", ({ client }) => {
+    ws.link(`${wsOrigin}/ws/servers/*/console*`).addEventListener("connection", ({ client }) => {
       // Send initial connection message via RCON envelope
       setTimeout(() => {
         client.send(JSON.stringify({ kind: "out", body: "[Console] Connected to RCON" }));
@@ -1134,8 +1154,7 @@ export function buildScreenshotHandlers() {
     }),
 
     // WebSocket: Pod Logs
-    ws.link("ws://localhost:5173/ws/servers/*/logs/pod*").addEventListener("connection", ({ client }) => {
-      const data = getScreenshotData();
+    ws.link(`${wsOrigin}/ws/servers/*/logs/pod*`).addEventListener("connection", ({ client }) => {
       // Send log lines at intervals
       data.logLines.forEach((line, index) => {
         setTimeout(() => {
@@ -1145,8 +1164,7 @@ export function buildScreenshotHandlers() {
     }),
 
     // WebSocket: File Logs
-    ws.link("ws://localhost:5173/ws/servers/*/logs*").addEventListener("connection", ({ client }) => {
-      const data = getScreenshotData();
+    ws.link(`${wsOrigin}/ws/servers/*/logs*`).addEventListener("connection", ({ client }) => {
       // Send log lines at intervals (same as pod logs for demo)
       data.logLines.forEach((line, index) => {
         setTimeout(() => {

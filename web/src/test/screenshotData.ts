@@ -9,6 +9,8 @@ import type {
   AuditEvent,
   ClusterView,
   ServerEvent,
+  InstalledMod,
+  RegistryProject,
 } from "@/types";
 import type { AllConfig } from "@/lib/config";
 import {
@@ -45,6 +47,14 @@ export const screenshotTemplates: GameTemplate[] = [
       version: "0.218",
       description: "Norse exploration and survival game",
       image: "ghcr.io/valgulnecron/gameplane/valheim:0.218",
+      capabilities: {
+        mods: {
+          path: "BepInEx/plugins",
+          extensions: [".dll", ".zip"],
+          install: { allowedHosts: ["thunderstore.io", "gcdn.thunderstore.io"] },
+          registry: { providers: [{ provider: "thunderstore", community: "valheim" }] },
+        },
+      },
     },
   }),
   makeTemplate({
@@ -584,6 +594,176 @@ export const screenshotConsoleOutput = [
 ];
 
 // ============================================================================
+// Installed Mods for test-server-02 (Valheim)
+// ============================================================================
+
+export const screenshotInstalledMods: InstalledMod[] = [
+  {
+    name: "ValheimPlus.dll",
+    size: 1_482_240,
+    modTime: "2026-08-30T19:12:00Z",
+    meta: {
+      provider: "thunderstore",
+      projectId: "Grantapher-ValheimPlus",
+      projectName: "ValheimPlus",
+      versionNumber: "0.9.16.1",
+      installedAt: "2026-08-30T19:12:00Z",
+    },
+  },
+  {
+    name: "EquipmentAndQuickSlots.dll",
+    size: 212_992,
+    modTime: "2026-08-30T19:14:00Z",
+    meta: {
+      provider: "thunderstore",
+      projectId: "RandyKnapp-EquipmentAndQuickSlots",
+      projectName: "EquipmentAndQuickSlots",
+      versionNumber: "2.1.15",
+      installedAt: "2026-08-30T19:14:00Z",
+    },
+  },
+  {
+    name: "PlantEverything.dll",
+    size: 356_352,
+    modTime: "2026-09-01T08:05:00Z",
+    meta: {
+      provider: "thunderstore",
+      projectId: "Advize-PlantEverything",
+      projectName: "PlantEverything",
+      versionNumber: "1.18.3",
+      installedAt: "2026-09-01T08:05:00Z",
+    },
+  },
+];
+
+// ============================================================================
+// Thunderstore Registry Projects for Valheim mod browser
+// ============================================================================
+
+export const screenshotRegistryProjects: RegistryProject[] = [
+  {
+    id: "denikson-BepInExPack_Valheim",
+    slug: "BepInExPack_Valheim",
+    title: "BepInExPack_Valheim",
+    description: "BepInEx pack for Valheim with mod manager integration",
+    author: "denikson",
+    downloads: 14_200_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/",
+    provider: "thunderstore",
+  },
+  {
+    id: "ValheimModding-Jotunn",
+    slug: "Jotunn",
+    title: "Jotunn",
+    description: "A library that provides intuitive and modular systems for modding Valheim",
+    author: "ValheimModding",
+    downloads: 12_800_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/ValheimModding/Jotunn/",
+    provider: "thunderstore",
+  },
+  {
+    id: "ValheimModding-HookGenPatcher",
+    slug: "HookGenPatcher",
+    title: "HookGenPatcher",
+    description: "Automatic Unity Networking patching for game object systems",
+    author: "ValheimModding",
+    downloads: 10_500_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/ValheimModding/HookGenPatcher/",
+    provider: "thunderstore",
+  },
+  {
+    id: "Grantapher-ValheimPlus",
+    slug: "ValheimPlus",
+    title: "ValheimPlus",
+    description: "Comprehensive quality-of-life mod with farming, building, and exploration enhancements",
+    author: "Grantapher",
+    downloads: 9_800_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/Grantapher/ValheimPlus/",
+    provider: "thunderstore",
+  },
+  {
+    id: "RandyKnapp-EpicLoot",
+    slug: "EpicLoot",
+    title: "EpicLoot",
+    description: "Adds an advanced loot system with rare item drops and crafting",
+    author: "RandyKnapp",
+    downloads: 8_200_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/RandyKnapp/EpicLoot/",
+    provider: "thunderstore",
+  },
+  {
+    id: "RandyKnapp-EquipmentAndQuickSlots",
+    slug: "EquipmentAndQuickSlots",
+    title: "EquipmentAndQuickSlots",
+    description: "Adds equipment slots and quick-slot hotbar for better inventory management",
+    author: "RandyKnapp",
+    downloads: 7_100_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/RandyKnapp/EquipmentAndQuickSlots/",
+    provider: "thunderstore",
+  },
+  {
+    id: "Advize-PlantEverything",
+    slug: "PlantEverything",
+    title: "PlantEverything",
+    description: "Allows planting of all Valheim plants for better farming",
+    author: "Advize",
+    downloads: 6_400_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/Advize/PlantEverything/",
+    provider: "thunderstore",
+  },
+  {
+    id: "Azumatt-AzuCraftyBoxes",
+    slug: "AzuCraftyBoxes",
+    title: "AzuCraftyBoxes",
+    description: "Adds convenient crafting interface boxes that can be placed anywhere",
+    author: "Azumatt",
+    downloads: 5_600_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/Azumatt/AzuCraftyBoxes/",
+    provider: "thunderstore",
+  },
+  {
+    id: "Smoothbrain-Sailing",
+    slug: "Sailing",
+    title: "Sailing",
+    description: "Overhauls sailing mechanics with smoother controls and navigation features",
+    author: "Smoothbrain",
+    downloads: 4_300_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/Smoothbrain/Sailing/",
+    provider: "thunderstore",
+  },
+  {
+    id: "Smoothbrain-Farming",
+    slug: "Farming",
+    title: "Farming",
+    description: "Expands farming with new crops and enhanced growth mechanics",
+    author: "Smoothbrain",
+    downloads: 3_800_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/Smoothbrain/Farming/",
+    provider: "thunderstore",
+  },
+  {
+    id: "ishid4-BetterArchery",
+    slug: "BetterArchery",
+    title: "BetterArchery",
+    description: "Improves bow mechanics with crosshair and better damage calculations",
+    author: "ishid4",
+    downloads: 2_200_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/ishid4/BetterArchery/",
+    provider: "thunderstore",
+  },
+  {
+    id: "blaxxun-Groups",
+    slug: "Groups",
+    title: "Groups",
+    description: "Adds player groups and cross-server communication features",
+    author: "blaxxun",
+    downloads: 1_500_000,
+    pageUrl: "https://thunderstore.io/c/valheim/p/blaxxun/Groups/",
+    provider: "thunderstore",
+  },
+];
+
+// ============================================================================
 // Helper for tests/e2e to conditionally swap handler sets
 // ============================================================================
 
@@ -600,5 +780,7 @@ export function getScreenshotData() {
     restores: screenshotRestores,
     config: screenshotConfig,
     logLines: screenshotLogLines,
+    installedMods: screenshotInstalledMods,
+    registryProjects: screenshotRegistryProjects,
   };
 }
