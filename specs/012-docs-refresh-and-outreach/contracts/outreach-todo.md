@@ -1,6 +1,6 @@
 # Contract: External Outreach Tracking (outreach.md)
 
-**Status**: Specification Draft  
+**Status**: Specification (Ruled 2026-09-02 — Ready for Implementation)  
 **Feature Branch**: `012-docs-refresh-and-outreach`  
 **Applies To**: `specs/012-docs-refresh-and-outreach/outreach.md`
 
@@ -74,7 +74,7 @@ pending ──> in-progress ──> submitted (terminal)
 ### Example Terminal States
 
 - `submitted [2026-09-15]` — PR opened to Awesome-Kubernetes on 2026-09-15. Whether or not it is merged is immaterial to the submission status.
-- `deferred [2026-09-01, minimum 4-month age requirement; eligible from 2026-10-22]` — Awesome-Selfhosted blocker documented with future-eligibility date.
+- `deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22]` — Awesome-Selfhosted blocker documented with future-eligibility date.
 - `rejected [2026-09-10, insufficient documentation]` — Third party explicitly declined; reason captured.
 
 ---
@@ -110,9 +110,8 @@ Submitted via web form at https://alternativeto.net/add-app/
 
 docs: outreach [Awesome-Selfhosted] deferred
 
-Changed Awesome-Selfhosted status from pending to deferred [2026-09-01].
-Reason: Minimum 4-month project age required (first release 2026-06-22).
-Project eligible from 2026-10-22 onward.
+Changed Awesome-Selfhosted status from pending to deferred [2026-09-02].
+Reason: First release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22.
 ```
 
 ---
@@ -195,7 +194,7 @@ Repository:        https://github.com/ValgulNecron/Gameplane
 ### Target 2: Awesome-Selfhosted
 
 **Submission Portal**: https://github.com/awesome-selfhosted/awesome-selfhosted-data (PR to data repo)  
-**Initial Status**: `deferred [2026-09-01, minimum 4-month age requirement; eligible from 2026-10-22]`
+**Initial Status**: `deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22]`
 
 **Eligibility Blockers** (R6):
 
@@ -209,8 +208,8 @@ Repository:        https://github.com/ValgulNecron/Gameplane
 
 **Key blocker timeline** (OD-6):
 - **Earliest eligibility**: 2026-10-22 (4 months from first release 2026-06-22 per CHANGELOG.md:656)
-- **Days remaining**: ~51 days from 2026-09-01
-- **Terminal state**: `deferred [2026-09-01, minimum 4-month age requirement; eligible from 2026-10-22]`
+- **Days remaining**: ~50 days from 2026-09-02
+- **Terminal state**: `deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22]`
 
 **Deferred reason**: Per OD-6 recommendation, this target is included in outreach.md with a deferred status and future-eligibility date. When the date arrives (2026-10-22), the entry may be re-evaluated (but is not state-changed; a new process would be required).
 
@@ -247,7 +246,7 @@ Tags:        [Kubernetes, Game Servers, Self-Hosted, DevOps, AGPL]
 ### Target 3: Awesome-Kubernetes
 
 **Submission Portal**: https://github.com/ramitsurana/awesome-kubernetes (PR to main README)  
-**Initial Status**: `deferred [2026-09-01, star/contributor eligibility unknown]`
+**Initial Status**: `deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release]`
 
 **Eligibility Blockers** (R6):
 
@@ -259,11 +258,11 @@ Tags:        [Kubernetes, Game Servers, Self-Hosted, DevOps, AGPL]
 | Recognized org exception | NO | Individual repo (ValgulNecron/Gameplane), not org-hosted. Exception does not apply. (R6:129) |
 
 **Blocker assessment** (OD-6):
-- Metrics eligibility **unknown** (research scope did not include live GitHub metrics check).
-- Recommendation: Pre-submission check of live star/contributor count required (OD-6 decision pending).
-- **Terminal state**: `deferred [2026-09-01, star/contributor eligibility unknown]`
+- Metrics eligibility **not verified at time of deferral** (research scope did not include live GitHub metrics check).
+- Per OD-6b ruling: defer without pre-check. Do not attempt submission until metrics improve or maintainer explicitly authorizes.
+- **Terminal state**: `deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release]`
 
-**Deferred reason**: OD-6 decision required on whether to (a) check metrics pre-submission and attempt only if eligible, or (b) attempt submission and accept rejection. Current recommendation: defer until maintainer confirms metrics or provides authorization to submit despite uncertainty.
+**Deferred reason**: Per OD-6b ruling, eligibility metrics were not pre-checked and this target is deferred without a submission attempt. Revisit in a later release if metrics improve. No pre-check task or PR attempt in this feature.
 
 **Submission Template** (if/when eligible):
 
@@ -283,11 +282,11 @@ Kubernetes Tools, or similar):
 
 ---
 
-## Proposed Initial Content (pending OD-6 maintainer ruling; Awesome-Kubernetes status additionally pending a live star/contributor-count check)
+## Proposed Initial Content (OD-5, OD-6 resolved)
 
-The outreach.md file content below is a proposed template. **This content must not be committed to outreach.md until OD-6 is resolved.** The Awesome-Kubernetes initial status requires a live GitHub metrics check (see OD-6 recommendation) before finalization.
+The outreach.md file content below is a proposed template. Per OD-5 and OD-6 rulings, this seed content may now be committed as outreach.md during implementation. Agents draft the exact submission content; the maintainer performs the actual submissions and updates status as work progresses.
 
-The outreach.md file is created with this initial content (all three targets, all `pending` or `deferred` as per blockers):
+The outreach.md file is created with this initial content (all three targets with statuses per OD-5/OD-6 rulings):
 
 ```markdown
 # External Outreach Tracking
@@ -304,14 +303,14 @@ visibility and discoverability. Status updates are committed to git
 | Target | Submission URL | Status | Submitted Reference | Notes / History |
 |--------|---|---|---|---|
 | AlternativeTo | https://alternativeto.net/add-app/ | pending | pending | No blockers identified. Ready for maintainer account creation and submission. See contract for submission template. |
-| Awesome-Selfhosted | https://github.com/awesome-selfhosted/awesome-selfhosted-data/pulls | deferred [2026-09-01, 4-month age requirement] | N/A | First release 2026-06-22 (CHANGELOG.md:656); 4-month minimum requires wait until 2026-10-22. See contract for submission template. Re-evaluate on or after 2026-10-22. |
-| Awesome-Kubernetes | https://github.com/ramitsurana/awesome-kubernetes | deferred [2026-09-01, star/contributor eligibility unknown] | N/A | Requires 25+ GitHub stars and 3+ contributors. Current metrics unknown; first release 2026-06-22 makes project ineligible for age-based workarounds. See contract and OD-6 for eligibility decision. Re-evaluate if metrics improve or maintainer authorizes submission. |
+| Awesome-Selfhosted | https://github.com/awesome-selfhosted/awesome-selfhosted-data/pulls | deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22] | N/A | First release 2026-06-22 (CHANGELOG.md:656); 4-month minimum requires wait until 2026-10-22. See contract for submission template. Re-evaluate on or after 2026-10-22. |
+| Awesome-Kubernetes | https://github.com/ramitsurana/awesome-kubernetes | deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release] | N/A | Eligibility metrics (25+ GitHub stars and 3+ contributors) were not verified at deferral. Per OD-6b, no pre-check task or submission attempt in this feature. See contract for eligibility criteria. |
 
 ## Next Steps
 
 1. **AlternativeTo**: Maintainer creates free account (requires email verification), prepares submission form with template content from contract, submits.
-2. **Awesome-Selfhosted**: Deferred; re-evaluate on or after 2026-10-22. If age criterion is met, prepare PR to awesome-selfhosted-data.
-3. **Awesome-Kubernetes**: Check live GitHub metrics (stars, contributor count). If 25+ stars and 3+ contributors are confirmed, prepare PR to ramitsurana/awesome-kubernetes. If not confirmed or metrics are marginal, maintain deferred status.
+2. **Awesome-Selfhosted**: Deferred until 2026-10-22 (4-month eligibility date). No action required during this feature; re-evaluate after the date if desired.
+3. **Awesome-Kubernetes**: Deferred per OD-6b; no pre-check task or submission attempt. Revisit in a later release if metrics improve or maintainer explicitly authorizes.
 ```
 
 ---
@@ -346,29 +345,23 @@ Feature 012 is **complete with respect to outreach tracking** when ALL of the fo
 
 ## Open Decisions & Recommendations (tied to OD-5, OD-6)
 
-### OD-5: Submission Authorization
+### OD-5: Submission Authorization (RESOLVED)
 
-**Question**: Who submits to external directories?
+**Ruling**: Per OD-5, agents draft the exact submission content (templates, form fields, PR text) in outreach.md and supporting files. The maintainer reviews and performs the actual submission (account creation, form submission, PR opening). Status changes are then committed by the agent or maintainer as submission progresses.
 
-**Recommendation**: Per OD-5, agents draft the exact submission content (templates, form fields, PR text) in outreach.md and any supporting files. The maintainer reviews and performs the actual submission (account creation, form submission, PR opening). Status changes are then committed by the agent or maintainer as the submission progresses.
-
-**Implementation consequence**: outreach.md contains ready-to-use submission templates so the maintainer can copy/paste without further research.
+**Implementation consequence**: outreach.md contains ready-to-use submission templates so the maintainer can copy/paste without further research. Seed content may be committed during implementation.
 
 ---
 
-### OD-6: Target Eligibility & Acceptance
+### OD-6: Target Eligibility & Acceptance (RESOLVED)
 
-**Question**: How to handle targets with unknown or insufficient eligibility?
+**Ruling**:
 
-**Recommendation**:
+- **Awesome-Selfhosted** (OD-6a): Include in outreach.md with `deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22]`. No submission attempt during this feature; re-evaluate on or after 2026-10-22.
+- **Awesome-Kubernetes** (OD-6b): Include in outreach.md with `deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release]`. Defer without pre-check. No submission attempt or pre-check task in this feature.
+- **AlternativeTo** (OD-6c): Status `pending` awaiting maintainer account creation and submission. Draft submission form content per OD-5.
 
-- **Awesome-Selfhosted** (age blocker): Include in outreach.md with `deferred [2026-09-01, age requirement; eligible from 2026-10-22]`. No further action until the date arrives.
-- **Awesome-Kubernetes** (star/contributor blockers): Include in outreach.md with `deferred [2026-09-01, metrics unknown]`. Recommendation: maintainer or agent checks live GitHub metrics (API call or manual check) before attempting submission. If metrics are marginal, maintain deferred; if sufficient, change status to `in-progress` and prepare PR.
-- **AlternativeTo** (no blockers): Status `pending` awaiting maintainer account creation.
-
-**Further decision required** (maintainer call):
-- Should Awesome-Kubernetes metrics check be automated (e.g., via GitHub API in a CI step) or manual (before implementation)?
-- Should deferred targets be automatically re-evaluated on their re-evaluation date, or left as maintainer responsibility?
+**Implementation consequence**: All three targets are included in the outreach.md seed content with terminal statuses. No decision branches or conditional logic required at implementation time.
 
 ---
 

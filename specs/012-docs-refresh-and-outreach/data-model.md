@@ -102,7 +102,7 @@ All tags are sourced from D-C and CLAUDE.md. Evidence: SC-007, SC-008, R3 label 
 
 **V-CC4 (Word Count, FR-006)**: Text field MUST be ≤25 words for readability in a rendered table.
 
-**V-CC5 ("Not Applicable" Representation)**: Pending OD-11 maintainer ruling (recommended default: option (b) — "Keep Agones with 'Not Applicable' cells"), if a dimension does not apply to a competitor (e.g., Agones lacks user authentication because it is a library, not a control panel), the cell SHOULD state "not applicable" with no external source citation (no SourceReference needed). `notApplicable` boolean set to true prevents validator from requiring `sourceReference`. Do not mark cells "not applicable" until OD-11 is resolved and recommendation is confirmed.
+**V-CC5 ("Not Applicable" Representation)**: Ruled 2026-09-02 (OD-11 option b — "Keep Agones with 'Not Applicable' cells"), if a dimension does not apply to a competitor (e.g., Agones lacks user authentication because it is a library, not a control panel), the cell MUST state exactly "not applicable (Agones is a Kubernetes operator library)" with no external source citation (no SourceReference needed). `notApplicable` boolean set to true prevents validator from requiring `sourceReference`. For CubeCoders AMP cells where a dimension is not publicly documented, use "not publicly documented (checked YYYY-MM-DD)".
 
 ---
 
@@ -117,7 +117,7 @@ All tags are sourced from D-C and CLAUDE.md. Evidence: SC-007, SC-008, R3 label 
 | `id` | string | Yes | Unique identifier within `docs/comparison-sources.md` (letter-based format per comparison-table.md §8: e.g., "P-a", "A-h") |
 | `product` | enum | Yes | "Pterodactyl" \| "CubeCoders AMP" \| "Agones" |
 | `dimension` | enum | Yes | (a) through (i) per FR-002 |
-| `url` | string | Yes | Canonical source URL (GitHub README, official docs, license file) |
+| `url` | string | Yes | Canonical source URL (GitHub README, official docs, license file); defaults to "source URL unavailable (checked YYYY-MM-DD)" if URL hunt fails (OD-10) |
 | `dateChecked` | date | Yes | ISO 8601 (YYYY-MM-DD) when source was verified (FR-005, SC-003) |
 | `whatWasVerified` | string | Yes | Human-readable summary (1–2 sentences) of what was confirmed at this URL (FR-005) |
 | `lastKnownUrl` | string | Optional | Note if source URL moved; cite where feature was last found (spec edge case, FR-005) |
@@ -155,10 +155,11 @@ Entry order: product (Pterodactyl, then AMP, then Agones), then dimension (a–i
 **V-SR3 (Moved Sources)**: If a source URL becomes inaccessible after implementation:
 - `lastKnownUrl` MAY record where the feature was last confirmed (e.g., "Confirmed via GitHub at https://github.com/.../blob/commit/...")
 - The entry is not removed from `docs/comparison-sources.md`; it documents the research trail
+- If a URL hunt fails to locate a source, the `url` field defaults to "source URL unavailable (checked YYYY-MM-DD)" (ruled 2026-09-02, OD-10)
 
-**V-SR4 (CubeCoders Special Case, R7)**: CubeCoders AMP is proprietary and does not have a public GitHub repo. Its documentation site (https://www.cubecoders.com/AMP) requires JavaScript rendering and is not WebFetch-accessible. Per OD-9 recommendation:
-- If CubeCoders dimensions are included in the table, their SourceReference entries MUST note "(proprietary; verified via manual browser research on [DATE])" or defer with a DEFERRED note
-- Alternatively, if CubeCoders comparison cannot be independently verified, mark those cells "not applicable" or deferred in a footnote
+**V-SR4 (CubeCoders Special Case, R7, OD-9)**: CubeCoders AMP is proprietary and does not have a public GitHub repo. Its documentation site (https://www.cubecoders.com/AMP) requires JavaScript rendering and is not WebFetch-accessible. Ruled 2026-09-02 (OD-9 option b):
+- For CubeCoders dimensions verifiable from an official source: fill cells with verified content and cite source with date
+- For CubeCoders dimensions NOT verifiable from public sources: cell text MUST read exactly "not publicly documented (checked YYYY-MM-DD)"; no SourceReference needed
 
 ---
 
@@ -194,10 +195,13 @@ Per FR-009 and the scope, these 17 files are audited:
 
 ### Exclusions
 
-- CHANGELOG.md (historical record; exempt per spec Out of Scope)
 - docs/superpowers/** (dated design records; exempt per spec Out of Scope)
 - website/ (submodule; exempt per spec Out of Scope)
 - modules/ (submodule; exempt per spec Out of Scope)
+
+### Exception: CHANGELOG.md
+
+CHANGELOG.md is normally exempt as a historical record. However, ruled 2026-09-02 (OD-8), entries in CHANGELOG.md Unreleased that docs describe MUST be verified: if an entry shipped in v0.2.0-beta.8, move it into the beta.8 section; if it is unreleased, add "(unreleased; ships in the next release)" next to the doc mention. CHANGELOG.md becomes MODIFIED only if corrections are needed.
 
 ### Audit Scope per FR-010
 
@@ -207,6 +211,7 @@ Each file is checked for:
 2. **Feature descriptions** (FR-010.b): Feature claims MUST match implementation (operator, api, agent code). Evidence: R5-gameplane-facts.md.
 3. **Internal links** (FR-010.c): All `[text](url)` links to other docs or anchors MUST resolve to existing targets. Evidence: R2-links.md.
 4. **Optional/experimental labeling** (FR-010.d + FR-012): Features marked optional/experimental/beta in CLAUDE.md or values.yaml MUST be consistently labeled in all audited files at first mention. Evidence: R3-labels.md.
+5. **Roadmap shipped/planned markers** (FR-010 exception per OD-7): docs/roadmap.md entries MUST carry explicit "(shipped vX.Y.Z)" or "(planned)" markers for clarity. Evidence: OD-7 ruling, 2026-09-02.
 
 ---
 
@@ -328,7 +333,7 @@ Per R3 and D-C, the registry includes:
 3. mcp-server [optional] [read-only]
 4. audit-syslog-bridge [optional]
 5. telemetry-receiver [optional]
-6. tunnel (relay supervisor) [optional] — per OD-4 recommendation
+6. tunnel (relay supervisor) [optional] — ruled 2026-09-02 (OD-4: tunnel is included in the six optional components, tagged [optional] at first mention in each audited file)
 7. Postgres driver [experimental]
 
 ### Validation Rules
@@ -357,11 +362,11 @@ Evidence sourced from R3 findings.
 | `filename` | string | Yes | Kebab-case, .jpg extension (e.g., "login.jpg", "create-server-template-select.jpg") |
 | `route` | string | Yes | Dashboard route where image was captured (e.g., "/login", "/servers/$name?tab=events") |
 | `status` | enum | Yes | "refreshed" (existing six updated) \| "new" (added per FR-017) |
-| `altText` | string | Yes | Descriptive alt text (2–3 sentences) per FR-018 |
+| `altText` | string | Yes | Descriptive alt text (2–3 sentences) per FR-018; disclosure of mock-mode testing moved to gallery-intro sentence (OD-3d) |
 | `purpose` | string | Yes | What the screenshot demonstrates (e.g., "Authentication entry point", "Server event timeline") |
 | `dummyDataConstraints` | object | Conditional | For "new" screenshots, list allowed/forbidden data patterns per FR-019 |
-| `format` | object | Yes | JPEG, 1568×773 per convention (from existing six); max ~74 KB (inferred from existing files) |
-| `captureMethod` | enum | Optional | "playwright-mock" (recommended per R4) \| "playwright-live" \| "manual-browser" |
+| `format` | object | Yes | JPEG, 1920×1080 per convention (ruled 2026-09-02, OD-3a); all eleven images captured at 1920×1080 (existing six are 1568×773 until recaptured); max ~100 KB |
+| `captureMethod` | enum | Optional | "playwright-mock" (recommended per OD-3b, web/e2e/specs/screenshots.spec.ts) \| "playwright-live" \| "manual-browser" |
 
 ### Registry: Existing Six (Refreshed)
 
@@ -387,15 +392,16 @@ Evidence sourced from R3 findings.
 
 ### Validation Rules
 
-**V-S1 (Format Consistency, convention)**: All screenshots MUST be:
+**V-S1 (Format Consistency, OD-3a)**: All screenshots MUST be:
 - JPEG format (lossy compression, .jpg extension)
-- 1568×773 pixels (Desktop Chrome convention, verified from existing six files)
-- File size <100 KB (existing files range 47–74 KB; no hard cap, but lossy JPEG should achieve this)
+- 1920×1080 pixels (Desktop convention, ruled 2026-09-02; existing six are 1568×773 until recaptured at new size)
+- File size ≤100 KB (existing files range 47–74 KB; new size target ~100 KB with lossy JPEG)
 
-**V-S2 (Alt Text, FR-018, SC-010)**: Alt text MUST:
+**V-S2 (Alt Text, FR-018, SC-010, OD-3d)**: Alt text MUST:
 - Describe the screen's purpose in 1–2 sentences
 - List key UI elements visible in the screenshot
 - NOT be a raw label (e.g., not just "Login page", but "Sign-in form with local username/password and OAuth provider buttons")
+- NOT mention "mock mode" or "mocked data" — disclosure of test/mock-mode testing is a single sentence above the README screenshot gallery (OD-3d), not per-image
 - Be human-readable and accessible per WCAG standards
 
 **V-S3 (Dummy Data, FR-019, SC-011)**: Screenshots MUST NOT display:
@@ -410,8 +416,8 @@ Screenshots MAY display:
 - Mock player lists (e.g., "Player_1", "Player_2")
 - Example configurations (e.g., "My Gameplane Cluster", mock Discord webhook URLs in redacted form)
 
-**V-S4 (Capture Consistency, R4, OD-3)**: All screenshots (refreshed + new) SHOULD be captured by the same method to ensure visual consistency:
-- Recommended: Playwright mock mode (MSW + Vite, no cluster required)
+**V-S4 (Capture Consistency, R4, OD-3b)**: All screenshots (refreshed + new) MUST be captured by the same method to ensure visual consistency:
+- Recommended: Playwright mock mode (MSW + Vite, no cluster required; source: web/e2e/specs/screenshots.spec.ts, OD-3b)
 - Alternative: Playwright live mode (requires running `make dev-up`)
 - Alternative: Manual capture via browser (less reproducible, acceptable as fallback)
 
@@ -458,9 +464,9 @@ Per FR-020, FR-021, and R6:
 
 | # | Target | Submission Portal | Blocker(s) | Recommended Initial Status | Evidence |
 |---|--------|------------------|-----------|---------------------------|----------|
-| 1 | AlternativeTo.net | Web form (account-based) | None identified | pending | R6: No blockers; eligible for immediate submission |
-| 2 | Awesome-Selfhosted | PR to awesome-selfhosted-data repo | 4-month age minimum (first release 2026-06-22; eligible 2026-10-22) | deferred [2026-09-01, age requirement; eligible from 2026-10-22] | R6: Age blocker documented; CHANGELOG.md:656 (first release 2026-06-22); terminal state is deferred |
-| 3 | Awesome-Kubernetes | PR to ramitsurana/awesome-kubernetes | 25+ GitHub stars, 3+ contributors (metrics unknown; likely insufficient) | deferred [2026-09-01, star/contributor eligibility unknown] | R6: Star/contributor metrics unknown; deferred pending pre-check or attempt |
+| 1 | AlternativeTo.net | Web form (account-based) | None identified | pending | R6: No blockers; eligible for immediate submission (OD-5 agents draft, maintainer submits) |
+| 2 | Awesome-Selfhosted | PR to awesome-selfhosted-data repo | 4-month age minimum (first release 2026-06-22; eligible 2026-10-22) | deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22] | R6: Age blocker documented; CHANGELOG.md:656 (first release 2026-06-22); ruled 2026-09-02 (OD-6a) as terminal state (SC-014) |
+| 3 | Awesome-Kubernetes | PR to ramitsurana/awesome-kubernetes | 25+ GitHub stars, 3+ contributors (metrics unknown; eligibility rule not verified) | deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release] | R6: Star/contributor metrics unknown; ruled 2026-09-02 (OD-6b) deferred WITHOUT pre-check |
 
 ### Storage & Validation Rules
 
@@ -536,7 +542,7 @@ This table maps every FR (Functional Requirement) and SC (Success Criterion) to 
 ## References
 
 - **Feature Spec**: `/home/user/Gameplane/specs/012-docs-refresh-and-outreach/spec.md` (FR-001 through FR-025, SC-001 through SC-014)
-- **Orchestrator Decisions**: D-A through D-I (D-H: table placement; D-C: label vocabulary; D-F: audit-log schema; D-A: comparison-sources.md; OD-1 through OD-12 open questions)
+- **Orchestrator Decisions**: D-A through D-I (D-H: table placement; D-C: label vocabulary; D-F: audit-log schema; D-A: comparison-sources.md); OD-1 through OD-12 (all ruled 2026-09-02 by maintainer; see MAINTAINER RULINGS section)
 - **Research Findings**: R1-versions.md (version audit), R2-links.md (link verification), R3-labels.md (label registry), R4-screens.md (screenshot inventory), R5-gameplane-facts.md (Gameplane comparison cells), R6-outreach.md (directory requirements), R7-competitor-sources.md (competitor sourcing), R8-unshipped.md (unshipped-feature audit)
 - **CLAUDE.md**: Rule 7 (wrap errors with %w), Rule 11 (commit regularly), Rule 12 (one branch per unit), Rule 15 (read whole spec folder), Rule 16 (rename done_ on completion)
 - **Constitution Principle IV**: Spec-Driven Development; data-model.md is the artifact that survives context resets
@@ -547,15 +553,16 @@ This table maps every FR (Functional Requirement) and SC (Success Criterion) to 
 
 Before publishing findings and artifacts:
 
-- [ ] All 17 AuditedFiles listed in registry are checked
+- [ ] All 17 AuditedFiles listed in registry are checked (18th file docs/comparison-sources.md is created, not audited in v0.2.0-beta.8)
 - [ ] Every AuditFinding has an `evidenceChecked` path:line citation
-- [ ] Every AuditFinding is recorded in audit-log.md
+- [ ] Every AuditFinding is recorded in audit-log.md; category "unshipped" identifies features described as shipped that are in CHANGELOG Unreleased
 - [ ] ComparisonTable has status line (FR-004, V-CT1)
-- [ ] Every ComparisonCell includes qualifiers (Gameplane) or SourceReference (competitors)
-- [ ] SourceReference entries are stored in docs/comparison-sources.md
-- [ ] Every LabelRegistryEntry is checked for first-mention compliance (FR-012)
-- [ ] Six refreshed + ≥5 new screenshots exist in docs/img/
+- [ ] Every ComparisonCell includes qualifiers (Gameplane) or SourceReference (competitors); Agones "not applicable" cells (OD-11) and unverifiable CubeCoders cells (OD-9) use ruled text
+- [ ] SourceReference entries stored in docs/comparison-sources.md; unavailable URLs default to "source URL unavailable (checked YYYY-MM-DD)" (OD-10)
+- [ ] Every LabelRegistryEntry checked for first-mention compliance (FR-012); tunnel [optional] is now confirmed (OD-4)
+- [ ] Six refreshed + ≥5 new screenshots exist in docs/img/ at 1920×1080 JPEG (OD-3a), no per-image mock-mode disclosure (OD-3d)
 - [ ] All screenshots have alt text (V-S2) and no real user data (V-S3)
-- [ ] OutreachEntry targets are listed in outreach.md with status
-- [ ] outreach.md is linked from docs/contributing.md
+- [ ] docs/roadmap.md entries carry shipped/planned markers (OD-7); CHANGELOG.md corrected per OD-8 if needed
+- [ ] OutreachEntry targets listed in outreach.md: AlternativeTo pending (OD-6c), Awesome-Selfhosted deferred [2026-09-02] (OD-6a), Awesome-Kubernetes deferred [2026-09-02] (OD-6b)
+- [ ] outreach.md linked from docs/contributing.md; agents draft content per OD-5, maintainer submits
 - [ ] Every status change in outreach.md is a separate git commit

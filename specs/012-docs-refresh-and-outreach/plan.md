@@ -10,13 +10,13 @@ Conduct a systematic audit of all user-facing documentation (README.md, 13 docs/
 
 ## Technical Context
 
-**Language/Version**: GitHub-flavored Markdown documentation (.md) and JPEG screenshots (.jpg); no runtime code changes; optional tooling is POSIX shell (OD-1/OD-2) or Playwright 1.62 (OD-3)
+**Language/Version**: GitHub-flavored Markdown documentation (.md) and JPEG screenshots (.jpg); no runtime code changes; POSIX shell (OD-1/OD-2) and Playwright 1.62 (OD-3) for testing and screenshot tooling
 
 **Primary Dependencies**: The 17 audited files (README.md, 13 docs/*.md, 3 component READMEs); charts/gameplane/Chart.yaml and values.yaml (appVersion, feature toggles); operator/api/v1alpha1/*_types.go (CRD fields); CHANGELOG.md (release history); web/src/router/tree.tsx and web/src/routes/ (dashboard screens); official competitor documentation (external)
 
 **Storage**: git-tracked files (docs/img/*.jpg, docs/comparison-sources.md, specs/012-docs-refresh-and-outreach/outreach.md, audit-log.md); no database, no external service state
 
-**Testing**: Read-only verification scenarios in quickstart.md (grep/ls/file commands), docs-audit contract procedures (version match, link resolution, label consistency), and CI deployment (link check via OD-2 tooling if adopted); no local test or lint suites per rule 8 (CI is authoritative)
+**Testing**: Read-only verification scenarios in quickstart.md (grep/ls/file commands), docs-audit contract procedures (version match, link resolution, label consistency), and CI deployment (link check via hack/check-links.sh, OD-2); no local test or lint suites per rule 8 (CI is authoritative)
 
 **Target Platform**: GitHub.com rendering of README.md and docs/; Kubernetes 1.28+ clusters following install.md
 
@@ -26,7 +26,7 @@ Conduct a systematic audit of all user-facing documentation (README.md, 13 docs/
 
 **Constraints**: No product code, CRD type, chart value, or website (submodule) changes; English documentation only; screenshot dummy data restricted to test server names and cluster identifiers (no real hostnames, IPs, or player names); Login page screenshot must contain no version strings, cluster names, or metrics per rule 3; every comparison table cell sourced and dated per FR-005/SC-003
 
-**Scale/Scope**: 17 audited files; 9 comparison dimensions × 4 products = 36 cells of which 27 require external sources; 6 existing screenshots refreshed + at least 5 new screenshots added; 3 external directory submission targets; baseline findings from research Phase 0 (R1–R8)
+**Scale/Scope**: 17 audited files; 9 comparison dimensions × 4 products = 36 cells of which 27 require external sources; 6 existing screenshots refreshed + at least 5 new screenshots added (1920×1080 JPEG); 3 external directory submission targets; baseline findings from research Phase 0 (R1–R8)
 
 ## Constitution Check
 
@@ -36,10 +36,10 @@ Conduct a systematic audit of all user-facing documentation (README.md, 13 docs/
 |-----------|--------|---------------|
 | **I. E2E-Tested Delivery** | PASS-WITH-JUSTIFICATION | This feature documents existing shipped functionality; no new user-facing runtime path is added (dashboard screenshots document current UI; docs describe shipped code). Principle I's E2E mandate cannot literally apply to documentation. Verification: the audit's positive path (all 17 files have version strings matching appVersion, no broken links, consistent labels) is verifiable by grep/ls/file on CI per quickstart.md scenarios; the read-only verification scenarios in quickstart.md (Scenarios 2–4: version strings, links, labels) may be run locally as pre-flight under the done_011 ruling D6 precedent, while CI remains the system of record. This mirrors specs/done_011-add-missing-module-specs/plan.md's approach to Principle I for non-runtime features. |
 | **II. Design-First for User-Facing Change** | N/A | Screenshots document existing UI only (Assumption: "No Design Changes Required"); no Pencil designs are authored or modified. |
-| **III. Language & Ecosystem Best Practice** | PASS | Markdown follows GitHub-flavored conventions (existing docs/ style); comparison table uses standard markdown syntax (FR-007); JPEG screenshots use existing convention (1568×773 per six existing files); optional shell scripts (OD-1/OD-2) and Playwright specs (OD-3) follow idioms of their respective languages. No suppression directives introduced. |
+| **III. Language & Ecosystem Best Practice** | PASS | Markdown follows GitHub-flavored conventions (existing docs/ style); comparison table uses standard markdown syntax (FR-007); JPEG screenshots use 1920×1080 JPEG (refreshed from existing 1568×773 per OD-3a); shell scripts (OD-1/OD-2) and Playwright specs (OD-3) follow idioms of their respective languages. No suppression directives introduced. |
 | **IV. Spec-Driven Development** | PASS | Feature is spec-driven; implementation follows spec.md requirements (FR-001 through FR-025, SC-001 through SC-014). No behavior changes to modules; documentation-only work. |
 | **V. Delegate to Workflows & Subagents** | PASS | Implementation delegated via Workflow (per rule 13) at haiku tier with mandatory sonnet tier-up review before acceptance. Main loop performs decomposition, orchestration, and verification only. |
-| **VI. CI Bears the Heavy Lifting** | PASS | Where the maintainer adopts them (OD-1, OD-2, OD-3), link checks, version checks, and CI-native screenshot capture run on CI; until then verification is the read-only quickstart scenarios plus PR review. Local pre-flight reads (grep, ls, file on 17 files) are permitted per D6 precedent from done_011. No local test/lint suite runs. |
+| **VI. CI Bears the Heavy Lifting** | PASS | Link checks, version checks, and CI-native screenshot capture run on CI as ruled (OD-1, OD-2, OD-3, OD-3c); verification is the read-only quickstart scenarios plus PR review. Local pre-flight reads (grep, ls, file on 17 files) are permitted per D6 precedent from done_011. No local test/lint suite runs. |
 
 **Post-Design Re-check**: Principles I–VI remain satisfied after Phase 1 design.
 
@@ -60,7 +60,7 @@ specs/012-docs-refresh-and-outreach/
 │   ├── docs-audit.md                        # Version match criteria, link resolution, label consistency
 │   ├── screenshot-set.md                    # Viewport, naming, alt text, forbidden-pattern list (FR-019)
 │   └── outreach-todo.md                     # Status vocabulary, submission tracking, terminal states
-├── OPEN-DECISIONS.md                        # OD-1 through OD-12 with maintainer rulings pending
+├── OPEN-DECISIONS.md                        # All thirteen decisions ruled 2026-09-02 (OD-1 through OD-13)
 └── tasks.md                                 # Phase 2 implementation tasks (created by /speckit-tasks)
 ```
 
@@ -75,7 +75,7 @@ docs/
 ├── comparison-sources.md                    # NEW: Dated sources for all competitor table cells (D-A)
 ├── img/
 │   ├── [6 REFRESHED]: dashboard.jpg, servers-list.jpg, server-overview.jpg, mods-registry-browse.jpg, server-console.jpg, admin-mod-registries.jpg
-│   └── [5+ NEW]: login.jpg, create-server-template-select.jpg, server-detail-events.jpg, admin-settings-general.jpg, cluster-nodes.jpg, server-detail-logs.jpg (per FR-017 priority)
+│   └── [5+ NEW]: login.jpg, create-server-template-select.jpg, server-detail-events.jpg, admin-settings-general.jpg, cluster-nodes.jpg, server-detail-logs.jpg (1920×1080 JPEG per FR-017 priority and OD-3a)
 ├── architecture.md                          # AUDITED: version strings, feature descriptions, cross-references
 ├── contributing.md                          # MODIFIED: link to specs/012-docs-refresh-and-outreach/outreach.md (FR-025)
 ├── dependencies.md                          # AUDITED: snapshot date, version pins, accuracy
@@ -86,27 +86,24 @@ docs/
 ├── networking.md                            # AUDITED: cross-references, link anchors
 ├── notifications.md                         # AUDITED: feature descriptions, version context
 ├── oidc.md                                  # AUDITED: feature availability dates, version context
-├── roadmap.md                               # AUDITED: shipped vs. planned, FR-014 compliance
+├── roadmap.md                               # MODIFIED: add shipped/planned markers per OD-7; FR-014 compliance
 ├── security.md                              # AUDITED: RBAC, threat model, pre-auth privacy (rule 3)
 └── tunnels.md                               # AUDITED: relay feature status, configuration
 
 audit-syslog-bridge/README.md                # AUDITED: version strings, deployment examples
 mcp-server/README.md                         # AUDITED: feature claims, RBAC bounds
 telemetry-receiver/README.md                 # AUDITED: version examples, configuration
+CHANGELOG.md                                 # MODIFIED (only if an Unreleased entry proves shipped): move it into the v0.2.0-beta.8 section per OD-8
 
 specs/012-docs-refresh-and-outreach/
 ├── outreach.md                              # NEW: to-do list tracking submissions (FR-020, FR-021, FR-022)
 └── audit-log.md                             # NEW: evidence log of all corrections (FR-011, D-F)
 
-[CONDITIONAL on OD-1 maintainer ruling]:
-└── hack/check-doc-versions.sh               # Detection script for version string drift (recommendation: (b) per OD-1)
-
-[CONDITIONAL on OD-2 maintainer ruling]:
-└── hack/check-links.sh                      # Offline internal link + anchor validation (recommendation: (c) per OD-2)
-└── .github/workflows/ci.yaml                # MODIFIED: lint job adds link-check step (if (c) is selected)
-
-[CONDITIONAL on OD-3 maintainer ruling]:
-└── web/e2e/specs/screenshots.spec.ts        # Playwright mock-mode screenshot capture (recommendation: mock mode per OD-3)
+hack/check-doc-versions.sh                  # NEW: Detection script for version string drift (OD-1)
+hack/check-links.sh                         # NEW: Offline internal link and anchor validation (OD-2)
+.github/workflows/ci.yaml                   # MODIFIED: lint job adds doc-version-check and link-check steps
+web/e2e/specs/screenshots.spec.ts           # NEW: Playwright mock-mode screenshot capture (OD-3b)
+.github/workflows/screenshot-refresh.yaml   # NEW: tag-triggered screenshot refresh and PR opening (OD-3c; credential for PR authoring is a fine-grained PAT repository secret, OD-13 ruled 2026-09-02)
 ```
 
 **Structure Decision**: 
@@ -117,9 +114,7 @@ External source tracking (docs/comparison-sources.md) is a separate file rather 
 
 The outreach to-do list (specs/012-docs-refresh-and-outreach/outreach.md) lives in the spec folder, not docs/, because it is a project-internal tracking artifact, not user-facing documentation (FR-020, SC-012).
 
-Screenshot capture tooling (OD-3) is deferred; the plan records it as conditional so implementation can evaluate the maintainer's ruling at the start of Phase 2. The recommendation (Playwright mock mode) avoids cluster infrastructure while maintaining reproducibility on CI.
-
-Optional CI tooling (OD-1, OD-2) is similarly conditional and deferred pending maintainer decisions.
+Tooling decisions (OD-1 through OD-13): The maintainer ruled on 2026-09-02 that link checks (hack/check-links.sh), version checks (hack/check-doc-versions.sh), and screenshot capture (Playwright mock mode in web/e2e/specs/screenshots.spec.ts) plus tag-triggered refresh workflow (.github/workflows/screenshot-refresh.yaml) are adopted and run on CI. The PR credential for the tag-triggered workflow is a fine-grained PAT repository secret (OD-13, ruled 2026-09-02). All thirteen open decisions are now ruled. None of these are product code, CRDs, or chart changes — they are repository tooling, testing infrastructure, and roadmap/CHANGELOG edits, so the Out of Scope section of spec.md is not violated.
 
 ## Complexity Tracking
 
@@ -139,9 +134,9 @@ Optional CI tooling (OD-1, OD-2) is similarly conditional and deferred pending m
 
 - **contracts/docs-audit.md**: Audit criteria (version string truth = appVersion 0.2.0-beta.8 per D-B; feature descriptions match operator/api/agent implementation; internal links resolve; optional/experimental/beta labels match CLAUDE.md and values.yaml per D-C/SC-007; feature status matches feature code per FR-010/FR-013).
 
-- **contracts/screenshot-set.md**: Viewport convention (1568×773, JPEG format, kebab-case naming), alt text format (purpose + key UI elements per FR-018), forbidden patterns (real hostnames, IP addresses, real cluster names, real player names, version strings on Login per FR-019/rule 3), existing filenames preserved (FR-016), and six refreshed + five+ new selection criteria.
+- **contracts/screenshot-set.md**: Viewport convention (1920×1080 JPEG per OD-3a; existing 1568×773 screenshots refreshed), alt text format (purpose + key UI elements per FR-018), forbidden patterns (real hostnames, IP addresses, real cluster names, real player names, version strings on Login per FR-019/rule 3), existing filenames preserved (FR-016), six refreshed + five+ new selection criteria, and gallery-intro disclosure per OD-3d (one sentence stating screenshots captured against mocked data).
 
-- **contracts/outreach-todo.md**: Status field format (pending | in-progress [YYYY-MM-DD] | submitted [YYYY-MM-DD] | rejected [YYYY-MM-DD, reason] | deferred [YYYY-MM-DD, reason] per SC-014), three target directories (AlternativeTo, Awesome-Selfhosted, Awesome-Kubernetes per FR-021), success measurement (submission made, not acceptance; per FR-023), and git commit requirement for status changes (FR-022).
+- **contracts/outreach-todo.md**: Status field format (pending | in-progress [YYYY-MM-DD] | submitted [YYYY-MM-DD] | rejected [YYYY-MM-DD, reason] | deferred [YYYY-MM-DD, reason] per SC-014), three target directories (AlternativeTo pending, Awesome-Selfhosted deferred until 2026-10-22 per OD-6a, Awesome-Kubernetes deferred per OD-6b per FR-021), success measurement (submission made, not acceptance; per FR-023), and git commit requirement for status changes (FR-022).
 
 ---
 

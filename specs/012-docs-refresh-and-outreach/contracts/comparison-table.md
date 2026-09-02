@@ -1,6 +1,6 @@
 # Contract: README Comparison Table and Source Documentation
 
-**Status**: Specification Draft  
+**Status**: Specification (Ruled 2026-09-02 — Ready for Implementation)  
 **Feature Branch**: `012-docs-refresh-and-outreach`  
 **Applies To**: README.md placement and `docs/comparison-sources.md` schema
 
@@ -32,9 +32,29 @@ The comparison table MUST be placed in README.md immediately after the "## Why G
 
 ---
 
-## 2. FR-004 Status Line (Verbatim)
+## 2. README.md Comparison Table: Intro Paragraph Requirement (OD-12)
 
-Directly above the comparison table, include this status line without modification:
+An introductory paragraph MUST appear immediately above the comparison table explaining the scope and category differences:
+
+```markdown
+Gameplane is compared to Pterodactyl and CubeCoders AMP (both control panels)
+and Agones (a Kubernetes operator library). While not direct competitors,
+Agones is included as a reference point for teams building on Kubernetes
+primitives.
+```
+
+**Placement order** (OD-12):
+1. Intro paragraph (scope and category clarification)
+2. FR-004 status line (below)
+3. Comparison table (below)
+
+**Requirement**: This intro educates evaluators about the different product categories and prevents misreading Agones as a direct control panel competitor.
+
+---
+
+## 3. FR-004 Status Line (Verbatim)
+
+Directly below the intro paragraph, include this status line without modification:
 
 ```markdown
 Status: **beta** (`v0.2.0-beta.8`). The operator, API, agent, and dashboard
@@ -46,7 +66,7 @@ are feature-complete for the v1 scope and stabilized for external testing.
 
 ---
 
-## 3. Table Structure: Header Row and Column Order
+## 4. Table Structure: Header Row and Column Order
 
 The comparison table MUST use GitHub-flavored Markdown table syntax with this exact column order and header:
 
@@ -59,7 +79,7 @@ Column order is fixed per spec FR-002 (not alphabetical): Gameplane, Pterodactyl
 
 ---
 
-## 4. Comparison Table: Row Labels and Order (FR-002)
+## 5. Comparison Table: Row Labels and Order (FR-002)
 
 The table MUST contain exactly nine rows in this order, with exact label text per FR-002 (a) through (i):
 
@@ -79,7 +99,7 @@ The table MUST contain exactly nine rows in this order, with exact label text pe
 
 ---
 
-## 5. Gameplane Column (FR-003, D-A)
+## 6. Gameplane Column (FR-003, D-A)
 
 Each Gameplane cell MUST:
 
@@ -110,14 +130,16 @@ Each Gameplane cell MUST:
 
 ---
 
-## 6. Competitor Columns (FR-005, FR-006)
+## 7. Competitor Columns (FR-005, FR-006)
 
 Each competitor cell MUST:
 
 1. **State only factual, verifiable features** — no speculation, judgment, or unverifiable claims
 2. **Include a bracketed source marker** `[<ABBREV>-<row>]` that links to `docs/comparison-sources.md#<anchor>`
 3. **Leave placeholders for implementation**: `<to be researched during implementation; source required>`
-4. **Qualify with uncertainty**: If information cannot be verified, note it explicitly (e.g., "Not publicly documented")
+4. **Qualify with uncertainty** (OD-9, OD-10): If information cannot be verified:
+   - **For CubeCoders AMP** (no fetchable official source): Use exact text `not publicly documented (checked YYYY-MM-DD)` [C-<row>]
+   - **For 404 Pterodactyl/Agones URLs** (unsuccessful hunt on site + archive.org): Use exact text `source URL unavailable (checked YYYY-MM-DD)` [<ABBREV>-<row>]
 
 ### Source Marker Syntax
 
@@ -154,9 +176,17 @@ Each cell MUST contain exactly this placeholder (per FR-005, competitors are res
 
 Where `x` is the dimension letter (a–i). The placeholder is a temporary token that will be replaced during implementation with actual findings and a dated source marker.
 
+**Exception for Agones (OD-11)**: For dimensions where Agones (a Kubernetes library, not a control panel) does not apply, use the exact text:
+
+```markdown
+not applicable (Agones is a Kubernetes operator library) [A-x]
+```
+
+Dimensions typically N/A for Agones: Access control & authentication (library users have no dashboard users), Game template distribution (no template system), Backup and restore (K8s state is not a game server concern). Implementation MUST verify each dimension before marking N/A.
+
 ---
 
-## 7. Table Cell Grammar Rules (FR-006, SC-001)
+## 8. Table Cell Grammar Rules (FR-006, SC-001)
 
 Every table cell MUST conform to these grammar and content rules:
 
@@ -178,7 +208,7 @@ Every table cell MUST conform to these grammar and content rules:
 
 ---
 
-## 8. docs/comparison-sources.md Schema and Structure
+## 9. docs/comparison-sources.md Schema and Structure
 
 A new file `docs/comparison-sources.md` MUST be created with the following structure:
 
@@ -253,11 +283,11 @@ Competitor sources MUST come from these official roots only:
 
 **CubeCoders exception** (R7, OD-9): If the website is not directly accessible via WebFetch or browsable by standard tools, document this clearly with the status "Proprietary; official documentation not directly verifiable via automated means. Recommend manual browser research during implementation or deferral with justification."
 
-**404 fallback sourcing** (R7, OD-10): When dimension-specific documentation URLs return HTTP 404 (for Pterodactyl or Agones), fall back to the base documentation root with a dimension note (e.g., "Verified against Pterodactyl docs root at pterodactyl.io/docs, deployment section"). See OPEN-DECISIONS.md OD-10 for the fallback-sourcing decision and recommended strategy.
+**404 fallback sourcing** (R7, OD-10): When dimension-specific documentation URLs return HTTP 404 (for Pterodactyl or Agones), implementation hunts the site and archive.org. If no alternate URL is found, the cell uses the exact text: `source URL unavailable (checked YYYY-MM-DD)` [<ABBREV>-<row>]. Implementation MUST record the hunt results (dates checked, sites searched) in docs/comparison-sources.md.
 
 ---
 
-## 9. Table Rendering on GitHub (FR-007)
+## 10. Table Rendering on GitHub (FR-007)
 
 When committed and viewed on GitHub, the comparison table MUST:
 
@@ -270,7 +300,7 @@ When committed and viewed on GitHub, the comparison table MUST:
 
 ---
 
-## 10. Acceptance Checklist
+## 11. Acceptance Checklist
 
 Implementation MUST verify all of these before marking the contract complete:
 
@@ -280,9 +310,15 @@ Implementation MUST verify all of these before marking the contract complete:
 - [ ] Column order is exactly: Gameplane | Pterodactyl | CubeCoders AMP | Agones
 - [ ] All row labels match FR-002 exact text (including punctuation)
 
+### Intro Paragraph (OD-12)
+- [ ] Intro paragraph appears immediately above the comparison table (before FR-004 status line)
+- [ ] Intro paragraph states: Gameplane is compared to Pterodactyl and CubeCoders (control panels) and Agones (Kubernetes library)
+- [ ] Intro paragraph educates about category differences without claiming Agones as a direct competitor
+
 ### Status Line (FR-004)
-- [ ] Status line appears directly above the table, verbatim from README.md:8–9
+- [ ] Status line appears directly below intro paragraph, verbatim from README.md:8–9
 - [ ] Status line is not repeated elsewhere in the table
+- [ ] Placement order: intro -> status line -> table
 
 ### Gameplane Column (FR-003)
 - [ ] SC-002: Every Gameplane cell is traceable to codebase, README, or docs/
@@ -324,56 +360,55 @@ Implementation MUST verify all of these before marking the contract complete:
 
 ---
 
-## 11. Open Questions & Recommendations (to be addressed during implementation)
+## 12. Resolved Open Questions (OD-1 through OD-12, ruled 2026-09-02)
 
-The following open questions (OD) from the planning phase MUST be resolved during implementation:
+The following open questions (OD) from the planning phase have been resolved per maintainer ruling on 2026-09-02:
 
 ### OD-4: Tunnel in FR-012 Label Set
 
-**Question**: Should the tunnel (relay supervisor) component be included in the five optional components labelled per FR-012?
+**Ruling (2026-09-02)**: **(a) include tunnel in the FR-012 label set**
+
+Tunnel is the sixth optional component and MUST be tagged `[optional]` at first mention in each audited file, alongside sentinel, capture-sidecar, mcp-server, audit-syslog-bridge, and telemetry-receiver.
 
 **Evidence**: CLAUDE.md:372 marks tunnel as `[optional] relay client supervisor`; SC-007 requires every optional feature in CLAUDE.md to be labelled.
 
-**Recommendation**: Include tunnel in the optional components list per FR-012. Evidence is SC-007 and CLAUDE.md rule.
-
 ### OD-9: CubeCoders AMP Verifiability
 
-**Question**: If CubeCoders AMP's official website is not accessible via automated tools (WebFetch), how should the table handle it?
+**Ruling (2026-09-02)**: **(b) fill only what is verifiable**
 
-**Options**:
-- (a) Defer CubeCoders column to implementation with a note: "Proprietary; official documentation not directly verifiable"
-- (b) Attempt manual browser research during implementation
-- (c) Use public secondary sources (third-party comparisons, forum posts) with caveats
+CubeCoders AMP cells that agents can verify from a fetchable official source are filled and dated. Every other CubeCoders cell reads: `not publicly documented (checked YYYY-MM-DD)` with the exact date implementation verified the source was unavailable.
 
-**Recommendation**: Document the site access status clearly. If the site remains inaccessible, either defer with a note or cite secondary sources with a caveat "verified against secondary sources, not official documentation" in docs/comparison-sources.md.
+**Evidence**: Section 7 Competitor Column updated with exact fallback text per this ruling.
 
 ### OD-10: 404 Dimension URLs — Fallback Sourcing
 
-**Question**: R7-competitor-sources.md identified three Pterodactyl URLs and three Agones URLs that return HTTP 404 when fetched during research. Should implementation cite the base documentation root (fallback) as the source, or attempt to track down the correct dimension-specific URL?
+**Ruling (2026-09-02)**: **(b) hunt for the correct URL**
 
-**Evidence**: spec.md:104–105 FR-005 requires sources from official documentation. R7-competitor-sources.md notes fallback sources (Pterodactyl docs root: https://pterodactyl.io/, Agones docs root: https://agones.dev/site/docs/).
+For the 404 Pterodactyl and Agones dimension pages, implementation searches the sites and archive.org for the moved page. If found, the source entry cites the found URL. If not found after documented hunt, the cell uses exact text: `source URL unavailable (checked YYYY-MM-DD)` with the date of the hunt.
 
-**Recommendation**: Use base documentation root + dimension notes as fallback. Per OPEN-DECISIONS.md OD-10: if a specific dimension URL is 404, cite the base docs root and note the section/feature name. This maintains verifiability without false precision.
+**Evidence**: Section 9 docs/comparison-sources.md updated with fallback sourcing procedure per this ruling.
 
 ### OD-11: Agones Scope and N/A Cells
 
-**Question**: Agones is a Kubernetes library/operator, not a control panel (no dashboard, no user auth, no template distribution). Many comparison table dimensions do not map to Agones (e.g., "Access Control", "Template Distribution"). How should non-applicable dimensions be handled?
+**Ruling (2026-09-02)**: **(b) keep Agones; non-mapping dimensions read "not applicable"**
 
-**Evidence**: spec.md:96 names Agones as a comparison product; spec.md:98 includes dimensions like "Access control & authentication" and "Game template distribution" which do not apply to a library. R7-competitor-sources.md flags this scope mismatch.
+Keep Agones in the table. For dimensions where Agones (a Kubernetes operator library, not a control panel) does not apply, mark the cell with exact text: `not applicable (Agones is a Kubernetes operator library)` [A-<row>].
 
-**Recommendation**: Keep Agones in the table and mark "Not Applicable" cells for non-applicable dimensions. Per OPEN-DECISIONS.md OD-11(b): "N/A — Agones is a library, not a control panel" educates evaluators about the different category without removing the comparison.
+**Evidence**: Dimensions typically N/A for Agones: Access control & authentication, Game template distribution, Backup and restore. Section 7 Competitor Column updated with exact N/A text per this ruling.
 
-### OD-12: Agones Notation
+### OD-12: Agones Notation and Table Intro
 
-**Question**: Should the comparison table include a notation clarifying that Agones is a Kubernetes library/operator, not a control panel? This would prevent evaluators from assuming parity with Pterodactyl and CubeCoders.
+**Ruling (2026-09-02)**: **(b) intro paragraph + README order: intro -> FR-004 status line -> table**
 
-**Evidence**: spec.md:98 SC-001 states evaluators should "identify at least three key architectural or operational differences." Understanding Agones's role (library vs. panel) is a key difference. R7-competitor-sources.md and OD-11 establish the category distinction.
+README placement order: intro paragraph above table explaining scope, then FR-004 status line, then comparison table. Intro paragraph states:
 
-**Recommendation**: Include intro text above the table per OPEN-DECISIONS.md OD-12(b). A short paragraph noting "Gameplane is compared to Pterodactyl and CubeCoders (both control panels) and Agones (a Kubernetes library)" immediately sets expectations and prevents misreading.
+> Gameplane is compared to Pterodactyl and CubeCoders AMP (both control panels) and Agones (a Kubernetes operator library). While not direct competitors, Agones is included as a reference point for teams building on Kubernetes primitives.
+
+**Evidence**: Section 2 added to this contract with intro paragraph requirement per this ruling. Section 11 acceptance checklist updated with intro paragraph verification step.
 
 ---
 
-## 12. References & Evidence
+## 13. References & Evidence
 
 **Spec references**:
 - Feature Specification: `/home/user/Gameplane/specs/012-docs-refresh-and-outreach/spec.md` (FR-001 through FR-008, SC-001 through SC-003)
@@ -394,15 +429,25 @@ The following open questions (OD) from the planning phase MUST be resolved durin
 
 ---
 
-## 13. Notes for Implementation
+## 14. Notes for Implementation
 
-1. **Placeholder filling**: During implementation, each `<to be researched during implementation; source required>` placeholder MUST be replaced with actual verified content from official sources, dated and linked.
+1. **Intro paragraph placement**: The comparison table in README.md MUST be preceded by the intro paragraph (Section 2) explaining scope and category differences. Placement order: intro -> FR-004 status line -> table. Verify this placement before merge.
 
-2. **Link validation**: Before merging, verify that all `[G-*]`, `[P-*]`, `[C-*]`, `[A-*]` markers in README resolve correctly to `docs/comparison-sources.md` anchors.
+2. **Placeholder filling**: During implementation, each `<to be researched during implementation; source required>` placeholder MUST be replaced with actual verified content from official sources, dated and linked.
 
-3. **Version freshness**: The Gameplane column uses v0.2.0-beta.8 facts verified on 2026-09-01. If a new release ships during implementation, re-verify the Gameplane column against the new appVersion.
+3. **CubeCoders research (OD-9)**: For CubeCoders AMP cells where official sources are not fetchable, use exact text: `not publicly documented (checked YYYY-MM-DD)` [C-<row>]. Record the date of the failed research attempt in docs/comparison-sources.md.
 
-4. **CubeCoders research**: R7 notes that CubeCoders AMP's website requires JavaScript rendering and WebFetch cannot access it. Implementation should either attempt manual browser research or document the limitation explicitly in docs/comparison-sources.md.
+4. **404 fallback sourcing (OD-10)**: For Pterodactyl or Agones dimensions returning 404:
+   - Hunt site + archive.org for the moved page
+   - If found, cite the found URL in docs/comparison-sources.md
+   - If not found, use exact text: `source URL unavailable (checked YYYY-MM-DD)` [<ABBREV>-<row>]
+   - Record hunt results (dates, sites searched) in docs/comparison-sources.md
 
-5. **Competitor sources update frequency**: Competitor documentation may change. If a source URL returns 404 during implementation, fall back to the canonical documentation root (e.g., https://pterodactyl.io/ or https://agones.dev/site/docs/) and note the fallback in docs/comparison-sources.md. See OPEN-DECISIONS.md OD-10 for the fallback-sourcing decision and recommended approach.
+5. **Agones non-applicable cells (OD-11)**: For dimensions where Agones (Kubernetes library) does not apply, use exact text: `not applicable (Agones is a Kubernetes operator library)` [A-<row>]. Typical N/A dimensions: Access control & authentication, Game template distribution, Backup and restore. Verify each dimension before marking N/A.
+
+6. **Tunnel in optional components (OD-4)**: When auditing docs, mark tunnel (relay supervisor) with `[optional]` tag at first mention, alongside sentinel, capture-sidecar, mcp-server, audit-syslog-bridge, and telemetry-receiver. Six total optional components per FR-012.
+
+7. **Link validation**: Before merging, verify that all `[G-*]`, `[P-*]`, `[C-*]`, `[A-*]` markers in README resolve correctly to `docs/comparison-sources.md` anchors.
+
+8. **Version freshness**: The Gameplane column uses v0.2.0-beta.8 facts verified on 2026-09-01. If a new release ships during implementation, re-verify the Gameplane column against the new appVersion.
 

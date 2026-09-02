@@ -14,6 +14,7 @@ All validation commands below are read-only grep, file inspection, and test oper
 - `specs/012-docs-refresh-and-outreach/outreach.md` has been created
 - `docs/contributing.md` links to the outreach tracker
 - `specs/012-docs-refresh-and-outreach/audit-log.md` has been created with all findings
+- `hack/check-doc-versions.sh` and `hack/check-links.sh` exist (once implemented per OD-1 and OD-2)
 
 ## Scenario 1: Comparison Table Present and Sourced
 
@@ -64,7 +65,11 @@ grep -c "^## " docs/comparison-sources.md
 **How to verify**:
 
 ```bash
-# Current version is source of truth
+# Primary: Run the version checker script
+hack/check-doc-versions.sh
+# Expect exit code 0 on success
+
+# Fallback (if script unavailable): manual version string check
 CURRENT_VERSION="0.2.0-beta.8"
 echo "Current version: $CURRENT_VERSION"
 
@@ -103,7 +108,11 @@ done
 **How to verify**:
 
 ```bash
-# Manual link check (fallback procedure per contracts/docs-audit.md §Link Checking)
+# Primary: Run the link checker script
+hack/check-links.sh
+# Expect exit code 0 on success
+
+# Fallback (if script unavailable): manual link check per contracts/docs-audit.md §Link Checking
 
 # Example: verify [reference](docs/install.md#helm-values)
 # Step 1: Check file exists
@@ -199,8 +208,15 @@ echo ""
 echo "=== Sample: Check OIDC role mappings status ==="
 grep -n "OIDC role\|role mappings" docs/oidc.md | head -3
 
-# Verify roadmap.md clearly marks unshipped work as planned
-grep -n "(coming in\|(planned)\|Post-v1\|v1 GA Blockers" docs/roadmap.md | head -5
+# Verify every item in roadmap.md has shipped/planned marker (OD-7)
+echo ""
+echo "=== Checking roadmap.md for version markers ==="
+grep -vE '^\s*#|^\s*$|^\s*\[' docs/roadmap.md | grep -vE '\(shipped v|^\(planned\)' | head -10
+
+# Count items with proper markers
+echo ""
+echo "=== Roadmap items with markers ==="
+grep -c "(shipped v\|(planned)" docs/roadmap.md
 ```
 
 **Expected outcome**:
@@ -211,6 +227,7 @@ grep -n "(coming in\|(planned)\|Post-v1\|v1 GA Blockers" docs/roadmap.md | head 
   - Documented in docs/roadmap.md in a clearly marked "Planned" or "Post-v1" section
 - No unqualified claims like "Feature X is available" for unreleased features
 - docs/roadmap.md contains clear section headers distinguishing shipped vs. planned work
+- Every roadmap item carries an explicit "(shipped vX.Y.Z)" or "(planned)" marker per OD-7
 
 **SC-004, FR-014**: Confirms no unshipped features announced as available per contracts/docs-audit.md §Standard FR-013 (Multi-Cluster Scope) and §Standard FR-014 (No Unshipped Features).
 
@@ -218,7 +235,7 @@ grep -n "(coming in\|(planned)\|Post-v1\|v1 GA Blockers" docs/roadmap.md | head 
 
 ## Scenario 6: Screenshots Present and Compliant
 
-**Validation**: At least 11 total screenshot files exist in docs/img/ (six existing + at least five new), all are JPEG 1568×773, linked in README.md with alt text, and contain no forbidden patterns.
+**Validation**: At least 11 total screenshot files exist in docs/img/ (six existing + at least five new), all are JPEG 1920×1080, linked in README.md with alt text, and contain no forbidden patterns. README.md screenshot gallery includes one disclosure sentence above it stating that screenshots are captured against mocked data.
 
 **How to verify**:
 
@@ -232,7 +249,7 @@ echo ""
 echo "=== File format and dimensions ==="
 file docs/img/*.jpg | grep -c JPEG
 
-identify docs/img/*.jpg 2>/dev/null | grep "1568x773" | wc -l
+identify docs/img/*.jpg 2>/dev/null | grep "1920x1080" | wc -l
 
 # Check that README.md has at least 11 image references
 echo ""
@@ -257,11 +274,13 @@ grep "test-server\|demo-\|test-cluster\|test-user" README.md | wc -l
 - `docs/img/` contains six original filenames (dashboard.jpg, servers-list.jpg, server-overview.jpg, mods-registry-browse.jpg, server-console.jpg, admin-mod-registries.jpg)
 - At least five new screenshot files are present (login.jpg, create-server-template-select.jpg, server-detail-events.jpg, admin-settings-general.jpg, cluster-nodes.jpg, plus optionally server-detail-logs.jpg)
 - All files are JPEG format
-- All files are exactly 1568×773 pixels
+- All files are exactly 1920×1080 pixels (per OD-3a)
+- README.md screenshot gallery includes one disclosure sentence above it stating "Screenshots are captured against mocked data" (per OD-3d)
 - README.md contains at least 11 image links in the Screenshots section
 - Each image has non-empty alt text describing purpose and key UI elements
 - Alt text scan shows zero forbidden patterns (no real IPs, hostnames, emails, production names)
 - Server/cluster/user names in alt text follow dummy-data naming scheme (test-*, demo-*, etc.)
+- Individual alt texts do NOT mention mocking (per OD-3d)
 
 **SC-009, SC-010, SC-011, FR-015, FR-016, FR-017, FR-018, FR-019**: Confirms screenshot presence, format, content, and data safety per contracts/screenshot-set.md §Scope and §Dummy Data Rule.
 
@@ -306,6 +325,9 @@ test -f docs/contributing.md && grep -q "outreach.md" docs/contributing.md && ec
 - `specs/012-docs-refresh-and-outreach/outreach.md` exists and is a markdown file
 - Outreach table has exactly three rows (one per target: AlternativeTo, Awesome-Selfhosted, Awesome-Kubernetes)
 - Each row has Status field with one of the allowed values: `pending`, `in-progress [YYYY-MM-DD]`, `submitted [YYYY-MM-DD]`, `deferred [YYYY-MM-DD, reason]`, or `rejected [YYYY-MM-DD, reason]`
+- Per OD-6a, Awesome-Selfhosted status is: `deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22]`
+- Per OD-6b, Awesome-Kubernetes status is: `deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release]`
+- Per OD-6c, AlternativeTo status is: `pending` (or `submitted [YYYY-MM-DD]` if maintainer has already submitted per OD-5)
 - Each row has a "Submitted Reference" field with appropriate content (pending/in-progress: "pending" or context; submitted: URL/PR/email date; deferred/rejected: "N/A" with reason in Notes)
 - `docs/contributing.md` contains a link to `../specs/012-docs-refresh-and-outreach/outreach.md` (or similar relative path)
 - Link resolves when docs/ is read

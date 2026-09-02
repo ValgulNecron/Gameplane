@@ -1,6 +1,6 @@
 # Documentation Audit Contract
 
-**Status**: Specification  
+**Status**: Specification (Ruled 2026-09-02 — Ready for Implementation)  
 **Feature**: 012 — Documentation Refresh, Comparison Table, and External Outreach  
 **Authored**: 2026-09-01  
 **Type**: Audit Standard (FR-009 to FR-014, SC-004 to SC-008)
@@ -168,7 +168,7 @@ Links to check:
 
 Links to **exclude**:
 
-- External links (http://, https://, ftp://) — covered by OD-2 (link-check tooling decision, OPEN)
+- External links (http://, https://, ftp://) — out of scope; hack/check-links.sh (OD-2) validates internal links and anchors only, per maintainer ruling 2026-09-02.
 - Links to external websites or GitHub repos (not owned by Gameplane)
 
 ### Check Procedure
@@ -232,7 +232,7 @@ Seven components have D-C tags and must be labelled consistently at first mentio
 | mcp-server | `[optional]` | `mcpServer.enabled: false` | `values.yaml:395` |
 | audit-syslog-bridge | `[optional]` | Not in default chart; deployed separately | Disabled by default per `values.yaml:178` |
 | telemetry-receiver | `[optional]` | `api.telemetry.receiver.enabled: false` | `values.yaml:230` |
-| tunnel (relay supervisor) | `[optional]` (pending OD-4) | Not in chart; external component | `CLAUDE.md:372` ("optional relay client supervisor") |
+| tunnel (relay supervisor) | `[optional]` | Not in chart; external component | `CLAUDE.md:372` ("optional relay client supervisor") |
 | postgres persistence driver | `[experimental]` | `api.db.driver: sqlite` (default); postgres via build tag | `CLAUDE.md:378` ("experimental, work-in-progress") |
 
 ### First-Mention Rule (FR-012)
@@ -318,21 +318,30 @@ Documentation MUST NOT claim "Gameplane supports X" or "Feature X is available" 
 1. Is listed in `CHANGELOG.md` under the "Unreleased" section (not yet released in any stable/beta version), **and**
 2. Is not present in the latest released version (`v0.2.0-beta.8`).
 
-### Recommended default (pending OD-7 maintainer ruling): Roadmap Exemption
+### Roadmap Exemption (OD-7)
 
-**Recommended default (pending OD-7 maintainer ruling): roadmap features would be exempt** from this rule. Roadmap.md is explicitly a forward-looking document; entries in `docs/roadmap.md` may describe unshipped work as long as they are clearly in a "planned" or "post-v1" section:
+Roadmap.md is explicitly a forward-looking document. Entries in `docs/roadmap.md` may describe unshipped work as long as every item carries an explicit status marker:
+- **`(shipped vX.Y.Z)`** — feature shipped in this release
+- **`(planned)`** — feature planned for a future release
 
-- Section "v1 GA Blockers" — acceptable to describe incomplete work
-- Section "Post-v1 Aspirations" — acceptable to describe future directions
-- Inline notes like "(coming in v1.1)" or "(planned)" — acceptable qualifiers for unshipped features
+Every roadmap entry MUST have one of these markers so the document is self-explanatory. Roadmap.md becomes MODIFIED (not only audited) to ensure all entries carry status markers.
 
 All other audited files MUST treat the roadmap as reference only and NOT advertise roadmap work as available.
 
 ### Unreleased Features (OD-8)
 
-Features documented on `master` but listed under "Unreleased" in CHANGELOG.md MUST be qualified:
-- If truly unshipped (not in v0.2.0-beta.8 release), add the label **`(unreleased; ships in the next release)`** on first mention in each file.
-- If shipped in v0.2.0-beta.8 but CHANGELOG still lists it as Unreleased, the CHANGELOG entry should be moved to the v0.2.0-beta.8 section (a documentation fix, not a feature fix).
+For every feature listed in `CHANGELOG.md` Unreleased section that documentation describes:
+
+**Verification procedure:**
+1. Check whether the feature is actually in v0.2.0-beta.8:
+   - Inspect operator CRDs (`operator/api/v1alpha1/`)
+   - Check API handlers (`api/internal/handlers/`)
+   - Check Helm values (`charts/gameplane/values.yaml`)
+   - Check web routes (`web/src/router/tree.tsx`)
+
+2. **If shipped in v0.2.0-beta.8:** Move the CHANGELOG.md entry from "Unreleased" to the "v0.2.0-beta.8" section (this is a documentation fix, not a feature fix; CHANGELOG.md becomes MODIFIED).
+
+3. **If not shipped:** Add the label **`(unreleased; ships in the next release)`** on first mention in the audited file.
 
 ### Check Procedure
 
@@ -350,10 +359,11 @@ Features documented on `master` but listed under "Unreleased" in CHANGELOG.md MU
 
 ### Pass Condition
 
-- **Zero unqualified claims** about unreleased features in audited files (SC-004, FR-014).
-- All forward-looking language is either:
-  - In `docs/roadmap.md` (exempt per OD-7), or
-  - Qualified with `(unreleased; ships in next release)` per OD-8, or
+- **Zero unqualified claims** about unreleased features in non-roadmap audited files (SC-004, FR-014).
+- `docs/roadmap.md` is MODIFIED to carry explicit `(shipped vX.Y.Z)` or `(planned)` markers on every entry (OD-7).
+- All forward-looking language in other audited files is either:
+  - References to `docs/roadmap.md` (exempt per OD-7), or
+  - Qualified with `(unreleased; ships in next release)` per OD-8 if actually in CHANGELOG.md Unreleased and verified unshipped, or
   - Absent (features presented only after they ship).
 
 ### Evidence Citation Format
@@ -400,9 +410,11 @@ The audit log is a standard GitHub-flavored markdown table with one row per find
 
 ---
 
-## Link Checking (OD-2: Tooling Decision OPEN)
+## Link Checking (OD-2)
 
-### Expected Behavior (When Tooling Is Chosen)
+### Implementation: hack/check-links.sh
+
+A read-only POSIX shell script `hack/check-links.sh` performs internal link validation following the done_011 precedent (ruling D6).
 
 **Inputs**:
 - All 17 audited files (listed above)
@@ -411,7 +423,7 @@ The audit log is a standard GitHub-flavored markdown table with one row per find
 **Processing**:
 - Resolve each internal link relative to its source file
 - Verify target file exists in repository
-- Verify anchor exists in target file (if anchor is present)
+- Verify anchor exists in target file using GitHub-flavored markdown slug rules (if anchor is present)
 - Track which link categories failed (missing files, broken anchors)
 
 **Exit Semantics**:
@@ -419,53 +431,47 @@ The audit log is a standard GitHub-flavored markdown table with one row per find
 - **Exit 1 (failure)**: One or more internal links are broken (missing file or invalid anchor)
 
 **Output**:
-- Summary line with count of failures, or success message
 - Detailed failure log with file, link, and reason for each broken link
+- Summary line with count of failures, or success message
 
-### Current Tooling Status (OD-2)
+**Usage**:
+- Locally as pre-flight check: `hack/check-links.sh` (per D6 precedent)
+- In CI: runs as a step in the `lint` job, same pattern as `hack/check-specs.sh`
+- No external dependencies; stdlib POSIX shell only
 
-**No link-check tooling is currently integrated into the repository.**
+---
 
-Options under evaluation:
-- (a) lychee GitHub Action (comprehensive internal + external checking)
-- (b) markdown-link-check (internal + external, Node.js-based)
-- (c) hack/check-links.sh (offline stdlib shell script, internal only, no CI enforcement initially)
+## Version String Checking (OD-1)
 
-**Recommendation** (OD-2 default): Option (c) — a read-only offline script following the done_011 precedent (ruling D6), callable locally as `hack/check-links.sh` and optionally as a CI step in the lint job.
+### Implementation: hack/check-doc-versions.sh
 
-### Manual Fallback Procedure
+A read-only POSIX shell script `hack/check-doc-versions.sh` performs version string drift detection.
 
-When automated tooling is unavailable, use this procedure to verify internal links during implementation:
+**Inputs**:
+- Chart version from `charts/gameplane/Chart.yaml:6` (appVersion field)
+- All 17 audited files
 
-1. **For each internal link** `[text](target)`:
-   ```bash
-   # Example: verify [reference](docs/install.md#helm-values)
-   
-   # Step 1: Check file exists
-   test -f "docs/install.md" && echo "✓ File exists" || echo "✗ File missing"
-   
-   # Step 2: Extract the target heading
-   grep -n "^## Helm Values" docs/install.md
-   
-   # Step 3: Verify heading matches anchor slug
-   # (## Helm Values → #helm-values in GitHub)
-   ```
+**Processing**:
+- Read the current Gameplane appVersion from the chart
+- Scan each audited file for version literals (regex: `v?0\.[0-9]\.[0-9]-beta\.[0-9]`)
+- For each match, check context (±2 lines) for allowlist markers:
+  - `(example version)`, `(example)`, `(placeholder)`
+  - Code blocks marked `# Example:` or `<!-- Example -->`
+- If matched as allowlisted example, pass; otherwise treat as a product documentation claim
+- Product claims MUST match the current appVersion exactly
 
-2. **For same-file anchors** `[text](#section)`:
-   ```bash
-   # Example: verify [reference](#configuration) in docs/install.md
-   
-   # Step 1: Look for a heading that generates this anchor
-   grep -n "^## Configuration\|^### Configuration\|^#### Configuration" docs/install.md
-   ```
+**Exit Semantics**:
+- **Exit 0 (success)**: All version strings match current appVersion or are allowlisted examples
+- **Exit 1 (failure)**: One or more product version strings drift from current appVersion
 
-3. **Record failures** in audit-log.md with evidence (path:line of the breaking link and reason).
+**Output**:
+- Detailed failure log with file, line, found version, and current appVersion
+- Summary line with count of failures, or success message
 
-### CI Enforcement (OD-2)
-
-**Link validation is not automatically enforced in CI** unless a maintainer ruling selects option (a) or (b) above and authorizes a CI job or step.
-
-Manual spot-checking during implementation is the baseline requirement (SC-006: "verified by automated link checking" with fallback to "manual spot-checking suffices").
+**Usage**:
+- Locally as pre-flight check: `hack/check-doc-versions.sh` (per D6 precedent)
+- In CI: runs as a step in the `lint` job, same pattern as `hack/check-specs.sh`
+- No external dependencies; stdlib POSIX shell only
 
 ---
 
@@ -497,7 +503,7 @@ The documentation audit is **complete** when all of the following are true:
 
 ### Optional/Experimental/Beta Label Audit (SC-007)
 
-- [ ] **Every component in the registry (sentinel, capture-sidecar, mcp-server, audit-syslog-bridge, telemetry-receiver, postgres, and tunnel if OD-4 is ruled to include it) that appears in an audited file is labelled with the appropriate tag at first mention.**
+- [ ] **Every component in the registry (sentinel, capture-sidecar, mcp-server, audit-syslog-bridge, telemetry-receiver, postgres, and tunnel) that appears in an audited file is labelled with the appropriate tag at first mention.**
   - Tags: `[optional]`, `[experimental]`, `[disabled by default]`, or `[BETA]` per D-C vocabulary.
   - Evidence: `values.yaml` defaults and `CLAUDE.md` wording.
   - Pass: Consistent labelling across all 17 files; zero contradictions.
@@ -508,13 +514,24 @@ The documentation audit is **complete** when all of the following are true:
   - Evidence: `README.md:35`, `roadmap.md:18-22`, `web/src/router/tree.tsx`, `api/internal/handlers/ws.go`.
   - Pass: Zero unqualified multi-cluster console/log claims.
 
-### Unshipped Features Audit (FR-014)
+### Roadmap Status Markers (OD-7)
 
-- [ ] **No feature listed in `CHANGELOG.md` Unreleased section is presented in audited files as if it is available,** except:
-  - Features in `docs/roadmap.md` (exempt per OD-7 if ruled in favor of roadmap exemption), or
-  - Features qualified with "(unreleased; ships in next release)" per OD-8.
+- [ ] **Every entry in `docs/roadmap.md` carries an explicit status marker.**
+  - Markers: `(shipped vX.Y.Z)` for released features, `(planned)` for future features.
+  - Evidence: visual inspection of roadmap.md; no entry is unmarked.
+  - Note: `docs/roadmap.md` becomes MODIFIED to ensure all entries carry markers.
+  - Pass: 100% of roadmap entries carry status markers.
+
+### Unshipped Features Audit (FR-014 + OD-8)
+
+- [ ] **No feature listed in `CHANGELOG.md` Unreleased section is presented in non-roadmap audited files as if it is available.**
+  - For each Unreleased entry documented in the audited files:
+    - Verify whether the feature is in v0.2.0-beta.8 release (check operator/api/agent/web/chart code).
+    - If shipped: move the CHANGELOG entry to v0.2.0-beta.8 section (`CHANGELOG.md` becomes MODIFIED).
+    - If unshipped: add "(unreleased; ships in next release)" label on first mention in each file.
+  - Features in `docs/roadmap.md` are exempt (covered by OD-7 audit above).
   - Evidence: `CHANGELOG.md` Unreleased section vs. actual feature presence in operator/api/agent/web/chart.
-  - Pass: Zero unqualified unshipped feature claims (contingent on OD-7 maintainer ruling).
+  - Pass: Zero unqualified unshipped feature claims in non-roadmap files.
 
 ### Audit Evidence Log Complete (D-F)
 
@@ -522,12 +539,23 @@ The documentation audit is **complete** when all of the following are true:
   - Schema: GitHub-flavored markdown table per D-F.
   - Pass: Audit log fully populated with all findings.
 
-### Summary (SC-008)
+### Summary (SC-008 + OD-1 through OD-8)
 
-- [ ] **(a) Zero version-string mismatches** against v0.2.0-beta.8 across all 17 files.
-- [ ] **(b) Zero broken internal links** across all 17 files.
-- [ ] **(c) Consistent labelling of optional/experimental/beta features** across all mentions.
-- [ ] **Combined pass rate**: All three categories (a, b, c) show zero failures.
+**Core audit standards (SC-004 to SC-008):**
+- [ ] **(a) Zero version-string mismatches** against v0.2.0-beta.8 across all 17 files (SC-005, verified by hack/check-doc-versions.sh).
+- [ ] **(b) Zero feature description mismatches** in product documentation (SC-004).
+- [ ] **(c) Zero broken internal links** across all 17 files (SC-006, verified by hack/check-links.sh).
+- [ ] **(d) Consistent labelling of optional/experimental/beta features** across all mentions (SC-007).
+- [ ] **(e) Multi-cluster console/log streaming qualified with [local cluster only]** (FR-013).
+
+**Tooling and policies (OD-1 through OD-8):**
+- [ ] **(f) hack/check-links.sh** integrated as CI lint step (OD-2).
+- [ ] **(g) hack/check-doc-versions.sh** integrated as CI lint step (OD-1).
+- [ ] **(h) Roadmap markers** — every docs/roadmap.md entry carries `(shipped vX.Y.Z)` or `(planned)` (OD-7).
+- [ ] **(i) Unreleased features handled per OD-8** — CHANGELOG.md moved entries or audited files carry `(unreleased; ships in next release)` label.
+- [ ] **(j) Audit evidence log complete** with all findings recorded in audit-log.md (D-F).
+
+**Combined pass rate**: All categories (a through j) show zero unresolved findings.
 
 ---
 

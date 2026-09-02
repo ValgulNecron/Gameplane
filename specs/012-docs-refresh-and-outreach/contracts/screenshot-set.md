@@ -1,7 +1,7 @@
 # Contract: Dashboard Screenshot Deliverable
 
 **Feature**: 012 — Documentation Refresh and Outreach  
-**Status**: Specification Draft  
+**Status**: Specification (Ruled 2026-09-02 — Ready for Implementation)  
 **Applies To**: Dashboard screenshots in `docs/img/` and README.md gallery  
 **Requirements Addressed**: FR-015, FR-016, FR-017, FR-018, FR-019, SC-009, SC-010, SC-011
 
@@ -82,52 +82,55 @@ The README's `## Screenshots` section (currently lines 18–27) is a 2-column ta
 
 ### Gallery Alt Text Examples
 
-**Format**: One sentence per image. State **purpose** (what the screen shows) and **key UI elements** (buttons, metrics, tabs, lists). Explicitly note if data is mocked where applicable (console logs, player rosters, live streams in mock-mode screenshots).
+**Format**: One sentence per image. State **purpose** (what the screen shows) and **key UI elements** (buttons, metrics, tabs, lists). Do **NOT** mention mocking in alt text; a single disclosure sentence in the README gallery intro (OD-3d, ruled 2026-09-02) covers all screenshots.
 
 **Examples**:
 - ✅ `Sign-in form with local username/password field and SSO provider buttons, brand logo, and marketing sidebar.`
 - ✅ `Game template grid in Create Server wizard: card grid showing game icons, titles, descriptions, and Select buttons.`
 - ✅ `Cluster page with node list showing 3 nodes with CPU/memory/storage usage meters, uptime, and capacity info.`
-- ✅ `Logs tab showing >20 game server log lines with timestamps (mock mode: realistic game-server output format).`
+- ✅ `Logs tab showing >20 game server log lines with timestamps and scroll indicators.`
 - ❌ `Shows the login page.` (too vague; does not state key UI elements)
 - ❌ `Kubernetes event timeline.` (does not state purpose relative to operator/new user)
+- ❌ `Logs tab with mocked game-server output (mock mode).` (do not mention mocking in alt text; README intro handles disclosure)
 
-**Evidence**: FR-018, SC-010 requirements; R4 alt-text guidance at lines 452–475.
+**README Gallery Disclosure**: A single sentence in the README's `## Screenshots` section intro states: "Screenshots are captured against mocked data for consistency and reproducibility; all UI layouts and components reflect the current dashboard." This disclosure applies to all 11+ images; alt texts focus on purpose and UI elements only.
+
+**Evidence**: FR-018, SC-010; OD-3d ruling (2026-09-02).
 
 ---
 
-## Format Convention: JPEG 1568×773
+## Format Convention: JPEG 1920×1080
 
-All screenshots in `docs/img/` follow a consistent format established by the six existing files.
+All screenshots in `docs/img/` follow a consistent format. The six existing files (currently 1568×773 JPEG) are **replaced at 1920×1080 JPEG** with filenames kept per FR-016.
 
 | Property | Specification | Evidence | Notes |
 |---|---|---|---|
-| **File Format** | JPEG | Six existing files are JPEG; `docs/img/*.jpg` filename convention | Binary transparency not needed (not PNG); JPEG compression reduces file size while maintaining visual quality |
-| **Viewport Dimensions** | 1568×773 pixels (width × height) | `identify docs/img/*.jpg` on existing files confirms all six are 1568×773 | This is **NOT a spec value** but a convention inferred from existing files. If a different resolution is preferred, the maintainer must decide before capture (OD-3). Playwright Desktop Chrome default is 1280×720; explicit viewport config required to match |
-| **Aspect Ratio** | ~2.03:1 (landscape, slightly wider than 16:9) | Computed from 1568÷773 | Accommodates dashboard left-sidebar + content area + right-sidebar in single view |
-| **JPEG Compression Quality** | 75–85 (good quality, 47–74 KB per file) | Existing files measured at 47–74 KB | Lossless/optimized compression acceptable; no visible quality loss vs. files at this size range |
+| **File Format** | JPEG | All files are JPEG; `docs/img/*.jpg` filename convention | Binary transparency not needed (not PNG); JPEG compression reduces file size while maintaining visual quality |
+| **Viewport Dimensions** | 1920×1080 pixels (width × height) | Standard 16:9 HD resolution; ruled OD-3a (2026-09-02) | Existing six files are currently 1568×773 and are replaced at the new size. Provides a larger, clearer dashboard view. Playwright Desktop Chrome default is 1280×720; explicit viewport config required to match 1920×1080 |
+| **Aspect Ratio** | 16:9 (landscape) | Standard HD widescreen | Accommodates dashboard left-sidebar + content area + right-sidebar with room for detail |
+| **JPEG Compression Quality** | 75–85 (good quality, typical 60–95 KB per file) | Larger viewport increases file size proportionally from existing 47–74 KB range | Lossless/optimized compression acceptable; no visible quality loss |
 | **Color Space** | sRGB (standard RGB) | Standard JPEG color space | No color management requirements; standard monitors render correctly |
-| **Metadata** | Minimal (filename only) | Existing files have no EXIF/XMP metadata | Acceptable to strip metadata; timestamp and capture tool name not required |
+| **Metadata** | Minimal (filename only) | No EXIF/XMP metadata required | Acceptable to strip metadata; timestamp and capture tool name not required |
 
 ### Playwright Viewport Configuration
 
-To capture at 1568×773 with Playwright (mock mode recommended per R4):
+To capture at 1920×1080 with Playwright (mock mode per OD-3, ruled 2026-09-02):
 
 ```typescript
 // In playwright.config.ts or within test:
-await page.setViewportSize({ width: 1568, height: 773 });
+await page.setViewportSize({ width: 1920, height: 1080 });
 ```
 
 Or set globally in config (preferred):
 
 ```typescript
 use: {
-  viewport: { width: 1568, height: 773 },
+  viewport: { width: 1920, height: 1080 },
   deviceScaleFactor: 1,
 }
 ```
 
-**Evidence**: R4 Appendix C (lines 453–490); playwright.config.ts current setup uses Desktop Chrome preset (1280×720 by default, requires override).
+**Evidence**: OD-3a ruling (2026-09-02); FR-016 (keep filenames, refresh content); playwright.config.ts viewport override required.
 
 ---
 
@@ -169,9 +172,9 @@ Consistent test data makes screenshots cohesive and professional:
 
 ---
 
-## Capture Procedure (OD-3)
+## Capture Procedure (OD-3, Ruled 2026-09-02)
 
-Screenshot capture is **PLANNED** in this contract; the actual capture method is OPEN and requires a maintainer decision (OD-3). Three options are outlined below with pros/cons; a recommendation is provided, but implementation defers to the maintainer's approval.
+Screenshot capture uses **Playwright Mock Mode (Option A)** as of 2026-09-02 maintainer ruling. Three options were outlined for evaluation; the ruling selected Option A for speed, reproducibility, and CI integration. Implementation proceeds with mock mode; Options B and C remain as documented alternatives for reference.
 
 ### Option A: Playwright Mock Mode (MSW + Vite) — **RECOMMENDED**
 
@@ -198,15 +201,16 @@ Screenshot capture is **PLANNED** in this contract; the actual capture method is
 
 #### Cons & Trade-offs
 
-- ⚠️ **Console / Logs Tabs**: Live stream (xterm, WebSocket) shows mocked log lines (not real server output). **Acceptable for screenshots documenting "here is the UI"; alt text clarifies "mock mode".** Example alt text: `Logs tab with mocked game-server output lines showing the UI and scrolling capability.`
+- ⚠️ **Console / Logs Tabs**: Live stream (xterm, WebSocket) shows mocked log lines (not real server output). **Acceptable for screenshots documenting UI layout and scrolling capability.** README gallery intro discloses mocking once (OD-3d); alt texts focus on purpose and UI elements.
 - ⚠️ **Cluster / Node Stats**: CPU/memory/storage meters show fixed mock values, not real cluster variation. **Acceptable for demo purposes.**
 - ⚠️ **Player Rosters**: Player names and UUIDs are fabricated. **Acceptable; reinforces dummy-data compliance.**
 - ⚠️ **Mod Registries**: Shows a subset of mods (5–10 per registry, not 100s). **Acceptable; documents the UI layout.**
 
-#### Implementation Steps
+#### Implementation Steps (OD-3b: Playwright Mock Mode, Ruled 2026-09-02)
 
-1. **Create test spec** at `web/e2e/specs/screenshots.spec.ts` (or similar name)
-2. **Seed MSW fixtures** with realistic data:
+1. **Create test spec** at `web/e2e/specs/screenshots.spec.ts` (exact path per OD-3b)
+2. **Test runs with**: `GAMEPLANE_E2E_TARGET=mock npm run test:e2e` or a tag/grep filter (e.g., `--grep @screenshots`) to isolate from other e2e tests
+3. **Seed MSW fixtures** with realistic data:
    - 8+ `GameTemplate` objects (Minecraft, Valheim, Terraria, Rust, Palworld, Factorio, CS2, ARK)
    - 3–5 `GameServer` resources (mix of phases: Running, Pending, Failed)
    - 3+ `ClusterNode` resources with CPU/memory/storage usage
@@ -214,23 +218,23 @@ Screenshot capture is **PLANNED** in this contract; the actual capture method is
    - 5–10 mods per registry (Thunderstore, CurseForge, Steam)
    - 3–5 test users with different roles (admin, operator, viewer)
    - Schedule and Restore resources for Backups tab
-3. **Authenticate once** at test start (MSW provides stub `/users/me` response)
-4. **Navigate to each route** in recommended priority order
-5. **Set viewport** to 1568×773 (see Viewport Configuration above)
-6. **Capture screenshot** for each route:
+4. **Authenticate once** at test start (MSW provides stub `/users/me` response)
+5. **Navigate to each route** in recommended priority order
+6. **Set viewport** to 1920×1080 (see Viewport Configuration above)
+7. **Capture screenshot** for each route:
    ```typescript
    await page.screenshot({
      path: 'docs/img/<filename>.jpg',
      fullPage: false,  // Capture only visible viewport, not full page
    });
    ```
-7. **Post-process JPEG** (optional): Re-encode losslessly to match 47–74 KB range of existing files (e.g., `imagemin`, `mozjpeg`)
-8. **Commit screenshots** to git with all filenames matching the table above
+8. **Post-process JPEG** (optional): Re-encode losslessly for consistent compression (e.g., `imagemin`, `mozjpeg`)
+9. **Commit screenshots** to git with all filenames matching the table above
 
 #### Testing & Validation
 
 - Run `npm run test:e2e:mock` locally to verify all captures succeed
-- Verify generated JPEG files are 1568×773 (use `identify docs/img/<filename>.jpg`)
+- Verify generated JPEG files are 1920×1080 (use `identify docs/img/<filename>.jpg`)
 - Verify no forbidden patterns in alt text or visible captions
 - Manual visual inspection: compare new screenshots against running dashboard to ensure layout/styling match
 
@@ -272,7 +276,7 @@ Screenshot capture is **PLANNED** in this contract; the actual capture method is
 ### Option C: Manual Capture (Web Browser on make dev-up)
 
 **Prerequisites**: Running `make dev-up` cluster + seeded data (same as Option B)  
-**Method**: Web browser (Chrome/Firefox) at 1568×773 viewport; manual navigation and screenshot tool
+**Method**: Web browser (Chrome/Firefox) at 1920×1080 viewport; manual navigation and screenshot tool
 
 #### Pros
 
@@ -290,17 +294,19 @@ Screenshot capture is **PLANNED** in this contract; the actual capture method is
 
 ---
 
-### OD-3 Decision: Recommended Path
+### OD-3 Decision: Ruled — Use Option A (Playwright Mock Mode, 2026-09-02)
 
-**Use Option A (Playwright Mock Mode)** for the following reasons:
+**Ruling**: Use **Option A (Playwright Mock Mode)** for the following reasons:
 
 1. **Reproducibility**: Identical screenshots on every run; diff-able in git
 2. **CI Integration**: Integrates into `npm run test:e2e:mock` pipeline; can run on every PR
 3. **Speed**: Seconds per screenshot vs. minutes per cluster provisioning
 4. **Maintainability**: Data fixtures (`web/src/test/factories.ts`) update per release without cluster re-provisioning
-5. **Acceptance**: Trade-off (mocked live streams) is acceptable and documented in alt text
+5. **Acceptance**: Trade-off (mocked live streams) is acceptable and documented once in README intro
 
-**Awaiting maintainer approval** before implementation proceeds to capture execution.
+**OD-3b Captured**: Playwright spec at `web/e2e/specs/screenshots.spec.ts` run with `GAMEPLANE_E2E_TARGET=mock` and tag/grep filter, output to `docs/img/`.
+
+**OD-3c: Tag-Triggered Recapture Workflow**: A release-triggered GitHub Actions workflow (`.github/workflows/screenshot-refresh.yaml`) regenerates MSW fixture data and screenshots and opens a pull request with the new images. The credential for opening that PR is a fine-grained personal access token scoped to this repository with contents and pull-requests write permission, stored as a repository secret (ruled 2026-09-02, OD-13); unlike a GITHUB_TOKEN-authored PR it triggers CI normally.
 
 ---
 
@@ -314,20 +320,20 @@ Regardless of which capture method is chosen, all captures follow these common p
 2. **Disable browser extensions**: No ad blockers, password managers, or toolbars that might obscure UI
 3. **Set timezone to UTC** (or a fixed timezone) if timestamps are visible in UI: Consistent across all screenshots
 4. **Set system theme to light** (if applicable): Gameplane dashboard uses light theme by default; no dark-mode variants needed
-5. **Verify viewport is exactly 1568×773**: Use DevTools or Playwright to confirm before capture
+5. **Verify viewport is exactly 1920×1080**: Use DevTools or Playwright to confirm before capture
 
 ### Capture
 
 6. **Authenticate** (once at test start, reuse session for all screens)
 7. **Navigate to route** per recommended priority table
 8. **Wait for content to load** (Playwright: `await page.waitForLoadState('networkidle')`)
-9. **Set viewport to 1568×773** if not already set
+9. **Set viewport to 1920×1080** if not already set
 10. **Screenshot** with `page.screenshot({ path: 'docs/img/<filename>.jpg', fullPage: false })`
-11. **Verify file was written** and is 1568×773
+11. **Verify file was written** and is 1920×1080
 
 ### Post-Capture
 
-12. **Optional JPEG re-encode** (if needed): Use `imagemin-mozjpeg` or similar to match 47–74 KB range of existing files
+12. **Optional JPEG re-encode** (if needed): Use `imagemin-mozjpeg` or similar to maintain consistent compression (typical 60–95 KB at 1920×1080 resolution)
 13. **Run `ls -lh docs/img/*.jpg`** to verify all 11+ files exist and are reasonable file sizes
 14. **Spot-check alt text** for forbidden patterns (no hostnames, IPs, real usernames)
 15. **Git add and commit** all new/refreshed screenshots
@@ -370,13 +376,13 @@ Use this checklist **before merging** the screenshot commits (D-F, per constitut
 
 ### File Inventory
 
-- [ ] All six existing filenames are present in `docs/img/`:
-  - [ ] `dashboard.jpg` (1568×773 JPEG)
-  - [ ] `servers-list.jpg` (1568×773 JPEG)
-  - [ ] `server-overview.jpg` (1568×773 JPEG)
-  - [ ] `mods-registry-browse.jpg` (1568×773 JPEG)
-  - [ ] `server-console.jpg` (1568×773 JPEG)
-  - [ ] `admin-mod-registries.jpg` (1568×773 JPEG)
+- [ ] All six existing filenames are present in `docs/img/` (replaced at 1920×1080 per FR-016, OD-3a):
+  - [ ] `dashboard.jpg` (1920×1080 JPEG)
+  - [ ] `servers-list.jpg` (1920×1080 JPEG)
+  - [ ] `server-overview.jpg` (1920×1080 JPEG)
+  - [ ] `mods-registry-browse.jpg` (1920×1080 JPEG)
+  - [ ] `server-console.jpg` (1920×1080 JPEG)
+  - [ ] `admin-mod-registries.jpg` (1920×1080 JPEG)
 - [ ] At least five new filenames are present:
   - [ ] `login.jpg`
   - [ ] `create-server-template-select.jpg`
@@ -385,8 +391,8 @@ Use this checklist **before merging** the screenshot commits (D-F, per constitut
   - [ ] `cluster-nodes.jpg`
   - [ ] `server-detail-logs.jpg` (recommended sixth)
 - [ ] All files are JPEG format (not PNG, not WebP)
-- [ ] All files are exactly 1568×773 pixels (run `identify docs/img/*.jpg` or similar)
-- [ ] All files are <150 KB (reasonable compression; typical 47–74 KB for existing files)
+- [ ] All files are exactly 1920×1080 pixels (run `identify docs/img/*.jpg` or similar)
+- [ ] All files are <150 KB (reasonable compression; typical 60–95 KB at 1920×1080 resolution)
 
 ### README.md Gallery
 
@@ -403,7 +409,7 @@ Use this checklist **before merging** the screenshot commits (D-F, per constitut
 - [ ] Each alt text states **purpose** (e.g., "authentication entry point", "fleet health overview")
 - [ ] Each alt text describes **key UI elements** (e.g., "form fields", "metrics", "buttons", "tabs")
 - [ ] No alt text is vague (e.g., "Shows the dashboard" is too vague; "Fleet health overview with running/stopped counts" is good)
-- [ ] If data is mocked (mock-mode screenshots), alt text clarifies this (e.g., "with mocked server output")
+- [ ] Alt text does NOT mention mocking or mocked data (disclosure lives once in the README gallery intro per OD-3d).
 
 ### Dummy Data Compliance
 
@@ -438,14 +444,16 @@ Use this checklist **before merging** the screenshot commits (D-F, per constitut
 
 ## Open Decisions
 
-The following decisions are **not settled in this contract** and require maintainer ruling before or during implementation:
+**Ruled decisions (2026-09-02)** and one remaining open item:
 
-| OD ID | Question | Options | Recommendation | Status |
-|---|---|---|---|---|
-| **OD-3** | Screenshot capture environment | (A) Playwright mock mode, (B) Live mode (make dev-up), (C) Manual capture | **Use Option A (mock mode)** for speed, reproducibility, and CI integration | Awaiting approval |
-| **OD-3a** | Should viewport remain 1568×773 (inferred from existing files), or should a different resolution be preferred? | (a) Keep 1568×773, (b) Switch to 1280×720 (Desktop Chrome default), (c) Different resolution | **Keep 1568×773** (matches existing, professional aspect ratio) | Pending confirmation |
-| **OD-3b** | Should screenshot capture be a Playwright test spec in `web/e2e/` or a separate CI job? | (i) Playwright spec (`web/e2e/specs/screenshots.spec.ts`) run by `npm run test:e2e:mock`, (ii) Standalone CI job | Recommend (i) for integration; (ii) is also acceptable | Pending decision |
-| **OD-3d** | Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked data" when using mock-mode screenshots, or is the contract-level disclaimer sufficient? | (a) Explicit in every alt text, (b) Once in README intro, (c) In alt text only for live-stream tabs | Recommend (c): note mock mode in Console/Logs alt text only | Pending maintainer style preference |
+| OD ID | Question | Ruling | Status |
+|---|---|---|---|
+| **OD-3** | Screenshot capture environment | **Use Option A (Playwright mock mode)** for speed, reproducibility, and CI integration | ✓ Ruled 2026-09-02 |
+| **OD-3a** | Viewport dimensions | **Switch to 1920×1080 JPEG**; six existing files (currently 1568×773) are replaced at new size with filenames kept per FR-016 | ✓ Ruled 2026-09-02 |
+| **OD-3b** | Capture method and path | **Playwright spec at `web/e2e/specs/screenshots.spec.ts`** run with `GAMEPLANE_E2E_TARGET=mock` and tag/grep filter; output to `docs/img/` | ✓ Ruled 2026-09-02 |
+| **OD-3c** | Auto-recapture on release | **Tag-triggered workflow `.github/workflows/screenshot-refresh.yaml`** regenerates MSW fixtures and screenshots and opens a PR; credential is a fine-grained PAT repository secret (OD-13, ruled 2026-09-02) | ✓ Ruled 2026-09-02 |
+| **OD-3d** | Mock mode disclosure | **One sentence in README gallery intro** discloses mocking for all 11+ screenshots; **alt texts do NOT mention mocking**, focusing on purpose and UI elements only | ✓ Ruled 2026-09-02 |
+| **OD-13** | PR credential for tag-triggered recapture | The credential for opening the screenshot-refresh PR is a fine-grained PAT repository secret (scoped to this repository with contents and pull-requests write permission, stored as a repository secret). | ✓ Ruled 2026-09-02 |
 
 ---
 
@@ -461,7 +469,7 @@ The following decisions are **not settled in this contract** and require maintai
 - **Component Routes**: `/home/user/Gameplane/web/src/routes/*.tsx` (Dashboard, ServerDetail, AdminSettings, etc.)
 - **Login Privacy Verification**: `/home/user/Gameplane/web/src/routes/Login.tsx` lines 19–21 (CLAUDE.md rule 3 compliance)
 - **CLAUDE.md Rule 3**: `/home/user/Gameplane/CLAUDE.md` (login privacy, pre-auth surface requirements)
-- **Existing Screenshots**: `/home/user/Gameplane/docs/img/` (six JPEG files, all 1568×773)
+- **Existing Screenshots**: `/home/user/Gameplane/docs/img/` (six JPEG files, currently 1568×773, to be replaced at 1920×1080 per OD-3a)
 - **Constitution Principle VI**: `/home/user/Gameplane/.specify/memory/constitution.md` lines 249–271 (CI as system of record)
 - **Style Reference**: `/home/user/Gameplane/specs/done_011-add-missing-module-specs/contracts/specs-md-structure.md` (document format and tone)
 
@@ -469,8 +477,9 @@ The following decisions are **not settled in this contract** and require maintai
 
 ## Document Status
 
-**Status**: Specification Draft  
-**Version**: 1.0  
+**Status**: Specification (Ruled — Ready for Implementation)  
+**Version**: 1.1  
 **Authored**: 2026-09-01  
-**Applies To**: Planning phase (this document); captures deferred to implementation phase (OD-3 decision pending)  
-**Maintainer Decision Required**: OD-3, OD-3a, OD-3b, OD-3d before capture execution begins
+**Updated**: 2026-09-02 (all maintainer rulings applied; no open items remain)  
+**Applies To**: Implementation phase (screenshot capture, mock mode Playwright spec, README gallery refresh)  
+**Maintainer Decisions Applied**: OD-3 (mock mode), OD-3a (1920×1080), OD-3b (Playwright spec at `web/e2e/specs/screenshots.spec.ts`), OD-3c (tag-triggered workflow), OD-3d (README disclosure, no mocking in alt text), OD-13 (PR credential is a fine-grained PAT repository secret)

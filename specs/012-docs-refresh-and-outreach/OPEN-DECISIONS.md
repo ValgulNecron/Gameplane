@@ -1,6 +1,6 @@
 # Open Decisions
 
-**Status**: Eight seeded, four new from research — all unsettled pending maintainer ruling.
+**Status**: All thirteen decisions ruled on 2026-09-02; none remain open.
 
 All open questions documented here arise from the feature spec (spec.md), CLAUDE.md guidance, constitution principles, or research findings (R1–R8) that could not be resolved without maintainer judgment. This document is the authoritative list of everything blocking detailed planning and implementation.
 
@@ -10,7 +10,7 @@ All open questions documented here arise from the feature spec (spec.md), CLAUDE
 
 ### OD-1: CI auto-update of version strings on release tag
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: When the v0.2.0-beta.N release is cut, who updates the version strings in the 17 audited documentation files? Specifically, when charts/gameplane/Chart.yaml appVersion is bumped, how should docs/install.md, docs/oidc.md, telemetry-receiver/README.md, and other references to the previous version be refreshed?
 
@@ -23,10 +23,12 @@ All open questions documented here arise from the feature spec (spec.md), CLAUDE
 
 **Options**:
 1. **(a) Release workflow auto-rewrite**: A GitHub Actions step in the release workflow rewrites version strings in docs when a release tag is pushed (e.g., sed replacing old version with new). Pros: automatic, release-time. Cons: script fragility, false positives (example vs. literal).
-2. **(b) CI detection gate** (like `hack/check-specs.sh`): A shell script `hack/check-versions.sh` runs in the lint job, fails if any non-example, non-date file references appVersion older than current, with an allowlist for intentional examples. Implementer fixes before merge. Pros: surgical, high signal, documented. Cons: manual per-release, blocks CI.
+2. **(b) CI detection gate** (like `hack/check-specs.sh`): A shell script `hack/check-doc-versions.sh` runs in the lint job, fails if any non-example, non-date file references appVersion older than current, with an allowlist for intentional examples. Implementer fixes before merge. Pros: surgical, high signal, documented. Cons: manual per-release, blocks CI.
 3. **(c) Manual, no tooling**: Implementer updates versions as part of refresh work; release cutoff becomes a pre-merge checklist. Pros: low infra cost. Cons: human error, no catch for new commits post-release.
 
-**Recommended default**: **(b) CI detection gate** — a `hack/check-versions.sh` script that fails CI if docs drift from appVersion, parallel to the existing `hack/check-specs.sh` precedent (CLAUDE.md rule 8, constitution Principle VI). Detects, does not auto-edit. Implementer fixes before merge. Simpler than (a), more reliable than (c).
+**Recommended default**: **(b) CI detection gate** — a `hack/check-doc-versions.sh` script that fails CI if docs drift from appVersion, parallel to the existing `hack/check-specs.sh` precedent (CLAUDE.md rule 8, constitution Principle VI). Detects, does not auto-edit. Implementer fixes before merge. Simpler than (a), more reliable than (c).
+
+**Ruling (2026-09-02)**: Option (b) is chosen. Implement a read-only POSIX script `hack/check-doc-versions.sh` that fails CI when an audited doc references an older Gameplane version not allowlisted as an example or historical reference. Runs as a step in the CI lint job like `hack/check-specs.sh` and is runnable locally as a pre-flight check (precedent: done_011 D6).
 
 **Blocks**: 
 - SC-005 pass/fail (version strings match current release)
@@ -37,7 +39,7 @@ All open questions documented here arise from the feature spec (spec.md), CLAUDE
 
 ### OD-2: Link checking tooling and scope
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: SC-006 states "all internal doc links in README.md and docs/ resolve to existing targets verified by automated link checking." Which link-check tool should be selected, and should it cover external links?
 
@@ -57,6 +59,8 @@ All open questions documented here arise from the feature spec (spec.md), CLAUDE
 
 **Recommended default**: **(c) Offline shell script** — a `hack/check-links.sh` following the precedent of `hack/check-specs.sh` (CLAUDE.md rule 8, constitution Principle VI, rule 6 ruling D6 from done_011). Validates internal links and anchors only (external links are environment-dependent; air-gapped installs must not fail). Script is read-only; implementer runs before push and fixes errors. Integrates into lint job as a parallel check.
 
+**Ruling (2026-09-02)**: Option (c) is chosen. Implement an offline shell script `hack/check-links.sh` that validates internal links and heading anchors in audited files with no external dependencies or external link checking. Runs locally as a pre-flight check and as a step in the CI lint job.
+
 **Sub-questions** (clarification needed for script design):
 - How does the markdown processor handle ampersand characters in heading slugs (e.g., "Beta Status & Limitations" → `beta-status--limitations` or `beta-status-limitations`)? (R2-links.md open question 1)
 - Are same-file anchor references always required to use the full heading slug, or are shorthand/partial matches supported? (R2-links.md open question 2)
@@ -70,7 +74,7 @@ All open questions documented here arise from the feature spec (spec.md), CLAUDE
 
 ### OD-3: Screenshot capture environment and method
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: How should the 11 dashboard screenshots (six refreshed, five new) be captured? Three distinct methods exist, with different trade-offs on reproducibility, CI feasibility, and resource requirements.
 
@@ -84,7 +88,7 @@ All open questions documented here arise from the feature spec (spec.md), CLAUDE
 
 **Options**:
 1. **(a) Manual on maintainer's kind cluster** (make dev-up): Maintainer runs local cluster, seeds test data (dummy server names, modules), captures via screenshot tool or browser dev tools. Pros: no infra cost, realistic live data. Cons: not reproducible across sessions, manual every release, cluster setup burden.
-2. **(b) Playwright mock mode** (MSW + Vite, no cluster): A new Playwright spec file `web/e2e/specs/screenshots.spec.ts` uses MSW mocked API responses and deterministic test fixtures. Captures at 1568×773 viewport from Vite dev server on localhost:5173. Pros: reproducible (data fixed in test factory), CI-native (no cluster needed), fast, data fully controlled. Cons: live streams (Console/Logs tabs) are mocked (alt text must clarify "mocked server output"), no real Kubernetes UI elements.
+2. **(b) Playwright mock mode** (MSW + Vite, no cluster): A new Playwright spec file `web/e2e/specs/screenshots.spec.ts` uses MSW mocked API responses and deterministic test fixtures. Captures at 1920×1080 viewport (per OD-3a) from Vite dev server on localhost:5173. Pros: reproducible (data fixed in test factory), CI-native (no cluster needed), fast, data fully controlled. Cons: live streams (Console/Logs tabs) are mocked (alt text does not disclose mocking; see OD-3d), no real Kubernetes UI elements.
 3. **(c) Playwright live mode** (against make dev-up in CI): CI job provisions a kind cluster, seeds data via `make dev-up`, runs Playwright against the live dashboard, captures. Pros: realistic full UI. Cons: slow, resource-intensive for CI (cluster provisioning ~3–5 min), flaky (depends on cluster health, timing).
 
 **Recommended default**: **(b) Playwright mock mode** — MSW + Vite, no cluster needed. Rationale: 
@@ -92,8 +96,10 @@ All open questions documented here arise from the feature spec (spec.md), CLAUDE
 - CI-native (Principle VI: no cluster provision needed)
 - Fast (Vite dev server is instant; no K8s provisioning)
 - Realistic UI (React components render the same way)
-- Mock streams (Console, Logs tabs) are acceptable with explicit alt text ("Shows the Logs tab UI with mocked server output")
+- Mock streams (Console, Logs tabs) are acceptable; disclosure is handled once in the README gallery intro (see OD-3d), not per alt text
 - Aligns with existing web/e2e/ infrastructure (MSW handlers, Playwright config)
+
+**Ruling (2026-09-02)**: Option (b) is chosen. Use Playwright with MSW mocking and Vite (no cluster). Screenshots captured at 1920×1080 JPEG in `web/e2e/specs/screenshots.spec.ts`, run on demand with `GAMEPLANE_E2E_TARGET=mock`. A tag-triggered GitHub Actions workflow regenerates MSW fixture data and screenshots, opening a pull request with new images on release tag push. Disclose mock mode once in the README screenshot gallery intro; individual alt texts do NOT mention mocking.
 
 **Sub-decisions** (clarification for implementation):
 
@@ -101,19 +107,23 @@ All open questions documented here arise from the feature spec (spec.md), CLAUDE
 Should viewport remain 1568×773 (inferred from existing files), or should a different resolution be preferred?
 - Options: (a) Keep 1568×773, (b) Switch to 1280×720 (Desktop Chrome default), (c) Different resolution
 - Recommended: **Keep 1568×773** (matches existing, professional aspect ratio)
+- **Ruling (2026-09-02)**: Switch to 1920×1080 (overrides recommendation). All eleven images captured at 1920×1080 JPEG. Existing six files replaced at new size with filenames kept per FR-016. Update all mentions of 1568×773 as the target to 1920×1080; 1568×773 remains only when describing current files.
 
 **OD-3b (Capture Specification vs. CI Job)**:  
 Should screenshot capture be a Playwright test spec in `web/e2e/` or a separate CI job?
 - Options: (i) Playwright spec (`web/e2e/specs/screenshots.spec.ts`) run by `npm run test:e2e:mock`, (ii) Standalone CI job
 - Recommended: **(i) Playwright spec** for integration; (ii) is also acceptable
+- **Ruling (2026-09-02)**: Option (i) is chosen. Screenshots captured in `web/e2e/specs/screenshots.spec.ts`, run on demand with `GAMEPLANE_E2E_TARGET=mock` tag or grep filter so the regular mock e2e job is unaffected. Output written to `docs/img/`.
 
 **OD-3c (Data Freshness)**:  
 Should recommended screenshot MSW fixture data (game templates, server names, module list) auto-update on release tag, or stay manually updated per feature release? (R4-screens.md open question 3)
+- **Ruling (2026-09-02)**: Auto-update on tag (overrides recommendation for manual updates). A release-triggered GitHub Actions workflow regenerates MSW fixture data and screenshots, opening a pull request with new images on release tag push. Workflow file: `.github/workflows/screenshot-refresh.yaml`. See OD-13 for outstanding question about PR credential.
 
 **OD-3d (Alt Text for Mocked Streams)**:  
 Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked data" when using mock-mode screenshots, or is the contract-level disclaimer sufficient?
 - Options: (a) Explicit in every alt text, (b) Once in README intro, (c) In alt text only for live-stream tabs
 - Recommended: **(c) Note mock mode in Console/Logs alt text only**
+- **Ruling (2026-09-02)**: Option (b) is chosen (overrides recommendation). Disclosure once in README screenshot gallery intro (one sentence stating screenshots are captured against mocked data). Individual alt texts do NOT mention mocking. Remove per-alt-text "mock mode" wording from examples and rules.
 
 **Blocks**:
 - FR-015 (screenshots showing current UI)
@@ -125,7 +135,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-4: Whether tunnel is in the FR-012 label set
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: FR-012 requires optional/experimental/beta features to be "clearly marked as `[optional]` or `[experimental]` or `[disabled by default]` the first time mentioned in each doc file." The spec lists five components (sentinel, capture-sidecar, mcp-server, audit-syslog-bridge, telemetry-receiver). Should tunnel (relay supervisor) also be tagged as [optional]?
 
@@ -146,6 +156,8 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 **Recommended default**: **(a) Include tunnel in FR-012** — treat tunnel as a sixth optional component for consistent labeling. Rationale: SC-007 is clear ("every feature marked as optional in CLAUDE.md"), and tunnel is marked optional in CLAUDE.md. CLAUDE.md rule 15 states "read the whole specs/<feature>/ folder" — this decision was already settled in SC-007 and CLAUDE.md; FR-012 just implements it.
 
+**Ruling (2026-09-02)**: Option (a) is chosen. Tunnel is included as a sixth optional component in the FR-012 label set. Tag tunnel [optional] at first mention in each audited file.
+
 **Blocks**:
 - FR-012 implementation (tag optional features consistently)
 - Task "Apply D-C labels to first mentions" in tasks.md
@@ -154,7 +166,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-5: Outreach submissions require maintainer-owned accounts
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: FR-020 and FR-025 require tracking and linking an external outreach to-do list. Three directories (AlternativeTo, Awesome-Selfhosted, Awesome-Kubernetes) each require account credentials or PR authorship. Should agents draft submission content (PR text, account application text) into outreach.md for the maintainer to submit, or should agents attempt submission directly?
 
@@ -176,6 +188,8 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 **Recommended default**: **(a) Agents draft, maintainer submits** — Per spec.md:53 ("maintainer wants to... track external outreach submissions"), the maintainer is the submitter. Agents produce the submission content (structured as decision artifacts in outreach.md), the maintainer reviews and executes. Rationale: aligns with SC-014 terminal states (submitted/deferred recorded by maintainer), keeps credentials out of agent context, preserves audit trail.
 
+**Ruling (2026-09-02)**: Option (a) is chosen. Agents draft the exact submission content (PR title/body, account application fields) into `outreach.md` as "DRAFT SUBMISSION" blocks. Maintainer reviews, owns credentials, executes the PR or form submission, and updates `outreach.md` with PR number/submission date/proof.
+
 **Blocks**:
 - FR-020 (outreach to-do list with status tracking)
 - FR-022 (status updates committed to git)
@@ -185,7 +199,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-6: Eligibility of projects for each external directory
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: R6-outreach.md identified three sub-questions about which directories Gameplane can actually submit to:
 
@@ -223,6 +237,11 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 - **Awesome-Kubernetes**: **(a) Pre-check metrics in implementation** — Query GitHub API for current stats; if marginal, mark as `deferred [reason]` and document why for future reference. Reduces wasted effort on a likely-rejected PR. Alternative (b) is acceptable if maintainer prefers to attempt regardless.
 - **AlternativeTo**: **Record as `pending [2026-09-01]`** — No blockers. Awaits maintainer submission per OD-5.
 
+**Ruling (2026-09-02)**: All three targets are addressed:
+- **Awesome-Selfhosted**: Deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22] as a terminal state per SC-014. Record the awesome-selfhosted-data YAML entry in outreach.md now so it is ready for submission on or after 2026-10-22.
+- **Awesome-Kubernetes**: Defer WITHOUT pre-checking metrics. Record deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release]. No pre-check task, no PR attempt in this feature.
+- **AlternativeTo**: Pending [2026-09-02] awaiting maintainer account creation and form submission per OD-5.
+
 **Blocks**:
 - FR-020 (outreach to-do list completeness)
 - SC-014 (terminal states recorded)
@@ -232,7 +251,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-7: FR-014 versus docs/roadmap.md unshipped features
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: FR-014 states "README.md and docs MUST NOT reference features that are announced but not yet shipped." However, docs/roadmap.md legitimately lists unshipped work (v1 GA blockers, post-v1 aspirations). How should the rule apply?
 
@@ -251,6 +270,8 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 **Recommended default**: **(a) Roadmap is exempt** — Rationale: roadmap.md's entire purpose is to describe future work; its presence in the repo is itself a disclaimer. Readers expecting shipped-features-only would not look there. For clarity, R8-unshipped.md already found no violation: "all future-looking claims are in roadmap, beta messaging, or architectural reserves." The roadmap's context makes labels redundant.
 
+**Ruling (2026-09-02)**: Option (b) is chosen (overrides recommendation). Tag every roadmap.md entry with an explicit "(shipped vX.Y.Z)" or "(planned)" marker so the file is self-explanatory. docs/roadmap.md becomes MODIFIED per FR-014 (not only audited). This affects the implementation scope.
+
 **Blocks**:
 - FR-014 pass/fail (no unshipped features announced elsewhere)
 
@@ -258,7 +279,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-8: Features merged after v0.2.0-beta.8 but documented on master
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: Some features are shipped on master but not yet released (e.g., CHANGELOG.md Unreleased section). Example: Helm-seeded OIDC role mappings are documented in docs/oidc.md as available but listed in CHANGELOG.md under "Unreleased". Were they shipped in v0.2.0-beta.8 but misplaced in the changelog, or are they truly unreleased and need qualification in docs?
 
@@ -278,6 +299,8 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 **Sub-decision OD-8b (if feature is unreleased)**: Should all post-beta.8 features on master be proactively labelled "(unreleased; ships in the next release)", or only features that are documented as available without a clear "coming soon" context? Recommendation: (c) — adopt a policy of proactive "(unreleased; ships in the next release)" labels for any feature appearing in docs that landed after the current release tag, to prevent confusion.
 
+**Ruling (2026-09-02)**: For every CHANGELOG.md Unreleased entry that docs describe: verify whether it shipped in v0.2.0-beta.8. If it shipped, move the CHANGELOG entry into the beta.8 section (CHANGELOG.md becomes MODIFIED). If it is truly unreleased, add "(unreleased; ships in the next release)" next to the doc mention. No blanket policy. OD-8b is closed by this ruling: each unreleased feature is handled as needed, no proactive labeling policy required.
+
 **Blocks**:
 - SC-004 pass/fail (docs don't claim unreleased features as available)
 - SC-005 pass/fail (version claims are accurate)
@@ -289,7 +312,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-9: CubeCoders AMP comparison table sourcing and strategy
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: CubeCoders AMP is a proprietary, closed-source product with no public GitHub repo and a JavaScript-heavy website (https://www.cubecoders.com/AMP) that WebFetch cannot render. The comparison table (FR-001–FR-005) must include CubeCoders columns for all nine dimensions. How should comparison data be sourced given that automated research cannot access the website?
 
@@ -308,6 +331,8 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 **Recommended default**: **(a) Defer CubeCoders; manual research in implementation** — Rationale: The spec explicitly names CubeCoders (spec.md:96 "comparing Gameplane, Pterodactyl, CubeCoders AMP, and Agones"). Removing it (option c) requires spec change. Option (b) is incomplete. Option (a) is honest: implementer notes "checked [date] via cubecoders.com/AMP" and documents what was found. If CubeCoders feature pages become inaccessible, mark as "(site unavailable as of [date])". Sourcing is the audit trail, not the access method.
 
+**Ruling (2026-09-02)**: Option (b) is chosen (overrides recommendation). Fill only what is verifiable for CubeCoders AMP. For dimensions that cannot be independently verified from fetchable official sources, mark cells "not publicly documented (checked YYYY-MM-DD)".
+
 **Blocks**:
 - FR-001 (comparison table with four competitors)
 - FR-005 (sourced and dated claims)
@@ -317,7 +342,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-10: 404 dimension URLs for Pterodactyl and Agones — fallback sourcing strategy
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: R7-competitor-sources.md identified three Pterodactyl URLs and three Agones URLs that return HTTP 404 when fetched during research. For example, Pterodactyl's deployment documentation was expected at one URL but is no longer there. Should implementation cite the base documentation root (fallback) as the source, or attempt to track down the correct dimension-specific URL?
 
@@ -337,6 +362,8 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 **Recommended default**: **(a) Use base documentation root + dimension notes** — Rationale: FR-005 asks for sources, not direct links. A base documentation URL with a note "deployment section" is a verifiable source. If the specific feature is documented somewhere in Pterodactyl or Agones docs, the base URL is sufficient sourcing. Dated, honest, and avoids false precision.
 
+**Ruling (2026-09-02)**: Option (b) is chosen (overrides recommendation). Hunt for the correct URL: for each 404 dimension page, implementation searches the sites and archive.org for the moved page and cites it if found. If not found, the source entry reads "source URL unavailable (checked YYYY-MM-DD)".
+
 **Blocks**:
 - FR-005 (sourced claims)
 - SC-003 (dated source references)
@@ -346,7 +373,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-11: Agones is a Kubernetes library, not a control panel — scope and framing
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: Agones is a Kubernetes operator/CRD library for running game servers at scale on K8s, not a control panel (no dashboard, no user auth, no template distribution). Many comparison table dimensions (e.g., "Backup and Restore", "Access Control & Authentication", "Template Distribution") do not map to Agones. Should Gameplane be compared against a tool with such different scope, and if so, how should non-applicable dimensions be handled?
 
@@ -366,6 +393,8 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 **Recommended default**: **(b) Keep Agones with "N/A" for non-applicable dimensions** — Rationale: The spec explicitly names Agones, and there is educational value in showing that Agones (a K8s library) and Gameplane (a control panel) serve different use cases, even in the same space. Evaluators benefit from understanding the distinction. "Not applicable" is honest and informative.
 
+**Ruling (2026-09-02)**: Option (b) is chosen. Keep Agones in the table; mark "Not Applicable (Agones is a Kubernetes operator library)" for non-mapping dimensions like Access Control & Authentication and Template Distribution.
+
 **Blocks**:
 - FR-001 (comparison table with four products)
 - FR-002–FR-008 (comparison accuracy and credibility)
@@ -375,7 +404,7 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ### OD-12: Notation for Agones in comparison table — clarifying the tool category
 
-**Status**: OPEN — needs maintainer ruling
+**Status**: RULED 2026-09-02
 
 **Question**: Should the comparison table (specifically the Agones column header or introductory row) include a notation clarifying that Agones is a Kubernetes library/operator, not a control panel? This would prevent evaluators from assuming parity with Pterodactyl and CubeCoders.
 
@@ -393,6 +422,8 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 **Recommended default**: **(b) Intro text above the table** — Rationale: A short paragraph explaining the scope ("Gameplane vs. other panels and Kubernetes-native tools") is clearer than header notation and educates evaluators upfront. It aligns with SC-001's emphasis on understanding differences. Prevents misreading.
 
+**Ruling (2026-09-02)**: Option (b) is chosen. Add an intro paragraph above the comparison table stating the scope: Pterodactyl and CubeCoders AMP are control panels, Agones is a Kubernetes operator library, and why it is compared. Order in README: intro paragraph, then the FR-004 status line, then the table.
+
 **Blocks**:
 - FR-001 (readable, clear comparison table)
 - SC-001 (evaluator can identify key differences)
@@ -400,28 +431,59 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 
 ---
 
+## New Decision (OD-13)
+
+### OD-13: Credential for the automatic screenshot-refresh pull request
+
+**Status**: RULED 2026-09-02
+
+**Question**: OD-3c specifies that a tag-triggered GitHub Actions workflow (`.github/workflows/screenshot-refresh.yaml`) regenerates MSW fixture data and screenshots, opening a pull request with new images when a release tag is pushed. GITHUB_TOKEN-authored PRs do not trigger CI runs (they lack the necessary trigger permissions to avoid fork-bomb scenarios). Should the workflow use GITHUB_TOKEN, a fine-grained PAT (Personal Access Token) stored as a repository secret, or a GitHub App token to open this PR so that CI runs automatically on the screenshot changes?
+
+**Why it matters**: The screenshot refresh workflow's PR must trigger CI validation (lint, build, tests) before it is merged. Without the right credential, the PR opens with no checks running, breaking the release automation and requiring manual CI trigger or re-run.
+
+**Evidence**:
+- OD-3c ruling: "A release-triggered GitHub Actions workflow regenerates MSW fixture data and screenshots, opening a pull request with new images on release tag push."
+- GitHub Actions documentation: PRs authored by GITHUB_TOKEN do not trigger on:push or on:pull_request workflows; this is a security feature.
+- Standard practice: repos using automated PR creation for release artifacts use PATs or GitHub Apps to author PRs so CI runs normally.
+
+**Options**:
+1. **(a) Use GITHUB_TOKEN**: Simple, built-in, requires no credential setup. Cons: CI will not run; PRs require manual trigger or approval before merging. Breaks automation intent.
+2. **(b) Use a fine-grained PAT stored in GitHub Secrets**: Maintainer creates a PAT with repo:write and content:read scope, stores it as `SCREENSHOT_BOT_PAT` secret. Workflow uses it to open PRs. Pros: CI runs normally. Cons: requires credential management; PAT renewal needed periodically.
+3. **(c) Use a GitHub App token**: Deploy a lightweight GitHub App with repo:write scope; the workflow exchanges the app's private key for a temporary token. Pros: no credential renewal; scoped permissions; audit trail. Cons: requires app setup and GitHub App marketplace presence (or org-only).
+
+**Recommended default**: **(b) Fine-grained PAT** — Rationale: Simplest approach that meets the constraint. PATs are maintainer-managed; renewal is straightforward. A GitHub App adds complexity without benefit for a single workflow. GITHUB_TOKEN fails the requirement entirely.
+
+**Blocks**:
+- OD-3c implementation (tag-triggered screenshot refresh workflow)
+- FR-016 (automated screenshot updates on release)
+
+**Ruling (2026-09-02)**: Option (b) is chosen. The tag-triggered screenshot-refresh workflow opens its pull request with a fine-grained personal access token scoped to this repository with contents and pull-requests write permission, stored as a repository secret (PRs it opens trigger CI normally; the token is rotated like the other repository secrets).
+
+---
+
 ## Summary Table
 
 | ID | Title | Blocks | Status |
 |---|---|---|---|
-| OD-1 | CI auto-update of version strings on release tag | SC-005, version-refresh task | OPEN |
-| OD-2 | Link checking tooling and scope | SC-006, link-validation task | OPEN |
-| OD-3 | Screenshot capture environment and method | FR-015/016/017, screenshot task | OPEN |
-| OD-4 | Whether tunnel is in FR-012 label set | FR-012, labeling task | OPEN |
-| OD-5 | Outreach submissions require maintainer-owned accounts | FR-020/022/025, submission workflow | OPEN |
-| OD-6 | Eligibility of projects for each external directory | SC-014, outreach task | OPEN |
-| OD-7 | FR-014 versus docs/roadmap.md unshipped features | FR-014, unshipped-feature audit | OPEN |
-| OD-8 | Features merged after v0.2.0-beta.8 but documented on master | SC-004/005, feature-status audit | OPEN |
-| OD-9 | CubeCoders AMP comparison table sourcing strategy | FR-005, CubeCoders research task | OPEN |
-| OD-10 | 404 dimension URLs for Pterodactyl/Agones — fallback sourcing | FR-005, competitor-research task | OPEN |
-| OD-11 | Agones is a library, not a control panel — scope and framing | FR-001/002, table design | OPEN |
-| OD-12 | Notation for Agones in comparison table | FR-001, table clarity | OPEN |
+| OD-1 | CI auto-update of version strings on release tag | SC-005, version-refresh task | RULED |
+| OD-2 | Link checking tooling and scope | SC-006, link-validation task | RULED |
+| OD-3 | Screenshot capture environment and method | FR-015/016/017, screenshot task | RULED |
+| OD-4 | Whether tunnel is in FR-012 label set | FR-012, labeling task | RULED |
+| OD-5 | Outreach submissions require maintainer-owned accounts | FR-020/022/025, submission workflow | RULED |
+| OD-6 | Eligibility of projects for each external directory | SC-014, outreach task | RULED |
+| OD-7 | FR-014 versus docs/roadmap.md unshipped features | FR-014, unshipped-feature audit | RULED |
+| OD-8 | Features merged after v0.2.0-beta.8 but documented on master | SC-004/005, feature-status audit | RULED |
+| OD-9 | CubeCoders AMP comparison table sourcing strategy | FR-005, CubeCoders research task | RULED |
+| OD-10 | 404 dimension URLs for Pterodactyl/Agones — fallback sourcing | FR-005, competitor-research task | RULED |
+| OD-11 | Agones is a library, not a control panel — scope and framing | FR-001/002, table design | RULED |
+| OD-12 | Notation for Agones in comparison table | FR-001, table clarity | RULED |
+| OD-13 | Credential for the automatic screenshot-refresh pull request | OD-3c workflow credential | RULED |
 
 ---
 
 ## Notes for Implementation
 
-1. **All twelve decisions are unsettled** — none can be implemented until the maintainer rules on them.
+1. **All thirteen decisions ruled on 2026-09-02; none remain open** — OD-1 through OD-13 are settled and ready for implementation.
 2. **Recommended defaults are proposals, not decisions** — each recommendation is clearly labelled and may be overridden.
 3. **Evidence is path:line traceable** — every claim cites the spec, research files, codebase, or constitution.
 4. **Interdependencies exist** — OD-3 (screenshot environment) affects captured data freshness; OD-2 (link checking) enables SC-006 validation; OD-1/2 together determine pre-merge CI gates.
