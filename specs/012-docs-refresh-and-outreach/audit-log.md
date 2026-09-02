@@ -156,14 +156,14 @@ This log records every correction made to the documentation under US1 (User Stor
 
 ## Summary
 
-**Categories:**
-- version: 97 rows
+**Total audited rows:** 147 (139 corrections + 8 audit-completeness rows recording "audited: no finding")
+
+**Categories (breakdown of 139 corrections):**
+- version: 98 rows
 - link: 3 rows
-- label: 28 rows
+- label: 27 rows
 - feature-description: 5 rows
 - unshipped: 3 rows
 - script-tooling: 3 rows
 
-**Total audited rows:** 139
-
-**Files audited with no finding:** docs/networking.md, docs/notifications.md, docs/oidc.md (no optional mentions), docs/networking.md (no optional mentions), docs/module-authoring.md, docs/key-rotation.md, docs/game-coverage.md
+**Files audited with no finding:** docs/dependencies.md, docs/networking.md (no optional mentions), docs/notifications.md (no optional mentions), docs/oidc.md (no optional mentions), docs/module-authoring.md, docs/key-rotation.md, docs/game-coverage.md, docs/contributing.md (code-block mentions exempt)
