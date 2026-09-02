@@ -157,8 +157,8 @@ test.describe("@screenshots dashboard gallery", () => {
 
     // CREATE SERVER WIZARD - TEMPLATE SELECTION (/servers/new)
     await page.goto("/servers/new");
-    // Wait for template grid or wizard heading
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // Wait for the template picker cards (step 1 of the wizard)
+    await expect(page.getByText("Minecraft Java Edition").first()).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(250);
     await shoot(page, "create-server-template-select");
   });
@@ -183,8 +183,8 @@ test.describe("@screenshots dashboard gallery", () => {
     await page.goto("/servers/test-server-04");
     // Click Events tab to navigate to the correct tab
     await clickTab(page, "Events");
-    // Wait for events tab panel or event list
-    await expect(page.locator('[role="tabpanel"]')).toBeVisible();
+    // Wait for the mocked Kubernetes events to render
+    await expect(page.getByText(/CrashLoopBackOff/).first()).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(250);
     await shoot(page, "server-detail-events");
   });
