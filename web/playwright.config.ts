@@ -20,6 +20,10 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false, // login flow shares cookies; serial keeps it predictable
   forbidOnly: !!process.env.CI,
+  // screenshot capture (web/e2e/specs/screenshots.spec.ts, tagged @screenshots)
+  // is excluded from the regular mock/live runs and selected explicitly with
+  // --grep @screenshots (OD-3b)
+  grepInvert: /@screenshots/,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"], ["html", { open: "never" }]],

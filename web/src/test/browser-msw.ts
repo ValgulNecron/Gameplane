@@ -5,11 +5,26 @@
 // Reuses the same `handlers` array as the vitest suite — the contract
 // the dashboard expects from the API is declared once and exercised
 // from both unit tests and Playwright mock-mode runs.
+//
+// When localStorage.getItem("gameplane-e2e-dataset") === "screenshots",
+// uses an enriched handler set with diverse test data for demo/screenshot runs.
 
 import { setupWorker } from "msw/browser";
-import { handlers } from "./handlers";
+import { handlers, buildScreenshotHandlers } from "./handlers";
 
-const worker = setupWorker(...handlers);
+function getHandlerSet(): Parameters<typeof setupWorker>[0][] {
+  // Wrap in try/catch in case localStorage is unavailable (e.g., sandboxed iframe)
+  try {
+    if (typeof window !== "undefined" && window.localStorage.getItem("gameplane-e2e-dataset") === "screenshots") {
+      return buildScreenshotHandlers();
+    }
+  } catch {
+    // localStorage unavailable; fall through to default
+  }
+  return handlers;
+}
+
+const worker = setupWorker(...getHandlerSet());
 
 export async function startMSW(): Promise<void> {
   await worker.start({

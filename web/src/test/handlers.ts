@@ -23,6 +23,9 @@ import {
   makeTemplate,
   makeUser,
 } from "./factories";
+import {
+  getScreenshotData,
+} from "./screenshotData";
 
 export const handlers = [
   // Auth
@@ -562,3 +565,505 @@ export const handlers = [
   // paths the dashboard actually fetches.
   http.get("/admin/users", () => HttpResponse.json({ items: [makeUser()] })),
 ];
+
+/**
+ * Screenshot dataset handlers — a richer, more diverse set of test data
+ * for demo/screenshot purposes. Reuses the existing handler functions and
+ * factories so shapes stay in sync. Served when
+ * localStorage.getItem("gameplane-e2e-dataset") === "screenshots".
+ */
+export function buildScreenshotHandlers() {
+  const data = getScreenshotData();
+  return [
+    // Auth: reuse default login/logout (screenshot demos don't test auth edge cases)
+    http.get("/users/me", ({ cookies }) => {
+      if (cookies.e2e_force_401 === "1") {
+        return new HttpResponse("unauthorized\n", { status: 401 });
+      }
+      // Screenshot mode: return admin-demo by default
+      return HttpResponse.json(data.users[0]);
+    }),
+    http.post("/auth/login", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        username?: string;
+        password?: string;
+      } | null;
+      if (!body?.username || !body?.password) {
+        return new HttpResponse("invalid credentials\n", { status: 401 });
+      }
+      // Return matching user from screenshot set, or admin-demo fallback
+      const user = data.users.find((u) => u.username === body.username) ?? data.users[0];
+      return HttpResponse.json(
+        { user, csrf: "mock-csrf-token" },
+        {
+          headers: {
+            "Set-Cookie": "gameplane_csrf=mock-csrf-token; Path=/; SameSite=Lax",
+          },
+        },
+      );
+    }),
+    http.post("/auth/logout", () => new HttpResponse(null, { status: 204 })),
+    http.get("/auth/providers", () =>
+      HttpResponse.json({
+        providers: [
+          { kind: "local", label: "Local account" },
+          { kind: "oidc", label: "OIDC" },
+        ],
+      }),
+    ),
+
+    // Cluster
+    http.get("/events", () => {
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(": connected\n\n"));
+        },
+      });
+      return new HttpResponse(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }),
+    http.get("/cluster", () => HttpResponse.json(data.clusterView())),
+    http.get("/cluster/info", () => HttpResponse.json(makeClusterInfo())),
+    http.get("/cluster/stats", () => HttpResponse.json(makeClusterStats())),
+    http.get("/clusters", () =>
+      HttpResponse.json({
+        items: [{ name: "local", displayName: "local", phase: "Healthy" as const }],
+      }),
+    ),
+
+    // Templates: all 8 screenshot templates
+    http.get("/templates", () =>
+      HttpResponse.json({
+        items: data.templates,
+      }),
+    ),
+    http.get("/templates/:name", ({ params }) => {
+      const name = String(params.name);
+      const template = data.templates.find((t) => t.metadata.name === name);
+      return HttpResponse.json(template ?? makeTemplate({ metadata: { name } }));
+    }),
+
+    // Servers: all 5 screenshot servers
+    http.get("/servers", () =>
+      HttpResponse.json({
+        items: data.servers,
+      }),
+    ),
+    http.get("/servers/:name([^:/]+)", ({ params }) => {
+      const name = String(params.name);
+      const server = data.servers.find((s) => s.metadata.name === name);
+      return HttpResponse.json(server ?? makeServer({ metadata: { name } }));
+    }),
+    http.post("/servers", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        metadata?: { name?: string };
+      } | null;
+      return HttpResponse.json(
+        makeServer({
+          metadata: { name: body?.metadata?.name ?? "new-server", namespace: "default" },
+        }),
+      );
+    }),
+    http.put("/servers/:name([^:/]+)", ({ params }) =>
+      HttpResponse.json(makeServer({ metadata: { name: String(params.name) } })),
+    ),
+    http.delete("/servers/:name([^:/]+)", () => new HttpResponse(null, { status: 204 })),
+
+    // Lifecycle actions
+    http.post(/\/servers\/[^/]+:start$/, () => new HttpResponse(null, { status: 202 })),
+    http.post(/\/servers\/[^/]+:stop$/, () => new HttpResponse(null, { status: 202 })),
+    http.post(/\/servers\/[^/]+:restart$/, () => new HttpResponse(null, { status: 202 })),
+    http.post(/\/servers\/[^/]+:wake$/, () => new HttpResponse(null, { status: 202 })),
+    http.post(/\/servers\/[^/]+:clone$/, async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        newName?: string;
+      } | null;
+      return HttpResponse.json(
+        makeServer({
+          metadata: { name: body?.newName ?? "cloned-server", namespace: "default" },
+        }),
+      );
+    }),
+    http.post(/\/servers\/[^/]+:wipe-data$/, () => new HttpResponse(null, { status: 202 })),
+    http.post(/\/servers\/[^/]+:transfer$/, () => new HttpResponse(null, { status: 204 })),
+    http.put(/\/servers\/[^/]+:collaborators$/, () => new HttpResponse(null, { status: 204 })),
+
+    // Tunnel credentials
+    http.get(/\/servers\/[^/]+:tunnel-credentials$/, () =>
+      HttpResponse.json({ configured: false, secretName: "", keys: [] }),
+    ),
+    http.put(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
+    http.delete(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
+
+    // Capture
+    http.post(/\/servers\/[^/]+:capture-enable(\?.*)?$/, () =>
+      HttpResponse.json({
+        name: "server-name",
+        status: { capture: { enabled: true } },
+      }),
+    ),
+    http.post(/\/servers\/[^/]+:capture-disable(\?.*)?$/, () =>
+      HttpResponse.json({
+        name: "server-name",
+        status: { capture: { enabled: false } },
+      }),
+    ),
+    http.get(/\/servers\/[^/]+:captures(\?.*)?$/, () =>
+      HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
+    ),
+    http.get(/\/servers\/[^/]+:capture$/, () =>
+      HttpResponse.json({
+        captureId: "cap-12345",
+        serverName: "server-name",
+        phase: "Completed",
+        startedAt: "2026-08-23T00:00:00Z",
+        completedAt: "2026-08-23T01:00:00Z",
+        createdAt: "2026-08-23T00:00:00Z",
+        expiresAt: "2026-08-30T00:00:00Z",
+        bytesWritten: 1024,
+        packetsWritten: 100,
+        filter: "tcp port 25565",
+      }),
+    ),
+    http.post(/\/servers\/[^/]+:capture-start(\?.*)?$/, () =>
+      HttpResponse.json(
+        {
+          captureId: "cap-12345",
+          serverName: "server-name",
+          phase: "Pending",
+          startedAt: null,
+          completedAt: null,
+          createdAt: "2026-08-23T00:00:00Z",
+          expiresAt: "2026-08-30T00:00:00Z",
+          bytesWritten: 0,
+          packetsWritten: 0,
+          filter: "tcp port 25565",
+        },
+        { status: 202 },
+      ),
+    ),
+    http.post(/\/servers\/[^/]+:capture-stop(\?.*)?$/, () =>
+      HttpResponse.json({
+        captureId: "cap-12345",
+        serverName: "server-name",
+        phase: "Completed",
+        startedAt: "2026-08-23T00:00:00Z",
+        completedAt: "2026-08-23T01:00:00Z",
+        createdAt: "2026-08-23T00:00:00Z",
+        expiresAt: "2026-08-30T00:00:00Z",
+        bytesWritten: 1024,
+        packetsWritten: 100,
+        filter: "tcp port 25565",
+      }),
+    ),
+    http.delete(/\/servers\/[^/]+:capture$/, () =>
+      HttpResponse.json({ deleted: true, captureId: "cap-12345" }),
+    ),
+    http.get(/\/servers\/[^/]+:capture-file$/, () =>
+      new HttpResponse(new Blob(["mock pcapng data"]), {
+        headers: { "Content-Type": "application/octet-stream" },
+      }),
+    ),
+
+    // Backups
+    http.get("/backups", () =>
+      HttpResponse.json({
+        items: [
+          makeBackup(),
+          makeBackup({
+            metadata: { name: "test-server-01-2026-05-06", namespace: "default" },
+            status: {
+              phase: "Failed",
+              startTime: "2026-05-06T03:00:00Z",
+              completionTime: "2026-05-06T03:00:30Z",
+            },
+          }),
+        ],
+      }),
+    ),
+    http.get("/backups/:name", ({ params }) =>
+      HttpResponse.json(makeBackup({ metadata: { name: String(params.name) } })),
+    ),
+    http.post("/backups", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        metadata?: { name?: string; generateName?: string };
+        spec?: { serverRef?: { name?: string } };
+      } | null;
+      const name =
+        body?.metadata?.name ??
+        `${body?.spec?.serverRef?.name ?? "alpha"}-manual-${Date.now()}`;
+      return HttpResponse.json(makeBackup({ metadata: { name, namespace: "default" } }));
+    }),
+    http.delete("/backups/:name", () => new HttpResponse(null, { status: 204 })),
+
+    // Schedules: use screenshot schedules
+    http.get("/schedules", () => HttpResponse.json({ items: data.schedules })),
+    http.get("/schedules/:name", ({ params }) =>
+      HttpResponse.json(makeSchedule({ metadata: { name: String(params.name) } })),
+    ),
+    http.post("/schedules", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        metadata?: { name?: string; generateName?: string };
+        spec?: { serverRef?: { name?: string }; schedule?: string };
+      } | null;
+      return HttpResponse.json(
+        makeSchedule({
+          metadata: {
+            name: body?.metadata?.name ?? `${body?.spec?.serverRef?.name ?? "alpha"}-sched-1`,
+            namespace: "default",
+          },
+        }),
+      );
+    }),
+    http.put("/schedules/:name", ({ params }) =>
+      HttpResponse.json(makeSchedule({ metadata: { name: String(params.name) } })),
+    ),
+    http.delete("/schedules/:name", () => new HttpResponse(null, { status: 204 })),
+
+    // Restores
+    http.get("/restores", () => HttpResponse.json({ items: data.restores })),
+    http.post("/restores", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        metadata?: { name?: string; generateName?: string };
+        spec?: { backupRef?: { name?: string }; serverRef?: { name?: string } };
+      } | null;
+      return HttpResponse.json(
+        makeRestore({
+          metadata: {
+            name: body?.metadata?.name ?? `restore-${Date.now()}`,
+            namespace: "default",
+          },
+          spec: {
+            backupRef: { name: body?.spec?.backupRef?.name ?? "alpha-2026-05-07" },
+            serverRef: { name: body?.spec?.serverRef?.name ?? "alpha" },
+          },
+        }),
+      );
+    }),
+    http.delete("/restores/:name", () => new HttpResponse(null, { status: 204 })),
+
+    // Backup destinations
+    http.get("/backup-destinations", () =>
+      HttpResponse.json({ items: [makeDestination()] }),
+    ),
+    http.post("/backup-destinations", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        name?: string;
+        url?: string;
+      } | null;
+      return HttpResponse.json(
+        makeDestination({ name: body?.name ?? "default", url: body?.url ?? "s3://x" }),
+      );
+    }),
+    http.delete("/backup-destinations/:name", () => new HttpResponse(null, { status: 204 })),
+
+    // Modules
+    http.get("/modules", () => HttpResponse.json({ items: [makeModule()] })),
+    http.get("/modules/catalog", () =>
+      HttpResponse.json({
+        items: [
+          makeCatalog(),
+          makeCatalog({
+            name: "valheim-default",
+            displayName: "Valheim",
+            game: "valheim",
+            installed: true,
+            installedVersion: "0.218",
+            moduleName: "valheim-default",
+            phase: "Ready",
+            versions: ["0.218", "0.217"],
+            latestVersion: "0.218",
+          }),
+        ],
+      }),
+    ),
+    http.get("/modules/sources", () =>
+      HttpResponse.json({ items: [makeModuleSource()] }),
+    ),
+    http.get("/modules/:name", ({ params }) =>
+      HttpResponse.json(makeModule({ metadata: { name: String(params.name) } })),
+    ),
+    http.post("/modules", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        module?: string;
+        name?: string;
+      } | null;
+      return HttpResponse.json(
+        makeModule({ metadata: { name: body?.name ?? body?.module ?? "minecraft-vanilla" } }),
+      );
+    }),
+    http.patch("/modules/:name", ({ params }) =>
+      HttpResponse.json(makeModule({ metadata: { name: String(params.name) } })),
+    ),
+    http.delete("/modules/:name", () => new HttpResponse(null, { status: 204 })),
+
+    // Server events: use screenshot events for test-server-04
+    http.get("/servers/:name/events", ({ params }) => {
+      const name = String(params.name);
+      if (name === "test-server-04") {
+        return HttpResponse.json(data.events);
+      }
+      return HttpResponse.json([]);
+    }),
+
+    // Players
+    http.get("/servers/:name/players", () => HttpResponse.json(makePlayers())),
+    http.get("/servers/:name/players/banned", () =>
+      HttpResponse.json([makeBannedPlayer()]),
+    ),
+    http.post(/\/servers\/[^/]+\/players\/(kick|ban|unban)$/, () =>
+      HttpResponse.json({ ok: true }),
+    ),
+    http.get("/servers/:name/players/whitelist", () =>
+      HttpResponse.json(["alice", "carol"]),
+    ),
+    http.post(/\/servers\/[^/]+\/players\/whitelist\/(add|remove)$/, () =>
+      HttpResponse.json({ ok: true }),
+    ),
+
+    // Files
+    http.get("/servers/:name/files/list", () =>
+      HttpResponse.json([
+        makeFileEntry({ name: "server.properties", path: "/data/server.properties", size: 412 }),
+        makeFileEntry({ name: "world", path: "/data/world", size: 0, dir: true }),
+      ]),
+    ),
+    http.get("/servers/:name/files/read", () => new HttpResponse("# mock file body\n", { status: 200 })),
+    http.post("/servers/:name/files/write", () => new HttpResponse(null, { status: 204 })),
+    http.post("/servers/:name/files/mkdir", () => new HttpResponse(null, { status: 204 })),
+    http.delete("/servers/:name/files/delete", () => new HttpResponse(null, { status: 204 })),
+
+    // Users: use screenshot users
+    http.get("/users", () =>
+      HttpResponse.json(data.users),
+    ),
+    http.post("/users", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        username?: string;
+        role?: "admin" | "operator" | "viewer";
+      } | null;
+      return HttpResponse.json(
+        makeUser({
+          id: 99,
+          username: body?.username ?? "new-user",
+          role: body?.role ?? "viewer",
+        }),
+      );
+    }),
+    http.patch("/users/:id", ({ params }) =>
+      HttpResponse.json(makeUser({ id: Number(params.id) })),
+    ),
+    http.delete("/users/:id", () => new HttpResponse(null, { status: 204 })),
+    http.post("/users/:id/reset-password", () => new HttpResponse(null, { status: 204 })),
+
+    // Roles + permissions
+    http.get("/roles", () =>
+      HttpResponse.json([
+        {
+          name: "admin",
+          description: "Full access to all resources, including users, roles, and global config.",
+          builtin: true,
+          permissions: ["*"],
+        },
+        {
+          name: "operator",
+          description: "Manage game servers, backups, templates, and schedules.",
+          builtin: true,
+          permissions: ["servers:read", "servers:write"],
+        },
+        {
+          name: "viewer",
+          description: "Read-only access across the control panel.",
+          builtin: true,
+          permissions: ["servers:read"],
+        },
+      ]),
+    ),
+    http.get("/roles/permissions", () =>
+      HttpResponse.json({
+        groups: [
+          {
+            resource: "servers",
+            label: "Game servers",
+            permissions: [
+              { key: "servers:read", label: "View servers", namespaced: true },
+              { key: "servers:write", label: "Manage servers", namespaced: true },
+            ],
+          },
+          {
+            resource: "captures",
+            label: "Network captures",
+            permissions: [
+              { key: "captures:manage", label: "Enable, start, stop, download, and delete packet captures", namespaced: true },
+            ],
+          },
+          {
+            resource: "users",
+            label: "Users",
+            permissions: [{ key: "users:manage", label: "Manage users", namespaced: false }],
+          },
+        ],
+      }),
+    ),
+    http.post("/roles", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        name?: string;
+        description?: string;
+        permissions?: string[];
+      } | null;
+      return HttpResponse.json(
+        {
+          name: body?.name ?? "new-role",
+          description: body?.description ?? "",
+          builtin: false,
+          permissions: body?.permissions ?? [],
+        },
+        { status: 201 },
+      );
+    }),
+    http.patch("/roles/:name", async ({ params, request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        description?: string;
+        permissions?: string[];
+      } | null;
+      return HttpResponse.json({
+        name: String(params.name),
+        description: body?.description ?? "",
+        builtin: false,
+        permissions: body?.permissions ?? [],
+      });
+    }),
+    http.delete("/roles/:name", () => new HttpResponse(null, { status: 204 })),
+    http.get("/users/:id/bindings", () => HttpResponse.json([])),
+    http.post("/users/:id/bindings", async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        roleName?: string;
+        namespace?: string;
+      } | null;
+      return HttpResponse.json(
+        { roleName: body?.roleName ?? "viewer", namespace: body?.namespace ?? "team-a" },
+        { status: 201 },
+      );
+    }),
+    http.delete("/users/:id/bindings/:role/:namespace", () => new HttpResponse(null, { status: 204 })),
+
+    // Admin: audit events and config
+    http.get("/admin/audit", ({ request }) => {
+      const url = new URL(request.url);
+      const limit = Number(url.searchParams.get("limit") ?? "50");
+      // Return screenshot audit events up to limit
+      return HttpResponse.json(data.auditEvents.slice(0, limit));
+    }),
+    http.get("/admin/config", () => HttpResponse.json(data.config())),
+    http.put("/admin/config/:section", () => new HttpResponse(null, { status: 204 })),
+    http.post("/admin/notifications/sinks/:name/test", () =>
+      HttpResponse.json({ delivered: true }),
+    ),
+    http.get("/admin/users", () => HttpResponse.json({ items: data.users })),
+  ];
+}
