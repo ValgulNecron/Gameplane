@@ -41,16 +41,19 @@
 #   1. Take the heading text; drop the leading `#`-`#` marker (1-6 hashes plus
 #      whitespace, up to 3 leading spaces per GFM) and any trailing closing
 #      `#`s (e.g. `## Title ##` -> `Title`).
-#   2. Replace markdown links `[text](url)` inside the heading with just `text`.
-#   3. Remove backticks and any character that is not a letter (including
+#   2. Remove HTML comments `<!-- ... -->` and HTML tags `<...>` (markdown may
+#      embed HTML for complex layouts; GitHub strips them from anchor slugs).
+#      Trim any trailing whitespace that results from removal.
+#   3. Replace markdown links `[text](url)` inside the heading with just `text`.
+#   4. Remove backticks and any character that is not a letter (including
 #      Unicode letters), digit, space, hyphen, or underscore — hyphen and
 #      underscore are protected before stripping ASCII punctuation
 #      ([:punct:], evaluated in the C locale so multi-byte UTF-8 sequences for
 #      Unicode letters are left untouched) and restored afterward.
-#   4. Lowercase the ASCII letters.
-#   5. Convert every space to a hyphen — NOT collapsed: N consecutive spaces
+#   5. Lowercase the ASCII letters.
+#   6. Convert every space to a hyphen — NOT collapsed: N consecutive spaces
 #      become N consecutive hyphens.
-#   6. If the resulting slug was already produced earlier in the same document
+#   7. If the resulting slug was already produced earlier in the same document
 #      (in document order), append -1, -2, ... to disambiguate, matching
 #      GitHub's own de-duplication behavior.
 #
@@ -147,6 +150,10 @@ normalize_rel_path() {
 # ---------------------------------------------------------------------------
 github_slug() {
     local text="$1"
+    # Remove HTML comments <!-- ... --> and HTML tags <...>.
+    text=$(printf '%s' "$text" | sed 's/<!--.*-->//g; s/<[^>]*>//g')
+    # Trim trailing whitespace that may result from HTML removal.
+    text="${text%"${text##*[![:space:]]}"}"
     # Replace [text](url) with just text.
     text=$(printf '%s' "$text" | sed -E 's/\[([^]]*)\]\([^)]*\)/\1/g')
     # Remove backticks.
