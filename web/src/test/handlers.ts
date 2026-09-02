@@ -2,7 +2,7 @@
 // on to render its happy-path UI without each test having to declare
 // every endpoint. Tests override individual routes via `server.use(...)`.
 
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, ws } from "msw";
 import {
   makeAudit,
   makeBackup,
@@ -25,6 +25,7 @@ import {
 } from "./factories";
 import {
   getScreenshotData,
+  screenshotConsoleOutput,
 } from "./screenshotData";
 
 export const handlers = [
@@ -1065,5 +1066,93 @@ export function buildScreenshotHandlers() {
       HttpResponse.json({ delivered: true }),
     ),
     http.get("/admin/users", () => HttpResponse.json({ items: data.users })),
+
+    // WebSocket: PTY Console (registered before RCON console to match narrower pattern first)
+    ws.link("ws://localhost:5173/ws/servers/*/console-pty*").addEventListener("connection", ({ client }) => {
+      // Send initial attachment message
+      setTimeout(() => {
+        const attachMsg = "[PTY] Attached to terminal\r\n";
+        client.send(JSON.stringify({ kind: "stdout", body: btoa(attachMsg) }));
+      }, 100);
+
+      // Send sample output lines as base64-encoded stdout
+      screenshotConsoleOutput.forEach((line, index) => {
+        setTimeout(() => {
+          const lineWithNewline = line + "\r\n";
+          client.send(JSON.stringify({ kind: "stdout", body: btoa(lineWithNewline) }));
+        }, 150 + index * 40);
+      });
+
+      // Echo stdin back
+      client.addEventListener("message", (event: MessageEvent) => {
+        try {
+          const msg = JSON.parse(String(event.data)) as { kind: string; body?: string };
+          if (msg.kind === "stdin" && msg.body) {
+            // Echo the input
+            const decoded = atob(msg.body);
+            client.send(JSON.stringify({ kind: "stdout", body: btoa(decoded) }));
+            // Send a simulated response
+            const response = "Command executed\r\n";
+            client.send(JSON.stringify({ kind: "stdout", body: btoa(response) }));
+          } else if (msg.kind === "resize") {
+            // Silently accept resize requests
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      });
+    }),
+
+    // WebSocket: RCON Console
+    ws.link("ws://localhost:5173/ws/servers/*/console*").addEventListener("connection", ({ client }) => {
+      // Send initial connection message via RCON envelope
+      setTimeout(() => {
+        client.send(JSON.stringify({ kind: "out", body: "[Console] Connected to RCON" }));
+      }, 100);
+
+      // Send sample output lines at intervals
+      screenshotConsoleOutput.forEach((line, index) => {
+        setTimeout(() => {
+          client.send(JSON.stringify({ kind: "out", body: line }));
+        }, 150 + index * 40);
+      });
+
+      // Echo commands back to the client
+      client.addEventListener("message", (event: MessageEvent) => {
+        try {
+          const msg = JSON.parse(String(event.data)) as { kind: string; body?: string };
+          if (msg.kind === "cmd" && msg.body) {
+            // Echo the command
+            client.send(JSON.stringify({ kind: "out", body: `> ${msg.body}` }));
+            // Send a simulated response
+            client.send(JSON.stringify({ kind: "out", body: "Command executed" }));
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      });
+    }),
+
+    // WebSocket: Pod Logs
+    ws.link("ws://localhost:5173/ws/servers/*/logs/pod*").addEventListener("connection", ({ client }) => {
+      const data = getScreenshotData();
+      // Send log lines at intervals
+      data.logLines.forEach((line, index) => {
+        setTimeout(() => {
+          client.send(line);
+        }, 50 + index * 40);
+      });
+    }),
+
+    // WebSocket: File Logs
+    ws.link("ws://localhost:5173/ws/servers/*/logs*").addEventListener("connection", ({ client }) => {
+      const data = getScreenshotData();
+      // Send log lines at intervals (same as pod logs for demo)
+      data.logLines.forEach((line, index) => {
+        setTimeout(() => {
+          client.send(line);
+        }, 50 + index * 40);
+      });
+    }),
   ];
 }

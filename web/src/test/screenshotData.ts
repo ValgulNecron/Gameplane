@@ -566,6 +566,30 @@ export const screenshotLogLines = [
 ];
 
 // ============================================================================
+// Console Output Lines for RCON/PTY Console WebSocket demonstrations
+// ============================================================================
+
+export const screenshotConsoleOutput = [
+  "Starting server initialization...",
+  "Loading configuration files",
+  "[INFO] Server version: Minecraft 1.21",
+  "[INFO] Loading world 'world'",
+  "[INFO] Preparing spawn area: 0%",
+  "[INFO] Preparing spawn area: 50%",
+  "[INFO] Preparing spawn area: 100%",
+  "[INFO] Done! Server is ready for connections",
+  "[WARN] No players connected",
+  "[INFO] Player-01 joined the game",
+  "[INFO] Player-02 joined the game",
+  "[INFO] Running auto-save...",
+  "[DEBUG] Saved world in 2.34 seconds",
+  "[INFO] Player-03 joined the game",
+  "[WARN] High memory usage: 78%",
+  "[INFO] Player-01 executed: /say Hello everyone!",
+  "[INFO] 3 players online, 0 players idle",
+];
+
+// ============================================================================
 // Helper for tests/e2e to conditionally swap handler sets
 // ============================================================================
 
