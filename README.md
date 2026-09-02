@@ -23,7 +23,7 @@ Screenshots are captured against mocked data for consistency and reproducibility
 |---|---|
 | ![Sign-in form with username and password fields, an OIDC sign-in button, the Gameplane logo, and a feature sidebar](docs/img/login.jpg) | ![Create Server wizard step 1 showing the game template grid with icons, names, versions, and descriptions beside a YAML preview panel](docs/img/create-server-template-select.jpg) |
 | Login — local account or OIDC | Create server — pick a game template |
-| ![Server Events tab listing Kubernetes events for a failed server, from scheduling and image pull through ImagePullBackOff and CrashLoopBackOff, with All, Info, and Warnings filters](docs/img/server-detail-events.jpg) | ![Admin Settings General section with instance name, external URL, and default namespace fields beside the settings navigation](docs/img/admin-settings-general.jpg) |
+| ![Server Events tab listing Kubernetes events for a failed server, from scheduling and image pull to CrashLoopBackOff, with All, Info, and Warnings filters](docs/img/server-detail-events.jpg) | ![Admin Settings General section with instance name, external URL, and default namespace fields beside the settings navigation](docs/img/admin-settings-general.jpg) |
 | Server detail — Events (diagnosing a failed start) | Admin Settings — General |
 | ![Cluster page showing three node cards with readiness, uptime, pod counts, CPU cores, and CPU and memory usage bars](docs/img/cluster-nodes.jpg) | ![Server Logs tab streaming container output with timestamps, log-level filters, a text filter, and a download button](docs/img/server-detail-logs.jpg) |
 | Cluster — nodes at a glance | Server detail — Logs |
@@ -31,7 +31,7 @@ Screenshots are captured against mocked data for consistency and reproducibility
 | Dashboard — fleet health at a glance | Servers — every game server, one list |
 | ![Server detail Overview tab with CPU, memory, and disk usage tiles, recent events, connection host and port, and players online](docs/img/server-overview.jpg) | ![Mods tab registry browser showing a grid of Thunderstore mods for a Valheim server with authors and download counts](docs/img/mods-registry-browse.jpg) |
 | Server detail — Overview | Mods — browsing a registry (Thunderstore) |
-| ![Live console for a Minecraft server streaming startup, player join, and auto-save lines over WebSocket with Clear, Download, and Fullscreen controls](docs/img/server-console.jpg) | ![Admin Settings Mod registries section listing CurseForge and Steam Workshop as configured and Nexus Mods as not configured, with the always-available registries noted](docs/img/admin-mod-registries.jpg) |
+| ![Live console for a Minecraft server streaming startup, player join, and auto-save lines over WebSocket with Clear, Download, and Fullscreen controls](docs/img/server-console.jpg) | ![Admin Settings Mod registries section showing CurseForge and Steam Workshop configured and Nexus Mods not configured](docs/img/admin-mod-registries.jpg) |
 | Console — live output over WebSocket | Admin Settings — Mod registries |
 
 ## Beta Status & Limitations
