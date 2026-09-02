@@ -208,7 +208,7 @@
 
 ### Push and Verification
 
-- [ ] T055 Push feature branch to remote: `git push -u origin 012-docs-refresh-and-outreach` (creates remote branch and upstream tracking). Watch CI with `gh run watch` (or GitHub Actions MCP tools); do NOT report done while red. Confirm all lint, web-e2e-mock, actionlint, zizmor jobs pass per rule 8, Principle VI. (CI definition: `.github/workflows/ci.yaml`; new workflow: `.github/workflows/screenshot-refresh.yaml`) — **partially done**: branch pushed and PR #340 CI run is in progress, but the jobs have not yet been confirmed passing (not yet green); this task explicitly requires confirming pass before being marked done.
+- [X] T055 Push feature branch to remote: `git push -u origin 012-docs-refresh-and-outreach` (creates remote branch and upstream tracking). Watch CI with `gh run watch` (or GitHub Actions MCP tools); do NOT report done while red. Confirm all lint, web-e2e-mock, actionlint, zizmor jobs pass per rule 8, Principle VI. (CI definition: `.github/workflows/ci.yaml`; new workflow: `.github/workflows/screenshot-refresh.yaml`) — (CI green on 2d61504d, run 992, 30/30 jobs)
 
 - [X] T056 Run all eight quickstart.md scenarios as read-only verification (D6 permitted; not executing code, only validating documented workflows): (a) Scenario 1: Evaluator can read comparison table and identify 3+ key differences per Gameplane column, (b) Scenario 2: Version strings in README and docs match appVersion 0.2.0-beta.8 or marked examples, (c) Scenario 3: Internal links in README and docs resolve (run hack/check-links.sh locally read-only), (d) Scenario 4: Optional/experimental components labeled consistently ([optional] at first mention), (e) Scenario 5: No unshipped features claimed in docs (CHANGELOG Unreleased items verified or noted), (f) Scenario 6: 11+ screenshots at 1920×1080 JPEG with alt text, no real data, (g) Scenario 7: Outreach to-do list tracks three targets with terminal status, (h) Scenario 8: Audit log records all corrections with evidence. Confirm all assertions pass; record results in notes section of this tasks.md before submitting.
 
@@ -445,9 +445,9 @@ All commits signed and conform to rule 11 (conventional-commit prefixes, `Co-Aut
 
 **PR Status**
 
-- **PR #340** opened as draft on branch `012-docs-refresh-and-outreach` against `master`
+- **PR #340** opened on branch `012-docs-refresh-and-outreach` against `master`, flipped to ready for review
 - **Labels applied** (rule 14): `type: docs`, `type: ci`, `area: shared`, `area: web`, `area: specs`
-- **CI status**: In progress (not yet green); lint, link-check, version-check, web-e2e-mock, actionlint, zizmor jobs pending
+- **CI status**: Green on 2d61504d (run 992, all 30/30 jobs passed); lint, link-check, version-check, web-e2e-mock, actionlint, zizmor complete. Exception: `github-advanced-security` check fails with "Model claude-opus-4.6 is not available" (GitHub outage, affects all PRs in repo; documented in PR comment)
 
 **Open Items & Blockers**
 
@@ -488,8 +488,8 @@ CI is system of record per rule 8; branch pushed to remote, CI run in progress. 
 
 **Next Steps (Rule 12)**
 
-1. Await CI green (all jobs pass, no manual fixes needed)
-2. T055 confirmation: CI passed (not yet done — currently unchecked)
+1. CI green confirmed (all jobs pass: run 992, 30/30 jobs, 2d61504d)
+2. T055 confirmation: CI passed ✓
 3. T056–T060: Final verification + PR labels + ready for maintainer review
 4. T028 (maintainer): Submit AlternativeTo, update outreach.md status
 5. T036–T037 (maintainer + CI): Create PAT secret, dispatch screenshot workflow
