@@ -88,9 +88,9 @@ An admin manages users and RBAC (Users, Roles, Service accounts, Identity provid
 
 ### User Story 5 - Use a public share link (Priority: P3)
 
-A player who received a share link opens it without an account and sees the server's state (up, asleep and startable, asleep view-only, starting, invalid/expired), rebuilt from HeroUI components while keeping the page free of any internal detail beyond what the link is meant to expose.
+A player who received a share link opens it without an account and sees the server's state (up, asleep and startable, asleep view-only, starting, invalid/expired), built from HeroUI components while keeping the page free of any internal detail beyond what the link is meant to expose. Operators create, copy and revoke links from the server's Settings · Share links section.
 
-**Why this priority**: a small, isolated, unauthenticated surface; low traffic but must not be left on the old primitives once everything else has moved.
+**Why this priority**: a small, isolated, unauthenticated surface. It is designed and its API exists, but no dashboard code exists yet (see Clarifications), so it is the one story that is new construction rather than a rebuild; it ships last so that it is written on the finished component layer.
 
 **Independent Test**: create a share link for a server, open it signed out in each of the five states, and confirm each matches its design frame.
 
@@ -129,6 +129,7 @@ A player who received a share link opens it without an account and sees the serv
 - **FR-011**: The end-to-end suite MUST exercise the rebuilt dashboard through at least the P1 flows (login, sidebar navigation, server list, server detail tabs, one settings save, one confirm dialog) on the real cluster (Constitution Principle I).
 - **FR-012**: The rebuild MUST be delivered as independently mergeable slices ordered by story priority, each leaving the dashboard fully usable, so the old and new component sets may coexist during the transition but never on the same screen.
 - **FR-013**: The `web/specs.md` module specification MUST be updated in each slice to describe the new component layer and, at completion, to remove every reference to the old primitive set.
+- **FR-014**: The share-link surfaces (Settings · Share links section with its create, created and revoke dialogs, and the public share page in its five states) MUST be built on HeroUI against the existing share-link API, following their design frames, with the same pre-auth privacy rules as the login page (see `contracts/share-link-ui.md`).
 
 ### Key Entities
 
@@ -157,6 +158,8 @@ A player who received a share link opens it without an account and sees the serv
 - Q: Keep today's layouts and information architecture, or a fresh HeroUI-style redesign? → A: Component swap, same layouts. Every screen is rebuilt from HeroUI components in its current arrangement; no screen is re-laid-out.
 - Q: One big-bang branch, or priority-ordered slices? → A: Priority-ordered slices (shell + login → servers → create/modules/backups → admin → share link), each its own PR; old and new component families may coexist across screens during the transition but never on one screen (FR-012).
 - Q: Keep the Gameplane brand tokens on HeroUI with dark and light, or adopt HeroUI's default theme? → A: Gameplane tokens (orange primary, current scale) mapped onto HeroUI; dark stays the default and light is supported (FR-006).
+- Q (planning): the share-link UI is designed (7 frames, 3 dialogs) and the API is complete, but nothing exists in the dashboard; rebuild is impossible. → A: Build it new in slice 5, directly on HeroUI. User Story 5 and the "Share links" settings scenario are therefore new work inside this feature, not a rebuild; see `contracts/share-link-ui.md`.
+- Q (planning): HeroUI v3 ships no sidebar or navbar component. → A: Compose the App Sidebar and Top Bar from HeroUI primitives (Link, ListBox/Menu, Separator, Avatar, Breadcrumbs, Drawer); HeroUI Pro is not used.
 
 ## Assumptions
 
