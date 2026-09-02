@@ -74,32 +74,19 @@ audited_files=(
     "docs/comparison-sources.md"
 )
 
-# Validate files and count
+# Validate files and scan version strings in a single pass: a missing audited
+# file is itself a failure, but does not stop the rest of the audit from
+# running (mirrors hack/check-links.sh's main loop).
 failed_files=()
-failed_count=0
+version_errors=()
 
 for file in "${audited_files[@]}"; do
     if [[ ! -f "$file" ]]; then
         echo "✗ $file: missing audited file"
         failed_files+=("$file")
-        failed_count=$((failed_count + 1))
+        continue
     fi
-done
 
-# If any files are missing, report and exit early
-if [[ ${#failed_files[@]} -gt 0 ]]; then
-    if [[ $failed_count -eq 1 ]]; then
-        echo "✗ 1 audited file is missing"
-    else
-        echo "✗ $failed_count audited files are missing"
-    fi
-    exit 1
-fi
-
-# Process each file for version string matches
-version_errors=()
-
-for file in "${audited_files[@]}"; do
     if [[ ! -r "$file" ]]; then
         continue
     fi
@@ -164,25 +151,40 @@ for file in "${audited_files[@]}"; do
     done < <(grep -nE 'v?0\.[0-9]\.[0-9]-beta\.[0-9]+' "$file" || true)
 done
 
-# Report results
+# Report results. Missing-file failures were already echoed as they were
+# found above; version-string failures are echoed here. Both are decided
+# together, only after every audited file has had a chance to be scanned.
 file_count=${#audited_files[@]}
-if [[ ${#version_errors[@]} -eq 0 ]]; then
+if [[ ${#failed_files[@]} -eq 0 && ${#version_errors[@]} -eq 0 ]]; then
     echo "✓ Checked $file_count files: all Gameplane version strings match appVersion $current_version or are allowlisted"
     exit 0
 else
-    # Report each error
+    # Report each version-string error
     for error in "${version_errors[@]}"; do
         echo "✗ $error"
     done
 
+    missing_count=${#failed_files[@]}
     error_count=${#version_errors[@]}
-    # Count unique files with errors
-    unique_files=$(printf '%s\n' "${version_errors[@]}" | cut -d: -f1 | sort -u | wc -l)
 
-    if [[ $error_count -eq 1 ]]; then
-        echo "✗ 1 stale version string across 1 file"
-    else
-        echo "✗ $error_count stale version string(s) across $unique_files file(s)"
+    if [[ $missing_count -gt 0 ]]; then
+        if [[ $missing_count -eq 1 ]]; then
+            echo "✗ 1 audited file is missing"
+        else
+            echo "✗ $missing_count audited files are missing"
+        fi
     fi
+
+    if [[ $error_count -gt 0 ]]; then
+        # Count unique files with version-string errors
+        unique_files=$(printf '%s\n' "${version_errors[@]}" | cut -d: -f1 | sort -u | wc -l)
+
+        if [[ $error_count -eq 1 ]]; then
+            echo "✗ 1 stale version string across 1 file"
+        else
+            echo "✗ $error_count stale version string(s) across $unique_files file(s)"
+        fi
+    fi
+
     exit 1
 fi
