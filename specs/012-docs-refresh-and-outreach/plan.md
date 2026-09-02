@@ -60,7 +60,7 @@ specs/012-docs-refresh-and-outreach/
 │   ├── docs-audit.md                        # Version match criteria, link resolution, label consistency
 │   ├── screenshot-set.md                    # Viewport, naming, alt text, forbidden-pattern list (FR-019)
 │   └── outreach-todo.md                     # Status vocabulary, submission tracking, terminal states
-├── OPEN-DECISIONS.md                        # All thirteen decisions ruled 2026-09-02 (OD-1 through OD-13)
+├── OPEN-DECISIONS.md                        # All fifteen decisions ruled 2026-09-02 (OD-1 through OD-15)
 └── tasks.md                                 # Phase 2 implementation tasks (created by /speckit-tasks)
 ```
 
@@ -99,11 +99,11 @@ specs/012-docs-refresh-and-outreach/
 ├── outreach.md                              # NEW: to-do list tracking submissions (FR-020, FR-021, FR-022)
 └── audit-log.md                             # NEW: evidence log of all corrections (FR-011, D-F)
 
-hack/check-doc-versions.sh                  # NEW: Detection script for version string drift (OD-1)
+hack/check-doc-versions.sh                  # NEW: Detection script for version string drift (OD-1); accepts historical-reference markers (OD-14)
 hack/check-links.sh                         # NEW: Offline internal link and anchor validation (OD-2)
 .github/workflows/ci.yaml                   # MODIFIED: lint job adds doc-version-check and link-check steps
 web/e2e/specs/screenshots.spec.ts           # NEW: Playwright mock-mode screenshot capture (OD-3b)
-.github/workflows/screenshot-refresh.yaml   # NEW: tag-triggered screenshot refresh and PR opening (OD-3c; credential for PR authoring is a fine-grained PAT repository secret, OD-13 ruled 2026-09-02)
+.github/workflows/screenshot-refresh.yaml   # NEW: tag-triggered screenshot refresh and PR opening (OD-3c; credential for PR authoring is a fine-grained PAT repository secret `SCREENSHOT_BOT_PAT` (OD-13); also `workflow_dispatch` for on-demand capture (OD-15))
 ```
 
 **Structure Decision**: 
@@ -114,7 +114,7 @@ External source tracking (docs/comparison-sources.md) is a separate file rather 
 
 The outreach to-do list (specs/012-docs-refresh-and-outreach/outreach.md) lives in the spec folder, not docs/, because it is a project-internal tracking artifact, not user-facing documentation (FR-020, SC-012).
 
-Tooling decisions (OD-1 through OD-13): The maintainer ruled on 2026-09-02 that link checks (hack/check-links.sh), version checks (hack/check-doc-versions.sh), and screenshot capture (Playwright mock mode in web/e2e/specs/screenshots.spec.ts) plus tag-triggered refresh workflow (.github/workflows/screenshot-refresh.yaml) are adopted and run on CI. The PR credential for the tag-triggered workflow is a fine-grained PAT repository secret (OD-13, ruled 2026-09-02). All thirteen open decisions are now ruled. None of these are product code, CRDs, or chart changes — they are repository tooling, testing infrastructure, and roadmap/CHANGELOG edits, so the Out of Scope section of spec.md is not violated.
+Tooling decisions (OD-1 through OD-15): The maintainer ruled on 2026-09-02 that link checks (hack/check-links.sh), version checks (hack/check-doc-versions.sh with historical-reference markers), and screenshot capture (Playwright mock mode in web/e2e/specs/screenshots.spec.ts, CI dispatch only per OD-15) plus tag-triggered refresh workflow (.github/workflows/screenshot-refresh.yaml with workflow_dispatch trigger per OD-15) are adopted and run on CI. The PR credential for the tag-triggered workflow is a fine-grained PAT repository secret `SCREENSHOT_BOT_PAT` (OD-13, ruled 2026-09-02). All fifteen open decisions are now ruled. None of these are product code, CRDs, or chart changes — they are repository tooling, testing infrastructure, and roadmap/CHANGELOG edits, so the Out of Scope section of spec.md is not violated.
 
 ## Complexity Tracking
 

@@ -7,14 +7,15 @@ All validation commands below are read-only grep, file inspection, and test oper
 ## Prerequisites
 
 - Checked out on branch `012-docs-refresh-and-outreach`
-- `README.md` has been updated with comparison table
-- `docs/comparison-sources.md` has been created with source documentation
-- `docs/` audited files have been refreshed for version strings, links, and labels
-- `docs/img/` contains six existing and at least five new screenshots
+- `README.md` has been updated with comparison table (intro paragraph, status line, table)
+- `docs/comparison-sources.md` has been created with source documentation (explicit HTML anchors per the maintainer-signed contract correction; GitHub-flavored Markdown does not support `{#id}` heading attributes)
+- `docs/` audited files have been refreshed for version strings (with `<!-- doc-versions: historical -->` markers per OD-14), links, and labels
+- `docs/img/` contains six existing and at least five new screenshots (1920×1080 JPEG per OD-3a, captured via CI workflow_dispatch per OD-15)
 - `specs/012-docs-refresh-and-outreach/outreach.md` has been created
 - `docs/contributing.md` links to the outreach tracker
 - `specs/012-docs-refresh-and-outreach/audit-log.md` has been created with all findings
 - `hack/check-doc-versions.sh` and `hack/check-links.sh` exist (once implemented per OD-1 and OD-2)
+- `.github/workflows/screenshot-refresh.yaml` has been created with `workflow_dispatch` trigger (OD-15)
 
 ## Scenario 1: Comparison Table Present and Sourced
 
@@ -48,11 +49,12 @@ grep -c "^## " docs/comparison-sources.md
 **Expected outcome**:
 
 - Status line is at a line number between the two grep results for "## Why Gameplane?" and "## Features"
-- Comparison table appears immediately after status line
+- Comparison table appears immediately after status line, with an intro paragraph above it explaining scope (Pterodactyl/CubeCoders are control panels; Agones is a Kubernetes operator library)
 - Table has 9 data rows (one for each dimension a–i)
 - Gameplane column has 9 source markers ([G-a] through [G-i])
 - At least 27 competitor source markers present (minimum 3 per dimension for competitors)
 - `docs/comparison-sources.md` exists and contains four top-level sections (Gameplane, Pterodactyl, CubeCoders AMP, Agones)
+- Each row heading in docs/comparison-sources.md is preceded by an explicit HTML anchor line `<a id="<product>-row-<letter>"></a>` (grep -c '<a id="' docs/comparison-sources.md >= 36)
 
 **SC-001, SC-002, SC-003**: Confirms comparison table presence, Gameplane column traceability, and competitor sourcing per contracts/comparison-table.md §1–5.
 
@@ -93,9 +95,10 @@ done
 - `charts/gameplane/Chart.yaml:6` shows `appVersion: 0.2.0-beta.8`
 - All version strings in audited files are either:
   - `0.2.0-beta.8` (current), or
-  - Marked as `(example)`, `(example version)`, or in a code block labeled as example
+  - Marked as `(example)`, `(example version)`, or in a code block labeled as example, or
+  - Marked as `<!-- doc-versions: historical -->` inline on the same line (OD-14)
 - No stale versions like `0.2.0-beta.7`, `0.2.0-beta.6`, etc. in product documentation
-- Examples and placeholders are clearly marked
+- Examples, placeholders, and historical references are clearly marked
 
 **SC-005, SC-008a**: Confirms zero stale version strings per contracts/docs-audit.md §FR-010 (Version Strings).
 
@@ -408,7 +411,7 @@ Once the feature is merged and the branch deleted, the spec folder is renamed fr
 
 - **Feature Specification**: `specs/012-docs-refresh-and-outreach/spec.md` (all FR and SC requirements)
 - **Contracts**: `specs/012-docs-refresh-and-outreach/contracts/` (comparison-table.md, docs-audit.md, outreach-todo.md, screenshot-set.md)
-- **Orchestrator Decisions**: Feature spec Assumptions and Orchestrator Decisions (D-A through D-I, OD-1 through OD-12)
+- **Orchestrator Decisions**: Feature spec Assumptions and Orchestrator Decisions (D-A through D-I, OD-1 through OD-15)
 - **Research Findings**: synthesized into `specs/012-docs-refresh-and-outreach/research.md` (R1-R8 detailed findings were produced during planning)
 - **Audit Log Schema**: `specs/012-docs-refresh-and-outreach/audit-log.md`
 - **Style Reference**: `specs/done_011-add-missing-module-specs/quickstart.md` (matching tone and structure)

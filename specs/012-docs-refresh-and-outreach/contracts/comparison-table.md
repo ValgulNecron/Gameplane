@@ -251,25 +251,16 @@ Each product has its own top-level section with subsections for each dimension:
 
 ### Section Anchors
 
-Each dimension row MUST have an anchor derivable from the source ID. Anchor format:
+GitHub-flavored Markdown does not support `{#id}` heading attributes; it renders the braces as literal text. Each row heading in docs/comparison-sources.md is therefore preceded by an explicit HTML anchor line, with `id` attributes matching the source ID format (e.g., `pterodactyl-row-a` for `[P-a]` markers).
+
+**Anchor requirement**: Add explicit HTML anchors before each row heading:
 
 ```markdown
-### Row (<letter>): <dimension-label>
+<a id="pterodactyl-row-a"></a>
+### Row (a): Deployment/runtime model
 ```
 
-GitHub automatically generates anchors from heading text as `#row-<letter>-<dimension-label-slug>`.
-
-Example: Row (a) heading generates anchor `#row-a-deployment-runtime-model`
-
-Marker `[P-a]` in the table links to this anchor explicitly as `docs/comparison-sources.md#pterodactyl-row-a` (custom anchor).
-
-**Custom anchor requirement**: Add explicit HTML anchors for clarity:
-
-```markdown
-### Row (a): Deployment/runtime model {#pterodactyl-row-a}
-```
-
-This ensures `[P-a]` link resolves precisely.
+This ensures the `[P-a]` link `docs/comparison-sources.md#pterodactyl-row-a` resolves on GitHub (corrected 2026-09-02 with maintainer sign-off; `hack/check-links.sh` accepts `<a id>` anchors as targets).
 
 ### Canonical Source Domains (R7)
 
@@ -343,7 +334,7 @@ Implementation MUST verify all of these before marking the contract complete:
 - [ ] File has one top-level section per product (Gameplane, Pterodactyl, CubeCoders AMP, Agones)
 - [ ] Each product section has a subsection for each row (a–i)
 - [ ] Each subsection has: source ID, URL, "Checked on [DATE]", what was verified, last-known-URL
-- [ ] Custom HTML anchors are present for each row (e.g., `{#pterodactyl-row-a}`)
+- [ ] Explicit HTML anchors are present before each row heading (e.g., `<a id="pterodactyl-row-a"></a>`)
 - [ ] Table markers in README link correctly to these anchors
 
 ### FR-007 & FR-008 (Table Rendering)

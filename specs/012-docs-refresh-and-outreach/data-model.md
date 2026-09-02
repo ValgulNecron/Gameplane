@@ -74,7 +74,7 @@ Evidence: README.md:8–9.
 | `text` | string | Yes | 1–25 words; factual, no value judgments (V-CC1, FR-006) |
 | `qualifiers` | array of string | Conditional | [optional], [experimental], [disabled by default], [BETA], [local cluster only]; Gameplane cells only (V-CC2) |
 | `sourceReference` | SourceReference | Conditional | Competitor cells only; Gameplane cells have `repoEvidence` instead (V-CC3) |
-| `repoEvidence` | string | Conditional | Gameplane cells only; path:line citation (e.g., "README.md:36; gameserver_types.go:137–195") |
+| `repoEvidence` | string | Conditional | Gameplane cells only; path:line citation (e.g., "README.md:36; operator/api/v1alpha1/gameserver_types.go:137–195"); screenshot delivery executed via workflow_dispatch (OD-15) |
 | `notApplicable` | boolean | Optional | If true, `text` is exactly "not applicable" and `sourceReference`/`repoEvidence` are absent |
 
 ### Validation Rules
@@ -161,6 +161,8 @@ Entry order: product (Pterodactyl, then AMP, then Agones), then dimension (a–i
 - For CubeCoders dimensions verifiable from an official source: fill cells with verified content and cite source with date
 - For CubeCoders dimensions NOT verifiable from public sources: cell text MUST read exactly "not publicly documented (checked YYYY-MM-DD)"; no SourceReference needed
 
+**V-SR5 (Screenshot Capture Source, OD-15)**: The capture source for the 11+ dashboard screenshots is CI-only execution (GitHub Actions workflow_dispatch or tag-triggered screenshot-refresh.yaml), never local Playwright execution (per CLAUDE.md rule 8 and Principle VI).
+
 ---
 
 ## Entity: AuditedFile
@@ -189,15 +191,24 @@ Per FR-009 and the scope, these 17 files are audited:
 16. mcp-server/README.md
 17. telemetry-receiver/README.md
 
-### Additional File (Created During Implementation)
+### Additional Files (Created During Implementation)
 
-18. **docs/comparison-sources.md** — Created as part of D-A (comparison table sourcing), becomes an audited file in subsequent audits
+18. **docs/comparison-sources.md** — Created as part of D-A (comparison table sourcing), becomes an audited file in subsequent audits; uses explicit HTML anchors for row headings (corrected 2026-09-02 per maintainer-signed contract correction; `{#id}` heading attributes are not supported by GitHub-flavored Markdown, see comparison-table.md section 9)
+19. **docs/img/*.jpg** (6 refreshed + at least 5 new) — Created during screenshot capture phase via CI workflow_dispatch (OD-15, ruled 2026-09-02)
 
 ### Exclusions
 
 - docs/superpowers/** (dated design records; exempt per spec Out of Scope)
 - website/ (submodule; exempt per spec Out of Scope)
 - modules/ (submodule; exempt per spec Out of Scope)
+
+---
+
+## References
+
+- **Orchestrator Decisions**: `OPEN-DECISIONS.md` (OD-1 through OD-15, all ruled 2026-09-02)
+- **Version History**: Audit performed 2026-09-01, decisions finalized 2026-09-02
+- **Maintainer Approvals**: All fifteen open decisions ruled per system-wide authority 2026-09-02
 
 ### Exception: CHANGELOG.md
 
@@ -542,7 +553,7 @@ This table maps every FR (Functional Requirement) and SC (Success Criterion) to 
 ## References
 
 - **Feature Spec**: `/home/user/Gameplane/specs/012-docs-refresh-and-outreach/spec.md` (FR-001 through FR-025, SC-001 through SC-014)
-- **Orchestrator Decisions**: D-A through D-I (D-H: table placement; D-C: label vocabulary; D-F: audit-log schema; D-A: comparison-sources.md); OD-1 through OD-12 (all ruled 2026-09-02 by maintainer; see MAINTAINER RULINGS section)
+- **Orchestrator Decisions**: D-A through D-I (D-H: table placement; D-C: label vocabulary; D-F: audit-log schema; D-A: comparison-sources.md); OD-1 through OD-15 (all ruled 2026-09-02 by maintainer; see MAINTAINER RULINGS section)
 - **Research Findings**: R1-versions.md (version audit), R2-links.md (link verification), R3-labels.md (label registry), R4-screens.md (screenshot inventory), R5-gameplane-facts.md (Gameplane comparison cells), R6-outreach.md (directory requirements), R7-competitor-sources.md (competitor sourcing), R8-unshipped.md (unshipped-feature audit)
 - **CLAUDE.md**: Rule 7 (wrap errors with %w), Rule 11 (commit regularly), Rule 12 (one branch per unit), Rule 15 (read whole spec folder), Rule 16 (rename done_ on completion)
 - **Constitution Principle IV**: Spec-Driven Development; data-model.md is the artifact that survives context resets

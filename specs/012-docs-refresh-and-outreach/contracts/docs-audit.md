@@ -84,6 +84,7 @@ Canonical sources for audit checks:
 
 2. **For each match**, inspect the surrounding context (±2 lines):
    - If the context includes the phrase `(example version)`, `(example)`, `(placeholder)`, or is inside a code block marked `# Example:` or `<!-- Example -->`, **pass**: it is an explicitly marked example.
+   - If the same line contains an HTML comment `<!-- doc-versions: historical -->`, **pass**: it is a legitimate historical reference (OD-14, ruled 2026-09-02).
    - Otherwise, the match is a **version string claim** in product documentation.
 
 3. **Version string claims** MUST match `v?0\.2\.0-beta\.8` exactly.
@@ -94,6 +95,7 @@ Canonical sources for audit checks:
 
 - **Zero stale version strings** in product documentation (SC-008a).
 - All version strings in examples are explicitly marked.
+- Historical version references are marked with `<!-- doc-versions: historical -->` inline (OD-14).
 - Count: Zero failures across all 17 files.
 
 ### Evidence Citation Format
@@ -181,6 +183,7 @@ Links to **exclude**:
    - If the link includes an anchor (e.g., `#section-name`):
      - Extract the anchor slug.
      - Verify the target file contains a heading that would generate that anchor slug (account for GitHub-flavored markdown heading-to-anchor conversion: spaces → hyphens, special chars removed/escaped, lowercase).
+     - Explicit HTML anchors (`<a id="...">` / `<a name="...">`) count as valid anchor targets in addition to heading slugs (needed for docs/comparison-sources.md row anchors).
    - If no anchor is present, pass as long as the file exists.
 
 3. **Record failures**: File paths that don't exist or anchors that don't match any heading.
@@ -199,7 +202,7 @@ Links to **exclude**:
 ### Pass Condition
 
 - **Zero broken internal links** across all 17 files (SC-008c, SC-006).
-- All anchors resolve to valid headings in the target file.
+- All anchors resolve to valid headings or explicit HTML anchors in the target file.
 - Count: Zero failures.
 
 ### Evidence Citation Format
@@ -457,6 +460,7 @@ A read-only POSIX shell script `hack/check-doc-versions.sh` performs version str
 - For each match, check context (±2 lines) for allowlist markers:
   - `(example version)`, `(example)`, `(placeholder)`
   - Code blocks marked `# Example:` or `<!-- Example -->`
+  - Historical references (e.g. `docs/install.md:54` "Pre-rotation releases (v0.2.0-beta.7 and earlier)") are allowlisted by an inline HTML comment on the same line: `<!-- doc-versions: historical -->` (OD-14, ruled 2026-09-02)
 - If matched as allowlisted example, pass; otherwise treat as a product documentation claim
 - Product claims MUST match the current appVersion exactly
 
@@ -565,5 +569,5 @@ The documentation audit is **complete** when all of the following are true:
 - **Constitution**: `.specify/memory/constitution.md` (Principle IV: Spec-Driven Development)
 - **Project Guidance**: `CLAUDE.md` (rules 8, 11, 13, 15, 16; no-local-execution, commit-early, delegation)
 - **Research Findings**: `specs/012-docs-refresh-and-outreach/research.md` (synthesis of version/link/label/screenshot/gameplane-facts/outreach/competitor-sources/unshipped audits; detailed research summaries R1–R8 are in the scratchpad during planning)
-- **Orchestrator Decisions**: `specs/012-docs-refresh-and-outreach/OPEN-DECISIONS.md` (D-A through D-I, OD-1 through OD-12)
+- **Orchestrator Decisions**: `specs/012-docs-refresh-and-outreach/OPEN-DECISIONS.md` (D-A through D-I, OD-1 through OD-15)
 - **Style Reference**: `specs/done_011-add-missing-module-specs/contracts/check-specs.md` (tone, heading discipline, evidence density)

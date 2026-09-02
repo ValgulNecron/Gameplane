@@ -209,7 +209,7 @@ Screenshot capture uses **Playwright Mock Mode (Option A)** as of 2026-09-02 mai
 #### Implementation Steps (OD-3b: Playwright Mock Mode, Ruled 2026-09-02)
 
 1. **Create test spec** at `web/e2e/specs/screenshots.spec.ts` (exact path per OD-3b)
-2. **Test runs with**: `GAMEPLANE_E2E_TARGET=mock npm run test:e2e` or a tag/grep filter (e.g., `--grep @screenshots`) to isolate from other e2e tests
+2. **Test spec is run on CI** via `.github/workflows/screenshot-refresh.yaml` (workflow_dispatch); `GAMEPLANE_E2E_TARGET=mock npm run test:e2e` or a tag/grep filter (e.g., `--grep @screenshots`) to isolate from other e2e tests
 3. **Seed MSW fixtures** with realistic data:
    - 8+ `GameTemplate` objects (Minecraft, Valheim, Terraria, Rust, Palworld, Factorio, CS2, ARK)
    - 3–5 `GameServer` resources (mix of phases: Running, Pending, Failed)
@@ -233,10 +233,7 @@ Screenshot capture uses **Playwright Mock Mode (Option A)** as of 2026-09-02 mai
 
 #### Testing & Validation
 
-- Run `npm run test:e2e:mock` locally to verify all captures succeed
-- Verify generated JPEG files are 1920×1080 (use `identify docs/img/<filename>.jpg`)
-- Verify no forbidden patterns in alt text or visible captions
-- Manual visual inspection: compare new screenshots against running dashboard to ensure layout/styling match
+Capture runs only on CI: dispatch `.github/workflows/screenshot-refresh.yaml` (workflow_dispatch) on the feature branch and merge the PR it opens (OD-15, ruled 2026-09-02; no local Playwright run per rule 8).
 
 ---
 
@@ -306,7 +303,7 @@ Screenshot capture uses **Playwright Mock Mode (Option A)** as of 2026-09-02 mai
 
 **OD-3b Captured**: Playwright spec at `web/e2e/specs/screenshots.spec.ts` run with `GAMEPLANE_E2E_TARGET=mock` and tag/grep filter, output to `docs/img/`.
 
-**OD-3c: Tag-Triggered Recapture Workflow**: A release-triggered GitHub Actions workflow (`.github/workflows/screenshot-refresh.yaml`) regenerates MSW fixture data and screenshots and opens a pull request with the new images. The credential for opening that PR is a fine-grained personal access token scoped to this repository with contents and pull-requests write permission, stored as a repository secret (ruled 2026-09-02, OD-13); unlike a GITHUB_TOKEN-authored PR it triggers CI normally.
+**OD-3c: Tag-Triggered Recapture Workflow**: A release-triggered GitHub Actions workflow (`.github/workflows/screenshot-refresh.yaml`) regenerates MSW fixture data and screenshots and opens a pull request with the new images. The credential for opening that PR is a fine-grained personal access token scoped to this repository with contents and pull-requests write permission, stored as a repository secret (ruled 2026-09-02, OD-13); The secret is named `SCREENSHOT_BOT_PAT` (confirmed 2026-09-02). The workflow also carries a `workflow_dispatch` trigger for on-demand captures (OD-15); unlike a GITHUB_TOKEN-authored PR it triggers CI normally.
 
 ---
 
@@ -444,16 +441,17 @@ Use this checklist **before merging** the screenshot commits (D-F, per constitut
 
 ## Open Decisions
 
-**Ruled decisions (2026-09-02)** and one remaining open item:
+**Ruled decisions (2026-09-02)**, all closed:
 
 | OD ID | Question | Ruling | Status |
 |---|---|---|---|
 | **OD-3** | Screenshot capture environment | **Use Option A (Playwright mock mode)** for speed, reproducibility, and CI integration | ✓ Ruled 2026-09-02 |
 | **OD-3a** | Viewport dimensions | **Switch to 1920×1080 JPEG**; six existing files (currently 1568×773) are replaced at new size with filenames kept per FR-016 | ✓ Ruled 2026-09-02 |
 | **OD-3b** | Capture method and path | **Playwright spec at `web/e2e/specs/screenshots.spec.ts`** run with `GAMEPLANE_E2E_TARGET=mock` and tag/grep filter; output to `docs/img/` | ✓ Ruled 2026-09-02 |
-| **OD-3c** | Auto-recapture on release | **Tag-triggered workflow `.github/workflows/screenshot-refresh.yaml`** regenerates MSW fixtures and screenshots and opens a PR; credential is a fine-grained PAT repository secret (OD-13, ruled 2026-09-02) | ✓ Ruled 2026-09-02 |
+| **OD-3c** | Auto-recapture on release | **Tag-triggered workflow `.github/workflows/screenshot-refresh.yaml`** regenerates MSW fixtures and screenshots and opens a PR; credential is a fine-grained PAT repository secret `SCREENSHOT_BOT_PAT` (OD-13, ruled 2026-09-02); workflow also carries `workflow_dispatch` trigger (OD-15) | ✓ Ruled 2026-09-02 |
 | **OD-3d** | Mock mode disclosure | **One sentence in README gallery intro** discloses mocking for all 11+ screenshots; **alt texts do NOT mention mocking**, focusing on purpose and UI elements only | ✓ Ruled 2026-09-02 |
-| **OD-13** | PR credential for tag-triggered recapture | The credential for opening the screenshot-refresh PR is a fine-grained PAT repository secret (scoped to this repository with contents and pull-requests write permission, stored as a repository secret). | ✓ Ruled 2026-09-02 |
+| **OD-13** | PR credential for tag-triggered recapture | The credential for opening the screenshot-refresh PR is a fine-grained PAT repository secret `SCREENSHOT_BOT_PAT` (scoped to this repository with contents and pull-requests write permission, stored as a repository secret). | ✓ Ruled 2026-09-02 |
+| **OD-15** | First capture path | **CI dispatch only** via workflow_dispatch of screenshot-refresh.yaml; agents never run Playwright locally (rule 8) | ✓ Ruled 2026-09-02 |
 
 ---
 
@@ -478,8 +476,8 @@ Use this checklist **before merging** the screenshot commits (D-F, per constitut
 ## Document Status
 
 **Status**: Specification (Ruled — Ready for Implementation)  
-**Version**: 1.1  
+**Version**: 1.2  
 **Authored**: 2026-09-01  
 **Updated**: 2026-09-02 (all maintainer rulings applied; no open items remain)  
 **Applies To**: Implementation phase (screenshot capture, mock mode Playwright spec, README gallery refresh)  
-**Maintainer Decisions Applied**: OD-3 (mock mode), OD-3a (1920×1080), OD-3b (Playwright spec at `web/e2e/specs/screenshots.spec.ts`), OD-3c (tag-triggered workflow), OD-3d (README disclosure, no mocking in alt text), OD-13 (PR credential is a fine-grained PAT repository secret)
+**Maintainer Decisions Applied**: OD-3 (mock mode), OD-3a (1920×1080), OD-3b (Playwright spec at `web/e2e/specs/screenshots.spec.ts`), OD-3c (tag-triggered workflow), OD-3d (README disclosure, no mocking in alt text), OD-13 (PR credential is a fine-grained PAT repository secret `SCREENSHOT_BOT_PAT`), OD-15 (CI dispatch only, no local Playwright)

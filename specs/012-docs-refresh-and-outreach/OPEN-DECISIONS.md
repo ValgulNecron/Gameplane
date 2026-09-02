@@ -1,6 +1,6 @@
 # Open Decisions
 
-**Status**: All thirteen decisions ruled on 2026-09-02; none remain open.
+**Status**: All fifteen decisions ruled on 2026-09-02; none remain open.
 
 All open questions documented here arise from the feature spec (spec.md), CLAUDE.md guidance, constitution principles, or research findings (R1–R8) that could not be resolved without maintainer judgment. This document is the authoritative list of everything blocking detailed planning and implementation.
 
@@ -457,7 +457,67 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 - OD-3c implementation (tag-triggered screenshot refresh workflow)
 - FR-016 (automated screenshot updates on release)
 
-**Ruling (2026-09-02)**: Option (b) is chosen. The tag-triggered screenshot-refresh workflow opens its pull request with a fine-grained personal access token scoped to this repository with contents and pull-requests write permission, stored as a repository secret (PRs it opens trigger CI normally; the token is rotated like the other repository secrets).
+**Ruling (2026-09-02)**: Option (b) is chosen. The tag-triggered screenshot-refresh workflow opens its pull request with a fine-grained personal access token scoped to this repository with contents and pull-requests write permission, stored as a repository secret (PRs it opens trigger CI normally; the token is rotated like the other repository secrets). Secret name confirmed 2026-09-02: `SCREENSHOT_BOT_PAT`.
+
+---
+
+## New Decisions (OD-14, OD-15)
+
+### OD-14: Allowlist marker for historical version references
+
+**Status**: RULED 2026-09-02
+
+**Question**: The OD-1 gate must not fail on legitimate historical mentions (docs/install.md:54 "Pre-rotation releases (v0.2.0-beta.7 and earlier)", docs/install.md:603, docs/oidc.md:50/91/372 "from v0.2.0-beta.6+", README.md:195). contracts/docs-audit.md only defines example markers ((example version), (example), (placeholder), "# Example:" / "<!-- Example -->" code blocks). How should implementers mark historical version references that are not examples?
+
+**Why it matters**: Without an allowlist marker, the OD-1 script fails CI when it encounters legitimate historical context ("Pre-rotation releases...were signed with the retired key") that mentions an old version. The marker prevents false positives while keeping the gate tight for actual staleness.
+
+**Evidence**:
+- research.md baseline list: 6 historical references reclassified as not stale (docs/install.md:54, :603; docs/oidc.md:50, :91, :372; README.md:195)
+- contracts/docs-audit.md Version String Checking describes example markers but not historical qualifiers
+- OD-1 ruling requires script to distinguish legitimate examples from stale claims
+
+**Options**:
+1. **(a) Inline HTML comment marker on the same line**: `<!-- doc-versions: historical -->` visible in source, invisible when rendered
+2. **(b) Sidecar allowlist file**: hack/check-doc-versions.allow with path:pattern entries
+3. **(c) Phrase heuristics in script**: Script learns patterns like "and earlier", "predate", "from v...+"
+4. **(d) Reword the docs**: Eliminate the version literals from historical notes
+
+**Recommended default**: **(a) Inline HTML comment marker on the same line**.
+
+**Ruling (2026-09-02)**: Option (a) is chosen. A historical version literal is allowlisted by an inline HTML comment on the SAME line: `<!-- doc-versions: historical -->`. Visible in source, invisible when rendered, same mechanism family as the example markers. The script treats a line carrying that marker as allowlisted; no sidecar file, no heuristics.
+
+**Blocks**:
+- OD-1 script implementation (hack/check-doc-versions.sh must recognize the marker)
+- SC-005 pass/fail (version strings match current release or are explicitly marked)
+
+---
+
+### OD-15: First screenshot capture path (CI dispatch only)
+
+**Status**: RULED 2026-09-02
+
+**Question**: Tasks default to dispatching .github/workflows/screenshot-refresh.yaml (workflow_dispatch) on the feature branch, which needs the PAT secret to exist. If blocked, is a one-off local `npm run screenshots` (Playwright, MSW mock mode, no cluster) acceptable, or does CLAUDE.md rule 8 forbid it?
+
+**Why it matters**: Rule 8 restricts local test/lint runs to preserve CI as the source of truth. Screenshots are reproducible and durable artifacts that must be captured in CI (workflow_dispatch). If local execution were permitted as a fallback, the captures could drift between environments.
+
+**Evidence**:
+- CLAUDE.md rule 8: "Do NOT run the test or lint suites locally — CI is the source of truth"
+- Constitution Principle VI: CI bears heavy lifting
+- screenshot-set.md testing section currently says "Run `npm run test:e2e:mock` locally to verify"
+
+**Options**:
+1. **(a) CI dispatch only**: No local Playwright run; screenshot-refresh.yaml (workflow_dispatch) on branch; agents never run npm locally
+2. **(b) Allow one-off local mock-mode capture as fallback**: If CI secret is missing, run `npm run screenshots` locally; record in audit-log.md
+3. **(c) Maintainer captures locally**: Maintainer uses `make screenshots` on dev cluster; commits result
+
+**Recommended default**: **(a) CI dispatch only**.
+
+**Ruling (2026-09-02)**: Option (a) is chosen. CI dispatch only. Screenshots are produced by dispatching screenshot-refresh.yaml (workflow_dispatch) on branch 012-docs-refresh-and-outreach and merging the PR it opens into the feature branch. If the secret is missing the capture waits for the maintainer to create it; agents never run Playwright locally (rule 8, Principle VI). The screenshot-refresh workflow therefore carries a `workflow_dispatch` trigger in addition to `push: tags: ["v*"]`.
+
+**Blocks**:
+- screenshot-set.md Testing & Validation section (update instructions to CI-only dispatch)
+- FR-016 (automated screenshot updates on release)
+- First capture task (must dispatch workflow, not run locally)
 
 ---
 
@@ -478,12 +538,14 @@ Should alt text for live-stream tabs (Console, Logs) explicitly note "mocked dat
 | OD-11 | Agones is a library, not a control panel — scope and framing | FR-001/002, table design | RULED |
 | OD-12 | Notation for Agones in comparison table | FR-001, table clarity | RULED |
 | OD-13 | Credential for the automatic screenshot-refresh pull request | OD-3c workflow credential | RULED |
+| OD-14 | Allowlist marker for historical version references | OD-1 script, SC-005 gate | RULED |
+| OD-15 | First screenshot capture path (CI dispatch only) | FR-015/016/017, capture task | RULED |
 
 ---
 
 ## Notes for Implementation
 
-1. **All thirteen decisions ruled on 2026-09-02; none remain open** — OD-1 through OD-13 are settled and ready for implementation.
+1. **All fifteen decisions ruled on 2026-09-02; none remain open** — OD-1 through OD-15 are settled and ready for implementation.
 2. **Recommended defaults are proposals, not decisions** — each recommendation is clearly labelled and may be overridden.
 3. **Evidence is path:line traceable** — every claim cites the spec, research files, codebase, or constitution.
 4. **Interdependencies exist** — OD-3 (screenshot environment) affects captured data freshness; OD-2 (link checking) enables SC-006 validation; OD-1/2 together determine pre-merge CI gates.
