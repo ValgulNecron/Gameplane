@@ -142,3 +142,28 @@ This log records every correction made to the documentation under US2 (User Stor
 | docs/key-rotation.md | - | audited: no registry components; key rotation facts verified | cosign.pub (ECDSA P-256); CHANGELOG.md:81 (rotated in beta.8) | none | - |
 | docs/game-coverage.md | - | audited: no registry components; game protocol coverage verified | gameproto/minecraft.go, terraria.go; test/e2e test functions exist | none | - |
 | docs/contributing.md | 76-78 | Component mentions inside code blocks (exempt per contract) | audit-syslog-bridge/telemetry-receiver/mcp-server at lines 76-78 (sh code block) | none (code-block mentions exempt from labeling per FR-012) | - |
+| hack/check-doc-versions.sh | 77-189 | Changed to continue scanning remaining files when an audited file is missing (previously exited early). Now mirrors hack/check-links.sh behavior: reports missing files but continues version-string validation. Reports all failures (missing files AND version errors) at the end. | bash -n validation passed; script run output shows 1 missing file reported, 9 stale version strings scanned across remaining files, summary displayed | Fixed: merged file validation and version processing into single loop; moved missing file reports to flow through instead of exiting early; updated reporting to handle both issue types | docs: update check-doc-versions.sh to continue on missing files |
+| web/playwright.config.ts | 17-27 | Fixed grep/grepInvert interaction: config had `grepInvert: /@screenshots/`, CLI had `--grep @screenshots`; Playwright kept both and cancelled out (selecting zero tests). Now reads `GAMEPLANE_SCREENSHOTS` env var: when set, uses `grep: /@screenshots/, grepInvert: undefined`; when unset, uses `grep: undefined, grepInvert: /@screenshots/`. Updated comment to explain env var switch. | Read config file; verified logic; updated comment (OD-3b reference maintained) | Fixed: conditional grep/grepInvert based on GAMEPLANE_SCREENSHOTS env var | web: fix playwright grep/grepInvert cancellation with env var |
+| web/package.json | 16 | Updated screenshots npm script: removed `--grep @screenshots` flag; now uses `GAMEPLANE_SCREENSHOTS=1` env var to trigger screenshot mode in playwright.config.ts | python3 json.load validation passed; script now sets env var that playwright.config.ts reads | Fixed: changed script to use env var instead of CLI flag | web: update screenshots script to use GAMEPLANE_SCREENSHOTS env var |
+| CHANGELOG.md | 8-46 | Network capture feature (Unreleased Upgrade Notes): verified unreleased | git merge-base --is-ancestor 34d14f62 v0.2.0-beta.8 = unreleased; commit 34d14f62 dated 2026-08-23, after beta.8 release 2026-08-22 | Feature is unreleased; docs/install.md line 191 will receive unreleased note | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
+| CHANGELOG.md | 34-37 | Default StorageClass (Unreleased Added): verified unreleased | git merge-base --is-ancestor 27de0232 v0.2.0-beta.8 = unreleased; commit 27de0232 dated 2026-08-26, after beta.8 release 2026-08-22 | Feature is unreleased; docs/install.md line 109 will receive unreleased note | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
+| CHANGELOG.md | 38-45 | Helm-seeded OIDC role mappings (Unreleased Added): verified unreleased | git merge-base --is-ancestor 27de0232 v0.2.0-beta.8 = unreleased; same commit as Default StorageClass | Feature is unreleased; docs/install.md line 130, docs/oidc.md line 21, docs/security.md line 609 will receive unreleased notes | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
+| docs/install.md | 109 | Default StorageClass feature first presented at line 109 (Helm value description) | FIRST mention in file; line 7 is prerequisite only, not feature | Appending unreleased note to line 109 | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
+| docs/install.md | 130 | Helm-seeded OIDC role mappings first presented at line 130 (Helm value description in "Role mapping (new, seeded at install time)" section) | FIRST mention in file; section begins at line 129 with feature indicator "(new, seeded at install time)" | Appending unreleased note to line 130 | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
+| docs/oidc.md | 21 | Helm-seeded OIDC role mappings first presented at line 21 (Note paragraph) | FIRST mention in file | Appending unreleased note to line 21 | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
+| docs/security.md | 609 | Helm-seeded OIDC role mappings first presented at section heading starting line 608-609 (section title "Install-Time OIDC Role Mappings") | FIRST mention in file | Appending unreleased note after heading/opening sentence at line 609 | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
+| docs/architecture.md | 4 | Bracket-tagged first mention of [optional] audit-syslog-bridge / telemetry-receiver; removed redundant tags from lines 279, 281 | Verified line 4 now reads "and [optional] audit-syslog-bridge / telemetry-receiver satellites"; lines 279 and 281 now read "audit-syslog-bridge" and "telemetry-receiver" without redundant brackets; hack/check-links.sh and hack/check-doc-versions.sh both pass | fixed | docs: fix component label placement in architecture.md |
+
+## Summary
+
+**Categories:**
+- version: 97 rows
+- link: 2 rows
+- label: 27 rows
+- feature-description: 19 rows
+- unshipped: 7 rows
+- script/tooling: 3 rows
+
+**Total audited rows:** 155
+
+**Files audited with no finding:** docs/networking.md, docs/notifications.md, docs/oidc.md (no optional mentions), docs/networking.md (no optional mentions), docs/module-authoring.md, docs/key-rotation.md, docs/game-coverage.md
