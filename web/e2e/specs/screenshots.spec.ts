@@ -17,7 +17,8 @@ test.describe("@screenshots dashboard gallery", () => {
 
   // Helper to capture screenshot at 1920×1080 JPEG
   async function shoot(page: Page, name: string): Promise<void> {
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
+    await page.waitForTimeout(400);
     await page.screenshot({
       path: path.join(OUT, name + ".jpg"),
       type: "jpeg",
@@ -43,15 +44,24 @@ test.describe("@screenshots dashboard gallery", () => {
     // ============================================================
     // 1. LOGIN SCREEN (before authentication)
     // ============================================================
+    // Force 401 on /users/me so the SPA doesn't redirect to dashboard before
+    // we can screenshot the login page. The cookie survives the navigation and
+    // is needed before visiting /login because mock mode answers /users/me
+    // immediately upon page load.
+    await page.context().addCookies([
+      { name: "e2e_force_401", value: "1", url: "http://localhost:5173" },
+    ]);
     await page.goto("/login");
     await expect(
-      page.getByRole("textbox", { name: /email or username/i })
+      page.getByRole("textbox", { name: /Email or username/i })
     ).toBeVisible();
     await shoot(page, "login");
 
     // ============================================================
     // 2. AUTHENTICATE
     // ============================================================
+    // Clear the force-401 cookie so login.login() succeeds
+    await page.context().clearCookies();
     const login = new LoginPage(page);
     const username =
       process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
@@ -106,10 +116,10 @@ test.describe("@screenshots dashboard gallery", () => {
     await page.goto("/servers/test-server-01");
     // Click Console tab to navigate to the correct tab
     await page.getByRole("button", { name: "Console" }).click();
-    // Wait for xterm container or console output lines
-    // xterm is lazy-loaded; wait for any visible console-related element
-    await expect(page.locator('[role="tabpanel"]')).toBeVisible();
-    await page.waitForTimeout(250);
+    // Wait for actual console output from the WebSocket mock stream
+    await expect(page.getByText("joined the game").first()).toBeVisible({
+      timeout: 15_000,
+    });
     await shoot(page, "server-console");
 
     // ============================================================
@@ -167,9 +177,10 @@ test.describe("@screenshots dashboard gallery", () => {
     await page.goto("/servers/test-server-01");
     // Click Logs tab to navigate to the correct tab
     await page.getByRole("button", { name: "Logs" }).click();
-    // Wait for logs tab panel or log lines to render
-    await expect(page.locator('[role="tabpanel"]')).toBeVisible();
-    await page.waitForTimeout(250);
+    // Wait for actual log output from the WebSocket mock stream
+    await expect(page.getByText("joined the game").first()).toBeVisible({
+      timeout: 15_000,
+    });
     await shoot(page, "server-detail-logs");
   });
 });
