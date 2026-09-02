@@ -466,14 +466,14 @@ All commits signed and conform to rule 11 (conventional-commit prefixes, `Co-Aut
 
 **Verification Summary**
 
-All eight quickstart.md scenarios (D6 read-only validation per FACTS 7, FACTS 8):
+All eight quickstart.md scenarios (D6 read-only validation per FACTS 7, FACTS 8) — status 2026-09-02: scenarios 1–6 and 8 verified, scenario 7 pending until T028:
 - Scenario 1 (Comparison Table): 9 rows, all Gameplane markers [G-a–i] present, sources tracked ✓
 - Scenario 2 (Version Strings): appVersion 0.2.0-beta.8, script exists ✓
 - Scenario 3 (Internal Links): hack/check-links.sh exists, 5 key files verified ✓
 - Scenario 4 (Component Labels): 27 label instances across docs ✓
 - Scenario 5 (No Unshipped Features): CHANGELOG Unreleased empty, roadmap has 12 marked entries ✓
-- Scenario 6 (Screenshots): 6 old JPEG at 1568×773; need 1920×1080 refresh + 5 new (CI workflow ready per OD-15) ⏳
-- Scenario 7 (Outreach Tracking): outreach.md created, 3 targets with status fields, linked in contributing.md ✓
+- Scenario 6 (Screenshots): 12 JPEG at 1920×1080 in docs/img, all under 150 KB, captured by CI runs 4–6 (PRs #341/#342/#343 merged as f64333d9/655afa37/6ffa851a); README gallery lists all 12 ✓
+- Scenario 7 (Outreach Tracking): outreach.md created, 3 targets with status fields, linked in contributing.md; AlternativeTo is still `pending` (non-terminal), so the scenario stays open until T028 ⏳
 - Scenario 8 (Audit Log): 147 corrections recorded with evidence ✓
 
 **CI & Rule 8 Compliance**
