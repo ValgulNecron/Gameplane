@@ -17,13 +17,21 @@ mounted here as the `website/` submodule.
 
 ## Screenshots
 
+Screenshots are captured against mocked data for consistency and reproducibility; all UI layouts and components reflect the current dashboard.
+
 | | |
 |---|---|
-| ![Dashboard showing fleet health: running/stopped/failed server counts, cluster CPU/memory/storage usage, node status, and recent activity](docs/img/dashboard.jpg) | ![Servers list with live status, CPU, memory, and node placement for every game server in the cluster](docs/img/servers-list.jpg) |
+| ![Sign-in form with username and password fields, an OIDC sign-in button, the Gameplane logo, and a feature sidebar](docs/img/login.jpg) | ![Create Server wizard step 1 showing the game template grid with icons, names, versions, and descriptions beside a YAML preview panel](docs/img/create-server-template-select.jpg) |
+| Login — local account or OIDC | Create server — pick a game template |
+| ![Server Events tab listing Kubernetes events for a failed server, from scheduling and image pull through ImagePullBackOff and CrashLoopBackOff, with All, Info, and Warnings filters](docs/img/server-detail-events.jpg) | ![Admin Settings General section with instance name, external URL, and default namespace fields beside the settings navigation](docs/img/admin-settings-general.jpg) |
+| Server detail — Events (diagnosing a failed start) | Admin Settings — General |
+| ![Cluster page showing three node cards with readiness, uptime, pod counts, CPU cores, and CPU and memory usage bars](docs/img/cluster-nodes.jpg) | ![Server Logs tab streaming container output with timestamps, log-level filters, a text filter, and a download button](docs/img/server-detail-logs.jpg) |
+| Cluster — nodes at a glance | Server detail — Logs |
+| ![Dashboard with running-server, players-online, vCPU, storage, and node tiles, a fleet status bar, cluster resource meters, recent activity, and recent backups](docs/img/dashboard.jpg) | ![Servers page listing every game server with game, status badge, players, and node placement columns beside summary tiles and filters](docs/img/servers-list.jpg) |
 | Dashboard — fleet health at a glance | Servers — every game server, one list |
-| ![Server detail Overview tab showing CPU, memory, and disk usage plus quick actions and connection info](docs/img/server-overview.jpg) | ![Mods tab registry browser showing a grid of Thunderstore mods for Valheim with download counts](docs/img/mods-registry-browse.jpg) |
+| ![Server detail Overview tab with CPU, memory, and disk usage tiles, recent events, connection host and port, and players online](docs/img/server-overview.jpg) | ![Mods tab registry browser showing a grid of Thunderstore mods for a Valheim server with authors and download counts](docs/img/mods-registry-browse.jpg) |
 | Server detail — Overview | Mods — browsing a registry (Thunderstore) |
-| ![Live streaming console output for a Terraria server, showing world-save progress](docs/img/server-console.jpg) | ![Admin Settings Mod registries screen showing CurseForge and Steam Workshop configured, Nexus Mods not configured](docs/img/admin-mod-registries.jpg) |
+| ![Live console for a Minecraft server streaming startup, player join, and auto-save lines over WebSocket with Clear, Download, and Fullscreen controls](docs/img/server-console.jpg) | ![Admin Settings Mod registries section listing CurseForge and Steam Workshop as configured and Nexus Mods as not configured, with the always-available registries noted](docs/img/admin-mod-registries.jpg) |
 | Console — live output over WebSocket | Admin Settings — Mod registries |
 
 ## Beta Status & Limitations
