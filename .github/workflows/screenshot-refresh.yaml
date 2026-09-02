@@ -12,6 +12,10 @@
 # Credential: Fine-grained Personal Access Token `SCREENSHOT_BOT_PAT` (this repo only,
 # Contents read/write, Pull requests read/write). Unlike GITHUB_TOKEN, PRs opened with
 # this PAT trigger CI workflows normally. See OD-13 (2026-09-02).
+#
+# Security: No dependency or browser caches are restored in this workflow: it publishes
+# runtime artifacts (screenshots) on a tag push, and zizmor's cache-poisoning audit
+# forbids caches there (poisoned cache could inject content into published artifacts).
 
 name: screenshot refresh
 
@@ -46,16 +50,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
 
       - run: npm ci
-
-      - name: playwright browser cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
 
       - name: install chromium
         run: npx playwright install --with-deps chromium
