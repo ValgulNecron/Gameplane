@@ -150,11 +150,19 @@ A player who received a share link opens it without an account and sees the serv
 - **SC-007**: Keyboard-only navigation of the login, servers list and server detail settings completes without a trapped focus or an unlabeled control.
 - **SC-008**: Each slice is mergeable on its own: at no point between the first and last slice does any screen show a mix of old and new component families.
 
+## Clarifications
+
+### Session 2026-09-02
+
+- Q: Keep today's layouts and information architecture, or a fresh HeroUI-style redesign? → A: Component swap, same layouts. Every screen is rebuilt from HeroUI components in its current arrangement; no screen is re-laid-out.
+- Q: One big-bang branch, or priority-ordered slices? → A: Priority-ordered slices (shell + login → servers → create/modules/backups → admin → share link), each its own PR; old and new component families may coexist across screens during the transition but never on one screen (FR-012).
+- Q: Keep the Gameplane brand tokens on HeroUI with dark and light, or adopt HeroUI's default theme? → A: Gameplane tokens (orange primary, current scale) mapped onto HeroUI; dark stays the default and light is supported (FR-006).
+
 ## Assumptions
 
 - "HeroUI" refers to the component library already imported into `design.pen` as the `HeroUI: Design System Components` frame (`LtgNm`) and, for the code, to the published HeroUI React component family that those designs represent; the dashboard adopts that family as its component layer.
 - The `dashboard-utility` frame (`bJ2cg`) and the `OFfAu` prompt node are HeroUI template samples, not Gameplane screens; they serve as a layout reference and are not part of the screen count.
-- The information architecture stays as it is: same sidebar destinations, same tabs, same settings sub-sections, same wizard steps. This feature changes the component family and visual treatment, not what the product offers. (See the open question below — if a broader redesign is wanted, the screen inventory grows.)
+- The information architecture stays as it is: same sidebar destinations, same tabs, same settings sub-sections, same wizard steps. This feature changes the component family and visual treatment, not what the product offers (confirmed, see Clarifications).
 - Dark appearance stays the default; light appearance is supported with the same tokens.
 - The two Pencil documents at `design.pen` and `/home/valgul/project/kubernetes-game-dashboard/design.pen` are byte-identical today; the repo copy is the one edited and exported.
 - `heroUI template.pen` stays at the repo root as the import source. Whether it is committed is the maintainer's decision; this spec does not require it in git.

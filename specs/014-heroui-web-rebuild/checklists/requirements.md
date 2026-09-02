@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain — three open questions are raised to the maintainer in the completion report instead (layout fidelity, delivery shape, light-mode scope); the spec records the assumed answers.
+- [x] No [NEEDS CLARIFICATION] markers remain — the three open questions (layout fidelity, delivery shape, theme) were answered by the maintainer on 2026-09-02 and recorded in the spec's Clarifications section.
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -32,4 +32,4 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
-- The maintainer's answers to the three open questions in the completion report should be folded into the Assumptions section (or `/speckit-clarify`) before `/speckit-plan`.
+- All items pass; the spec is ready for `/speckit-plan`.
