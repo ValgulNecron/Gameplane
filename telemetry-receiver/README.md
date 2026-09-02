@@ -1,6 +1,6 @@
 # telemetry-receiver
 
-The collection endpoint for Gameplane's anonymous usage telemetry. The
+The **telemetry-receiver** [optional] is the collection endpoint for Gameplane's anonymous usage telemetry. The
 API's reporter (`api/internal/telemetry`) POSTs a tiny JSON payload once
 a day when the admin has enabled **Admin Settings → Telemetry → Send
 anonymous usage metrics**:
