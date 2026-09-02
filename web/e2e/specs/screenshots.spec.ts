@@ -16,13 +16,14 @@ test.describe("@screenshots dashboard gallery", () => {
   });
 
   // Helper to capture screenshot at 1920×1080 JPEG
-  async function shoot(page: Page, name: string): Promise<void> {
+  async function shoot(page: Page, name: string, quality = 80): Promise<void> {
     await page.waitForLoadState("load");
     await page.waitForTimeout(400);
+    // Text-dense screens (Logs) need a lower quality to stay under the contract's 150 KB.
     await page.screenshot({
       path: path.join(OUT, name + ".jpg"),
       type: "jpeg",
-      quality: 80,
+      quality,
       fullPage: false,
     });
   }
@@ -222,6 +223,6 @@ test.describe("@screenshots dashboard gallery", () => {
     await expect(page.getByText("joined the game").first()).toBeVisible({
       timeout: 15_000,
     });
-    await shoot(page, "server-detail-logs");
+    await shoot(page, "server-detail-logs", 65);
   });
 });
