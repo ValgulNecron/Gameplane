@@ -7,7 +7,7 @@ clusters without changing the operational model.
 
 > Status: **beta** (`v0.2.0-beta.8`). The operator, API, agent, and dashboard
 > are feature-complete for the v1 scope and stabilized for external testing.
-> See [Beta status & known limitations](#beta-status--known-limitations) before
+> See [Beta status & known limitations](#beta-status--limitations) before
 > running it for anything you can't afford to lose.
 
 **Website:** <https://valgulnecron.github.io/gameplane-website/> — features,
@@ -32,7 +32,7 @@ Gameplane is currently in **beta** (`v0.2.0-beta.8`). Core workflows — server 
 
 Here are a few items to keep in mind:
 
-- **Multi-cluster streaming**: You can register and manage multiple clusters from a single dashboard, but WebSocket console/log streaming is currently scoped to the local control-plane cluster.
+- **Multi-cluster streaming**: You can register and manage multiple clusters from a single dashboard, but WebSocket console/log streaming is currently scoped to the local control-plane cluster [local cluster only].
 - **Idle auto-sleep & wake-on-connect**: Sleeping servers require normal game boot time when waking up. Minecraft Java and Terraria support full protocol handshake parsing to hold client connections while waking; other games use packet heuristics where players reconnect once the server is ready.
 - **Relay Tunnels**: Integrated `frp`, `Tailscale`, and `playit` relays run as supervised sidecar pods. For `playit`, port-forward mappings are managed directly through your playit.gg account.
 - **Production readiness**: Automated release upgrade testing runs on every PR. Disaster-recovery runbooks and fine-tuned workload resource guidance are actively being finalized (see [`docs/roadmap.md`](docs/roadmap.md)).
@@ -107,9 +107,9 @@ Gameplane integrates with **10 mod registries**: Modrinth, CurseForge, Thunderst
 | `agent/` | Go | Sidecar running in each game pod for RCON, file ops, PTY console, and metrics. |
 | `api/` | Go | Front-end API gateway handling REST endpoints, WebSocket streaming, auth, and RBAC. |
 | `operator/` | Go | Kubernetes controller reconciling Gameplane CRDs into K8s workloads and resources. |
-| `sentinel/` | Go | Waker daemon listening on game ports while a server is sleeping to trigger wake-on-connect. |
-| `capture-sidecar/` | Go | Optional network packet capture sidecar, opt-in per server, admin-only. |
-| `tunnel/` | Go | Relay supervisor pod managing third-party tunnels (`frp`, `Tailscale`, `playit`). |
+| `sentinel/` | Go | Waker daemon listening on game ports while a server is sleeping to trigger wake-on-connect [optional]. |
+| `capture-sidecar/` | Go | Network packet capture sidecar [optional], opt-in per server, admin-only. |
+| `tunnel/` | Go | Relay supervisor pod managing third-party tunnels (`frp`, `Tailscale`, `playit`) [optional]. |
 | `web/` | TS + React | Modern dashboard UI built with Vite, TanStack Query, xterm.js, and Monaco Editor. |
 | `modules/` | YAML | 16 pre-packaged game templates (Minecraft, Valheim, Terraria, Rust, etc.) as OCI bundles. |
 | `charts/` | Helm | Official Helm deployment chart for operator, API gateway, ingress, and helper services. |
@@ -117,9 +117,9 @@ Gameplane integrates with **10 mod registries**: Modrinth, CurseForge, Thunderst
 | `gameaction/` | Go | Security guard and command renderer for custom module admin actions. |
 | `netguard/` | Go | SSRF protection layer for outgoing mod downloads and OCI module fetches. |
 | `svcutil/` | Go | Shared HTTP server lifecycle and environment configuration utilities. |
-| `audit-syslog-bridge/` | Go | Optional HTTP-JSON to syslog relay for audit logging infrastructure. |
-| `telemetry-receiver/` | Go | Optional collector for anonymous daily usage reports. |
-| `mcp-server/` | Go | Optional strictly read-only Model Context Protocol server for AI tools. |
+| `audit-syslog-bridge/` | Go | HTTP-JSON to syslog relay [optional] for audit logging infrastructure. |
+| `telemetry-receiver/` | Go | Collector [optional] for anonymous daily usage reports. |
+| `mcp-server/` | Go | Strictly read-only Model Context Protocol server [optional] for AI tools. |
 
 ### Custom Resource Definitions (CRDs)
 
@@ -192,7 +192,7 @@ cosign verify --key cosign.pub \
   ghcr.io/valgulnecron/gameplane/operator:<version>
 ```
 
-Pre-rotation releases (v0.2.0-beta.7 and earlier) were signed with the retired
+Pre-rotation releases (v0.2.0-beta.7 and earlier) were signed with the retired <!-- doc-versions: historical -->
 Ed25519 key and do not have transparency log entries — verify them with
 `cosign-legacy.pub` and `--insecure-ignore-tlog=true`. See
 [`docs/key-rotation.md`](docs/key-rotation.md) for details.
