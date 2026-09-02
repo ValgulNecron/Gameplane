@@ -1123,6 +1123,10 @@ export function buildScreenshotHandlers() {
 
     // WebSocket: RCON Console
     ws.link(`${wsOrigin}/ws/servers/*/console*`).addEventListener("connection", ({ client }) => {
+      // Wildcard /* matches across path segments, so /console-pty also matches /console*; skip if more specific handler should handle this
+      const url = new URL(client.url);
+      if (url.pathname.endsWith("/console-pty")) return;
+
       // Send initial connection message via RCON envelope
       setTimeout(() => {
         client.send(JSON.stringify({ kind: "out", body: "[Console] Connected to RCON" }));
@@ -1163,6 +1167,10 @@ export function buildScreenshotHandlers() {
 
     // WebSocket: File Logs
     ws.link(`${wsOrigin}/ws/servers/*/logs*`).addEventListener("connection", ({ client }) => {
+      // Wildcard /* matches across path segments, so /logs/pod also matches /logs*; skip if more specific handler should handle this
+      const url = new URL(client.url);
+      if (url.pathname.endsWith("/logs/pod")) return;
+
       // Send log lines at intervals (same as pod logs for demo)
       data.logLines.forEach((line, index) => {
         setTimeout(() => {
