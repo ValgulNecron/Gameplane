@@ -14,6 +14,7 @@ visibility and discoverability. Status updates are committed to git
 | AlternativeTo | https://alternativeto.net/add-app/ | pending | pending | No blockers identified. Ready for maintainer account creation and submission. See contract for submission template. |
 | Awesome-Selfhosted | https://github.com/awesome-selfhosted/awesome-selfhosted-data/pulls | deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22] | N/A | First release 2026-06-22 (CHANGELOG.md:656); 4-month minimum requires wait until 2026-10-22. See contract for submission template. Re-evaluate on or after 2026-10-22. |
 | Awesome-Kubernetes | https://github.com/ramitsurana/awesome-kubernetes | deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release] | N/A | Eligibility metrics (25+ GitHub stars and 3+ contributors) were not verified at deferral. Per OD-6b, no pre-check task or submission attempt in this feature. See contract for eligibility criteria. |
+| GitHub About (description + topics) | https://github.com/ValgulNecron/Gameplane (repository settings) | pending | - | Draft in § GitHub Repository About; maintainer applies |
 
 ## Draft Submissions (OD-5: agents draft, maintainer submits)
 
@@ -23,7 +24,7 @@ visibility and discoverability. Status updates are committed to git
 
 Use the form at https://alternativeto.net/add-app/ and populate fields with:
 
-```
+```text
 Platforms:         Kubernetes (1.28+)
 License Type:      Open Source (AGPL-3.0-or-later)
 Description:       Kubernetes-native game server control panel. 
@@ -78,6 +79,26 @@ Add under appropriate category (Infrastructure & Container Orchestration, Kubern
   and OCI bundle game templates. Self-hosted, runs on k3s homelab to production. 
   AGPL-3.0 open source. [BETA: v0.2.0-beta.8, feature-complete for v1 scope]
 ```
+
+## GitHub Repository About (maintainer applies)
+
+The repository's About box (description + topics) is set by the maintainer in the GitHub UI (repository settings ⚙ next to About); agents cannot set it. Drafted 2026-09-02.
+
+**Description (≤ 350 characters):**
+
+```text
+Kubernetes-native game server control panel. Idle auto-sleep with wake-on-connect, restic backups, OIDC + RBAC, OCI game templates, relay tunnels. Open-source (AGPL-3.0) alternative to CubeCoders AMP and Pterodactyl that runs the same way on a k3s homelab and a multi-node cluster. Beta.
+```
+
+**Website:** https://valgulnecron.github.io/gameplane-website/
+
+**Topics (max 20):**
+
+```text
+kubernetes, game-server, game-server-management, control-panel, self-hosted, homelab, k3s, helm, kubernetes-operator, minecraft, valheim, terraria, pterodactyl-alternative, amp-alternative, golang, react
+```
+
+Status: drafted 2026-09-02 — pending (maintainer applies in the GitHub UI).
 
 ## Status Vocabulary
 
