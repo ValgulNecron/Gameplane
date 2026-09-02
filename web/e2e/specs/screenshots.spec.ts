@@ -27,8 +27,18 @@ test.describe("@screenshots dashboard gallery", () => {
     });
   }
 
-  // Helper to login as admin
+  // Mock mode answers /users/me with the admin user whenever the
+  // e2e_force_401 cookie is absent, so a bare visit to /login redirects to
+  // the dashboard before the form can be filled. Land on /login with the
+  // cookie set, drop it, then submit the form so the SPA runs its real
+  // post-login navigation (and receives the CSRF cookie).
   async function loginAsAdmin(page: Page): Promise<void> {
+    await page.context().addCookies([
+      { name: "e2e_force_401", value: "1", url: "http://localhost:5173" },
+    ]);
+    await page.goto("/login");
+    await expect(page.getByRole("textbox", { name: /email or username/i })).toBeVisible({ timeout: 10_000 });
+    await page.context().clearCookies();
     const login = new LoginPage(page);
     const username =
       process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
