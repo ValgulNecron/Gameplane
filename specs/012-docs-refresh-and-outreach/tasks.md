@@ -158,7 +158,7 @@
 
 ### Screenshot Capture Execution for User Story 4
 
-- [X] T037 [US4] Capture screenshots by dispatching CI workflow: (a) dispatch screenshot-refresh.yaml on feature branch 012-docs-refresh-and-outreach using GitHub web UI or `gh workflow run screenshot-refresh.yaml --ref 012-docs-refresh-and-outreach`; (b) wait for workflow to complete (watch with `gh run watch`); (c) review the opened PR (e.g., chore/screenshot-refresh-*); (d) merge the PR back into feature branch `012-docs-refresh-and-outreach` using `gh pr merge <pr-number> -m` (merge, not squash, to preserve commit messages); (e) pull latest in local branch: `git pull origin 012-docs-refresh-and-outreach`; (f) confirm docs/img/*.jpg are present at 1920×1080 JPEG (verify using `file` and `identify` per quickstart.md Scenario 6); OD-15 (ruled 2026-09-02): agents never run Playwright locally; if the dispatch path is blocked (secret missing, workflow not yet on the branch) stop and report to the maintainer; there is no local fallback; satisfies OD-3c, OD-3b, SC-009, SC-010 — 2026-09-02: captured by screenshot-refresh.yaml run 4 (commit cf4a1c30); bot PR #341 merged into the feature branch (f64333d9); 12 JPEGs at 1920×1080 confirmed with file(1)
+- [X] T037 [US4] Capture screenshots by dispatching CI workflow: (a) dispatch screenshot-refresh.yaml on feature branch 012-docs-refresh-and-outreach using GitHub web UI or `gh workflow run screenshot-refresh.yaml --ref 012-docs-refresh-and-outreach`; (b) wait for workflow to complete (watch with `gh run watch`); (c) review the opened PR (e.g., chore/screenshot-refresh-*); (d) merge the PR back into feature branch `012-docs-refresh-and-outreach` using `gh pr merge <pr-number> -m` (merge, not squash, to preserve commit messages); (e) pull latest in local branch: `git pull origin 012-docs-refresh-and-outreach`; (f) confirm docs/img/*.jpg are present at 1920×1080 JPEG (verify using `file` and `identify` per quickstart.md Scenario 6); OD-15 (ruled 2026-09-02): agents never run Playwright locally; if the dispatch path is blocked (secret missing, workflow not yet on the branch) stop and report to the maintainer; there is no local fallback; satisfies OD-3c, OD-3b, SC-009, SC-010 — 2026-09-02: run 4 (push cf4a1c30) → PR #341 merged as f64333d9; run 5 (f1dc2199, enriched dataset) → PR #342 merged as 655afa37; run 6 via workflow_dispatch (9b3ec229, the OD-15 path) → PR #343 merged as 6ffa851a; 12 JPEGs at 1920×1080 confirmed with file(1); temporary branch trigger removed in b6ca8265
 
 ### README Gallery Update for User Story 4
 
@@ -166,7 +166,7 @@
 
 ### Verification for User Story 4
 
-- [ ] T039 [US4] Verify screenshot completeness (SC-009, SC-010, SC-011, OD-3a): (a) run `file docs/img/*.jpg` and `identify docs/img/*.jpg` (read-only) to verify 11+ images at 1920×1080 JPEG format (existing six refreshed filenames present, 5+ new filenames present); (b) count image references in README.md gallery (>= 11); (c) grep README.md gallery for forbidden patterns per contract (real hostnames, real IPs, version strings outside code blocks); verify zero matches; (d) read alt text for each image; verify each describes purpose and key UI elements, no "mock"/"mocked" wording per OD-3d; (e) run quickstart.md Scenario 6 screenshot checklist; (f) open PR for peer/maintainer visual review and confirm UI matches current web/ codebase (code-review level: spot-check, not exhaustive); any substitutions (if a screenshot cannot be captured and a fallback is used) must be logged in audit-log.md per Substitution Rule; satisfies contracts/screenshot-set.md Verification Checklist, SC-009, SC-010, SC-011
+- [X] T039 [US4] Verify screenshot completeness (SC-009, SC-010, SC-011, OD-3a): (a) run `file docs/img/*.jpg` and `identify docs/img/*.jpg` (read-only) to verify 11+ images at 1920×1080 JPEG format (existing six refreshed filenames present, 5+ new filenames present); (b) count image references in README.md gallery (>= 11); (c) grep README.md gallery for forbidden patterns per contract (real hostnames, real IPs, version strings outside code blocks); verify zero matches; (d) read alt text for each image; verify each describes purpose and key UI elements, no "mock"/"mocked" wording per OD-3d; (e) run quickstart.md Scenario 6 screenshot checklist; (f) open PR for peer/maintainer visual review and confirm UI matches current web/ codebase (code-review level: spot-check, not exhaustive); any substitutions (if a screenshot cannot be captured and a fallback is used) must be logged in audit-log.md per Substitution Rule; satisfies contracts/screenshot-set.md Verification Checklist, SC-009, SC-010, SC-011 — 2026-09-02: (a) 12 files, all 1920×1080 JPEG, largest 127 KB (server-detail-logs.jpg, captured at quality 65); (b) README gallery references 12 images; (c) no hostnames, IPs or version strings in alt text; (d) alt text reviewed per image against the captures; (e) quickstart Scenario 6 checks pass; (f) visual spot-check done by the agent, maintainer review on PR #340 pending
 
 ---
 
@@ -204,15 +204,15 @@
 
 - [X] T053 Commit CI screenshot refresh workflow (from T035): `git commit -s` with subject "ci: add tag-triggered screenshot refresh workflow", body "Add .github/workflows/screenshot-refresh.yaml triggered on version tags and workflow_dispatch to auto-capture and PR screenshots to repository per OD-3c, OD-13. Uses fine-grained PAT repository secret for PR authoring." Trailers per rule 11.
 
-- [ ] T054 Commit README gallery update (from T038): `git commit -s` with subject "docs: refresh screenshot gallery with disclosure and new images", body "Update README.md screenshot gallery with OD-3d disclosure sentence, extend table to 11+ images (6 refreshed + 5+ new) at 1920x1080 JPEG, add/verify alt text per FR-018. Remove per-image mock-mode disclosure per OD-3d." Trailers per rule 11. — **blocked on T038**: no matching commit exists on the branch (verified against `git log e434bcae..HEAD`); T038 (README gallery update) has not been done, so there is nothing to commit yet.
+- [X] T054 Commit README gallery update (from T038): `git commit -s` with subject "docs: refresh screenshot gallery with disclosure and new images", body "Update README.md screenshot gallery with OD-3d disclosure sentence, extend table to 11+ images (6 refreshed + 5+ new) at 1920x1080 JPEG, add/verify alt text per FR-018. Remove per-image mock-mode disclosure per OD-3d." Trailers per rule 11. — done as f55078a1 (docs: rebuild the README screenshot gallery with twelve captures) plus f1dc2199 (alt-text trims); subject differs from the drafted one
 
 ### Push and Verification
 
 - [X] T055 Push feature branch to remote: `git push -u origin 012-docs-refresh-and-outreach` (creates remote branch and upstream tracking). Watch CI with `gh run watch` (or GitHub Actions MCP tools); do NOT report done while red. Confirm all lint, web-e2e-mock, actionlint, zizmor jobs pass per rule 8, Principle VI. (CI definition: `.github/workflows/ci.yaml`; new workflow: `.github/workflows/screenshot-refresh.yaml`) — (CI green on 2d61504d, run 992, 30/30 jobs)
 
-- [ ] T056 Run all eight quickstart.md scenarios as read-only verification (D6 permitted; not executing code, only validating documented workflows): (a) Scenario 1: Evaluator can read comparison table and identify 3+ key differences per Gameplane column, (b) Scenario 2: Version strings in README and docs match appVersion 0.2.0-beta.8 or marked examples, (c) Scenario 3: Internal links in README and docs resolve (run hack/check-links.sh locally read-only), (d) Scenario 4: Optional/experimental components labeled consistently ([optional] at first mention), (e) Scenario 5: No unshipped features claimed in docs (CHANGELOG Unreleased items verified or noted), (f) Scenario 6: 11+ screenshots at 1920×1080 JPEG with alt text, no real data, (g) Scenario 7: Outreach to-do list tracks three targets with terminal status, (h) Scenario 8: Audit log records all corrections with evidence. Confirm all assertions pass; record results in notes section of this tasks.md before submitting. — STATUS 2026-09-02: scenarios 1–5 and 8 verified (see Implementation notes); scenarios 6 and 7 PENDING on T037–T039 (screenshot capture) and T028 (AlternativeTo submission); T056 stays open until both pass.
+- [ ] T056 Run all eight quickstart.md scenarios as read-only verification (D6 permitted; not executing code, only validating documented workflows): (a) Scenario 1: Evaluator can read comparison table and identify 3+ key differences per Gameplane column, (b) Scenario 2: Version strings in README and docs match appVersion 0.2.0-beta.8 or marked examples, (c) Scenario 3: Internal links in README and docs resolve (run hack/check-links.sh locally read-only), (d) Scenario 4: Optional/experimental components labeled consistently ([optional] at first mention), (e) Scenario 5: No unshipped features claimed in docs (CHANGELOG Unreleased items verified or noted), (f) Scenario 6: 11+ screenshots at 1920×1080 JPEG with alt text, no real data, (g) Scenario 7: Outreach to-do list tracks three targets with terminal status, (h) Scenario 8: Audit log records all corrections with evidence. Confirm all assertions pass; record results in notes section of this tasks.md before submitting. — STATUS 2026-09-02: scenarios 1–6 and 8 verified (screenshots via CI runs 4–6, merged f64333d9/655afa37/6ffa851a; alt-text trims f1dc2199); scenario 7 PENDING on T028 (AlternativeTo submission); T056 stays open until T028 lands.
 
-- [ ] T057 Walk every contract "Done When" checklist: (a) contracts/comparison-table.md § 11, (b) contracts/docs-audit.md § "Done When", (c) contracts/screenshot-set.md Verification Checklist, (d) contracts/outreach-todo.md § "Done When" per SC-012–SC-014. Confirm all acceptance criteria met. — STATUS 2026-09-02: checklists for the documentation audit, comparison table and outreach tracking verified; the screenshot checklist (SC-009–SC-011) and the AlternativeTo terminal state (SC-014) remain open, so T057 stays open until T038/T039 and T028 land.
+- [ ] T057 Walk every contract "Done When" checklist: (a) contracts/comparison-table.md § 11, (b) contracts/docs-audit.md § "Done When", (c) contracts/screenshot-set.md Verification Checklist, (d) contracts/outreach-todo.md § "Done When" per SC-012–SC-014. Confirm all acceptance criteria met. — STATUS 2026-09-02: checklists for the documentation audit, comparison table, screenshot verification, and outreach tracking verified; only the AlternativeTo terminal state (SC-014) remains open, so T057 stays open until T028 (maintainer submission) lands.
 
 - [X] T058 Produce SC status table for final report: Create summary table in notes section: | SC-001 through SC-014 | Status: PASS/FAIL | Evidence | per spec.md § Success Criteria. All 14 success criteria must PASS before feature 012 completion.
 
@@ -441,29 +441,28 @@ All commits signed and conform to rule 11 (conventional-commit prefixes, `Co-Aut
 | T051 | test: add opt-in screenshot data set and Playwright screenshot run |
 | T052 | test: add Playwright mock-mode dashboard screenshot capture spec |
 | T053 | ci: add tag-triggered screenshot refresh workflow |
-| T054 | **Not done**: no matching commit exists on the branch; T038 (README gallery update) is not complete, so there is nothing to commit yet |
+| T054 | docs: rebuild the README screenshot gallery with twelve captures (f55078a1; alt-text trims f1dc2199) |
 
 **PR Status**
 
 - **PR #340** opened on branch `012-docs-refresh-and-outreach` against `master`, flipped to ready for review
 - **Labels applied** (rule 14): `type: docs`, `type: ci`, `area: shared`, `area: web`, `area: specs`
-- **CI status**: Green on 2d61504d (run 992, all 30/30 jobs passed); lint, link-check, version-check, web-e2e-mock, actionlint, zizmor complete. Exception: `github-advanced-security` check fails with "Model claude-opus-4.6 is not available" (GitHub outage, affects all PRs in repo; documented in PR comment)
+- **CI status**: Green on 2d61504d (run 992, all 30/30 jobs passed); lint, link-check, version-check, web-e2e-mock, actionlint, zizmor complete. Exception: `github-advanced-security` check fails with "Model claude-opus-4.6 is not available" (GitHub outage, affects all PRs in repo; documented in PR comment); later heads through 28f4496a re-run green except the GitHub-side github-advanced-security check
 
 **Open Items & Blockers**
 
 | Item | Blocker | Unblocks |
 |------|---------|----------|
-| SC-009–SC-011 (Screenshots) | `SCREENSHOT_BOT_PAT` secret not yet created (T036) | Dispatch `.github/workflows/screenshot-refresh.yaml` on feature branch → capture screenshots → merge PR back to branch → T038 gallery update → T039 verification |
 | SC-014 (AlternativeTo submission) | T028 maintainer account + submission | Update outreach.md status → commit `docs: outreach [AlternativeTo] submitted` → feature completion |
 | PR merge | Maintainer approval | Delete branch, rename specs/ folder to done_012, update contributing.md link (rule 16) |
 
 **Success Criteria Summary**
 
 - **SC-001 through SC-008**: 8/8 **PASS** (Comparison table + docs audit complete)
-- **SC-009 through SC-011**: 3/3 **PENDING** (Screenshots awaiting CI dispatch per OD-15)
+- **SC-009 through SC-011**: 3/3 **PASS** (12 screenshots captured in CI runs 4–6, gallery rebuilt, alt text verified)
 - **SC-012, SC-013**: 2/2 **PASS** (Outreach tracking infrastructure setup)
 - **SC-014**: **PENDING** (AlternativeTo status stays `pending`, a non-terminal state, until T028 submission)
-- **Total**: 10/14 PASS, 4/14 PENDING (no FAILs)
+- **Total**: 13/14 PASS, 1/14 PENDING (no FAILs)
 
 **Verification Summary**
 
@@ -532,9 +531,9 @@ Per quickstart.md, eight scenarios validate feature completion. All must PASS be
 | SC-006 | PASS | All internal doc links resolve (hack/check-links.sh: exit 0); 147 corrections logged with evidence |
 | SC-007 | PASS | Optional/experimental components consistently labeled at first mention across 17 audited files |
 | SC-008 | PASS | Audit log records all corrections with evidence; 0 version mismatches, 0 broken links, 0 label inconsistencies |
-| SC-009 | PENDING | Six refreshed screenshots at 1920×1080 JPEG awaiting CI workflow_dispatch; spec/workflow/factories ready (OD-15) |
-| SC-010 | PENDING | ≥5 new screenshots with alt text awaiting CI dispatch; spec/factories configured per OD-3b |
-| SC-011 | PENDING | Screenshot spec and factories verified for no real user data, hostnames, IPs, cluster names per FR-019 |
+| SC-009 | PASS | Six refreshed screenshots retaken at 1920×1080 JPEG by screenshot-refresh.yaml (runs 4–6, merged f64333d9/655afa37/6ffa851a) |
+| SC-010 | PASS | Six new screenshots (login, create-server wizard, events, admin general, cluster, logs) with one-sentence alt text in the README gallery (f55078a1) |
+| SC-011 | PASS | Fixture-source scan and per-image review: only *.gameplane-demo.local hosts, no IPs, no real users, no cluster names (FR-019) |
 | SC-012 | PASS | Outreach.md created and committed in specs/012-docs-refresh-and-outreach/ per T026 |
 | SC-013 | PASS | Outreach.md linked from docs/contributing.md per T027 |
 | SC-014 | PENDING | Three targets tracked: AlternativeTo (pending per T026), Awesome-Selfhosted (deferred per OD-6a), Awesome-Kubernetes (deferred per OD-6b); AlternativeTo's `pending` status is not a terminal state per the SC-014 state machine, so SC-014 is not met until T028 (maintainer submission) lands |
