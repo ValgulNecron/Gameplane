@@ -2,7 +2,7 @@
 # Devcontainer post-create bootstrap for Gameplane.
 #
 # Installs the extra tooling the Makefile expects but the devcontainer
-# features don't provide (kind, oras, golangci-lint), pre-fetches Go
+# features don't provide (kind, oras, golangci-lint, uv, specify), pre-fetches Go
 # modules + envtest assets, and installs the web npm deps so the first
 # `make test` / `make web-dev` run is fast.
 #
@@ -16,6 +16,11 @@ ARCH="$(dpkg --print-architecture)"   # amd64 | arm64
 GOBIN_DIR="$(go env GOPATH)/bin"
 mkdir -p "$GOBIN_DIR"
 case ":$PATH:" in *":$GOBIN_DIR:"*) ;; *) export PATH="$GOBIN_DIR:$PATH" ;; esac
+
+# Ensure $HOME/.local/bin is on PATH for uv/specify.
+LOCAL_BIN_DIR="$HOME/.local/bin"
+mkdir -p "$LOCAL_BIN_DIR"
+case ":$PATH:" in *":$LOCAL_BIN_DIR:"*) ;; *) export PATH="$LOCAL_BIN_DIR:$PATH" ;; esac
 
 # ---------- submodules (modules/ lives in the gameplane-module repo) ----------
 # The game-module bundles are a git submodule at modules/; init them so
@@ -55,10 +60,10 @@ GOLANGCI_BIN="/go/bin/golangci-lint"
 if ! "$GOLANGCI_BIN" --version 2>/dev/null | grep -qE 'version v?2\.'; then
 	log "installing golangci-lint ${GOLANGCI_VERSION}"
 	GOBIN=/go/bin go install \
-		"github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_VERSION}"
+		"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_VERSION}"
 fi
 
-# ---------- envtest assets (K8s 1.31; pulled lazily by the Makefile but
+# ---------- envtest assets (K8s 1.36.2; pulled lazily by the Makefile but
 # we warm the cache here so the first `make test-integration` doesn't
 # need network) ----------
 if [ ! -x "$GOBIN_DIR/setup-envtest" ]; then
@@ -69,7 +74,9 @@ log "fetching envtest binaries for K8s 1.36.2"
 "$GOBIN_DIR/setup-envtest" use 1.36.2 >/dev/null
 
 # ---------- Go module cache warmup ----------
-for m in operator api agent test/e2e; do
+# Go modules from go.work. Derived from 'use' entries in go.work.
+# Keep in sync with go.work when adding/removing modules.
+for m in agent api audit-syslog-bridge capture-sidecar gameaction gameproto mcp-server netguard operator sentinel svcutil telemetry-receiver test/e2e tunnel; do
 	log "go mod download ($m)"
 	( cd "$m" && go mod download )
 done
@@ -77,6 +84,19 @@ done
 # ---------- Web deps ----------
 log "npm ci (web)"
 ( cd web && npm ci )
+
+# ---------- uv (Python package installer for spec-kit) ----------
+if ! command -v uv >/dev/null 2>&1; then
+	log "installing uv"
+	curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+
+# ---------- specify (spec-kit CLI for GitHub specs) ----------
+SPECKIT_VERSION="v1.0.3"
+if ! command -v specify >/dev/null 2>&1; then
+	log "installing specify (spec-kit) ${SPECKIT_VERSION}"
+	uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@${SPECKIT_VERSION}"
+fi
 
 # ---------- AI coding CLIs ----------
 # Installed globally so every shell has `claude`, `opencode`, `gemini`, and
@@ -106,6 +126,8 @@ log "tool versions"
 	kind version
 	oras version | head -1
 	golangci-lint --version | head -1
+	uv --version
+	specify --version
 	echo "claude $(claude --version 2>/dev/null || echo '(installed; log in at runtime)')"
 	echo "opencode $(opencode --version 2>/dev/null || echo '(installed; log in at runtime)')"
 	echo "gemini $(gemini --version 2>/dev/null || echo '(installed; log in at runtime)')"
