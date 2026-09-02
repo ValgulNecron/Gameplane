@@ -1,6 +1,9 @@
 # Comparison Table Sources
 
-This file documents the sources and verification dates for every claim in the README comparison table. Each product has a section below. Entries are organized by row (dimension a–i) and include the source URL, date checked, and what was verified.
+This file documents the sources and verification dates for every claim in the
+README comparison table. Each product has a section below. Entries are organized
+by row (dimension a–i) and include the source URL, date checked, and what was
+verified.
 
 **Last Updated**: 2026-09-02
 
@@ -9,88 +12,88 @@ This file documents the sources and verification dates for every claim in the RE
 ## Gameplane
 
 **License**: GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)  
-**Documentation Root**: https://valgulnecron.github.io/gameplane-website/  
+**Documentation Root**: https://github.com/ValgulNecron/Gameplane/tree/master/docs  
 **Repository**: https://github.com/ValgulNecron/Gameplane
 
 <a id="gameplane-row-a"></a>
 ### Row (a): Deployment/runtime model
 
 **Source ID**: G-a  
-**Evidence**: operator/api/v1alpha1/cluster_types.go, operator/api/v1alpha1/gameserver_types.go, CLAUDE.md repo map  
+**Evidence**: README.md:8; operator/api/v1alpha1/gameserver_types.go:1–50  
 **Checked on**: 2026-09-02  
-**What was verified**: Gameplane uses Kubernetes CRDs (GameServer, GameTemplate, Backup, etc.) and controller-runtime operator for reconciliation. Scales from single-node k3s to multi-node clusters.  
+**What was verified**: README status line confirms project is beta; GameServer CRD types and controller-runtime operator documented in operator module with support for k3s and multi-node clusters.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane
 
 <a id="gameplane-row-b"></a>
 ### Row (b): Scaling & auto-sleep
 
 **Source ID**: G-b  
-**Evidence**: operator/api/v1alpha1/gameserver_types.go (spec.idle), operator/internal/controller/gameserver_controller.go (idle reconciliation), docs/architecture.md, sentinel/README.md  
+**Evidence**: operator/api/v1alpha1/gameserver_types.go:139, 146–160, 197–210; CLAUDE.md:368  
 **Checked on**: 2026-09-02  
-**What was verified**: GameServer CRD includes idle.enabled, idle.idleAfter, idle.wakeWindow fields. Sentinel component (optional) listens on advertised ports during idle state. Minecraft and Terraria use protocol parsing (gameproto/) for wake detection; others use packet heuristics.  
+**What was verified**: GameServer CRD specifies IdleSpec (lines 139, 146–160) with configurable sleep windows, manual wake button, and WakeOnConnect boolean flag (line 205) for sentinel-based wake on join. Minecraft/Terraria protocol support documented in sentinel and gameproto modules.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane/tree/master/operator/api/v1alpha1
 
 <a id="gameplane-row-c"></a>
 ### Row (c): Inbound connectivity (NAT traversal, relay)
 
 **Source ID**: G-c  
-**Evidence**: tunnel/ module (relay supervisor), docs/tunnels.md, charts/gameplane/values.yaml (tunnel.enabled)  
+**Evidence**: CLAUDE.md:372; charts/gameplane/values.yaml:58  
 **Checked on**: 2026-09-02  
-**What was verified**: Tunnel component (optional) manages frp, Tailscale, playit relay clients. playit mappings are user-managed via playit.gg account. Integration is opt-in via helm values.  
+**What was verified**: Tunnel is documented in CLAUDE.md repo map as "optional relay client supervisor" configuring frp, Tailscale, playit. charts/gameplane/values.yaml line 58 shows tunnel.enabled configuration toggle.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane/tree/master/tunnel
 
 <a id="gameplane-row-d"></a>
 ### Row (d): Backup and restore
 
 **Source ID**: G-d  
-**Evidence**: operator/api/v1alpha1/backup_types.go, operator/api/v1alpha1/restore_types.go, docs/architecture.md (backup section)  
+**Evidence**: operator/api/v1alpha1/backup_types.go:22; CLAUDE.md architecture section  
 **Checked on**: 2026-09-02  
-**What was verified**: Backup CRD uses Restic snapshots stored in S3-compatible storage. BackupSchedule CRD supports cron scheduling. Restore CRD handles one-click restore operations via reconciler.  
+**What was verified**: Backup CRD type defined with support for Restic snapshots to S3-compatible storage; BackupSchedule CRD supports cron-scheduled backups; one-click restore via Restore CRD.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane/tree/master/operator/api/v1alpha1
 
 <a id="gameplane-row-e"></a>
 ### Row (e): Access control & authentication
 
 **Source ID**: G-e  
-**Evidence**: api/internal/auth/ (password.go, oidc.go), api/internal/rbac/rbac.go, docs/security.md, docs/oidc.md  
+**Evidence**: api/internal/db/migrations/003_roles.sql:39–51  
 **Checked on**: 2026-09-02  
-**What was verified**: API supports local argon2id password auth and OIDC (Keycloak, Google, GitHub tested). Built-in roles: admin, operator, viewer. Custom roles supported via role CRD and group-based OIDC mapping.  
+**What was verified**: Three built-in roles defined: admin (full access), operator (servers/backups/templates), viewer (read-only). Local argon2id authentication and OIDC support documented in api module.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane/tree/master/api/internal/auth
 
 <a id="gameplane-row-f"></a>
 ### Row (f): Game template distribution
 
 **Source ID**: G-f  
-**Evidence**: operator/api/v1alpha1/module_types.go, operator/api/v1alpha1/modulesource_types.go, docs/module-authoring.md (OCI bundle format)  
+**Evidence**: docs/module-authoring.md:277–330; CLAUDE.md repo map (modules section)  
 **Checked on**: 2026-09-02  
-**What was verified**: ModuleSource CRD supports git, http, oci, local, upload sources. Modules are OCI bundles with optional cosign signature verification. 16 templates shipped: minecraft-java, minecraft-vanilla, valheim, terraria, rust, palworld, and 10 others.  
+**What was verified**: OCI bundles via ModuleSource CRD supporting git/http/oci/local/upload sources; cosign signature verification documented at lines 277–330; 16 ready-to-use templates in gameplane-module repository.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane/tree/master/modules
 
 <a id="gameplane-row-g"></a>
 ### Row (g): Multi-tenancy & multi-cluster
 
 **Source ID**: G-g  
-**Evidence**: operator/api/v1alpha1/cluster_types.go (Cluster CRD), docs/architecture.md (multi-cluster section), api/internal/handlers/cluster.go (cluster reconciliation), README.md:35  
+**Evidence**: operator/api/v1alpha1/cluster_types.go:8; docs/architecture.md  
 **Checked on**: 2026-09-02  
-**What was verified**: Cluster CRD allows remote cluster registration and monitoring from a central dashboard. WebSocket console/log streaming is scoped to the local control-plane cluster only (not proxied across cluster boundaries).  
+**What was verified**: Cluster CRD for remote cluster registration/monitoring; console and log streaming documented as local-cluster-only due to mTLS and architecture constraints.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane/tree/master/operator/api/v1alpha1
 
 <a id="gameplane-row-h"></a>
 ### Row (h): Licensing
 
 **Source ID**: G-h  
-**Evidence**: LICENSE file (repo root), CLAUDE.md (Stack reference section)  
+**Evidence**: LICENSE:1  
 **Checked on**: 2026-09-02  
-**What was verified**: Repository is licensed under AGPL-3.0-or-later (Affero GPL v3). All source code and derivatives must be open-source and share improvements.  
+**What was verified**: LICENSE file header confirms GNU AFFERO GENERAL PUBLIC LICENSE, Version 3.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane/blob/master/LICENSE
 
 <a id="gameplane-row-i"></a>
 ### Row (i): Target operator scope (self-hosted vs. managed SaaS)
 
 **Source ID**: G-i  
-**Evidence**: README.md (project description), docs/install.md (Helm chart installation), docs/architecture.md  
+**Evidence**: README.md:42–46; CLAUDE.md:9–20 (Repo map)  
 **Checked on**: 2026-09-02  
-**What was verified**: Gameplane is self-hosted only. Runs on Kubernetes clusters (k3s, kubeadm, EKS, GKE, AKS, etc.). No managed SaaS offering is provided by the maintainers.  
+**What was verified**: README "Why Gameplane?" section states self-hosted Kubernetes deployments (k3s, kubeadm, managed services); no managed SaaS offering documented.  
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane
 
 ---
@@ -117,7 +120,8 @@ This file documents the sources and verification dates for every claim in the RE
 **URL**: https://pterodactyl.io/community/config/nodes/add_node.html; https://pterodactyl.io/community/tutorials/artisan.html  
 **Checked on**: 2026-09-02  
 **What was verified**: Node documentation shows Pterodactyl supports multiple nodes with configurable total memory/disk and overallocation percentages. Artisan CLI includes `p:server:bulk-power` command for start/stop/kill/restart across servers/nodes. Search results describe cron-based scheduling for power actions and automatic restarts, but no dedicated idle/auto-sleep feature is documented. Schedules fire tasks at defined cron intervals.  
-**Last-known URL**: https://pterodactyl.io/panel/1.0/ (panel docs entry)
+**Last-known URL**: https://pterodactyl.io/panel/1.0/ (panel docs entry)  
+**Hunt**: Attempted https://pterodactyl.io/panel/1.0/scaling.html (returned 404 on 2026-09-02); scaling information sourced from node management and architecture docs.
 
 <a id="pterodactyl-row-c"></a>
 ### Row (c): Inbound connectivity (NAT traversal, relay)
@@ -144,7 +148,8 @@ This file documents the sources and verification dates for every claim in the RE
 **URL**: https://pterodactyl.io/panel/1.0/additional_configuration.html; https://pterodactyl.io/community/tutorials/artisan.html  
 **Checked on**: 2026-09-02  
 **What was verified**: Panel documentation shows 2FA toggle to require 2FA for all accounts or admin-only; can be disabled via Artisan CLI (`p:user:disable2fa`). APP_KEY is used as encryption key for API keys and other secure data. Artisan CLI includes user creation and deletion commands. Subusers are referenced in search results but no dedicated permissions documentation page was located on pterodactyl.io. Custom roles or granular permission system not documented.  
-**Last-known URL**: https://pterodactyl.io/panel/1.0/ (panel docs root)
+**Last-known URL**: https://pterodactyl.io/panel/1.0/ (panel docs root)  
+**Hunt**: Searches for "Pterodactyl subusers permissions" and "Pterodactyl 2FA API keys" did not return dedicated authentication documentation pages; user management via Artisan CLI is documented; panel UI permission features not explicitly detailed.
 
 <a id="pterodactyl-row-f"></a>
 ### Row (f): Game template distribution
@@ -162,7 +167,8 @@ This file documents the sources and verification dates for every claim in the RE
 **URL**: https://pterodactyl.io/community/config/nodes/add_node.html; https://pterodactyl.io/project/terms.html  
 **Checked on**: 2026-09-02  
 **What was verified**: Terminology defines Node as "physical machine running Wings instance"; Servers are "created on nodes, you can have multiple servers per node." Node configuration guide shows adding nodes to a Panel through admin interface with FQDN, daemon port, resource allocation. Documentation describes single Panel managing multiple nodes but does not document remote cluster functionality or cross-node console/log streaming. Architecture suggests single-panel, multi-node within one administrative domain.  
-**Last-known URL**: https://pterodactyl.io/panel/1.0/ (panel docs root)
+**Last-known URL**: https://pterodactyl.io/panel/1.0/ (panel docs root)  
+**Hunt**: Attempted https://pterodactyl.io/panel/1.0/architecture.html (returned 404 on 2026-09-02); multi-node information available from node management and terminology docs.
 
 <a id="pterodactyl-row-h"></a>
 ### Row (h): Licensing
@@ -186,7 +192,7 @@ This file documents the sources and verification dates for every claim in the RE
 
 ## CubeCoders AMP
 
-**License**: Proprietary (subscription-based)  
+**License**: Proprietary; per-instance tiers (Standard/Professional/Advanced/Enterprise)  
 **Documentation Root**: https://discourse.cubecoders.com/  
 **Repository**: Proprietary/unavailable
 
@@ -212,9 +218,9 @@ This file documents the sources and verification dates for every claim in the RE
 ### Row (c): Inbound connectivity (NAT traversal, relay)
 
 **Source ID**: C-c  
-**URL**: https://discourse.cubecoders.com/t/port-forwarding/27899, https://discourse.cubecoders.com/t/how-to-connect-to-amp-remotely/3731  
+**URL**: https://discourse.cubecoders.com/t/port-forwarding/27899; https://discourse.cubecoders.com/t/how-to-connect-to-amp-remotely/3731  
 **Checked on**: 2026-09-02  
-**What was verified**: CubeCoders support forums contain discussions of manual port forwarding and remote connectivity setup. No official documentation found stating whether AMP includes built-in relay tunnels, NAT traversal, or automatic port mapping features. Support threads indicate users manually configure port forwarding.  
+**What was verified**: not publicly documented (checked 2026-09-02). Support forums contain discussions of manual port forwarding and remote connectivity setup; no official documentation found stating whether AMP includes built-in relay tunnels or automatic port mapping features.  
 **Last-known URL**: https://www.cubecoders.com/AMP
 
 <a id="cubecoders-row-d"></a>
@@ -223,7 +229,7 @@ This file documents the sources and verification dates for every claim in the RE
 **Source ID**: C-d  
 **URL**: https://discourse.cubecoders.com/t/how-do-i-do-a-backup-and-restore-with-amp/11937  
 **Checked on**: 2026-09-02  
-**What was verified**: CubeCoders support forum documents "how do I do a backup and restore with AMP" (topic 11937) and discussion of restoring backups across different server configurations (topic 2865). Official support confirms backup/restore is a core feature.  
+**What was verified**: not publicly documented (checked 2026-09-02). Discourse topic 11937 ("how do I do a backup and restore with AMP") is a user question that received no staff reply and auto-closed 30 days after posting ("This topic was automatically closed 30 days after the last reply. New replies are no longer allowed."); topic 2865 discusses restoring backups across server configurations but is likewise not an official CubeCoders statement. Per the user-question-thread sourcing rule, this falls back to the standard "not publicly documented" text — no official documentation confirms backup/restore as a supported feature.  
 **Last-known URL**: https://www.cubecoders.com/AMP
 
 <a id="cubecoders-row-e"></a>
@@ -241,7 +247,7 @@ This file documents the sources and verification dates for every claim in the RE
 **Source ID**: C-f  
 **URL**: https://discourse.cubecoders.com/t/server-templates/4109, https://discourse.cubecoders.com/t/export-amp-template/23661  
 **Checked on**: 2026-09-02  
-**What was verified**: Support forum discussions confirm AMP has server templates for dozens of games. Examples include Rust, Minecraft, Arma Reforger, Satisfactory, Assetto Corsa. Templates are exportable and customizable; API supports ApplyTemplate calls for instance redeployment.  
+**What was verified**: Support forum discussions confirm AMP has server templates for dozens of games (Rust, Minecraft, Arma Reforger, Satisfactory, Assetto Corsa, and others) built on a Generic module framework. CubeCoders staff (Greelan, topic 23661) state that built-in modules such as the default Rust module are "closed source" with "no 'template'" to export; Greelan separately maintains an open-source, Carbon-enabled Rust template in a public repository (`Greelan/AMPTemplates:dev`) that users can add through AMP's configuration system. Built-in templates are therefore not exportable — only separately hosted, community-contributed templates are.  
 **Last-known URL**: https://www.cubecoders.com/AMP
 
 <a id="cubecoders-row-g"></a>
@@ -250,16 +256,16 @@ This file documents the sources and verification dates for every claim in the RE
 **Source ID**: C-g  
 **URL**: https://discourse.cubecoders.com/t/multi-tenant-hosting-per-user-instance-limits-resource-quotas-in-amp/40891, https://discourse.cubecoders.com/t/multiple-worker-amp-servers/12437  
 **Checked on**: 2026-09-02  
-**What was verified**: Support forum (June 2026) documents multi-tenant use case where users create and manage their own instances with role-based visibility (cannot see others' instances). Controller architecture supports instances on separate physical servers. No mention of cross-cluster console/log streaming found.  
+**What was verified**: CubeCoders staff (Mike, discourse topic 40891, June 2026) explicitly state: "AMP 2 doesn't support the kind of multi-tenancy you describe, that is something that's coming to AMP 3." Controller architecture supports managing instances across separate physical servers (topic 12437), but per-user instance visibility/isolation is not a built-in AMP 2 capability — shared-usage deployments are described as typically relying on external billing/access providers (e.g. WHMCS) rather than a native multi-tenancy feature. No mention of cross-cluster console/log streaming found.  
 **Last-known URL**: https://www.cubecoders.com/AMP
 
 <a id="cubecoders-row-h"></a>
 ### Row (h): Licensing
 
 **Source ID**: C-h  
-**URL**: https://discourse.cubecoders.com/t/editions-comparison-sheet/2247, https://cubecoders.com/AMPTermsOfSale  
+**URL**: https://discourse.cubecoders.com/t/editions-comparison-sheet/2247  
 **Checked on**: 2026-09-02  
-**What was verified**: Official editions comparison topic confirms pricing in GBP and USD for four tiers with corresponding instance limits. Terms of Sale page indicates subscription-based licensing model (unless perpetual license purchased). Licenses issued per-instance with subscription requirement to continue use.  
+**What was verified**: Official editions comparison topic (2247) confirms pricing in GBP and USD for four tiers (Standard/Professional/Advanced/Enterprise) with corresponding instance limits; licenses are issued per-instance. https://cubecoders.com/AMPTermsOfSale was independently re-fetched on 2026-09-02 and renders no text content (JS-only page; shows only "CubeCoders" and "Loading..."), so it cannot serve as a source per the licensing-cell sourcing rule — the word "subscription" is not asserted anywhere in this row.  
 **Last-known URL**: https://www.cubecoders.com/
 
 <a id="cubecoders-row-i"></a>
