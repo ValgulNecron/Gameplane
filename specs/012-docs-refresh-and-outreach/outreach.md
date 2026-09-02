@@ -14,7 +14,7 @@ visibility and discoverability. Status updates are committed to git
 | AlternativeTo | https://alternativeto.net/add-app/ | pending | pending | No blockers identified. Ready for maintainer account creation and submission. See contract for submission template. |
 | Awesome-Selfhosted | https://github.com/awesome-selfhosted/awesome-selfhosted-data/pulls | deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22] | N/A | First release 2026-06-22 (CHANGELOG.md:656); 4-month minimum requires wait until 2026-10-22. See contract for submission template. Re-evaluate on or after 2026-10-22. |
 | Awesome-Kubernetes | https://github.com/ramitsurana/awesome-kubernetes | deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release] | N/A | Eligibility metrics (25+ GitHub stars and 3+ contributors) were not verified at deferral. Per OD-6b, no pre-check task or submission attempt in this feature. See contract for eligibility criteria. |
-| GitHub About (description + topics) | https://github.com/ValgulNecron/Gameplane (repository settings) | pending | pending | Draft in § GitHub Repository About; maintainer applies |
+| GitHub About (description + topics) | https://github.com/ValgulNecron/Gameplane (repository settings) | submitted [2026-09-02] | 2026-09-02 — https://github.com/ValgulNecron/Gameplane (About box) | Description applied by the maintainer 2026-09-02 (as AGPL-3.0; draft now says AGPL-3.0-or-later — optional follow-up); topics not verified |
 
 ## Draft Submissions (OD-5: agents draft, maintainer submits)
 
@@ -98,7 +98,7 @@ Kubernetes-native game server control panel. Idle auto-sleep with wake-on-connec
 kubernetes, game-server, game-server-management, control-panel, self-hosted, homelab, k3s, helm, kubernetes-operator, minecraft, valheim, terraria, pterodactyl-alternative, amp-alternative, golang, react
 ```
 
-Status: drafted 2026-09-02 — pending (maintainer applies in the GitHub UI).
+Status: description applied by the maintainer 2026-09-02 (verified via repository metadata); topics unverified; the applied text reads AGPL-3.0 where this draft now says AGPL-3.0-or-later.
 
 ## Status Vocabulary
 
