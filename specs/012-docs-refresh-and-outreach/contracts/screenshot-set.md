@@ -43,7 +43,7 @@ At least five new JPEG files must be added to `docs/img/`, capturing currently u
 | **1** | `login.jpg` | `/login` | `LoginPage` | Authentication entry point; pre-auth surface with no metrics/hostnames (verified CLAUDE.md rule 3 compliance at Login.tsx:19-21) | Sign-in form with local username/password field and SSO provider buttons ("Continue with…"), brand logo, and marketing pitch sidebar describing Gameplane's features | None; login form is static UI. SSO provider button labels are mocked to generic names (e.g., "GitHub", "Keycloak") without issuer URLs |
 | **2** | `create-server-template-select.jpg` | `/servers/new` (template selection step) | `CreateServerWizard` template step | Game selection in multi-step create workflow; shows available GameTemplates (Minecraft, Valheim, Terraria, Rust, Palworld, Factorio, CS2, ARK) with icons and descriptions | Game template grid in Create Server wizard: card grid showing game icons, titles (Minecraft Java Edition, Valheim, Terraria, etc.), brief descriptions, and "Select" button per template | 8+ `GameTemplate` resources from MSW fixtures: name, icon URL (data: URI), description. Include both "official" templates and an "example user-uploaded" template to show extensibility |
 | **3** | `server-detail-events.jpg` | `/servers/$name?tab=events` | `ServerDetail` Events tab | Kubernetes event timeline for diagnostics; shows scheduling, image pulls, crashes, readiness transitions | Events tab timeline: shows Kubernetes events with reason (ImagePull, Scheduling, Ready), message (brief status), timestamp, and event type indicator; demonstrates failure diagnostics for a previously-failed server |  `GameServer` resource in Pending/Failed phase with `status.conditions` (Progressing=False, Ready=False). Kubernetes events list: mix of normal events (Scheduled, PullImage, Created) and warning events (ImagePullBackOff, CrashLoopBackOff) with realistic timestamps |
-| **4** | `admin-settings-general.jpg` | `/admin?section=general` | `AdminSettings` General section | Instance identity configuration; external URL (used for OIDC callbacks), cluster namespace defaults | Admin Settings General section: form fields for Instance Name ("My Gameplane Cluster"), External URL ("https://gameplane.example.com"), Default Namespace dropdown; visible sidebar navigation showing all 9 settings sections | Instance config from MSW handler: `{ instanceName: "My Gameplane Cluster", externalUrl: "https://gameplane.example.com", defaultNamespace: "default" }`. Namespace dropdown with options: "default", "gameplane-production", "test-cluster" |
+| **4** | `admin-settings-general.jpg` | `/admin?section=general` | `AdminSettings` General section | Instance identity configuration; external URL (used for OIDC callbacks), cluster namespace defaults | Admin Settings General section: form fields for Instance Name ("My Gameplane Cluster"), External URL ("https://gameplane-demo.local"), Default Namespace dropdown; visible sidebar navigation showing all 9 settings sections | Instance config from MSW handler: `{ instanceName: "My Gameplane Cluster", externalUrl: "https://gameplane-demo.local", defaultNamespace: "default" }`. Namespace dropdown with options: "default", "gameplane-production", "test-cluster" |
 | **5** | `cluster-nodes.jpg` | `/cluster` | `ClusterPage` | Multi-node cluster management; shows node list with CPU/memory/storage utilization meters | Cluster page with node list: at least 3 nodes displayed, each showing uptime, CPU/memory/storage usage bars (green for available, orange/red for high usage), capacity info, and "Join Node" wizard card | 3+ `ClusterNode` resources with realistic resource metrics: CPU 40–80% utilization, memory 50–90%, storage 20–60% used; mix of "Ready" and "Provisioning" statuses to show operational variety |
 | **6** | `server-detail-logs.jpg` | `/servers/$name?tab=logs` | `ServerDetail` Logs tab | Application log streaming view; shows server stdout/stderr lines as they arrive | Logs tab with live application output: shows >20 game server log lines (e.g., world save progress for Terraria, player join notifications for Minecraft) with timestamps; demonstrates scrolling capability; footer shows "tail 100 lines" selector | Streamed log lines (mocked WebSocket in mock mode): realistic game-server output. Example format for Minecraft: `[HH:MM:SS] [main/INFO] [net.minecraft.server.MinecraftServer]: Player alice joined the game`. Example for Terraria: `[HH:MM:SS] Server started in single-player mode.` |
 
@@ -209,7 +209,7 @@ Screenshot capture uses **Playwright Mock Mode (Option A)** as of 2026-09-02 mai
 #### Implementation Steps (OD-3b: Playwright Mock Mode, Ruled 2026-09-02)
 
 1. **Create test spec** at `web/e2e/specs/screenshots.spec.ts` (exact path per OD-3b)
-2. **Test spec is run on CI** via `.github/workflows/screenshot-refresh.yaml` (workflow_dispatch); `GAMEPLANE_E2E_TARGET=mock npm run test:e2e` or a tag/grep filter (e.g., `--grep @screenshots`) to isolate from other e2e tests
+2. **Test spec is run on CI** via `.github/workflows/screenshot-refresh.yaml` (workflow_dispatch); `npm run screenshots` (sets `GAMEPLANE_SCREENSHOTS=1` environment variable; `playwright.config.ts` then greps the `@screenshots` tag to isolate from other e2e tests)
 3. **Seed MSW fixtures** with realistic data:
    - 8+ `GameTemplate` objects (Minecraft, Valheim, Terraria, Rust, Palworld, Factorio, CS2, ARK)
    - 3–5 `GameServer` resources (mix of phases: Running, Pending, Failed)
@@ -233,61 +233,7 @@ Screenshot capture uses **Playwright Mock Mode (Option A)** as of 2026-09-02 mai
 
 #### Testing & Validation
 
-Capture runs only on CI: dispatch `.github/workflows/screenshot-refresh.yaml` (workflow_dispatch) on the feature branch and merge the PR it opens (OD-15, ruled 2026-09-02; no local Playwright run per rule 8).
-
----
-
-### Option B: Playwright Live Mode (kubectl port-forward + make dev-up)
-
-**Prerequisites**: Running `make dev-up` cluster + seeded data  
-**Setup**: `GAMEPLANE_E2E_TARGET=live npm run test:e2e:live` after cluster is up  
-**Configuration**: Uses existing port-forward from `globalSetup` hook in playwright.config.ts:37–38
-
-#### How It Works
-
-1. Playwright starts a local Kubernetes cluster via `make dev-up`
-2. Port-forward to API service (e.g., `:8080`)
-3. Seeded GameServers, users, and modules are created in the cluster
-4. Dashboard connects to real API; captures render live cluster state
-5. If servers are running, Console/Logs tabs show real output; Mod registries show real catalogs
-
-#### Pros
-
-- ✅ Realistic data: Real GameServer resources, real cluster stats, real game output
-- ✅ Live streams: Console/Logs tabs show authentic server logs (if servers seeded)
-- ✅ Full registries: Mods tab shows complete registry data (if modules pushed)
-
-#### Cons
-
-- ❌ Requires infrastructure: `make dev-up` takes 2–5 minutes; GitHub Actions may not support Docker-in-Docker reliably
-- ❌ Complex setup: Must seed GameServers, modules, users, and wait for servers to reach Running phase
-- ❌ Non-reproducible: Cluster state drifts per run; timers, cron schedules, and event timing create variance
-- ❌ Flaky: If cluster provisioning fails, screenshot capture fails; no fallback
-- ❌ Resource-hungry: Kind cluster consumes 4–8 GB RAM; unsuitable for standard GitHub Actions runners
-- ❌ Timing brittle: Servers may not reach Running phase before screenshot; captures might show Pending state instead
-
-**Recommendation**: Not recommended for this project due to CI fragility and cost. Use only if Option A proves insufficient.
-
----
-
-### Option C: Manual Capture (Web Browser on make dev-up)
-
-**Prerequisites**: Running `make dev-up` cluster + seeded data (same as Option B)  
-**Method**: Web browser (Chrome/Firefox) at 1920×1080 viewport; manual navigation and screenshot tool
-
-#### Pros
-
-- ✅ Full realism (same as live mode)
-- ✅ Framing control (crop, zoom, highlight regions)
-
-#### Cons
-
-- ❌ Not reproducible (manual steps, human framing inconsistency)
-- ❌ Not automated (blocks on maintainer time)
-- ❌ Not CI-gated (no automated check that screenshots stay fresh on PR)
-- ❌ Same cluster setup burden as Option B
-
-**Recommendation**: Valid **fallback only** if Options A and B fail. Not recommended as primary method (violates automation principle from spec).
+Capture runs **only via GitHub Actions CI** (OD-15, ruled 2026-09-02). The sole capture path is the tag-triggered or workflow_dispatch screenshot-refresh workflow (`.github/workflows/screenshot-refresh.yaml`). No other capture method (local live, manual browser) is authorized. Any future capture path requires a new maintainer ruling.
 
 ---
 
@@ -410,11 +356,13 @@ Use this checklist **before merging** the screenshot commits (D-F, per constitut
 
 ### Dummy Data Compliance
 
-- [ ] Run a grep search for forbidden patterns in visible text in screenshots:
+- [ ] **Scan fixture source code** for forbidden patterns (hostnames, IPs, usernames, production labels):
   ```bash
-  grep -riE '(prod|production|customer|acme|example\.com|192\.|10\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[01]\.|\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(com|net|org|io)\b)' docs/img/
+  grep -nE "([0-9]{1,3}\.){3}[0-9]{1,3}|prod|production|@[a-z0-9-]+\.(com|net|org|io)" \
+    web/src/test/screenshotData.ts web/src/test/handlers.ts
   ```
-  (This is a heuristic; manual inspection recommended for hostnames and IPs in visible text)
+  (Scans the MSW fixture source, not rendered pixels, to catch hardcoded values in test data)
+- [ ] **Documented visual review by maintainer**: Before merging the screenshot-refresh PR, maintainer reviews all 11+ final images for visible hostnames, IPs, usernames, and "production" labels. Record the review in tasks.md notes as completed (e.g., "Visual privacy audit: all images reviewed, no real user data detected [2026-09-XX]").
 - [ ] Verify all server names follow `test-server-NN` or `demo-*` naming scheme
 - [ ] Verify all cluster names are generic (`test-cluster`, `my-cluster`, not `production`, `customer-xyz`)
 - [ ] Verify all usernames are generic (`test-user-01`, `admin-demo`, not real emails)

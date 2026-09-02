@@ -201,10 +201,10 @@ Repository:        https://github.com/ValgulNecron/Gameplane
 | Criterion | Status | Evidence (path:line) | Blocker |
 |-----------|--------|--------|---------|
 | 4+ months old | **BLOCKED** | First release 2026-06-22 (CHANGELOG.md:656); 4-month minimum means eligible from 2026-10-22. (CHANGELOG.md:656) | Hard blocker; no workaround |
-| Active development | PASS | Daily commits visible; no inactivity. (R6:70) |
-| Functional & maintained | PASS | Code compiles, CI passes, active contribution. (R6:70–72) |
-| License accepted | PASS | AGPL-3.0-or-later recognized as free software. (R6:72) |
-| Not generic container tool | PASS | Domain-specific game control panel, not generic K8s operator. (R6:73) |
+| Active development | PASS | Daily commits visible; no inactivity. (R6:70) | None |
+| Functional & maintained | PASS | Code compiles, CI passes, active contribution. (R6:70–72) | None |
+| License accepted | PASS | AGPL-3.0-or-later recognized as free software. (R6:72) | None |
+| Not generic container tool | PASS | Domain-specific game control panel, not generic K8s operator. (R6:73) | None |
 
 **Key blocker timeline** (OD-6):
 - **Earliest eligibility**: 2026-10-22 (4 months from first release 2026-06-22 per CHANGELOG.md:656)
@@ -254,8 +254,8 @@ Tags:        [Kubernetes, Game Servers, Self-Hosted, DevOps, AGPL]
 |-----------|--------|--------|---------|
 | 25+ GitHub stars | **UNKNOWN** | Not checked in R6; the project is only ~2 months old (first release 2026-06-22) with correspondingly limited time to accumulate stars/contributors, suggesting likely low counts. (R6:126–127) | **Likely blocker** |
 | 3+ contributors | **UNKNOWN** | Not checked; repository appears small. (R6:127) | **Likely blocker** |
-| Proper documentation | PASS | Comprehensive docs/, README.md, CONTRIBUTING.md, architecture.md. (R6:128) |
-| Recognized org exception | NO | Individual repo (ValgulNecron/Gameplane), not org-hosted. Exception does not apply. (R6:129) |
+| Proper documentation | PASS | Comprehensive docs/, README.md, CONTRIBUTING.md, architecture.md. (R6:128) | None |
+| Recognized org exception | NO | Individual repo (ValgulNecron/Gameplane), not org-hosted. Exception does not apply. (R6:129) | None |
 
 **Blocker assessment** (OD-6):
 - Metrics eligibility **not verified at time of deferral** (research scope did not include live GitHub metrics check).

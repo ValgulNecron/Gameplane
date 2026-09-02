@@ -102,7 +102,7 @@ All tags are sourced from D-C and CLAUDE.md. Evidence: SC-007, SC-008, R3 label 
 
 **V-CC4 (Word Count, FR-006)**: Text field MUST be ≤25 words for readability in a rendered table.
 
-**V-CC5 ("Not Applicable" Representation)**: Ruled 2026-09-02 (OD-11 option b — "Keep Agones with 'Not Applicable' cells"), if a dimension does not apply to a competitor (e.g., Agones lacks user authentication because it is a library, not a control panel), the cell MUST state exactly "not applicable (Agones is a Kubernetes operator library)" with no external source citation (no SourceReference needed). `notApplicable` boolean set to true prevents validator from requiring `sourceReference`. For CubeCoders AMP cells where a dimension is not publicly documented, use "not publicly documented (checked YYYY-MM-DD)".
+**V-CC5 ("Not Applicable" Representation)**: Ruled 2026-09-02 (OD-11 option b — "Keep Agones with 'Not Applicable' cells"), if a dimension does not apply to a competitor (e.g., Agones lacks user authentication because it is a library, not a control panel), the cell MUST state "not applicable (Agones is a Kubernetes operator library)" and MUST include a SourceReference ([A-x] anchor) documenting the "operator-library" classification in `docs/comparison-sources.md`, even though the cell text is standardized. `notApplicable` boolean set to true indicates this is a not-applicable cell, but the SourceReference still links to the operator-library explanation. For CubeCoders AMP cells where a dimension is not publicly documented, use "not publicly documented (checked YYYY-MM-DD)".
 
 ---
 
@@ -373,7 +373,7 @@ Evidence sourced from R3 findings.
 | `filename` | string | Yes | Kebab-case, .jpg extension (e.g., "login.jpg", "create-server-template-select.jpg") |
 | `route` | string | Yes | Dashboard route where image was captured (e.g., "/login", "/servers/$name?tab=events") |
 | `status` | enum | Yes | "refreshed" (existing six updated) \| "new" (added per FR-017) |
-| `altText` | string | Yes | Descriptive alt text (2–3 sentences) per FR-018; disclosure of mock-mode testing moved to gallery-intro sentence (OD-3d) |
+| `altText` | string | Yes | Descriptive alt text (one sentence) per FR-018; disclosure of mock-mode testing moved to gallery-intro sentence (OD-3d) |
 | `purpose` | string | Yes | What the screenshot demonstrates (e.g., "Authentication entry point", "Server event timeline") |
 | `dummyDataConstraints` | object | Conditional | For "new" screenshots, list allowed/forbidden data patterns per FR-019 |
 | `format` | object | Yes | JPEG, 1920×1080 per convention (ruled 2026-09-02, OD-3a); all eleven images captured at 1920×1080 (existing six are 1568×773 until recaptured); max ~100 KB |
@@ -409,7 +409,7 @@ Evidence sourced from R3 findings.
 - File size ≤100 KB (existing files range 47–74 KB; new size target ~100 KB with lossy JPEG)
 
 **V-S2 (Alt Text, FR-018, SC-010, OD-3d)**: Alt text MUST:
-- Describe the screen's purpose in 1–2 sentences
+- Describe the screen's purpose in one sentence
 - List key UI elements visible in the screenshot
 - NOT be a raw label (e.g., not just "Login page", but "Sign-in form with local username/password and OAuth provider buttons")
 - NOT mention "mock mode" or "mocked data" — disclosure of test/mock-mode testing is a single sentence above the README screenshot gallery (OD-3d), not per-image
@@ -427,10 +427,7 @@ Screenshots MAY display:
 - Mock player lists (e.g., "Player_1", "Player_2")
 - Example configurations (e.g., "My Gameplane Cluster", mock Discord webhook URLs in redacted form)
 
-**V-S4 (Capture Consistency, R4, OD-3b)**: All screenshots (refreshed + new) MUST be captured by the same method to ensure visual consistency:
-- Recommended: Playwright mock mode (MSW + Vite, no cluster required; source: web/e2e/specs/screenshots.spec.ts, OD-3b)
-- Alternative: Playwright live mode (requires running `make dev-up`)
-- Alternative: Manual capture via browser (less reproducible, acceptable as fallback)
+**V-S4 (Capture Path, R4, OD-3b, OD-15)**: All screenshots (refreshed + new) MUST be captured via GitHub Actions CI only (OD-15, ruled 2026-09-02). The sole authorized capture method is Playwright mock mode via the tag-triggered or workflow_dispatch `.github/workflows/screenshot-refresh.yaml` workflow (MSW + Vite, no cluster required; source: web/e2e/specs/screenshots.spec.ts, OD-3b). No other capture path (local live mode, manual browser capture) is authorized. Any future capture path requires a new maintainer ruling.
 
 **V-S5 (Route Validation, R4)**: Each screenshot's `route` MUST exist in web/src/router/tree.tsx and be routable by the dashboard. No screenshots of broken/unimplemented routes.
 

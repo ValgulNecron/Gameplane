@@ -260,7 +260,7 @@ This research aligns with:
 
 ## Next Steps for Implementation Phase
 
-1. Confirm all OPEN decisions with maintainer.
+1. Implementation started 2026-09-02 (/speckit-implement); all fifteen OPEN-DECISIONS entries were ruled before kickoff — see OPEN-DECISIONS.md
 2. Implement version-string audit and corrections (R1 baseline: 4 stale items across 3 files).
 3. Implement internal-link verification (R2 baseline: 2 critical path errors, 5 anchor warnings).
 4. Apply FR-012 labels to 10 missing-qualifier instances (R3 baseline).

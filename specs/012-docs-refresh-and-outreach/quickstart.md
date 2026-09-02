@@ -354,7 +354,7 @@ echo ""
 echo "=== Audit log headers ==="
 head -5 specs/012-docs-refresh-and-outreach/audit-log.md
 
-# Count audit log entries (number of data rows)
+# Count audit log entries (number of data rows, skipping header row only)
 echo ""
 echo "=== Number of findings recorded ==="
 grep "^| " specs/012-docs-refresh-and-outreach/audit-log.md | tail -n +2 | wc -l

@@ -1,6 +1,6 @@
 # Audit Log: Documentation Corrections
 
-This log records every correction made to the documentation under US2 (User Story: Refreshed Docs Content) and US4 (User Story: Comparison Table) per FR-011 / D-F. Each finding discovered during the audit phase is recorded with evidence, resolution, and the git commit where it was addressed.
+This log records every correction made to the documentation under US1 (User Story: Evaluator Comparing Alternatives—Comparison Table), US2 (User Story: New Self-Hoster Following Documentation—Refreshed Docs Content), and US4 (User Story: Evaluator Reviewing Dashboard Screenshots) per FR-011 / D-F. Each finding discovered during the audit phase is recorded with evidence, resolution, and the git commit where it was addressed.
 
 ## Corrections Made
 
@@ -107,7 +107,7 @@ This log records every correction made to the documentation under US2 (User Stor
 | docs/networking.md | 13 | broken link: `docs/install.md` (absolute docs/ prefix) should be `install.md` (relative) | read file line 13; path contains "[`docs/install.md`](docs/install.md)"; relative link from docs/ to docs/ should not include docs/ prefix | Updated link from `docs/install.md` to `install.md` | fix: correct broken documentation links and date references |
 | docs/networking.md | 194 | broken link: `docs/install.md` (absolute docs/ prefix) should be `install.md` (relative) | read file line 194; path contains "[`docs/install.md`](docs/install.md)"; relative link from docs/ to docs/ should not include docs/ prefix | Updated link from `docs/install.md` to `install.md` | fix: correct broken documentation links and date references |
 | README.md | 10 | anchor mismatch: `#beta-status--known-limitations` does not resolve to heading `## Beta Status & Limitations` | verified heading at README.md:29 is exactly "## Beta Status & Limitations" (no ampersand, space to hyphen per GitHub slug rules yields `#beta-status--limitations`) | Updated anchor from `#beta-status--known-limitations` to `#beta-status--limitations` | fix: correct broken documentation links and date references |
-| README.md | 195 | historical version reference (v0.2.0-beta.7) required historical marker per OD-14 | verified beta.7 is pre-rotation (current is beta.8); marker added inline per check-doc-versions.sh allowlist | Added ` <!-- doc-versions: historical -->` marker to line 195 | fix: update documentation version strings to v0.2.0-beta.8 |
+| README.md | 195 | historical version reference (v0.2.0-beta.7) required historical marker per OD-14 | verified beta.7 is pre-rotation (current is beta.8); marker added inline per check-doc-versions.sh allowlist | Added `<!-- doc-versions: historical -->` marker to line 195 | fix: update documentation version strings to v0.2.0-beta.8 |
 | README.md | 35 | Multi-cluster console/log streaming qualifier (FR-013) | docs/architecture.md:206-240, README.md:35 | Added [local cluster only] qualifier to clarify scope limitation | docs: apply optional/experimental labels and correct feature descriptions |
 | README.md | 110 | sentinel component missing label | values.yaml:58, CLAUDE.md:372 | Added [optional] tag to table description | docs: apply optional/experimental labels and correct feature descriptions |
 | README.md | 111 | capture-sidecar component label format | values.yaml:522, CLAUDE.md:354 | Changed "Optional" to "[optional]" bracket format in description | docs: apply optional/experimental labels and correct feature descriptions |
@@ -143,7 +143,7 @@ This log records every correction made to the documentation under US2 (User Stor
 | docs/game-coverage.md | - | audited: no registry components; game protocol coverage verified | gameproto/minecraft.go, terraria.go; test/e2e test functions exist | none | - |
 | docs/contributing.md | 76-78 | Component mentions inside code blocks (exempt per contract) | audit-syslog-bridge/telemetry-receiver/mcp-server at lines 76-78 (sh code block) | none (code-block mentions exempt from labeling per FR-012) | - |
 | hack/check-doc-versions.sh | 77-189 | Changed to continue scanning remaining files when an audited file is missing (previously exited early). Now mirrors hack/check-links.sh behavior: reports missing files but continues version-string validation. Reports all failures (missing files AND version errors) at the end. | bash -n validation passed; script run output shows 1 missing file reported, 9 stale version strings scanned across remaining files, summary displayed | Fixed: merged file validation and version processing into single loop; moved missing file reports to flow through instead of exiting early; updated reporting to handle both issue types | docs: update check-doc-versions.sh to continue on missing files |
-| web/playwright.config.ts | 17-27 | Fixed grep/grepInvert interaction: config had `grepInvert: /@screenshots/`, CLI had `--grep @screenshots`; Playwright kept both and cancelled out (selecting zero tests). Now reads `GAMEPLANE_SCREENSHOTS` env var: when set, uses `grep: /@screenshots/, grepInvert: undefined`; when unset, uses `grep: undefined, grepInvert: /@screenshots/`. Updated comment to explain env var switch. | Read config file; verified logic; updated comment (OD-3b reference maintained) | Fixed: conditional grep/grepInvert based on GAMEPLANE_SCREENSHOTS env var | web: fix playwright grep/grepInvert cancellation with env var |
+| web/playwright.config.ts | 19-40 | Fixed grep/grepInvert interaction: config had `grepInvert: /@screenshots/`, CLI had `--grep @screenshots`; Playwright kept both and cancelled out (selecting zero tests). Now reads `GAMEPLANE_SCREENSHOTS` env var: when set, uses `grep: /@screenshots/, grepInvert: undefined`; when unset, uses `grep: undefined, grepInvert: /@screenshots/`. Updated comment to explain env var switch. | Read config file; verified logic; updated comment (OD-3b reference maintained) | Fixed: conditional grep/grepInvert based on GAMEPLANE_SCREENSHOTS env var | web: fix playwright grep/grepInvert cancellation with env var |
 | web/package.json | 16 | Updated screenshots npm script: removed `--grep @screenshots` flag; now uses `GAMEPLANE_SCREENSHOTS=1` env var to trigger screenshot mode in playwright.config.ts | python3 json.load validation passed; script now sets env var that playwright.config.ts reads | Fixed: changed script to use env var instead of CLI flag | web: update screenshots script to use GAMEPLANE_SCREENSHOTS env var |
 | CHANGELOG.md | 8-46 | Network capture feature (Unreleased Upgrade Notes): verified unreleased | git merge-base --is-ancestor 34d14f62 v0.2.0-beta.8 = unreleased; commit 34d14f62 dated 2026-08-23, after beta.8 release 2026-08-22 | Feature is unreleased; docs/install.md line 191 will receive unreleased note | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
 | CHANGELOG.md | 34-37 | Default StorageClass (Unreleased Added): verified unreleased | git merge-base --is-ancestor 27de0232 v0.2.0-beta.8 = unreleased; commit 27de0232 dated 2026-08-26, after beta.8 release 2026-08-22 | Feature is unreleased; docs/install.md line 109 will receive unreleased note | docs: reconcile CHANGELOG Unreleased entries with v0.2.0-beta.8 |
@@ -158,12 +158,12 @@ This log records every correction made to the documentation under US2 (User Stor
 
 **Categories:**
 - version: 97 rows
-- link: 2 rows
-- label: 27 rows
-- feature-description: 19 rows
-- unshipped: 7 rows
-- script/tooling: 3 rows
+- link: 3 rows
+- label: 28 rows
+- feature-description: 5 rows
+- unshipped: 3 rows
+- script-tooling: 3 rows
 
-**Total audited rows:** 155
+**Total audited rows:** 139
 
 **Files audited with no finding:** docs/networking.md, docs/notifications.md, docs/oidc.md (no optional mentions), docs/networking.md (no optional mentions), docs/module-authoring.md, docs/key-rotation.md, docs/game-coverage.md
