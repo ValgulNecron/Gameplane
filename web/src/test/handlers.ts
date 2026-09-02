@@ -905,13 +905,11 @@ export function buildScreenshotHandlers() {
     ),
     http.delete("/modules/:name", () => new HttpResponse(null, { status: 204 })),
 
-    // Server events: use screenshot events for test-server-04
+    // Server events: return events for the requested server
     http.get("/servers/:name/events", ({ params }) => {
       const name = String(params.name);
-      if (name === "test-server-04") {
-        return HttpResponse.json(data.events);
-      }
-      return HttpResponse.json([]);
+      const serverEvents = data.events.filter((e) => e.object === name);
+      return HttpResponse.json(serverEvents);
     }),
 
     // Servers (additional endpoints)

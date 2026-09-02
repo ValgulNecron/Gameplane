@@ -125,20 +125,64 @@ export const screenshotTemplates: GameTemplate[] = [
 
 export const screenshotServers: GameServer[] = [
   makeServer({
-    metadata: { name: "test-server-01", namespace: "default" },
+    metadata: {
+      name: "test-server-01",
+      namespace: "default",
+      annotations: { "gameplane.local/node": "node-01" },
+    },
     spec: { templateRef: { name: "minecraft-java" } },
     status: {
       phase: "Running",
-      agent: { playersOnline: 5, playersMax: 20, lastHeartbeat: "2026-09-02T15:45:30Z" },
+      agent: {
+        playersOnline: 5,
+        playersMax: 20,
+        lastHeartbeat: "2026-09-02T15:45:30Z",
+        cpuMillicores: 1420,
+        cpuLimitMillicores: 4000,
+        memoryBytes: 5_100_000_000,
+        memoryLimitBytes: 8_000_000_000,
+        diskUsedBytes: 12_400_000_000,
+        diskTotalBytes: 50_000_000_000,
+      },
+      endpoints: [
+        {
+          name: "main",
+          host: "test-server-01.gameplane-demo.local",
+          port: 25565,
+          protocol: "tcp",
+        },
+      ],
       startedAt: "2026-08-28T10:30:00Z",
     },
   }),
   makeServer({
-    metadata: { name: "test-server-02", namespace: "default" },
+    metadata: {
+      name: "test-server-02",
+      namespace: "default",
+      annotations: { "gameplane.local/node": "node-02" },
+    },
     spec: { templateRef: { name: "valheim-default" } },
     status: {
       phase: "Running",
-      agent: { playersOnline: 2, playersMax: 10, lastHeartbeat: "2026-09-02T15:44:15Z" },
+      agent: {
+        playersOnline: 2,
+        playersMax: 10,
+        lastHeartbeat: "2026-09-02T15:44:15Z",
+        cpuMillicores: 860,
+        cpuLimitMillicores: 2000,
+        memoryBytes: 2_900_000_000,
+        memoryLimitBytes: 4_000_000_000,
+        diskUsedBytes: 6_100_000_000,
+        diskTotalBytes: 20_000_000_000,
+      },
+      endpoints: [
+        {
+          name: "main",
+          host: "test-server-02.gameplane-demo.local",
+          port: 2456,
+          protocol: "udp",
+        },
+      ],
       startedAt: "2026-08-01T00:00:00Z",
     },
   }),
@@ -161,7 +205,11 @@ export const screenshotServers: GameServer[] = [
     },
   }),
   makeServer({
-    metadata: { name: "test-server-05", namespace: "default" },
+    metadata: {
+      name: "test-server-05",
+      namespace: "default",
+      annotations: { "gameplane.local/node": "node-03" },
+    },
     spec: { templateRef: { name: "palworld-default" }, suspend: true },
     status: {
       phase: "Suspended",
@@ -221,6 +269,36 @@ export function screenshotClusterView(): ClusterView {
 // ============================================================================
 
 export const screenshotEvents: ServerEvent[] = [
+  {
+    id: "evt-ts1-001",
+    time: "2026-08-28T10:29:15Z",
+    type: "Normal",
+    reason: "Scheduled",
+    message: 'Successfully assigned default/test-server-01 to node-01',
+    source: "default-scheduler",
+    object: "test-server-01",
+    count: 1,
+  },
+  {
+    id: "evt-ts1-002",
+    time: "2026-08-28T10:29:30Z",
+    type: "Normal",
+    reason: "Pulled",
+    message: 'Successfully pulled image "ghcr.io/valgulnecron/gameplane/minecraft:1.21" in 48s',
+    source: "kubelet",
+    object: "test-server-01",
+    count: 1,
+  },
+  {
+    id: "evt-ts1-003",
+    time: "2026-08-28T10:30:00Z",
+    type: "Normal",
+    reason: "Started",
+    message: 'Started container minecraft-server',
+    source: "kubelet",
+    object: "test-server-01",
+    count: 1,
+  },
   {
     id: "evt-001",
     time: "2026-09-02T15:35:00Z",
@@ -528,6 +606,9 @@ export function screenshotConfig(): AllConfig {
       instanceName: "My Gameplane Cluster",
       externalURL: "https://gameplane-demo.local",
       defaultNamespace: "default",
+    },
+    modRegistries: {
+      registries: [{ provider: "curseforge" }, { provider: "steam" }],
     },
   });
 }
