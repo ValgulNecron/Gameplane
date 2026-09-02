@@ -15,7 +15,7 @@ short-lived per-pod agent sidecar.
 │  API (api/)                                           │
 │    REST + WebSocket gateway                           │
 │    Local + OIDC auth · RBAC · audit log               │
-│    SQLite (production) or Postgres (experimental) for user store │
+│    SQLite (production) or Postgres [experimental] for user store │
 │    mTLS to agent                                      │
 └───────────────────────────────────────────────────────┘
                     │
@@ -265,7 +265,7 @@ for the registration flow.
   required-ness. Both importers (the agent's RCON path and the API's stdin
   pod-attach) call it independently; each is its own trust boundary, so
   validation is never skipped because the other side already checked.
-- **Operator → sentinel (optional)**: holds advertised ports while a GameServer
+- **Operator → sentinel [optional]**: holds advertised ports while a GameServer
   is asleep and wakes it on a genuine connection attempt (opt-in via
   `spec.idle.wakeOnConnect`). Runs as a small 1-replica Deployment per armed
   server; disabled by default. Works across all four expose modes
@@ -276,18 +276,18 @@ for the registration flow.
   a genuine join from a server-list ping without corrupting the connection stream.
   UDP-only games (Valheim, Factorio, etc.) have no connection to hold, so the
   sentinel uses a generic packets-in-window heuristic instead. See `gameproto/`.
-- **API → audit-syslog-bridge (optional)**: plaintext or TLS syslog forward
+- **API → audit-syslog-bridge [optional]**: plaintext or TLS syslog forward
   for the audit trail, enabled via `api.audit.webhook.syslogBridge.enabled`.
-- **API → telemetry-receiver (optional)**: the anonymous daily usage report
+- **API → telemetry-receiver [optional]**: the anonymous daily usage report
   (admin-toggle gated), auto-wired via `api.telemetry.receiver.enabled` or
   aimed at an external URL via `api.telemetry.endpoint`.
-- **Operator → capture-sidecar (optional)**: network packet capture sidecar
+- **Operator → capture-sidecar [optional]**: network packet capture sidecar
   injected into game pods as an ephemeral container; captures AF_PACKET frames
   matching a BPF filter to PCAPNG output, exposed via mTLS on port `:9091`.
   Opt-in per GameServer via `spec.capture.enabled` and admin-only (`captures:manage`
   permission). Disabled by default; enabled cluster-wide via `capture.enabled`
   Helm value. See `capture-sidecar/`.
-- **mcp-server (optional)**: a standalone, strictly read-only MCP server —
+- **mcp-server [optional]**: a standalone, strictly read-only MCP server —
   its tool handlers only ever hold a `*kube.Client` (`mcp-server/internal/kube`),
   whose sole exported methods are List/Get-shaped; the underlying typed/
   dynamic Kubernetes clientsets are unexported fields in that package, so

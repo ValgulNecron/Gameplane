@@ -83,7 +83,7 @@ one. Note the caveat's own docs were stale and are corrected: the chart's
 while, but [`install.md`](install.md#helm-crd-caveat) still told users to run
 `kubectl apply` by hand.
 
-Not yet covered: upgrades skipping several releases at once, and Postgres.
+Not yet covered: upgrades skipping several releases at once, and Postgres [experimental].
 
 ### Idle auto-sleep (backend PR #180, dashboard PR #182)
 
@@ -130,7 +130,7 @@ dashboard one.
 
 ### Wake-on-connect for idle auto-sleep
 
-A sentinel component holds advertised ports while a server is asleep and wakes
+A sentinel [optional] component holds advertised ports while a server is asleep and wakes
 it on a genuine connection attempt. Opt-in per server via `spec.idle.wakeOnConnect`
 (default false), with per-port protocol awareness to avoid corrupting handshakes.
 
@@ -169,7 +169,7 @@ hold). Hostport is asymmetric as described.
 An [MCP](https://modelcontextprotocol.io) server letting an AI assistant read
 current cluster state and *propose* fixes — strictly read-only, no writes.
 
-A new optional component (distroless Docker image, Helm toggle) exposing only
+A new optional component [optional] (distroless Docker image, Helm toggle) exposing only
 `List` / `Get` / `Watch` over the Gameplane CRDs plus Pods, Events, and pod logs.
 "Propose a fix" returns suggested YAML or `kubectl` invocations as text — no
 create/update/delete/patch tool exists. See [`mcp-server/README.md`](../mcp-server/README.md).

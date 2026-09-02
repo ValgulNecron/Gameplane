@@ -8,7 +8,7 @@ not a fifth `expose` mode.
 
 ## When to use a tunnel
 
-Use a tunnel if:
+Use a tunnel [optional] if:
 
 - You have no public IP (e.g., CGNAT, shared ISP).
 - Port-forwarding is unavailable (router is locked down or managed by your ISP).
