@@ -114,10 +114,16 @@ jobs:
           EOF
           chmod 0700 "$helper"
           git config --local credential.helper "$helper"
-          git push origin "HEAD:${branch}"
+          # The bot branch is disposable: a re-run on the same ref replaces it.
+          git push --force origin "HEAD:${branch}"
 
-          gh pr create \
-            --base "$base" \
-            --head "$branch" \
-            --title "chore: refresh dashboard screenshots (${REF_NAME})" \
-            --body-file <(printf "Automated dashboard screenshot refresh on %s release tag.\n\nBase: %s\nTrigger: %s\n\nSee contract: specs/012-docs-refresh-and-outreach/contracts/screenshot-set.md (OD-3 Decision).\n" "$REF_NAME" "$base" "$EVENT_NAME")
+          existing="$(gh pr list --head "$branch" --base "$base" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "updated existing PR #$existing"
+          else
+            gh pr create \
+              --base "$base" \
+              --head "$branch" \
+              --title "chore: refresh dashboard screenshots (${REF_NAME})" \
+              --body-file <(printf "Automated dashboard screenshot refresh on %s release tag.\n\nBase: %s\nTrigger: %s\n\nSee contract: specs/012-docs-refresh-and-outreach/contracts/screenshot-set.md (OD-3 Decision).\n" "$REF_NAME" "$base" "$EVENT_NAME")
+          fi
