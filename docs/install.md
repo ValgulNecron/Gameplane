@@ -107,7 +107,7 @@ Top-level knobs (see `values.yaml` for the full list):
   where Docker Hub is unreachable. They map to the operator's
   `--config-init-image` / `--restic-image` flags, mirroring `operator.agentImage`
 - `operator.gameDataStorage.storageClassName` — install-time default storage class
-  for game server data volumes (default `""`). Empty string uses the cluster's
+  for game server data volumes (unreleased; ships in the next release) (default `""`). Empty string uses the cluster's
   default StorageClass. Applies to all GameServers where neither the GameTemplate
   nor GameServer-level override specifies a class. **Precedence**: GameServer
   override > GameTemplate default > install-time default > cluster default.
@@ -126,7 +126,7 @@ Top-level knobs (see `values.yaml` for the full list):
   - Core connection: `issuer` / `clientID` / `clientSecretRef` / `redirectURL` /
     `displayName` — OIDC provider credentials and endpoints. Per-IdP walkthroughs
     (Keycloak, Authentik, Google) live in [oidc.md](oidc.md)
-  - Role mapping (new, seeded at install time):
+  - Role mapping (new, seeded at install time) (unreleased; ships in the next release):
     - `groupsClaim` — OIDC claim name containing group memberships (default `""`).
       Typically `"groups"` or `"roles"` depending on your IdP. Empty/omitted =
       group-based role mapping disabled; new OIDC users default to `defaultRole`

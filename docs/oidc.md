@@ -18,7 +18,7 @@ Fill in:
 
 The callback URL is automatically set to `{External URL}/auth/oidc/{provider-name}/callback`.
 
-**Note**: The Helm-flag single OIDC provider supports group→role mapping via Helm values `api.oidc.groupsClaim` and `api.oidc.roleMappings.{admin,operator,viewer}` (or CLI flags `--oidc-groups-claim` and `--oidc-role-mapping-{admin,operator,viewer}`). See "Role Mapping at Install Time (No Bootstrap-Admin Required)" below for setup details and worked examples.
+**Note**: The Helm-flag single OIDC provider supports group→role mapping via Helm values `api.oidc.groupsClaim` and `api.oidc.roleMappings.{admin,operator,viewer}` (or CLI flags `--oidc-groups-claim` and `--oidc-role-mapping-{admin,operator,viewer}`) (unreleased; ships in the next release). See "Role Mapping at Install Time (No Bootstrap-Admin Required)" below for setup details and worked examples.
 
 ## Provider guides
 
@@ -51,7 +51,7 @@ The callback URL is automatically set to `{External URL}/auth/oidc/{provider-nam
    - Client scopes → Add builtin mapper → Group Membership
    - Token Mapper Type: Group Membership
    - Full group path: OFF (so claims use short group names, not `/root/group`)
-   - Add to ID Token: ON <!-- doc-versions: historical -->
+   - Add to ID Token: ON
 
 7. **In Gameplane**, set:
    - Issuer: `https://keycloak.example.com/realms/master` (from step 5)
