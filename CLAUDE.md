@@ -430,7 +430,7 @@ make test-web            # vitest for web
 make test-integration    # envtest tier (operator + api) — downloads K8s 1.31 envtest assets
 make test-e2e            # kind + helm + real components (≈ 10–20 min)
 make test-e2e-keep       # re-run e2e against an already-up cluster
-make test-e2e-bucket     # one CI bucket (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot|multicluster)
+make test-e2e-bucket     # one CI bucket (BUCKET=operator|api-auth|api-roles|api-rbac|api-agent|api-mods|ratelimit|bot-fast|bot-heavy|multicluster|upgrade)
 ```
 
 **e2e test conventions** (CI runs the suite as parallel per-bucket jobs, one kind cluster each):
@@ -469,7 +469,7 @@ make cover-ratchet   # measured-vs-threshold delta per module
 
 All 14 Go modules — netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, capture-sidecar, mcp-server, svcutil, tunnel, and test/e2e — are gated by golangci-lint in CI (`lint` job in `.github/workflows/ci.yaml`). API and operator runs also pass `--build-tags=envtest` so tag-gated files are analysed; test/e2e runs with `--build-tags=e2e` to catch e2e-only build issues.
 
-Coverage gates: `netguard/.testcoverage.yml` (91%), `gameaction/.testcoverage.yml` (91%), `gameproto/.testcoverage.yml` (90%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `sentinel/.testcoverage.yml` (70%), `capture-sidecar/.testcoverage.yml` (0%), `mcp-server/.testcoverage.yml` (70%), `svcutil/.testcoverage.yml` (90%), `tunnel/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
+Coverage gates: `netguard/.testcoverage.yml` (91%), `gameaction/.testcoverage.yml` (91%), `gameproto/.testcoverage.yml` (90%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `sentinel/.testcoverage.yml` (70%), `capture-sidecar/.testcoverage.yml` (70%), `mcp-server/.testcoverage.yml` (70%), `svcutil/.testcoverage.yml` (90%), `tunnel/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
 
 ### Codegen — mandatory after CRD type edits
 
@@ -706,7 +706,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`svcutil/`** — shared Go package: stdlib-only helpers for environment parsing (`Or`, `OrInt`, `ParseLogLevel`) and graceful HTTP server shutdown (`RunHTTP`). Used across operator, api, agent, audit-syslog-bridge, and telemetry-receiver to reduce code duplication and enforce consistent startup/shutdown behavior.
 
-**`operator/`** — controller-runtime. Reconciles 8 CRDs (`gameplane.local/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource, Cluster. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
+**`operator/`** — controller-runtime. Reconciles 9 CRDs (`gameplane.local/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource, NetworkCapture, Cluster. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
 
 **`api/`** — chi router; REST + WebSocket. Entry: `api/cmd/main.go`, with subcommands `serve` and `bootstrap-admin`. Layout:
 
@@ -754,7 +754,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 | Frontend libs | TanStack Router, TanStack Query, Radix + shadcn/ui, Tailwind 3.4, lucide-react, Monaco editor, xterm.js |
 | Frontend tests | Vitest 2.1, `@testing-library/react`, `msw` |
 | Kubernetes target | 1.28+; Helm 3.13+ |
-| CRDs | `gameplane.local/v1alpha1` — GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource, Cluster |
+| CRDs | `gameplane.local/v1alpha1` — GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource, NetworkCapture, Cluster |
 | License | AGPL-3.0-or-later |
 
 ---
@@ -765,7 +765,7 @@ A short cookbook for recurring tasks. Each entry lists the exact files to touch.
 
 ### Add a field to a CRD
 
-1. Edit the type in `operator/api/v1alpha1/<kind>_types.go` — files are `gameserver_types.go`, `gametemplate_types.go`, `backup_types.go`, `backupschedule_types.go`, `restore_types.go`, `module_types.go`, `modulesource_types.go`, `cluster_types.go`.
+1. Edit the type in `operator/api/v1alpha1/<kind>_types.go` — files are `gameserver_types.go`, `gametemplate_types.go`, `backup_types.go`, `backupschedule_types.go`, `restore_types.go`, `module_types.go`, `modulesource_types.go`, `networkcapture_types.go`, `cluster_types.go`.
 2. `make generate && make manifests`.
 3. Update the reconciler in `operator/internal/controller/<kind>_controller.go` to honor the new field.
 4. If the field is exposed in the dashboard, mirror it in `web/src/types.ts` and update the relevant `web/src/routes/*.tsx`.
