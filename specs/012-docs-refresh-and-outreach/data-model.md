@@ -75,7 +75,7 @@ Evidence: README.md:8–9.
 | `qualifiers` | array of string | Conditional | [optional], [experimental], [disabled by default], [BETA], [local cluster only]; Gameplane cells only (V-CC2) |
 | `sourceReference` | SourceReference | Conditional | Competitor cells only; Gameplane cells have `repoEvidence` instead (V-CC3) |
 | `repoEvidence` | string | Conditional | Gameplane cells only; path:line citation (e.g., "README.md:36; operator/api/v1alpha1/gameserver_types.go:137–195"); screenshot delivery executed via workflow_dispatch (OD-15) |
-| `notApplicable` | boolean | Optional | If true, `text` is exactly "not applicable" and `sourceReference`/`repoEvidence` are absent |
+| `notApplicable` | boolean | Optional | If true, `text` is exactly "not applicable" and `sourceReference`/`repoEvidence` are absent; EXCEPT Agones column, which uses "not applicable (Agones is a Kubernetes operator library)" with a SourceReference anchor (see V-CC5) |
 
 ### Validation Rules
 
@@ -377,7 +377,7 @@ Evidence sourced from R3 findings.
 | `purpose` | string | Yes | What the screenshot demonstrates (e.g., "Authentication entry point", "Server event timeline") |
 | `dummyDataConstraints` | object | Conditional | For "new" screenshots, list allowed/forbidden data patterns per FR-019 |
 | `format` | object | Yes | JPEG, 1920×1080 per convention (ruled 2026-09-02, OD-3a); all eleven images captured at 1920×1080 (existing six are 1568×773 until recaptured); max ~100 KB |
-| `captureMethod` | enum | Optional | "playwright-mock" (recommended per OD-3b, web/e2e/specs/screenshots.spec.ts) \| "playwright-live" \| "manual-browser" |
+| `captureMethod` | enum | Yes | "playwright-mock" (OD-3b, OD-15; sole authorized capture path via GitHub Actions CI workflow_dispatch or tag-triggered run in `.github/workflows/screenshot-refresh.yaml`; GitHub Actions provenance validated per V-S4) |
 
 ### Registry: Existing Six (Refreshed)
 

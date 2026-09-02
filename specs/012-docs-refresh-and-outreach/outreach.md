@@ -14,7 +14,7 @@ visibility and discoverability. Status updates are committed to git
 | AlternativeTo | https://alternativeto.net/add-app/ | pending | pending | No blockers identified. Ready for maintainer account creation and submission. See contract for submission template. |
 | Awesome-Selfhosted | https://github.com/awesome-selfhosted/awesome-selfhosted-data/pulls | deferred [2026-09-02, first release 2026-06-22 is under the 4-month minimum; eligible from 2026-10-22] | N/A | First release 2026-06-22 (CHANGELOG.md:656); 4-month minimum requires wait until 2026-10-22. See contract for submission template. Re-evaluate on or after 2026-10-22. |
 | Awesome-Kubernetes | https://github.com/ramitsurana/awesome-kubernetes | deferred [2026-09-02, 25-star / 3-contributor eligibility rule not verified; revisit in a later release] | N/A | Eligibility metrics (25+ GitHub stars and 3+ contributors) were not verified at deferral. Per OD-6b, no pre-check task or submission attempt in this feature. See contract for eligibility criteria. |
-| GitHub About (description + topics) | https://github.com/ValgulNecron/Gameplane (repository settings) | pending | - | Draft in § GitHub Repository About; maintainer applies |
+| GitHub About (description + topics) | https://github.com/ValgulNecron/Gameplane (repository settings) | pending | pending | Draft in § GitHub Repository About; maintainer applies |
 
 ## Draft Submissions (OD-5: agents draft, maintainer submits)
 
@@ -87,7 +87,7 @@ The repository's About box (description + topics) is set by the maintainer in th
 **Description (≤ 350 characters):**
 
 ```text
-Kubernetes-native game server control panel. Idle auto-sleep with wake-on-connect, restic backups, OIDC + RBAC, OCI game templates, relay tunnels. Open-source (AGPL-3.0) alternative to CubeCoders AMP and Pterodactyl that runs the same way on a k3s homelab and a multi-node cluster. Beta.
+Kubernetes-native game server control panel. Idle auto-sleep with wake-on-connect, restic backups, OIDC + RBAC, OCI game templates, relay tunnels. Open-source (AGPL-3.0-or-later) alternative to CubeCoders AMP and Pterodactyl that runs the same way on a k3s homelab and a multi-node cluster. Beta.
 ```
 
 **Website:** https://valgulnecron.github.io/gameplane-website/
