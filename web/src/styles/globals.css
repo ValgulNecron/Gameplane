@@ -1,49 +1,98 @@
-@import "tailwindcss";
+@import "@heroui/styles";
 
-/* Design tokens sampled from design.pen (c: theme, Dark mode). */
+/* HeroUI semantic tokens (oklch format) per contracts/theme-tokens.md */
+:root,
+.light,
+.default,
+[data-theme="light"],
+[data-theme="default"] {
+  /* Base colors - Light mode */
+  --background: oklch(100.00% 0.0000 0.00); /* #FFFFFF */
+  --foreground: oklch(12.88% 0.0254 260.23); /* #030711 */
+  --surface: oklch(100.00% 0.0000 0.00); /* #FFFFFF */
+  --surface-secondary: oklch(96.70% 0.0029 264.54); /* #F3F4F6 */
+  --overlay: oklch(100.00% 0.0000 0.00); /* #FFFFFF */
+  --accent: oklch(69.11% 0.1944 44.01); /* #F96915 */
+  --accent-foreground: oklch(100.00% 0.0000 0.00); /* #FFFFFF */
+  --default: oklch(92.76% 0.0058 264.53); /* #E5E7EB */
+  --default-foreground: oklch(12.88% 0.0254 260.23); /* #030711 */
+  --success: oklch(71.98% 0.1918 149.52); /* #21C45D */
+  --warning: oklch(77.04% 0.1646 70.66); /* #F59F0A */
+  --danger: oklch(57.85% 0.2138 27.17); /* #DC2828 */
+  --muted: oklch(55.10% 0.0234 264.36); /* #6B7280 */
+  --border: oklch(92.76% 0.0058 264.53); /* #E5E7EB */
+  --separator: oklch(92.76% 0.0058 264.53); /* #E5E7EB */
+  --field-background: oklch(100.00% 0.0000 0.00); /* #FFFFFF, same as --background */
+  --field-border: oklch(92.76% 0.0058 264.53); /* #E5E7EB, same as --border */
+  --field-placeholder: oklch(55.10% 0.0234 264.36); /* #6B7280, same as --muted */
+  --focus: var(--accent);
+  --link: var(--accent);
+  --radius: 10px;
+  --field-radius: 6px;
+}
+
+.dark,
+[data-theme="dark"] {
+  /* Base colors - Dark mode */
+  --background: oklch(16.84% 0.0000 0.00); /* #0F0F0F */
+  --foreground: oklch(97.02% 0.0000 0.00); /* #F5F5F5 */
+  --surface: oklch(22.64% 0.0000 0.00); /* #1C1C1C */
+  --surface-secondary: oklch(20.46% 0.0000 0.00); /* #171717 */
+  --overlay: oklch(22.64% 0.0000 0.00); /* #1C1C1C */
+  --accent: oklch(70.49% 0.1867 47.60); /* #F97316 */
+  --accent-foreground: oklch(100.00% 0.0000 0.00); /* #FFFFFF */
+  --default: oklch(28.09% 0.0000 0.00); /* #292929 */
+  --default-foreground: oklch(97.02% 0.0000 0.00); /* #F5F5F5 */
+  --success: oklch(71.98% 0.1918 149.52); /* #21C45D */
+  --warning: oklch(77.04% 0.1646 70.66); /* #F59F0A */
+  --danger: oklch(57.85% 0.2138 27.17); /* #DC2828 */
+  --muted: oklch(66.65% 0.0000 0.00); /* #949494 */
+  --border: oklch(28.09% 0.0000 0.00); /* #292929 */
+  --separator: oklch(28.09% 0.0000 0.00); /* #292929 */
+  --field-background: oklch(16.84% 0.0000 0.00); /* #0F0F0F, same as --background */
+  --field-border: oklch(28.09% 0.0000 0.00); /* #292929, same as --border */
+  --field-placeholder: oklch(66.65% 0.0000 0.00); /* #949494, same as --muted */
+  --focus: var(--accent);
+  --link: var(--accent);
+}
+
+/* Legacy HSL triplets renamed to avoid collision with HeroUI tokens */
 :root {
-  --bg: 0 0% 100%;
-  --surface: 220 14% 96%;
-  --card: 0 0% 100%;
-  --border: 220 13% 91%;
-  --muted: 220 9% 46%;
-  --fg: 224 71% 4%;
-  --primary: 22 95% 53%;
-  --primary-fg: 0 0% 100%;
-  --success: 142 71% 45%;
-  --warning: 38 92% 50%;
-  --danger: 0 72% 51%;
-  --violet: 258 90% 66%;
+  --gp-bg: 0 0% 100%;
+  --gp-surface: 220 14% 96%;
+  --gp-card: 0 0% 100%;
+  --gp-border: 220 13% 91%;
+  --gp-muted: 220 9% 46%;
+  --gp-fg: 224 71% 4%;
+  --gp-primary: 22 95% 53%;
+  --gp-primary-fg: 0 0% 100%;
 }
 
 .dark {
-  --bg: 0 0% 6%;         /* #0F0F0F */
-  --surface: 0 0% 9%;    /* #171717 */
-  --card: 0 0% 11%;      /* #1C1C1C */
-  --border: 0 0% 16%;    /* #292929 */
-  --muted: 0 0% 58%;     /* #949494 */
-  --fg: 0 0% 96%;        /* #F5F5F5 */
-  --primary: 24 95% 53%; /* #F97316 orange */
-  --primary-fg: 0 0% 100%;
-  --success: 142 71% 45%;
-  --warning: 38 92% 50%;
-  --danger: 0 72% 51%;
-  --violet: 258 90% 66%;
+  --gp-bg: 0 0% 6%;         /* #0F0F0F */
+  --gp-surface: 0 0% 9%;    /* #171717 */
+  --gp-card: 0 0% 11%;      /* #1C1C1C */
+  --gp-border: 0 0% 16%;    /* #292929 */
+  --gp-muted: 0 0% 58%;     /* #949494 */
+  --gp-fg: 0 0% 96%;        /* #F5F5F5 */
+  --gp-primary: 24 95% 53%; /* #F97316 orange */
+  --gp-primary-fg: 0 0% 100%;
 }
 
 @theme {
-  --color-background: hsl(var(--bg));
-  --color-surface: hsl(var(--surface));
-  --color-card: hsl(var(--card));
-  --color-border: hsl(var(--border));
-  --color-muted: hsl(var(--muted));
-  --color-fg: hsl(var(--fg));
-  --color-primary: hsl(var(--primary));
-  --color-primary-fg: hsl(var(--primary-fg));
-  --color-success: hsl(var(--success));
-  --color-warning: hsl(var(--warning));
-  --color-danger: hsl(var(--danger));
-  --color-violet: hsl(var(--violet));
+  /* Legacy color aliases for backward compatibility with unrebuilt screens */
+  --color-background: var(--background);
+  --color-surface: var(--surface-secondary);
+  --color-card: var(--surface);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-fg: var(--foreground);
+  --color-primary: var(--accent);
+  --color-primary-fg: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-violet: hsl(258 90% 66%); /* operator role chips */
 
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -55,14 +104,14 @@
 html, body, #root { height: 100%; }
 body {
   -webkit-font-smoothing: antialiased;
-  background: hsl(var(--bg));
-  color: hsl(var(--fg));
+  background: var(--background);
+  color: var(--foreground);
 }
 
 /* Invisible by default scrollbars, subtle on hover (dashboards need space) */
 .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: var(--border);
   border-radius: 3px;
 }
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
