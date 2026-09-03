@@ -22,7 +22,7 @@ Replace the dashboard's component layer — 19 hand-rolled primitives plus six R
 
 **Project Type**: web application front end (`web/` npm package) plus Pencil design source (`design.pen`)
 
-**Performance Goals**: no regression in first render of the servers list or server detail; CSS bundle budget per OD-6
+**Performance Goals**: no regression in first render of the servers list or server detail
 
 **Constraints**: FR-004 behaviour preservation; FR-005 pre-auth privacy; FR-010 no test deleted and coverage gates hold after every slice; FR-012 no screen mixes families; Constitution II design-first with same-change export; rule 8 no local test runs; rule 13 delegation via Workflows
 
@@ -34,14 +34,14 @@ Replace the dashboard's component layer — 19 hand-rolled primitives plus six R
 
 | Principle | Status | How this plan satisfies it |
 |---|---|---|
-| **I. E2E-Tested Delivery** | PASS with OD-3 | Each slice extends the Playwright live suite (`web/e2e/specs/live/`) for its flows, and the `e2e-web-live` CI job runs them on a kind cluster; FR-011 names the P1 flows. The Go `test/e2e/` suite is API-only and unaffected. Principle I's literal wording names `test/e2e/`; the dashboard's E2E tier has been Playwright since that suite was added, and OD-3 asks the maintainer to confirm that reading. No game-module join coverage is touched. |
+| **I. E2E-Tested Delivery** | PASS, OD-3 settled 2026-09-03 | Each slice extends the Playwright live suite (`web/e2e/specs/live/`) for its flows, and the `e2e-web-live` CI job runs them on a kind cluster; FR-011 names the P1 flows. The Go `test/e2e/` suite is API-only and unaffected. The dashboard's E2E tier is `web/e2e/` (live specs); constitution amendment tracked separately. No game-module join coverage is touched. |
 | **II. Design-First** | PASS | Every slice starts with a Pencil pass on the repo `design.pen` through the MCP server, redrawing that slice's screens and compositions from the `LtgNm` definitions, followed in the same commit by JSON + PNG re-export and a `MANIFEST.md` update. Slice 0 also clears the pre-existing export debt (the HeroUI frame was imported but never exported). `.pen` files are never read or edited with generic tools. |
 | **III. Language & Ecosystem** | PASS | Strict TypeScript, no `any` without a comment, no suppressions; ESLint and coverage gates unchanged; no CRD or Go change, so no codegen. Old primitives are deleted, not silenced. |
 | **IV. Spec-Driven** | PASS | Spec, this plan, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, `OPEN-DECISIONS.md` precede code; `web/specs.md` is updated in each slice (FR-013). |
 | **V. Delegate to Workflows** | PASS | Research ran as one Workflow (five haiku, one sonnet review). Each slice runs as Workflows: a design wave (haiku agents drive the Pencil MCP per screen group), a code wave (haiku per route/tab file), a sonnet review, then a haiku fix wave. `model` is set on every `agent()` call. No `fable` agent without explicit authorization. |
 | **VI. CI Bears the Heavy Lifting** | PASS | No local test or lint runs; `tsc --noEmit` compile checks only. Each slice PR is verified by the `web`, `web-e2e-mock` and `e2e-web-live` jobs; nothing is reported done before CI is green. |
 
-Post-design re-check (after Phase 1): no violation introduced; the only open constitutional question is OD-3's reading of Principle I, which does not block planning.
+Post-design re-check (after Phase 1): no violation introduced. OD-3 is settled (web/e2e/ live specs are the E2E tier; constitution amendment tracked separately).
 
 ## Project Structure
 
@@ -54,7 +54,7 @@ specs/014-heroui-web-rebuild/
 ├── research.md              # Phase 0: verified facts R-01…R-08
 ├── data-model.md            # Phase 1: design screen, design component, theme token, dashboard surface, slice
 ├── quickstart.md            # Phase 1: how to validate a slice end to end
-├── OPEN-DECISIONS.md        # OD-1…OD-7, maintainer rulings pending
+├── OPEN-DECISIONS.md        # OD-1…OD-7, all settled 2026-09-03
 ├── contracts/
 │   ├── component-map.md     # lunaris/Radix → HeroUI mapping; Gameplane compositions and their node ids
 │   ├── theme-tokens.md      # brand values → HeroUI tokens, both modes; legacy alias policy
@@ -97,7 +97,7 @@ web/
 │   ├── tabs/settings/ShareLinks.tsx        # slice 5: NEW section
 │   ├── CreateServer.tsx, Modules.tsx, Backups.tsx                  # slice 3
 │   ├── AdminSettings.tsx, Users.tsx, AuditLog.tsx, AdminLogs.tsx, Cluster.tsx  # slice 4
-│   └── Share.tsx                           # slice 5: NEW public route (path per OD-1)
+│   └── Share.tsx                           # slice 5: NEW public route /share/$token
 ├── src/router/tree.tsx                     # slice 5: ADD public share route
 ├── src/lib/endpoints.ts, api.ts            # slice 5: ADD Shares namespace (create/list/revoke, public resolve/start)
 ├── src/types.ts                            # slice 5: ADD ShareLink types
@@ -111,7 +111,7 @@ docs/
 └── architecture.md, contributing.md        # slice 5: mention HeroUI as the component layer where the old primitives were named
 ```
 
-**Structure Decision**: the feature lives entirely in `web/` and `design.pen`/`design-export/`. The new compositions go in `web/src/components/hero/` so that rebuilt screens never import from `components/ui/`, which is what makes FR-012's "never both families on one screen" mechanically checkable: a rebuilt file importing `@/components/ui/` fails review. Slice 5 deletes `components/ui/` and, per OD-7, may rename `hero/` to `ui/`.
+**Structure Decision**: the feature lives entirely in `web/` and `design.pen`/`design-export/`. The new compositions go in `web/src/components/hero/` so that rebuilt screens never import from `components/ui/`, which is what makes FR-012's "never both families on one screen" mechanically checkable: a rebuilt file importing `@/components/ui/` fails review. Slice 5 deletes `components/ui/` and then, per OD-7 (Settled 2026-09-03), renames `hero/` to `ui/`.
 
 ## Delivery slices
 
@@ -120,7 +120,7 @@ Each slice is one branch, one PR, labelled `type: refactor` + `area: web` (slice
 | Slice | Branch suffix | Design objects (node ids) | Code surfaces | Story |
 |---|---|---|---|---|
 | **0 Foundation** | `014a-foundation` | Set HeroUI variables to brand (light + dark); export `LtgNm` and its 192 definitions; redraw the shared atoms `tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 J09iP IU7OG D0cDM qvQPg Lmaf1 AT7ya hl7R3 rh2QH k38Uta ZWcwn xCDF7 x3beP WwNlX BPEpm FyV6E w4ntSc zzx8f igj2U` | deps, `globals.css` token mapping, `components/hero/` atoms with tests, `web/specs.md` section, no screen switched yet | — |
-| **1 Shell + login** | `014b-shell-login` | `N1GkB jmoi3 ljdA5 N13Xud j24cXg tooKB SeizD kKFX9 gu5WY aI9PL hboVw IdaU7` + new appearance-toggle state (OD-2) | `AppLayout.tsx`, `Login.tsx`, `Dashboard.tsx`, `PageHeader.tsx`, `ClusterSelector.tsx`, `hero/{AppShell,Sidebar,TopBar,Breadcrumbs,NotificationsPanel,GlobalSearch}`, theme toggle | US1 |
+| **1 Shell + login** | `014b-shell-login` | `N1GkB jmoi3 ljdA5 N13Xud j24cXg tooKB SeizD kKFX9 gu5WY aI9PL hboVw IdaU7` + new appearance-toggle frame in the sidebar profile footer and mobile drawer (OD-2, Settled 2026-09-03) | `AppLayout.tsx`, `Login.tsx`, `Dashboard.tsx`, `PageHeader.tsx`, `ClusterSelector.tsx`, `hero/{AppShell,Sidebar,TopBar,Breadcrumbs,NotificationsPanel,GlobalSearch}`, theme toggle | US1 |
 | **2a Servers + core tabs** | `014c-servers-core` | `iGBIs EZFW0 mQ1zB IzuY2 TE2jI o4LH8W P08Uw Xn5ns kPmoo FtdkI Burtr dPP50 S4k0x I9kvlZ I9W8z JLaGB` | `Servers.tsx`, `ServerDetail.tsx`, tabs Overview/Events/Console/Logs/Files/Players, `components/server/*` cards + dialogs `T1LzpU rdlrx t9irnv` | US2 |
 | **2b Mods, backups tab, capture, settings** | `014d-server-settings` | `sZtDi GayoL KhYNc Ss0Yr V1VhGE tY6RD pssCT Bbnga dBILX xvlB6 m5kOm4 O08uaD b4eaUf hLB9Z swxkJ E0ypH J5pjJ3 ugDSa i1bLR KaRFX RodrS Y5cmvI VfB0Y i8wib f0s9zG KrREo BX0XM` | tabs Mods/Modpacks/Backups/Settings, all 11 `tabs/settings/*`, `CaptureWidget.tsx`, `registry-browser.tsx`, `components/modules/{Install,UploadModule}Dialog` | US2 |
 | **3 Create, modules, backups** | `014e-create-modules-backups` | `W8idqY nNL3E vUqMl f1Vga UMJli kK8Ji DPrYX fK8Bi tTSdi zhLZN E9EEv0 DMnEi` | `CreateServer.tsx`, `Modules.tsx`, `Backups.tsx`, `components/backups/*`, `components/modules/{ModuleCard,ModuleSourcesPanel,SourceDialog}` | US3 |
@@ -144,8 +144,7 @@ Ordering rationale: slice 0 makes every later slice a pure translation job; 1 gi
 - **Behaviour drift** in forms with draft-until-save and conflict detection (Settings): the code wave keeps state hooks and handlers verbatim and swaps only the rendered controls; the live Playwright specs `settingsSubTabs` and `serverLifecycleUI` gate it.
 - **Console/Logs engines**: xterm and the virtualised log view stay; only chrome changes.
 - **Pencil MCP nested-node resolution** (R-05 caveat): open the repo `design.pen` in the GUI before any design wave; verify with a `Get` on a HeroUI definition id before dispatching agents.
-- **CSS bundle growth** from the root styles import: measured in slice 1 against OD-6.
 
 ## Complexity Tracking
 
-No constitution violation requires justification. OD-3 is a wording question for the maintainer, not a deviation this plan takes.
+No constitution violation requires justification. All open decisions are settled 2026-09-03.
