@@ -26,6 +26,9 @@ Binding for `web/src/styles/globals.css` and for the HeroUI variable values in `
 | `--field-placeholder` | `$field/placeholder` | `#7B7584` | `#8A6C7B` | input placeholder text |
 | `--focus` | `$focus` | `#A78BFA` | `#7C3AED` | focus ring (purple) |
 | `--link` | `$foreground/link` | `#7DB4FF` | `#2563EB` | hyperlink text |
+| `--surface-tertiary` | `$surface/tertiary` | `#141317` | `#F8DDE9` | deepest surface variant |
+| `--segment` | `$segment/segment` | `#1D1B22` | `#FFFFFF` | segmented control backgrounds |
+| `--segment-foreground` | `$segment/foreground` | `#F5F3F7` | `#2A0F1E` | segmented control text |
 | `--radius` | `$radius/*` | 10 px base (HeroUI default), 6 px field (component-level) | same | design pass keeps HeroUI's radii per component |
 | fonts | `$typography/font-sans`, `font-mono` | Geist / JetBrains Mono | same | loaded as today from `index.html` |
 
@@ -51,6 +54,10 @@ Slice 0 rewrites `globals.css` as:
 4. `@theme` aliases for old screens, each defined from a HeroUI token so colours stay identical on every un-rebuilt screen: `--color-background: var(--background)`, `--color-surface: var(--surface-secondary)`, `--color-card: var(--surface)`, `--color-border: var(--border)`, `--color-muted: var(--muted)`, `--color-fg: var(--foreground)`, `--color-primary: var(--accent)`, `--color-primary-fg: var(--accent-foreground)`, `--color-success/-warning/-danger` likewise.
 
 Rebuilt files use HeroUI's semantic utilities (`bg-surface`, `text-foreground`, `text-muted`, `bg-accent`) and never the legacy aliases. Slice 5 deletes steps 3 and 4 and `web/tailwind.config.ts`.
+
+## OKLCH values
+
+All hex colors in the table above have been converted to OKLCH format (sRGB → linear RGB → OKLab → LCH polar coordinates) and recorded in `web/src/styles/globals.css`. Format: `oklch(L% C H)` with L as percent (2 decimals), C as chroma (4 decimals), H as hue degrees (2 decimals). The conversion is mechanical and deterministic; see `globals.css` for the authoritative recorded values.
 
 ## Appearance selection
 
