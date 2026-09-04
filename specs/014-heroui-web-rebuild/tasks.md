@@ -32,31 +32,31 @@
 
 ### Pre-flight Design Verification
 
-- [ ] T001 Open /home/valgul/project/Gameplane/design.pen in the Pencil GUI and verify that the LtgNm frame (HeroUI: Design System Components) contains 192 named component definitions without missing or unresolved nodes; document the frame id and child count, then close without saving (maintainer task — no changes yet).
+- [X] T001 Open /home/valgul/project/Gameplane/design.pen in the Pencil GUI and verify that the LtgNm frame (HeroUI: Design System Components) contains 192 named component definitions without missing or unresolved nodes; document the frame id and child count, then close without saving (maintainer task — no changes yet).
 
 ### Design Export (HeroUI Component Library)
 
-- [ ] T002 Export the LtgNm frame and all 192 HeroUI component definitions from design.pen to design-export/json/LtgNm.json (via Pencil MCP Get at depth ≥ 14, zero "..." elision markers, includePathGeometry: true) and design-export/screenshots/LtgNm.png (2x scale via export_nodes).
-- [ ] T003 Add a new 'HeroUI Frame' section to design-export/MANIFEST.md documenting the export: timestamp, export method (depth 14 with includePathGeometry), file counts (1 JSON + 1 PNG), validation (json.loads + grep for a HeroUI-unique term), and note that this clears the pre-existing export debt for the HeroUI definitions already in design.pen since 2026-09-02.
+- [X] T002 Export the LtgNm frame and all 192 HeroUI component definitions from design.pen to design-export/json/LtgNm.json (via Pencil MCP Get at depth ≥ 14, zero "..." elision markers, includePathGeometry: true) and design-export/screenshots/LtgNm.png (2x scale via export_nodes).
+- [X] T003 Add a new 'HeroUI Frame' section to design-export/MANIFEST.md documenting the export: timestamp, export method (depth 14 with includePathGeometry), file counts (1 JSON + 1 PNG), validation (json.loads + grep for a HeroUI-unique term), and note that this clears the pre-existing export debt for the HeroUI definitions already in design.pen since 2026-09-02.
 
 ### Design cleanup (OD-4, OD-5)
 
-- [ ] T004 Per OD-4 (Settled 2026-09-03), delete the imported HeroUI sample frame `dashboard-utility` (`bJ2cg`) and its prompt node `OFfAu` from design.pen via the Pencil MCP (mcp__pencil__execute); confirm neither id remains in a subsequent Get on the document root, then ask the maintainer to save in the Pencil GUI as part of the same design commit as the rest of slice 0.
-- [ ] T005 Per OD-5 (Settled 2026-09-03), add `heroUI template.pen` to `.gitignore` alongside the existing `design.pen.bak` entry, since design.pen already contains everything the template has (research.md R-05) and the file stays untracked.
+- [X] T004 Per OD-4 (Settled 2026-09-03), delete the imported HeroUI sample frame `dashboard-utility` (`bJ2cg`) and its prompt node `OFfAu` from design.pen via the Pencil MCP (mcp__pencil__execute); confirm neither id remains in a subsequent Get on the document root, then ask the maintainer to save in the Pencil GUI as part of the same design commit as the rest of slice 0.
+- [X] T005 Per OD-5 (Settled 2026-09-03), add `heroUI template.pen` to `.gitignore` alongside the existing `design.pen.bak` entry, since design.pen already contains everything the template has (research.md R-05) and the file stays untracked.
 
 ### Dependencies and CSS Setup
 
-- [ ] T006 Add to web/package.json dependencies: @heroui/react@3.2.4, @heroui/styles@3.2.4, react-aria@^3.51.0, react-aria-components@^1.20.0, @react-aria/i18n@^3.13.1, @react-aria/ssr@^3.10.1, @react-aria/utils@^3.34.1; then run 'npm ci' from web/ to verify install succeeds.
-- [ ] T007 Add '@import "@heroui/styles";' as the first line in web/src/styles/globals.css (before the existing `:root` block and legacy `@import` statements) so Tailwind base, HeroUI components, and utilities are available to all rebuilt screens; the token mapping and HeroUI variable configuration (T017, slice 0 second half) will follow as a separate change.
+- [X] T006 Add to web/package.json dependencies: @heroui/react@3.2.4, @heroui/styles@3.2.4, react-aria@^3.51.0, react-aria-components@^1.20.0, @react-aria/i18n@^3.13.1, @react-aria/ssr@^3.10.1, @react-aria/utils@^3.34.1; then run 'npm ci' from web/ to verify install succeeds.
+- [X] T007 Add '@import "@heroui/styles";' as the first line in web/src/styles/globals.css (before the existing `:root` block and legacy `@import` statements) so Tailwind base, HeroUI components, and utilities are available to all rebuilt screens; the token mapping and HeroUI variable configuration (T017, slice 0 second half) will follow as a separate change.
 
 ### Directory Structure Scaffold
 
-- [ ] T008 Create web/src/components/hero/ directory with an empty .gitkeep file to scaffold the location for rebuilt Gameplane compositions on HeroUI definitions (no component files yet, just the directory structure per OD-7 (Settled 2026-09-03): `web/src/components/hero/` during the transition, renamed to `components/ui/` in slice 5).
-- [ ] T009 Create web/e2e/screenshots/ directory and add a skeleton spec file web/e2e/screenshots/slice0.spec.ts that imports test and expect from @playwright/test, sets viewport to 1440×900, deviceScaleFactor to 2, colorScheme to 'dark', and includes placeholder test cases for each slice 0 atom id (N1GkB, jmoi3, ljdA5 for desktop; tooKB, SeizD for mobile per screen-verification.md); include a helper function to capture PNG screenshots at 2x scale into web/e2e/screenshots/ directory.
+- [X] T008 Create web/src/components/hero/ directory with an empty .gitkeep file to scaffold the location for rebuilt Gameplane compositions on HeroUI definitions (no component files yet, just the directory structure per OD-7 (Settled 2026-09-03): `web/src/components/hero/` during the transition, renamed to `components/ui/` in slice 5).
+- [X] T009 Create web/e2e/screenshots/ directory and add a skeleton spec file web/e2e/screenshots/slice0.spec.ts that imports test and expect from @playwright/test, sets viewport to 1440×900, deviceScaleFactor to 2, colorScheme to 'dark', and includes placeholder test cases for each slice 0 atom id (N1GkB, jmoi3, ljdA5 for desktop; tooKB, SeizD for mobile per screen-verification.md); include a helper function to capture PNG screenshots at 2x scale into web/e2e/screenshots/ directory.
 
 ### Verification and Commit Readiness
 
-- [ ] T010 Run 'npm ci && npx tsc --noEmit' from web/ directory to verify that TypeScript compilation succeeds with HeroUI types installed, @heroui/styles CSS import resolves, and no type errors are introduced by the dependency changes.
+- [X] T010 Run 'npm ci && npx tsc --noEmit' from web/ directory to verify that TypeScript compilation succeeds with HeroUI types installed, @heroui/styles CSS import resolves, and no type errors are introduced by the dependency changes.
 
 **Checkpoint**: Dependencies installed, HeroUI frame exported, `tsc --noEmit` clean; no screen changed
 
@@ -74,40 +74,48 @@
 
 ### Design wave
 
-- [ ] T011 Redraw design.pen Button and form-atom nodes tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 from HeroUI definitions in LtgNm per contracts/component-map.md, swapping $c: variable references to HeroUI variables, keeping layout and node names intact.
-- [ ] T012 Redraw design.pen nodes J09iP IU7OG D0cDM qvQPg Lmaf1 AT7ya (button and form-atom definitions) from HeroUI definitions in LtgNm, swapping $c: variables to HeroUI variables per contracts/theme-tokens.md.
-- [ ] T013 Redraw design.pen nodes hl7R3 rh2QH k38Uta ZWcwn xCDF7 x3beP (form atoms, Card, StatCard, PageHeader, Modal) from HeroUI definitions in LtgNm, updating variable references and composition structure.
-- [ ] T014 Redraw design.pen nodes WwNlX BPEpm FyV6E w4ntSc zzx8f igj2U (ConfirmDialog, DropdownMenu, FilterPopover, LoadingCard, ErrorCard, ErrorBanner) as compositions from HeroUI definitions in LtgNm.
-- [ ] T015 Establish the FR-007 import procedure that every later slice's design wave must follow: when a HeroUI component a screen needs is absent from the LtgNm frame, import it from `heroUI template.pen` into LtgNm through the Pencil MCP before it is used (FR-007, research.md R-05); never recreate the component by hand and never substitute a lunaris `c:` primitive. Record this procedure in design-export/MANIFEST.md's HeroUI Frame section (added in T003) so every later design-wave agent sees it.
+- [X] T011 Redraw design.pen Button and form-atom nodes tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 from HeroUI definitions in LtgNm per contracts/component-map.md, swapping $c: variable references to HeroUI variables, keeping layout and node names intact.
+- [X] T012 Redraw design.pen nodes J09iP IU7OG D0cDM qvQPg Lmaf1 AT7ya (button and form-atom definitions) from HeroUI definitions in LtgNm, swapping $c: variables to HeroUI variables per contracts/theme-tokens.md.
+- [X] T013 Redraw design.pen nodes hl7R3 rh2QH k38Uta ZWcwn xCDF7 x3beP (form atoms, Card, StatCard, PageHeader, Modal) from HeroUI definitions in LtgNm, updating variable references and composition structure.
+- [X] T014 Redraw design.pen nodes WwNlX BPEpm FyV6E w4ntSc zzx8f igj2U (ConfirmDialog, DropdownMenu, FilterPopover, LoadingCard, ErrorCard, ErrorBanner) as compositions from HeroUI definitions in LtgNm.
+- [X] T015 Establish the FR-007 import procedure that every later slice's design wave must follow: when a HeroUI component a screen needs is absent from the LtgNm frame, import it from `heroUI template.pen` into LtgNm through the Pencil MCP before it is used (FR-007, research.md R-05); never recreate the component by hand and never substitute a lunaris `c:` primitive. Record this procedure in design-export/MANIFEST.md's HeroUI Frame section (added in T003) so every later design-wave agent sees it.
 
 ### Export and design closure
 
-- [ ] T016 Re-export all 24 redrawn atom nodes (tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 J09iP IU7OG D0cDM qvQPg Lmaf1 AT7ya hl7R3 rh2QH k38Uta ZWcwn xCDF7 x3beP WwNlX BPEpm FyV6E w4ntSc zzx8f igj2U) to design-export/json/<id>.json at depth >=12 with zero "..." elision markers, design-export/screenshots/<id>.png, and update design-export/MANIFEST.md with one row per id, verifying grep -l '"..."' design-export/json/*.json finds none of these 24 files.
+- [X] T016 Re-export all 24 redrawn atom nodes (tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 J09iP IU7OG D0cDM qvQPg Lmaf1 AT7ya hl7R3 rh2QH k38Uta ZWcwn xCDF7 x3beP WwNlX BPEpm FyV6E w4ntSc zzx8f igj2U) to design-export/json/<id>.json at depth >=12 with zero "..." elision markers, design-export/screenshots/<id>.png, and update design-export/MANIFEST.md with one row per id, verifying grep -l '"..."' design-export/json/*.json finds none of these 24 files.
 
 ### Token mapping and verification
 
-- [ ] T017 Rewrite web/src/styles/globals.css per contracts/theme-tokens.md: add @import '@heroui/styles'; replace Tailwind import; define `:root` and `.dark` blocks with HeroUI token values (--accent, --surface, --background, --foreground, --surface-secondary, --overlay, --default, --success, --warning, --danger, --muted, --border); add legacy --gp-* aliases (--gp-bg, --gp-surface, --gp-card, --gp-border, --gp-muted, --gp-fg, --gp-primary, --gp-primary-fg); add @theme block with --color-* aliases pointing to HeroUI tokens; keep --color-violet (hsl 258 90% 66%) for operator chips.
-- [ ] T018 Add web/src/__tests__/theme.test.tsx with a Vitest test that renders a probe element, applies the theme CSS, and asserts computed values of --accent (hsl 22 95% 53% light / #F97316 dark), --surface, --background, --foreground, --border, --muted equal the values in contracts/theme-tokens.md table, testing both .dark and light modes.
+- [X] T017 Rewrite web/src/styles/globals.css per contracts/theme-tokens.md: add @import '@heroui/styles'; replace Tailwind import; define `:root` and `.dark` blocks with HeroUI token values (--accent, --surface, --background, --foreground, --surface-secondary, --overlay, --default, --success, --warning, --danger, --muted, --border); add legacy --gp-* aliases (--gp-bg, --gp-surface, --gp-card, --gp-border, --gp-muted, --gp-fg, --gp-primary, --gp-primary-fg); add @theme block with --color-* aliases pointing to HeroUI tokens; keep --color-violet (hsl 258 90% 66%) for operator chips.
+- [X] T018 Add web/src/__tests__/theme.test.tsx with a Vitest test that renders a probe element, applies the theme CSS, and asserts computed values of --accent (hsl 22 95% 53% light / #F97316 dark), --surface, --background, --foreground, --border, --muted equal the values in contracts/theme-tokens.md table, testing both .dark and light modes.
 
 ### Code wave — atom components
 
-- [ ] T019 [P] Create web/src/components/hero/StatCard.tsx composing HeroUI Card with value/label/trend display per design node ZWcwn, and co-located StatCard.test.tsx with at least 3 test cases; keep all tests from any migrated predecessor.
-- [ ] T020 [P] Create web/src/components/hero/PhaseChip.tsx composing HeroUI Chip with phase-to-colour map (running→green, idle→yellow, asleep→blue, never-sleeps→grey, failed→red) for server state badges, and co-located PhaseChip.test.tsx.
-- [ ] T021 [P] Create web/src/components/hero/PageHeader.tsx composing HeroUI title/breadcrumbs/actions per design node xCDF7 used by every dashboard page, with co-located PageHeader.test.tsx.
-- [ ] T022 [P] Create web/src/components/hero/ConfirmDialog.tsx composing HeroUI AlertDialog for destructive actions (danger style per design node WwNlX) with title, description, cancel, and confirm buttons, co-located ConfirmDialog.test.tsx.
-- [ ] T023 [P] Create web/src/components/hero/DropdownMenu.tsx composing HeroUI Dropdown + Menu per design node BPEpm, supporting item groups, dividers, and disabled states, with co-located DropdownMenu.test.tsx.
-- [ ] T024 [P] Create web/src/components/hero/FilterPopover.tsx composing HeroUI Popover + form controls per design node FyV6E for server-list phase/template/namespace filters, with co-located FilterPopover.test.tsx.
-- [ ] T025 [P] Create web/src/components/hero/LoadingCard.tsx composing HeroUI Card with Spinner per design node w4ntSc, shown while async data loads, with co-located LoadingCard.test.tsx.
-- [ ] T026 [P] Create web/src/components/hero/ErrorCard.tsx composing HeroUI Alert (danger) + Card per design node zzx8f for failed-load states, with error icon, title, and dismiss button, co-located ErrorCard.test.tsx.
-- [ ] T027 [P] Create web/src/components/hero/ErrorBanner.tsx composing HeroUI Alert (danger) per design node igj2U for inline error messages (e.g. failed save, PVC provisioning failure), with co-located ErrorBanner.test.tsx.
-- [ ] T028 [P] Create web/src/components/hero/Meter.tsx as a pure-SVG progress/radial meter component (no HeroUI counterpart) kept from current ui/meter.tsx, migrating any tests to co-located Meter.test.tsx and ensuring no test is deleted.
-- [ ] T029 [P] Create web/src/components/hero/Sparkline.tsx as a pure-SVG mini line chart component (no HeroUI counterpart) kept from current ui/sparkline.tsx, migrating any tests to co-located Sparkline.test.tsx.
-- [ ] T030 [P] Create web/src/components/hero/GameIcon.tsx displaying game logos (Minecraft, Valheim, Terraria) as SVG or img elements per design specifications, migrating from current ui/game-icon.tsx with co-located GameIcon.test.tsx.
+- [X] T019 [P] Create web/src/components/hero/StatCard.tsx composing HeroUI Card with value/label/trend display per design node ZWcwn, and co-located StatCard.test.tsx with at least 3 test cases; keep all tests from any migrated predecessor.
+- [X] T020 [P] Create web/src/components/hero/PhaseChip.tsx composing HeroUI Chip with phase-to-colour map (running→green, idle→yellow, asleep→blue, never-sleeps→grey, failed→red) for server state badges, and co-located PhaseChip.test.tsx.
+- [X] T021 [P] Create web/src/components/hero/PageHeader.tsx composing HeroUI title/breadcrumbs/actions per design node xCDF7 used by every dashboard page, with co-located PageHeader.test.tsx.
+- [X] T022 [P] Create web/src/components/hero/ConfirmDialog.tsx composing HeroUI AlertDialog for destructive actions (danger style per design node WwNlX) with title, description, cancel, and confirm buttons, co-located ConfirmDialog.test.tsx.
+- [X] T023 [P] Create web/src/components/hero/DropdownMenu.tsx composing HeroUI Dropdown + Menu per design node BPEpm, supporting item groups, dividers, and disabled states, with co-located DropdownMenu.test.tsx.
+- [X] T024 [P] Create web/src/components/hero/FilterPopover.tsx composing HeroUI Popover + form controls per design node FyV6E for server-list phase/template/namespace filters, with co-located FilterPopover.test.tsx.
+- [X] T025 [P] Create web/src/components/hero/LoadingCard.tsx composing HeroUI Card with Spinner per design node w4ntSc, shown while async data loads, with co-located LoadingCard.test.tsx.
+- [X] T026 [P] Create web/src/components/hero/ErrorCard.tsx composing HeroUI Alert (danger) + Card per design node zzx8f for failed-load states, with error icon, title, and dismiss button, co-located ErrorCard.test.tsx.
+- [X] T027 [P] Create web/src/components/hero/ErrorBanner.tsx composing HeroUI Alert (danger) per design node igj2U for inline error messages (e.g. failed save, PVC provisioning failure), with co-located ErrorBanner.test.tsx.
+- [X] T028 [P] Create web/src/components/hero/Meter.tsx as a pure-SVG progress/radial meter component (no HeroUI counterpart) kept from current ui/meter.tsx, migrating any tests to co-located Meter.test.tsx and ensuring no test is deleted.
+- [X] T029 [P] Create web/src/components/hero/Sparkline.tsx as a pure-SVG mini line chart component (no HeroUI counterpart) kept from current ui/sparkline.tsx, migrating any tests to co-located Sparkline.test.tsx.
+- [X] T030 [P] Create web/src/components/hero/GameIcon.tsx displaying game logos (Minecraft, Valheim, Terraria) as SVG or img elements per design specifications, migrating from current ui/game-icon.tsx with co-located GameIcon.test.tsx.
 
 ### Spec and documentation
 
-- [ ] T031 Add a 'HeroUI component layer' section to web/specs.md (after any existing architecture description) describing the 12 slice-0 atom components (StatCard, PhaseChip, PageHeader, ConfirmDialog, DropdownMenu, FilterPopover, LoadingCard, ErrorCard, ErrorBanner, Meter, Sparkline, GameIcon) as the foundation for all rebuilt screens, noting that they compose @heroui/react primitives on Gameplane brand tokens, and reference contracts/theme-tokens.md for token mapping per FR-013.
+- [X] T031 Add a 'HeroUI component layer' section to web/specs.md (after any existing architecture description) describing the 12 slice-0 atom components (StatCard, PhaseChip, PageHeader, ConfirmDialog, DropdownMenu, FilterPopover, LoadingCard, ErrorCard, ErrorBanner, Meter, Sparkline, GameIcon) as the foundation for all rebuilt screens, noting that they compose @heroui/react primitives on Gameplane brand tokens, and reference contracts/theme-tokens.md for token mapping per FR-013.
 - [ ] T032 Apply PR labels to the slice 0 (014a-foundation) pull request via the REST API per CLAUDE.md rule 14 (`gh pr edit` does not work on this repo): `gh api -X POST repos/ValgulNecron/Gameplane/issues/<pr-number>/labels -f "labels[]=type: refactor" -f "labels[]=area: web"`; verify with `gh api repos/ValgulNecron/Gameplane/issues/<pr-number>/labels -q '[.[].name]|join(", ")'`.
+
+### Theme Implementation (added 2026-09-04)
+
+- [X] T032a Apply the 2026-09-04 palette to design.pen HeroUI variables (both modes) and re-point every screen/definition from lunaris $c:--* and legacy hex to HeroUI tokens per the token tables in contracts/theme-tokens.md (light: accent #DB2777, surface #FFF7FB, background #FFFFFF, foreground #2A0F1E, etc.; dark: accent #FF4FA3, surface #1C1A20, background #121114, foreground #F5F3F7, etc.); add five light-mode preview frames (jOo7y, Qqi8Q, zFiOW, sSISK, vvxCn) to show both modes side by side in Pencil per maintainer decision 2026-09-04.
+- [X] T032b Add five light-mode preview frames to design.pen per OD-specific decision: jOo7y Login (light variant of login screen), Qqi8Q Dashboard Home (light), zFiOW Servers (light), sSISK Server Detail Overview (light), vvxCn Mobile Servers (light), so both light and dark modes are visible simultaneously without switching appearance in Pencil; note that the original screens remain in dark mode as designed.
+- [X] T032c Re-export design-export/ after the 2026-09-04 theme changes to reflect the new HeroUI variables and light-mode preview frames: all touched node ids exported to design-export/json/<id>.json and design-export/screenshots/<id>.png at depth ≥12 with zero "..." elision markers; update design-export/MANIFEST.md with one row per id noting the 2026-09-04 re-theme timestamp and clarifying that lunaris library variables are read-only in Pencil so all screens are re-pointed to HeroUI semantic tokens instead; verify grep -l '"$c:' design-export/json/*.json returns nothing (no legacy $c: references remain).
+- [ ] T032d Update web/src/styles/globals.css :root/.dark blocks and web/src/__tests__/theme.test.tsx to the contracts/theme-tokens.md light and dark values (currently carrying legacy orange values from before the re-theme); this is a code follow-up to T032a/T032b/T032c, verified by CI; note: design-export was updated in T032c but code values lag pending this task completion.
+- [ ] T032e Decide OD-9 (purple stat-icon token): verify that StatCard icon background color uses the settled purple #8B5CF6 per the 2026-09-04 decision (was amber before), and ensure theme.test.tsx covers this token value in both light and dark modes; if the token is not yet settled in OPEN-DECISIONS.md, add the decision with citation to maintainer 2026-09-04 ruling.
 
 **Checkpoint**: Foundation ready - slice 0 PR green on CI and merged; every later slice is a pure translation job
 
