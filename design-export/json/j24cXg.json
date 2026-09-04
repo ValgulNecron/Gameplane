@@ -1,1 +1,1357 @@
-{"type":"frame","id":"j24cXg","x":0,"y":5700,"name":"Screen/Dashboard Home","theme":{"c:Mode":"Dark"},"clip":true,"width":1440,"height":1150,"fill":"$c:--background","children":[{"id":"gcVuG","type":"ref","ref":"kKFX9","name":"App Sidebar","height":"fill_container"},{"type":"frame","id":"NYjCC","name":"Main","width":"fill_container","height":"fill_container","fill":"$c:--background","layout":"vertical","children":[{"id":"R40tP","type":"ref","ref":"gu5WY","name":"Top Bar","width":"fill_container"},{"type":"frame","id":"eDHbW","name":"Body","width":"fill_container","height":"fill_container","fill":"$c:--background","layout":"vertical","gap":24,"padding":32,"children":[{"id":"D5ZxL","type":"ref","ref":"xCDF7","name":"Page Header","width":"fill_container","descendants":{"TgdLz":{"children":[{"id":"K42ot","type":"ref","ref":"tpKRk","name":"Create Server Button","descendants":{"G0IkVn":{"library":"lucide","icon":"plus"},"ysUHS":{"content":"Create server"}}}]}}},{"type":"frame","id":"d7odso","name":"Stats Row","width":"fill_container","gap":16,"children":[{"id":"uVGCt","type":"ref","ref":"ZWcwn","name":"Stat/RUNNING","width":"fill_container","descendants":{"Nd4Wf":{"content":"RUNNING"},"QdcEm":{"icon":"activity","library":"lucide","fill":"#21C45D"},"vj2Ru":{"content":"1"},"h0n7zo":{"content":"of 1 total"}}},{"id":"pUo8B","type":"ref","ref":"ZWcwn","name":"Stat/PLAYERS ONLINE","width":"fill_container","descendants":{"Nd4Wf":{"content":"PLAYERS ONLINE"},"QdcEm":{"icon":"users","library":"lucide","fill":"#FF8400"},"vj2Ru":{"content":"0"},"h0n7zo":{"content":"peak 0"}}},{"id":"koB69","type":"ref","ref":"ZWcwn","name":"Stat/VCPUS","width":"fill_container","descendants":{"Nd4Wf":{"content":"VCPUS"},"QdcEm":{"icon":"cpu","library":"lucide","fill":"#F59F0A"},"vj2Ru":{"content":"12"},"h0n7zo":{"content":"cluster cores"}}},{"id":"kIzXn","type":"ref","ref":"ZWcwn","name":"Stat/STORAGE","width":"fill_container","descendants":{"Nd4Wf":{"content":"STORAGE"},"QdcEm":{"icon":"hard-drive","library":"lucide","fill":"#895AF6"},"vj2Ru":{"content":"22 GB"},"h0n7zo":{"content":"of 86 GB"}}},{"id":"couLo","type":"ref","ref":"ZWcwn","name":"Stat/NODES READY","width":"fill_container","descendants":{"Nd4Wf":{"content":"NODES READY"},"QdcEm":{"icon":"server","library":"lucide","fill":"#F59F0A"},"vj2Ru":{"content":"3/3"},"h0n7zo":{"content":"all healthy"}}}]},{"type":"frame","id":"cwZgm","name":"Row2","width":"fill_container","gap":24,"children":[{"id":"i7GMh","type":"ref","ref":"c:ERkuB","name":"Fleet Status Card","width":"fill_container","height":372,"descendants":{"c:4zoFt":{"type":"frame","id":"NLOhP","name":"Header","width":"fill_container","padding":24,"justifyContent":"space_between","alignItems":"center","children":[{"type":"text","id":"n1X7bV","name":"title","fill":"$c:--foreground","content":"Fleet status","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"600"},{"type":"text","id":"cTKZa","name":"count","fill":"$c:--muted-foreground","content":"1 servers","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},"c:QMHOm":{"type":"frame","id":"WXawH","name":"Content","width":"fill_container","layout":"vertical","gap":16,"padding":24,"children":[{"type":"frame","id":"Bwrqp","name":"Health Bar","clip":true,"width":"fill_container","height":8,"fill":"#171717","cornerRadius":999,"children":[{"type":"rectangle","id":"q8xpmJ","name":"Running Segment","fill":"#21C45D","width":"fill_container","height":8}]},{"type":"frame","id":"x4M2DG","name":"Legend","gap":20,"children":[{"type":"frame","id":"OQgNC","name":"legend-Running 1","gap":6,"alignItems":"center","children":"..."},{"type":"frame","id":"m7Gu7w","name":"legend-Stopped 0","gap":6,"alignItems":"center","children":"..."},{"type":"frame","id":"ZOjGr","name":"legend-Failed 0","gap":6,"alignItems":"center","children":"..."}]},{"type":"frame","id":"fUK6E","name":"Attention Section","width":"fill_container","stroke":"$c:--border","strokeWidth":{"top":1},"strokeAlignment":"inner","layout":"vertical","gap":12,"padding":[16,0,0,0],"children":[{"type":"text","id":"BHqfe","name":"attnLabel","fill":"$c:--muted-foreground","content":"NEEDS ATTENTION","fontFamily":"$c:--font-secondary","fontSize":10,"fontWeight":"500","letterSpacing":1},{"type":"frame","id":"BxZ7w","name":"healthyRow","gap":8,"alignItems":"center","children":"..."}]}]},"c:tiojM":{"enabled":false}}},{"id":"o62Ax","type":"ref","ref":"c:ERkuB","name":"Cluster Resources Card","width":"fill_container","descendants":{"c:4zoFt":{"type":"frame","id":"UYVeJ","name":"Header","width":"fill_container","padding":24,"justifyContent":"space_between","alignItems":"center","children":[{"type":"text","id":"cMtaJ","name":"title","fill":"$c:--foreground","content":"Cluster resources","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"600"},{"type":"text","id":"qUbtE","name":"link","fill":"$c:--primary","content":"View cluster","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},"c:QMHOm":{"type":"frame","id":"xxNR9","name":"Content","width":"fill_container","layout":"vertical","gap":16,"padding":24,"children":[{"type":"frame","id":"dvobW","name":"Meters","width":"fill_container","layout":"vertical","gap":16,"children":[{"type":"frame","id":"etpG9","name":"CPU Meter","width":"fill_container","layout":"vertical","gap":4,"children":"..."},{"type":"frame","id":"XJ0lS","name":"Memory Meter","width":"fill_container","layout":"vertical","gap":4,"children":"..."},{"type":"frame","id":"St1VU","name":"Storage Meter","width":"fill_container","layout":"vertical","gap":4,"children":"..."}]},{"type":"frame","id":"plxAR","name":"Nodes Section","width":"fill_container","stroke":"$c:--border","strokeWidth":{"top":1},"strokeAlignment":"inner","layout":"vertical","gap":8,"padding":[16,0,0,0],"children":[{"type":"text","id":"JPUzx","name":"nodesLabel","fill":"$c:--muted-foreground","content":"NODES","fontFamily":"$c:--font-secondary","fontSize":10,"fontWeight":"500","letterSpacing":1},{"type":"frame","id":"XyCjF","name":"Node kubelab-control","width":"fill_container","gap":8,"alignItems":"center","children":"..."},{"type":"frame","id":"Ei847","name":"Node kubelab-worker-1","width":"fill_container","gap":8,"alignItems":"center","children":"..."},{"type":"frame","id":"Ic70F","name":"Node kubelab-worker-2","width":"fill_container","gap":8,"alignItems":"center","children":"..."}]}]},"c:tiojM":{"enabled":false}}}]},{"type":"frame","id":"K2wXl","name":"Row3","width":"fill_container","gap":24,"children":[{"id":"dVe3m","type":"ref","ref":"c:ERkuB","name":"Recent Activity Card","width":"fill_container","descendants":{"c:4zoFt":{"type":"frame","id":"iQy0g","name":"Header","width":"fill_container","padding":24,"justifyContent":"space_between","alignItems":"center","children":[{"type":"text","id":"ClsPU","name":"title","fill":"$c:--foreground","content":"Recent activity","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"600"},{"type":"text","id":"hnYTx","name":"link","fill":"$c:--primary","content":"View all","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},"c:QMHOm":{"type":"frame","id":"u9xWQ","name":"Content","width":"fill_container","layout":"vertical","gap":16,"padding":24,"children":[{"type":"frame","id":"V9t0a0","name":"anonymous-4h ago","width":"fill_container","gap":12,"alignItems":"center","children":[{"type":"frame","id":"rvWoA","name":"iconBox","width":28,"height":28,"fill":"#171717","cornerRadius":6,"justifyContent":"center","alignItems":"center","children":"..."},{"type":"frame","id":"nv6lA","name":"textCol","width":"fill_container","layout":"vertical","gap":2,"children":"..."},{"type":"text","id":"u0yBh","name":"time","fill":"$c:--muted-foreground","content":"4h ago","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},{"type":"frame","id":"bWrJw","name":"admin-18h ago","width":"fill_container","gap":12,"alignItems":"center","children":[{"type":"frame","id":"HWPrs","name":"iconBox","width":28,"height":28,"fill":"#171717","cornerRadius":6,"justifyContent":"center","alignItems":"center","children":"..."},{"type":"frame","id":"t6nuT","name":"textCol","width":"fill_container","layout":"vertical","gap":2,"children":"..."},{"type":"text","id":"LGPuF","name":"time","fill":"$c:--muted-foreground","content":"18h ago","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},{"type":"frame","id":"W492D","name":"anonymous-22h ago","width":"fill_container","gap":12,"alignItems":"center","children":[{"type":"frame","id":"VgaCF","name":"iconBox","width":28,"height":28,"fill":"#171717","cornerRadius":6,"justifyContent":"center","alignItems":"center","children":"..."},{"type":"frame","id":"j8HTYL","name":"textCol","width":"fill_container","layout":"vertical","gap":2,"children":"..."},{"type":"text","id":"gx4Ru","name":"time","fill":"$c:--muted-foreground","content":"22h ago","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},{"type":"frame","id":"hUW6b","name":"anonymous-1d ago","width":"fill_container","gap":12,"alignItems":"center","children":[{"type":"frame","id":"p5fDO5","name":"iconBox","width":28,"height":28,"fill":"#171717","cornerRadius":6,"justifyContent":"center","alignItems":"center","children":"..."},{"type":"frame","id":"NUtrp","name":"textCol","width":"fill_container","layout":"vertical","gap":2,"children":"..."},{"type":"text","id":"NFuDr","name":"time","fill":"$c:--muted-foreground","content":"1d ago","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},{"type":"frame","id":"S0HjWY","name":"anonymous-1d ago","width":"fill_container","gap":12,"alignItems":"center","children":[{"type":"frame","id":"LllxT","name":"iconBox","width":28,"height":28,"fill":"#171717","cornerRadius":6,"justifyContent":"center","alignItems":"center","children":"..."},{"type":"frame","id":"VKXVW","name":"textCol","width":"fill_container","layout":"vertical","gap":2,"children":"..."},{"type":"text","id":"QuHXo","name":"time","fill":"$c:--muted-foreground","content":"1d ago","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]}]},"c:tiojM":{"enabled":false}}},{"id":"T39Br","type":"ref","ref":"c:ERkuB","name":"Recent Backups Card","width":"fill_container","height":353,"descendants":{"c:4zoFt":{"type":"frame","id":"K4BnEH","name":"Header","width":"fill_container","padding":24,"justifyContent":"space_between","alignItems":"center","children":[{"type":"text","id":"IXfYK","name":"title","fill":"$c:--foreground","content":"Recent backups","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"600"},{"type":"text","id":"U7VFQs","name":"link","fill":"$c:--primary","content":"View all","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},"c:QMHOm":{"type":"frame","id":"woxOW","name":"Content","width":"fill_container","height":"fill_container","layout":"vertical","padding":[40,24],"justifyContent":"center","alignItems":"center","children":[{"type":"text","id":"b6wo6I","name":"empty","fill":"$c:--muted-foreground","content":"No backups yet.","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},"c:tiojM":{"enabled":false}}}]}]}]}]}
+{
+    "type": "frame",
+    "id": "j24cXg",
+    "x": 0,
+    "y": 5700,
+    "name": "Screen/Dashboard Home",
+    "theme": {
+        "c:Mode": "Dark",
+        "semantic": "dark"
+    },
+    "clip": true,
+    "width": 1440,
+    "height": 1150,
+    "fill": "$background/background",
+    "children": [
+        {
+            "id": "gcVuG",
+            "type": "ref",
+            "ref": "kKFX9",
+            "name": "App Sidebar",
+            "height": "fill_container"
+        },
+        {
+            "type": "frame",
+            "id": "NYjCC",
+            "name": "Main",
+            "width": "fill_container",
+            "height": "fill_container",
+            "fill": "$background/background",
+            "layout": "vertical",
+            "children": [
+                {
+                    "id": "R40tP",
+                    "type": "ref",
+                    "ref": "gu5WY",
+                    "name": "Top Bar",
+                    "width": "fill_container"
+                },
+                {
+                    "type": "frame",
+                    "id": "eDHbW",
+                    "name": "Body",
+                    "width": "fill_container",
+                    "height": "fill_container",
+                    "fill": "$background/background",
+                    "layout": "vertical",
+                    "gap": 24,
+                    "padding": 32,
+                    "children": [
+                        {
+                            "id": "D5ZxL",
+                            "type": "ref",
+                            "ref": "xCDF7",
+                            "name": "Page Header",
+                            "width": "fill_container",
+                            "descendants": {
+                                "TgdLz": {
+                                    "children": [
+                                        {
+                                            "id": "K42ot",
+                                            "type": "ref",
+                                            "ref": "tpKRk",
+                                            "name": "Create Server Button",
+                                            "descendants": {
+                                                "q58In/Xpn7K": {
+                                                    "library": "lucide",
+                                                    "icon": "plus"
+                                                },
+                                                "q58In/U6q13B": {
+                                                    "content": "Create server"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "type": "frame",
+                            "id": "d7odso",
+                            "name": "Stats Row",
+                            "width": "fill_container",
+                            "gap": 16,
+                            "children": [
+                                {
+                                    "id": "uVGCt",
+                                    "type": "ref",
+                                    "ref": "ZWcwn",
+                                    "name": "Stat/RUNNING",
+                                    "width": "fill_container",
+                                    "descendants": {
+                                        "Nd4Wf": {
+                                            "content": "RUNNING"
+                                        },
+                                        "QdcEm": {
+                                            "icon": "activity",
+                                            "library": "lucide",
+                                            "fill": "#21C45D"
+                                        },
+                                        "vj2Ru": {
+                                            "content": "1"
+                                        },
+                                        "h0n7zo": {
+                                            "content": "of 1 total"
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "pUo8B",
+                                    "type": "ref",
+                                    "ref": "ZWcwn",
+                                    "name": "Stat/PLAYERS ONLINE",
+                                    "width": "fill_container",
+                                    "descendants": {
+                                        "Nd4Wf": {
+                                            "content": "PLAYERS ONLINE"
+                                        },
+                                        "QdcEm": {
+                                            "icon": "users",
+                                            "library": "lucide",
+                                            "fill": "$accent/accent"
+                                        },
+                                        "vj2Ru": {
+                                            "content": "0"
+                                        },
+                                        "h0n7zo": {
+                                            "content": "peak 0"
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "koB69",
+                                    "type": "ref",
+                                    "ref": "ZWcwn",
+                                    "name": "Stat/VCPUS",
+                                    "width": "fill_container",
+                                    "descendants": {
+                                        "Nd4Wf": {
+                                            "content": "VCPUS"
+                                        },
+                                        "QdcEm": {
+                                            "icon": "cpu",
+                                            "library": "lucide",
+                                            "fill": "#8B5CF6"
+                                        },
+                                        "vj2Ru": {
+                                            "content": "12"
+                                        },
+                                        "h0n7zo": {
+                                            "content": "cluster cores"
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "kIzXn",
+                                    "type": "ref",
+                                    "ref": "ZWcwn",
+                                    "name": "Stat/STORAGE",
+                                    "width": "fill_container",
+                                    "descendants": {
+                                        "Nd4Wf": {
+                                            "content": "STORAGE"
+                                        },
+                                        "QdcEm": {
+                                            "icon": "hard-drive",
+                                            "library": "lucide",
+                                            "fill": "#895AF6"
+                                        },
+                                        "vj2Ru": {
+                                            "content": "22 GB"
+                                        },
+                                        "h0n7zo": {
+                                            "content": "of 86 GB"
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "couLo",
+                                    "type": "ref",
+                                    "ref": "ZWcwn",
+                                    "name": "Stat/NODES READY",
+                                    "width": "fill_container",
+                                    "descendants": {
+                                        "Nd4Wf": {
+                                            "content": "NODES READY"
+                                        },
+                                        "QdcEm": {
+                                            "icon": "server",
+                                            "library": "lucide",
+                                            "fill": "#8B5CF6"
+                                        },
+                                        "vj2Ru": {
+                                            "content": "3/3"
+                                        },
+                                        "h0n7zo": {
+                                            "content": "all healthy"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "type": "frame",
+                            "id": "cwZgm",
+                            "name": "Row2",
+                            "width": "fill_container",
+                            "gap": 24,
+                            "children": [
+                                {
+                                    "id": "i7GMh",
+                                    "type": "ref",
+                                    "ref": "c:ERkuB",
+                                    "name": "Fleet Status Card",
+                                    "width": "fill_container",
+                                    "height": 372,
+                                    "fill": "$surface/surface",
+                                    "stroke": "$border/border",
+                                    "descendants": {
+                                        "c:4zoFt": {
+                                            "type": "frame",
+                                            "id": "NLOhP",
+                                            "name": "Header",
+                                            "width": "fill_container",
+                                            "padding": 24,
+                                            "justifyContent": "space_between",
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "n1X7bV",
+                                                    "name": "title",
+                                                    "fill": "$foreground/foreground",
+                                                    "content": "Fleet status",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "600"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "cTKZa",
+                                                    "name": "count",
+                                                    "fill": "$muted",
+                                                    "content": "1 servers",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        "c:QMHOm": {
+                                            "type": "frame",
+                                            "id": "WXawH",
+                                            "name": "Content",
+                                            "width": "fill_container",
+                                            "layout": "vertical",
+                                            "gap": 16,
+                                            "padding": 24,
+                                            "children": [
+                                                {
+                                                    "type": "frame",
+                                                    "id": "Bwrqp",
+                                                    "name": "Health Bar",
+                                                    "clip": true,
+                                                    "width": "fill_container",
+                                                    "height": 8,
+                                                    "fill": "$default/default",
+                                                    "cornerRadius": 999,
+                                                    "children": [
+                                                        {
+                                                            "type": "rectangle",
+                                                            "id": "q8xpmJ",
+                                                            "name": "Running Segment",
+                                                            "fill": "#21C45D",
+                                                            "width": "fill_container",
+                                                            "height": 8
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "x4M2DG",
+                                                    "name": "Legend",
+                                                    "gap": 20,
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "OQgNC",
+                                                            "name": "legend-Running 1",
+                                                            "gap": 6,
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "ellipse",
+                                                                    "id": "RlZSL",
+                                                                    "name": "dot",
+                                                                    "fill": "#21C45D",
+                                                                    "width": 8,
+                                                                    "height": 8
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "zYz5q",
+                                                                    "name": "label",
+                                                                    "fill": "$muted",
+                                                                    "content": "Running 1",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "m7Gu7w",
+                                                            "name": "legend-Stopped 0",
+                                                            "gap": 6,
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "ellipse",
+                                                                    "id": "wCh1p",
+                                                                    "name": "dot",
+                                                                    "fill": "$muted",
+                                                                    "width": 8,
+                                                                    "height": 8
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "Y3cKdW",
+                                                                    "name": "label",
+                                                                    "fill": "$muted",
+                                                                    "content": "Stopped 0",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "ZOjGr",
+                                                            "name": "legend-Failed 0",
+                                                            "gap": 6,
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "ellipse",
+                                                                    "id": "HfWQy",
+                                                                    "name": "dot",
+                                                                    "fill": "#DC2626",
+                                                                    "width": 8,
+                                                                    "height": 8
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "X0ldS",
+                                                                    "name": "label",
+                                                                    "fill": "$muted",
+                                                                    "content": "Failed 0",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "fUK6E",
+                                                    "name": "Attention Section",
+                                                    "width": "fill_container",
+                                                    "stroke": "$border/border",
+                                                    "strokeWidth": {
+                                                        "top": 1
+                                                    },
+                                                    "strokeAlignment": "inner",
+                                                    "layout": "vertical",
+                                                    "gap": 12,
+                                                    "padding": [
+                                                        16,
+                                                        0,
+                                                        0,
+                                                        0
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "type": "text",
+                                                            "id": "BHqfe",
+                                                            "name": "attnLabel",
+                                                            "fill": "$muted",
+                                                            "content": "NEEDS ATTENTION",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 10,
+                                                            "fontWeight": "500",
+                                                            "letterSpacing": 1
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "BxZ7w",
+                                                            "name": "healthyRow",
+                                                            "gap": 8,
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "icon",
+                                                                    "id": "Q5NOE0",
+                                                                    "name": "check",
+                                                                    "width": 16,
+                                                                    "height": 16,
+                                                                    "icon": "circle-check",
+                                                                    "library": "lucide",
+                                                                    "fill": "#21C45D"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "ceegO",
+                                                                    "name": "healthyLabel",
+                                                                    "fill": "$muted",
+                                                                    "content": "Everything looks healthy.",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 14,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "c:tiojM": {
+                                            "enabled": false
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "o62Ax",
+                                    "type": "ref",
+                                    "ref": "c:ERkuB",
+                                    "name": "Cluster Resources Card",
+                                    "width": "fill_container",
+                                    "fill": "$surface/surface",
+                                    "stroke": "$border/border",
+                                    "descendants": {
+                                        "c:4zoFt": {
+                                            "type": "frame",
+                                            "id": "UYVeJ",
+                                            "name": "Header",
+                                            "width": "fill_container",
+                                            "padding": 24,
+                                            "justifyContent": "space_between",
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "cMtaJ",
+                                                    "name": "title",
+                                                    "fill": "$foreground/foreground",
+                                                    "content": "Cluster resources",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "600"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "qUbtE",
+                                                    "name": "link",
+                                                    "fill": "$accent/accent",
+                                                    "content": "View cluster",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        "c:QMHOm": {
+                                            "type": "frame",
+                                            "id": "xxNR9",
+                                            "name": "Content",
+                                            "width": "fill_container",
+                                            "layout": "vertical",
+                                            "gap": 16,
+                                            "padding": 24,
+                                            "children": [
+                                                {
+                                                    "type": "frame",
+                                                    "id": "dvobW",
+                                                    "name": "Meters",
+                                                    "width": "fill_container",
+                                                    "layout": "vertical",
+                                                    "gap": 16,
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "etpG9",
+                                                            "name": "CPU Meter",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 4,
+                                                            "children": [
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "fkhcE",
+                                                                    "name": "CPU Row",
+                                                                    "width": "fill_container",
+                                                                    "justifyContent": "space_between",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "JJmP2",
+                                                                            "name": "CPU Label",
+                                                                            "fill": "$muted",
+                                                                            "content": "CPU",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 11,
+                                                                            "fontWeight": "normal"
+                                                                        },
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "K09eyg",
+                                                                            "name": "CPU Pct",
+                                                                            "fill": "$foreground/foreground",
+                                                                            "content": "0%",
+                                                                            "fontFamily": "$c:--font-primary",
+                                                                            "fontSize": 11,
+                                                                            "fontWeight": "normal"
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "MbCjr",
+                                                                    "name": "CPU Bar",
+                                                                    "clip": true,
+                                                                    "width": "fill_container",
+                                                                    "height": 6,
+                                                                    "fill": "$default/default",
+                                                                    "cornerRadius": 999,
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "rectangle",
+                                                                            "cornerRadius": 999,
+                                                                            "id": "d2tBR",
+                                                                            "name": "CPU Fill",
+                                                                            "fill": "$accent/accent",
+                                                                            "width": 0,
+                                                                            "height": 6
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "zhqx5",
+                                                                    "name": "CPU Sub",
+                                                                    "fill": "$muted",
+                                                                    "content": "0 / 12 cores",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 10,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "XJ0lS",
+                                                            "name": "Memory Meter",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 4,
+                                                            "children": [
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "WlITy",
+                                                                    "name": "Memory Row",
+                                                                    "width": "fill_container",
+                                                                    "justifyContent": "space_between",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "l07A3l",
+                                                                            "name": "Memory Label",
+                                                                            "fill": "$muted",
+                                                                            "content": "Memory",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 11,
+                                                                            "fontWeight": "normal"
+                                                                        },
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "yeZMZ",
+                                                                            "name": "Memory Pct",
+                                                                            "fill": "$foreground/foreground",
+                                                                            "content": "0%",
+                                                                            "fontFamily": "$c:--font-primary",
+                                                                            "fontSize": 11,
+                                                                            "fontWeight": "normal"
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "MyQIK",
+                                                                    "name": "Memory Bar",
+                                                                    "clip": true,
+                                                                    "width": "fill_container",
+                                                                    "height": 6,
+                                                                    "fill": "$default/default",
+                                                                    "cornerRadius": 999,
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "rectangle",
+                                                                            "cornerRadius": 999,
+                                                                            "id": "lm7F7",
+                                                                            "name": "Memory Fill",
+                                                                            "fill": "#895AF6",
+                                                                            "width": 0,
+                                                                            "height": 6
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "jSE61",
+                                                                    "name": "Memory Sub",
+                                                                    "fill": "$muted",
+                                                                    "content": "0 B / 41 GB",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 10,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "St1VU",
+                                                            "name": "Storage Meter",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 4,
+                                                            "children": [
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "VBfFG",
+                                                                    "name": "Storage Row",
+                                                                    "width": "fill_container",
+                                                                    "justifyContent": "space_between",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "P0Us59",
+                                                                            "name": "Storage Label",
+                                                                            "fill": "$muted",
+                                                                            "content": "Storage",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 11,
+                                                                            "fontWeight": "normal"
+                                                                        },
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "uvlmk",
+                                                                            "name": "Storage Pct",
+                                                                            "fill": "$foreground/foreground",
+                                                                            "content": "25%",
+                                                                            "fontFamily": "$c:--font-primary",
+                                                                            "fontSize": 11,
+                                                                            "fontWeight": "normal"
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "bp427",
+                                                                    "name": "Storage Bar",
+                                                                    "clip": true,
+                                                                    "width": "fill_container",
+                                                                    "height": 6,
+                                                                    "fill": "$default/default",
+                                                                    "cornerRadius": 999,
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "rectangle",
+                                                                            "cornerRadius": 999,
+                                                                            "id": "d3tEna",
+                                                                            "name": "Storage Fill",
+                                                                            "fill": "#21C45D",
+                                                                            "width": 110,
+                                                                            "height": 6
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "plxAR",
+                                                    "name": "Nodes Section",
+                                                    "width": "fill_container",
+                                                    "stroke": "$border/border",
+                                                    "strokeWidth": {
+                                                        "top": 1
+                                                    },
+                                                    "strokeAlignment": "inner",
+                                                    "layout": "vertical",
+                                                    "gap": 8,
+                                                    "padding": [
+                                                        16,
+                                                        0,
+                                                        0,
+                                                        0
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "type": "text",
+                                                            "id": "JPUzx",
+                                                            "name": "nodesLabel",
+                                                            "fill": "$muted",
+                                                            "content": "NODES",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 10,
+                                                            "fontWeight": "500",
+                                                            "letterSpacing": 1
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "XyCjF",
+                                                            "name": "Node kubelab-control",
+                                                            "width": "fill_container",
+                                                            "gap": 8,
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "ellipse",
+                                                                    "id": "Sc5sy",
+                                                                    "name": "dot",
+                                                                    "fill": "#21C45D",
+                                                                    "width": 8,
+                                                                    "height": 8
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "PqhJM",
+                                                                    "name": "name",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "kubelab-control",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "oRtMd",
+                                                                    "name": "meta",
+                                                                    "fill": "$muted",
+                                                                    "content": "0 pods \u00b7 cpu 0%",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "Ei847",
+                                                            "name": "Node kubelab-worker-1",
+                                                            "width": "fill_container",
+                                                            "gap": 8,
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "ellipse",
+                                                                    "id": "JHzv8",
+                                                                    "name": "dot",
+                                                                    "fill": "#21C45D",
+                                                                    "width": 8,
+                                                                    "height": 8
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "iTpc1",
+                                                                    "name": "name",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "kubelab-worker-1",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "pBPpm",
+                                                                    "name": "meta",
+                                                                    "fill": "$muted",
+                                                                    "content": "0 pods \u00b7 cpu 0%",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "Ic70F",
+                                                            "name": "Node kubelab-worker-2",
+                                                            "width": "fill_container",
+                                                            "gap": 8,
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "ellipse",
+                                                                    "id": "pWMz6",
+                                                                    "name": "dot",
+                                                                    "fill": "#21C45D",
+                                                                    "width": 8,
+                                                                    "height": 8
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "RIs5q",
+                                                                    "name": "name",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "kubelab-worker-2",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "rp83B",
+                                                                    "name": "meta",
+                                                                    "fill": "$muted",
+                                                                    "content": "0 pods \u00b7 cpu 0%",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "c:tiojM": {
+                                            "enabled": false
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "type": "frame",
+                            "id": "K2wXl",
+                            "name": "Row3",
+                            "width": "fill_container",
+                            "gap": 24,
+                            "children": [
+                                {
+                                    "id": "dVe3m",
+                                    "type": "ref",
+                                    "ref": "c:ERkuB",
+                                    "name": "Recent Activity Card",
+                                    "width": "fill_container",
+                                    "fill": "$surface/surface",
+                                    "stroke": "$border/border",
+                                    "descendants": {
+                                        "c:4zoFt": {
+                                            "type": "frame",
+                                            "id": "iQy0g",
+                                            "name": "Header",
+                                            "width": "fill_container",
+                                            "padding": 24,
+                                            "justifyContent": "space_between",
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "ClsPU",
+                                                    "name": "title",
+                                                    "fill": "$foreground/foreground",
+                                                    "content": "Recent activity",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "600"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "hnYTx",
+                                                    "name": "link",
+                                                    "fill": "$accent/accent",
+                                                    "content": "View all",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        "c:QMHOm": {
+                                            "type": "frame",
+                                            "id": "u9xWQ",
+                                            "name": "Content",
+                                            "width": "fill_container",
+                                            "layout": "vertical",
+                                            "gap": 16,
+                                            "padding": 24,
+                                            "children": [
+                                                {
+                                                    "type": "frame",
+                                                    "id": "V9t0a0",
+                                                    "name": "anonymous-4h ago",
+                                                    "width": "fill_container",
+                                                    "gap": 12,
+                                                    "alignItems": "center",
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "rvWoA",
+                                                            "name": "iconBox",
+                                                            "width": 28,
+                                                            "height": 28,
+                                                            "fill": "$default/default",
+                                                            "cornerRadius": 6,
+                                                            "justifyContent": "center",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "icon",
+                                                                    "id": "XuAzu",
+                                                                    "name": "plus",
+                                                                    "width": 14,
+                                                                    "height": 14,
+                                                                    "icon": "plus",
+                                                                    "library": "lucide",
+                                                                    "fill": "#21C45D"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "nv6lA",
+                                                            "name": "textCol",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 2,
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "b1DPs",
+                                                                    "name": "title",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "anonymous created",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 14,
+                                                                    "fontWeight": "600"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "Mkg9B",
+                                                                    "name": "path",
+                                                                    "fill": "$muted",
+                                                                    "content": "POST /auth/login",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 11,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "u0yBh",
+                                                            "name": "time",
+                                                            "fill": "$muted",
+                                                            "content": "4h ago",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "bWrJw",
+                                                    "name": "admin-18h ago",
+                                                    "width": "fill_container",
+                                                    "gap": 12,
+                                                    "alignItems": "center",
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "HWPrs",
+                                                            "name": "iconBox",
+                                                            "width": 28,
+                                                            "height": 28,
+                                                            "fill": "$default/default",
+                                                            "cornerRadius": 6,
+                                                            "justifyContent": "center",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "icon",
+                                                                    "id": "suOsL",
+                                                                    "name": "plus",
+                                                                    "width": 14,
+                                                                    "height": 14,
+                                                                    "icon": "plus",
+                                                                    "library": "lucide",
+                                                                    "fill": "#21C45D"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "t6nuT",
+                                                            "name": "textCol",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 2,
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "WAXfo",
+                                                                    "name": "title",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "admin created",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 14,
+                                                                    "fontWeight": "600"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "Thh8f",
+                                                                    "name": "path",
+                                                                    "fill": "$muted",
+                                                                    "content": "POST /servers",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 11,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "LGPuF",
+                                                            "name": "time",
+                                                            "fill": "$muted",
+                                                            "content": "18h ago",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "W492D",
+                                                    "name": "anonymous-22h ago",
+                                                    "width": "fill_container",
+                                                    "gap": 12,
+                                                    "alignItems": "center",
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "VgaCF",
+                                                            "name": "iconBox",
+                                                            "width": 28,
+                                                            "height": 28,
+                                                            "fill": "$default/default",
+                                                            "cornerRadius": 6,
+                                                            "justifyContent": "center",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "icon",
+                                                                    "id": "NvbTg",
+                                                                    "name": "plus",
+                                                                    "width": 14,
+                                                                    "height": 14,
+                                                                    "icon": "plus",
+                                                                    "library": "lucide",
+                                                                    "fill": "#21C45D"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "j8HTYL",
+                                                            "name": "textCol",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 2,
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "abxQe",
+                                                                    "name": "title",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "anonymous created",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 14,
+                                                                    "fontWeight": "600"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "Y4YI4",
+                                                                    "name": "path",
+                                                                    "fill": "$muted",
+                                                                    "content": "POST /auth/login",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 11,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "gx4Ru",
+                                                            "name": "time",
+                                                            "fill": "$muted",
+                                                            "content": "22h ago",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "hUW6b",
+                                                    "name": "anonymous-1d ago",
+                                                    "width": "fill_container",
+                                                    "gap": 12,
+                                                    "alignItems": "center",
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "p5fDO5",
+                                                            "name": "iconBox",
+                                                            "width": 28,
+                                                            "height": 28,
+                                                            "fill": "$default/default",
+                                                            "cornerRadius": 6,
+                                                            "justifyContent": "center",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "icon",
+                                                                    "id": "LhhqX",
+                                                                    "name": "plus",
+                                                                    "width": 14,
+                                                                    "height": 14,
+                                                                    "icon": "plus",
+                                                                    "library": "lucide",
+                                                                    "fill": "#21C45D"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "NUtrp",
+                                                            "name": "textCol",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 2,
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "pg11U",
+                                                                    "name": "title",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "anonymous created",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 14,
+                                                                    "fontWeight": "600"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "H5n87x",
+                                                                    "name": "path",
+                                                                    "fill": "$muted",
+                                                                    "content": "POST /auth/login",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 11,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "NFuDr",
+                                                            "name": "time",
+                                                            "fill": "$muted",
+                                                            "content": "1d ago",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "S0HjWY",
+                                                    "name": "anonymous-1d ago",
+                                                    "width": "fill_container",
+                                                    "gap": 12,
+                                                    "alignItems": "center",
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "LllxT",
+                                                            "name": "iconBox",
+                                                            "width": 28,
+                                                            "height": 28,
+                                                            "fill": "$default/default",
+                                                            "cornerRadius": 6,
+                                                            "justifyContent": "center",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "icon",
+                                                                    "id": "NfJqJ",
+                                                                    "name": "plus",
+                                                                    "width": 14,
+                                                                    "height": 14,
+                                                                    "icon": "plus",
+                                                                    "library": "lucide",
+                                                                    "fill": "#21C45D"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "VKXVW",
+                                                            "name": "textCol",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 2,
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "dANsP",
+                                                                    "name": "title",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "anonymous created",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 14,
+                                                                    "fontWeight": "600"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "YC42m",
+                                                                    "name": "path",
+                                                                    "fill": "$muted",
+                                                                    "content": "POST /auth/login",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 11,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "QuHXo",
+                                                            "name": "time",
+                                                            "fill": "$muted",
+                                                            "content": "1d ago",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "c:tiojM": {
+                                            "enabled": false
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "T39Br",
+                                    "type": "ref",
+                                    "ref": "c:ERkuB",
+                                    "name": "Recent Backups Card",
+                                    "width": "fill_container",
+                                    "height": 353,
+                                    "fill": "$surface/surface",
+                                    "stroke": "$border/border",
+                                    "descendants": {
+                                        "c:4zoFt": {
+                                            "type": "frame",
+                                            "id": "K4BnEH",
+                                            "name": "Header",
+                                            "width": "fill_container",
+                                            "padding": 24,
+                                            "justifyContent": "space_between",
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "IXfYK",
+                                                    "name": "title",
+                                                    "fill": "$foreground/foreground",
+                                                    "content": "Recent backups",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "600"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "U7VFQs",
+                                                    "name": "link",
+                                                    "fill": "$accent/accent",
+                                                    "content": "View all",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        "c:QMHOm": {
+                                            "type": "frame",
+                                            "id": "woxOW",
+                                            "name": "Content",
+                                            "width": "fill_container",
+                                            "height": "fill_container",
+                                            "layout": "vertical",
+                                            "padding": [
+                                                40,
+                                                24
+                                            ],
+                                            "justifyContent": "center",
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "b6wo6I",
+                                                    "name": "empty",
+                                                    "fill": "$muted",
+                                                    "content": "No backups yet.",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        "c:tiojM": {
+                                            "enabled": false
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

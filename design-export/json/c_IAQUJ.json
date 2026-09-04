@@ -1,1 +1,33 @@
-{"type":"frame","id":"c:IAQUJ","x":1000,"y":368,"name":"List Item Title","reusable":true,"width":240,"cornerRadius":2,"gap":8,"padding":[8,6,8,32],"alignItems":"center","children":[{"type":"text","id":"c:uWdo0","name":"Label","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"List Title","lineHeight":1.3333333333333333,"fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"}]}
+{
+  "type": "frame",
+  "id": "c:IAQUJ",
+  "x": 1000,
+  "y": 368,
+  "name": "List Item Title",
+  "reusable": true,
+  "width": 240,
+  "cornerRadius": 2,
+  "gap": 8,
+  "padding": [
+    8,
+    6,
+    8,
+    32
+  ],
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "text",
+      "id": "c:uWdo0",
+      "name": "Label",
+      "fill": "$c:--muted-foreground",
+      "textGrowth": "fixed-width",
+      "width": "fill_container",
+      "content": "List Title",
+      "lineHeight": 1.3333333333333333,
+      "fontFamily": "$c:--font-secondary",
+      "fontSize": 12,
+      "fontWeight": "500"
+    }
+  ]
+}

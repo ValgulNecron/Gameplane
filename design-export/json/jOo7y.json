@@ -1,0 +1,105 @@
+{
+  "type": "frame",
+  "id": "jOo7y",
+  "x": 1640,
+  "y": 3396,
+  "name": "Screen/Login (Light)",
+  "theme": {
+    "c:Mode": "Light",
+    "semantic": "light"
+  },
+  "clip": true,
+  "width": 1440,
+  "height": 900,
+  "fill": "$background/background",
+  "children": [
+    {
+      "type": "frame",
+      "id": "kjmlX",
+      "name": "loginL",
+      "width": "fill_container",
+      "height": "fill_container",
+      "layout": "vertical",
+      "padding": 80,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "g4BRbp",
+          "name": "loginCard",
+          "width": 420,
+          "fill": "$surface/surface",
+          "cornerRadius": 12,
+          "stroke": "$border/border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 40,
+          "children": [
+            {
+              "type": "frame",
+              "id": "WGtF4",
+              "name": "loginLogo",
+              "width": "fill_container",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "OpfLi",
+                  "name": "logoK",
+                  "width": 36,
+                  "height": 36,
+                  "fill": "$accent/soft",
+                  "cornerRadius": 8,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "l0reuE",
+                      "name": "shield",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "shield-check",
+                      "library": "lucide",
+                      "fill": "$accent/accent"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "N0S1O",
+                  "name": "logoCol",
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "sLCYy",
+                      "fill": "$foreground/foreground",
+                      "content": "gameplane",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "dceXK",
+                      "fill": "$muted",
+                      "content": "game server control panel",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

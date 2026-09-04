@@ -1,1 +1,71 @@
-{"id":"c:Irk3I","type":"ref","reusable":true,"ref":"c:oT0d2","x":1961.7883551099067,"y":2459.4255535419575,"name":"Pagination Item/Ellipsis","fill":[],"stroke":[],"effect":[],"rotation":0.6095720472010598,"strokeWidth":1,"strokeLinejoin":"miter","strokeLinecap":"butt","strokeAlignment":"inner","descendants":{"c:y7IIq":{"type":"frame","id":"c:PkGub","name":"dots","width":24,"height":24,"layout":"none","children":[{"type":"path","id":"c:SsCKU","x":16,"y":11.75,"name":"Vector","geometry":"...","width":0,"height":0.5,"stroke":"$c:--foreground","strokeWidth":1.5,"strokeLinejoin":"round","strokeLinecap":"round"},{"type":"path","id":"c:WoLlm","x":12,"y":11.75,"name":"Vector","geometry":"...","width":0,"height":0.5,"stroke":"$c:--foreground","strokeWidth":1.5,"strokeLinejoin":"round","strokeLinecap":"round"},{"type":"path","id":"c:IXSc4","x":8,"y":11.75,"name":"Vector","geometry":"...","width":0,"height":0.5,"stroke":"$c:--foreground","strokeWidth":1.5,"strokeLinejoin":"round","strokeLinecap":"round"}]}}}
+{
+  "id": "c:Irk3I",
+  "type": "ref",
+  "reusable": true,
+  "ref": "c:oT0d2",
+  "x": 1961.7883551099067,
+  "y": 2459.4255535419575,
+  "name": "Pagination Item/Ellipsis",
+  "fill": [],
+  "stroke": [],
+  "effect": [],
+  "rotation": 0.6095720472010598,
+  "strokeWidth": 1,
+  "strokeLinejoin": "miter",
+  "strokeLinecap": "butt",
+  "strokeAlignment": "inner",
+  "descendants": {
+    "c:y7IIq": {
+      "type": "frame",
+      "id": "c:PkGub",
+      "name": "dots",
+      "width": 24,
+      "height": 24,
+      "layout": "none",
+      "children": [
+        {
+          "type": "path",
+          "id": "c:SsCKU",
+          "x": 16,
+          "y": 11.75,
+          "name": "Vector",
+          "geometry": "M0 1.41421l0-1.41421",
+          "width": 0,
+          "height": 0.5,
+          "stroke": "$c:--foreground",
+          "strokeWidth": 1.5,
+          "strokeLinejoin": "round",
+          "strokeLinecap": "round"
+        },
+        {
+          "type": "path",
+          "id": "c:WoLlm",
+          "x": 12,
+          "y": 11.75,
+          "name": "Vector",
+          "geometry": "M0 1.41421l0-1.41421",
+          "width": 0,
+          "height": 0.5,
+          "stroke": "$c:--foreground",
+          "strokeWidth": 1.5,
+          "strokeLinejoin": "round",
+          "strokeLinecap": "round"
+        },
+        {
+          "type": "path",
+          "id": "c:IXSc4",
+          "x": 8,
+          "y": 11.75,
+          "name": "Vector",
+          "geometry": "M0 1.41421l0-1.41421",
+          "width": 0,
+          "height": 0.5,
+          "stroke": "$c:--foreground",
+          "strokeWidth": 1.5,
+          "strokeLinejoin": "round",
+          "strokeLinecap": "round"
+        }
+      ]
+    }
+  }
+}

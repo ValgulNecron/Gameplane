@@ -1,0 +1,16 @@
+{
+  "type": "frame",
+  "id": "vvxCn",
+  "x": -440,
+  "y": 22565,
+  "name": "Screen/Mobile \u2014 Servers (Light)",
+  "theme": {
+    "c:Mode": "Light",
+    "semantic": "light"
+  },
+  "clip": true,
+  "width": 390,
+  "height": 844,
+  "fill": "$background/background",
+  "layout": "vertical"
+}

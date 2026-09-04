@@ -1,1 +1,32 @@
-{"type":"frame","id":"tpKRk","x":0,"y":26846,"name":"Gameplane/Button/Default","theme":{"c:Mode":"Dark","semantic":"dark"},"reusable":true,"height":36,"fill":"$accent/accent","cornerRadius":"$radius/3xl","gap":"$spacing/2","padding":[8,"$spacing/4"],"justifyContent":"center","alignItems":"center","children":[{"id":"q58In","type":"ref","ref":"cb4rt","name":"Button","descendants":{"U6q13B":{"content":"Button"}}}]}
+{
+    "type": "frame",
+    "id": "tpKRk",
+    "x": 0,
+    "y": 26846,
+    "name": "Gameplane/Button/Default",
+    "theme": {},
+    "reusable": true,
+    "height": 36,
+    "fill": "$accent/accent",
+    "cornerRadius": "$radius/3xl",
+    "gap": "$spacing/2",
+    "padding": [
+        8,
+        "$spacing/4"
+    ],
+    "justifyContent": "center",
+    "alignItems": "center",
+    "children": [
+        {
+            "id": "q58In",
+            "type": "ref",
+            "ref": "cb4rt",
+            "name": "Button",
+            "descendants": {
+                "U6q13B": {
+                    "content": "Button"
+                }
+            }
+        }
+    ]
+}

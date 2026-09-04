@@ -1,1 +1,33 @@
-{"type":"frame","id":"WwNlX","x":0,"y":28161,"name":"Gameplane/Confirm Dialog","theme":{"c:Mode":"Dark","semantic":"dark"},"reusable":true,"width":440,"fill":"$surface/surface","cornerRadius":"$radius/xl","stroke":"$border/border","strokeWidth":1,"strokeAlignment":"inner","effect":{"type":"shadow","shadowType":"outer","color":"#00000080","offset":{"x":0,"y":12},"blur":32,"spread":-8},"layout":"vertical","padding":20,"children":[{"id":"l9x0W","type":"ref","ref":"TzRet","name":"AlertDialog/Danger"}]}
+{
+  "type": "frame",
+  "id": "WwNlX",
+  "x": 0,
+  "y": 28161,
+  "name": "Gameplane/Confirm Dialog",
+  "theme": {},
+  "reusable": true,
+  "width": 440,
+  "fill": "$surface/surface",
+  "cornerRadius": "$radius/xl",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000080",
+    "offset": {"x": 0, "y": 12},
+    "blur": 32,
+    "spread": -8
+  },
+  "layout": "vertical",
+  "padding": 20,
+  "children": [
+    {
+      "id": "l9x0W",
+      "type": "ref",
+      "ref": "TzRet",
+      "name": "AlertDialog/Danger"
+    }
+  ]
+}

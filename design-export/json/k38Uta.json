@@ -1,56 +1,53 @@
 {
-    "type": "frame",
-    "id": "k38Uta",
-    "x": 0,
-    "y": 27518,
-    "name": "Gameplane/Card",
-    "theme": {
-        "c:Mode": "Dark",
-        "semantic": "dark"
+  "type": "frame",
+  "id": "k38Uta",
+  "x": 0,
+  "y": 27518,
+  "name": "Gameplane/Card",
+  "theme": {},
+  "reusable": true,
+  "slot": [],
+  "width": 400,
+  "fill": "$surface/surface",
+  "cornerRadius": "$radius/3xl",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#0000000A",
+    "offset": {
+      "x": 0,
+      "y": 2
     },
-    "reusable": true,
-    "slot": [],
-    "width": 400,
-    "fill": "$surface/surface",
-    "cornerRadius": "$radius/3xl",
-    "stroke": "$border/border",
-    "strokeWidth": 1,
-    "strokeAlignment": "inner",
-    "effect": {
-        "type": "shadow",
-        "shadowType": "outer",
-        "color": "#0000000A",
-        "offset": {
-            "x": 0,
-            "y": 2
-        },
-        "blur": 4
+    "blur": 4
+  },
+  "layout": "vertical",
+  "gap": 12,
+  "padding": 16,
+  "children": [
+    {
+      "type": "text",
+      "id": "v60S9",
+      "name": "cardTitle",
+      "fill": "$foreground/foreground",
+      "content": "Card title",
+      "fontFamily": "$typography/font-sans",
+      "fontSize": 16,
+      "fontWeight": "500"
     },
-    "layout": "vertical",
-    "gap": 12,
-    "padding": 16,
-    "children": [
-        {
-            "type": "text",
-            "id": "v60S9",
-            "name": "cardTitle",
-            "fill": "$foreground/foreground",
-            "content": "Card title",
-            "fontFamily": "$typography/font-sans",
-            "fontSize": 16,
-            "fontWeight": "500"
-        },
-        {
-            "type": "text",
-            "id": "T1FgZ",
-            "name": "cardBody",
-            "fill": "$foreground/foreground",
-            "textGrowth": "fixed-width",
-            "width": "fill_container",
-            "content": "Card content goes here.",
-            "fontFamily": "$typography/font-sans",
-            "fontSize": 14,
-            "fontWeight": "normal"
-        }
-    ]
+    {
+      "type": "text",
+      "id": "T1FgZ",
+      "name": "cardBody",
+      "fill": "$foreground/foreground",
+      "textGrowth": "fixed-width",
+      "width": "fill_container",
+      "content": "Card content goes here.",
+      "fontFamily": "$typography/font-sans",
+      "fontSize": 14,
+      "fontWeight": "normal"
+    }
+  ]
 }

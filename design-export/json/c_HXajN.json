@@ -1,1 +1,57 @@
-{"type":"frame","id":"c:HXajN","x":200,"y":2238,"name":"Button/Large/Destructive","reusable":true,"height":48,"fill":"$c:--destructive","cornerRadius":"$c:--radius-pill","gap":6,"padding":[12,24],"justifyContent":"center","alignItems":"center","children":[{"type":"frame","id":"c:L19dR","name":"plus","width":24,"height":24,"layout":"none","children":[{"type":"path","id":"c:4EYbS","x":6,"y":6,"name":"Vector","geometry":"...","width":12,"height":12,"stroke":"$c:--foreground","strokeWidth":1.5,"strokeLinejoin":"round","strokeLinecap":"round"}]},{"type":"text","id":"c:plTTh","name":"Button","fill":"$c:--foreground","content":"Button","lineHeight":1.5555555555555556,"textAlign":"center","textAlignVertical":"middle","fontFamily":"$c:--font-primary","fontSize":14,"fontWeight":"500"}]}
+{
+  "type": "frame",
+  "id": "c:HXajN",
+  "x": 200,
+  "y": 2238,
+  "name": "Button/Large/Destructive",
+  "reusable": true,
+  "height": 48,
+  "fill": "$c:--destructive",
+  "cornerRadius": "$c:--radius-pill",
+  "gap": 6,
+  "padding": [
+    12,
+    24
+  ],
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "frame",
+      "id": "c:L19dR",
+      "name": "plus",
+      "width": 24,
+      "height": 24,
+      "layout": "none",
+      "children": [
+        {
+          "type": "path",
+          "id": "c:4EYbS",
+          "x": 6,
+          "y": 6,
+          "name": "Vector",
+          "geometry": "M7.07104 3.53555l-3.53552 0-3.53552 0m3.53552-3.53555l0 3.53555 0 3.53549",
+          "width": 12,
+          "height": 12,
+          "stroke": "$c:--foreground",
+          "strokeWidth": 1.5,
+          "strokeLinejoin": "round",
+          "strokeLinecap": "round"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "c:plTTh",
+      "name": "Button",
+      "fill": "$c:--foreground",
+      "content": "Button",
+      "lineHeight": 1.5555555555555556,
+      "textAlign": "center",
+      "textAlignVertical": "middle",
+      "fontFamily": "$c:--font-primary",
+      "fontSize": 14,
+      "fontWeight": "500"
+    }
+  ]
+}

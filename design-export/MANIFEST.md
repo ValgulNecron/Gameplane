@@ -295,3 +295,13 @@ Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 2
 **Context:**
 
 These 25 components constitute the Phase 2 Foundation (Slice 0, second half) atom layer. They are the complete set of reusable, redrawn-from-HeroUI definitions (including the foundational HeroUI library frame, `LtgNm`, which all downstream components and screens compose from) that all subsequent user-story slices (1–5) will compose into screens. No screen rebuilds can proceed until this atom layer is complete and exported. The HeroUI library frame (`LtgNm`) was exported as the foundational deliverable; Tasks T011–T014 redrew the 24 Gameplane atom components in design.pen; Task T016 exports all 25 components here and updates MANIFEST.md. Tasks T019–T030 (Phase 2, code wave) implement the TypeScript component wrappers in `web/src/components/hero/`. Task T017 (token mapping in `web/src/styles/globals.css`) parallels the design-wave work.
+
+## Incremental export 2026-09-04 — Theme change (Feature 014, OD-8)
+
+**Why:** the brand palette moved from orange to pink (OD-8, settled 2026-09-04). Light: white page, `#FFF7FB` cards, `#F8DDE9` sidebar, `#DB2777` accent. Dark: `#121114` canvas, `#1C1A20` cards, `#17151A` sidebar, `#FF4FA3` accent. Every screen and Gameplane definition was re-pointed from the read-only lunaris `$c:--*` variables and legacy hex to HeroUI semantic tokens, so every previously exported node changed.
+
+**Scope:** 298 tracked exports refreshed in place (json + png). 14 new files added: the five light-mode preview frames `jOo7y` Screen/Login (Light), `Qqi8Q` Screen/Dashboard Home (Light), `zFiOW` Screen/Servers (Light), `sSISK` Screen/Server Detail — Overview (Light), `vvxCn` Screen/Mobile — Servers (Light), plus two screens whose Pencil ids changed: Screen/Servers `iGBIs` -> `F9pUrx` and Screen/Server Detail — Overview (Idle armed) `mQ1zB` -> `Hy9r0` (stale `iGBIs`/`mQ1zB` exports removed).
+
+**Unchanged:** lunaris library component exports (`c_*.json` / `c:*.png`) — the library definitions are read-only and were not edited.
+
+**Method:** `Get(id, {depth: 12, includePathGeometry: true})` (LtgNm at depth 14) written verbatim to `json/<id>.json`; `export_nodes` PNG at 2x to `screenshots/<id>.png`; every json parses, top-level id matches the filename, no `"..."` elision strings beyond genuine text content.

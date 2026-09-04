@@ -1,1 +1,9 @@
-{"id":"E9EEv0","type":"ref","reusable":true,"ref":"x3beP","name":"Gameplane/Dialog/Restore Backup","x":3320,"y":29221,"descendants":{"E7Whx":{"content":"Restore backup"},"qzcst":{"content":"Restore into a brand-new server, or overwrite an existing one."},"Nht52":{"type":"frame","id":"Q2QDV","name":"mBody","width":"fill_container","layout":"vertical","gap":16,"padding":[16,0,0,0],"children":[{"type":"frame","id":"Lvs4o","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"MIgc1","fill":"$c:--muted-foreground","content":"Source backup","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"id":"mazee","type":"ref","ref":"D0cDM","name":"Input","width":"fill_container","descendants":{"PJERm":{"content":"mc-survival-nightly-0713","fill":"#949494"}}}]},{"type":"frame","id":"jP975","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"eN292","fill":"$c:--muted-foreground","content":"New server name","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"id":"z7yI8Y","type":"ref","ref":"D0cDM","name":"Input","width":"fill_container","descendants":{"PJERm":{"content":"my-restored-server","fill":"#5C5C5C"}}}]}]}}}
+{
+  "id": "E9EEv0",
+  "type": "ref",
+  "reusable": true,
+  "ref": "x3beP",
+  "name": "Gameplane/Dialog/Restore Backup",
+  "x": 3320,
+  "y": 29221
+}

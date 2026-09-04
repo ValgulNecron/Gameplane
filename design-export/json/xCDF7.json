@@ -4,10 +4,7 @@
     "x": 2270,
     "y": 25209,
     "name": "Gameplane/Page Header",
-    "theme": {
-        "c:Mode": "Dark",
-        "semantic": "dark"
-    },
+    "theme": {},
     "reusable": true,
     "width": "fill_container(900)",
     "fill": "$background/background",

@@ -1,1 +1,42 @@
-{"type":"frame","id":"z9ShNE","x":1200,"y":26846,"name":"Gameplane/Button/Small/Default","theme":{"c:Mode":"Dark","semantic":"dark"},"reusable":true,"height":32,"fill":"$accent/accent","cornerRadius":"$radius/md","gap":8,"padding":[0,12],"justifyContent":"center","alignItems":"center","children":[{"id":"IVgQ8","type":"ref","ref":"j9c5W","name":"Button","descendants":{"n8Hmwk":{"type":"icon","id":"nWTJb","name":"i1","width":14,"height":14,"icon":"plus","library":"lucide","fill":"$accent/foreground"},"U1xvSo":{"content":"Button"}}}]}
+{
+  "type": "frame",
+  "id": "z9ShNE",
+  "x": 1200,
+  "y": 26846,
+  "name": "Gameplane/Button/Small/Default",
+  "theme": {},
+  "reusable": true,
+  "height": 32,
+  "fill": "$accent/accent",
+  "cornerRadius": "$radius/md",
+  "gap": 8,
+  "padding": [
+    0,
+    12
+  ],
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "id": "IVgQ8",
+      "type": "ref",
+      "ref": "j9c5W",
+      "name": "Button",
+      "descendants": {
+        "n8Hmwk": {
+          "type": "icon",
+          "id": "nWTJb",
+          "name": "i1",
+          "width": 14,
+          "height": 14,
+          "icon": "plus",
+          "library": "lucide",
+          "fill": "$accent/foreground"
+        },
+        "U1xvSo": {
+          "content": "Button"
+        }
+      }
+    }
+  ]
+}

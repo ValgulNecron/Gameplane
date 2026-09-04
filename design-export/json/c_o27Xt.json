@@ -1,1 +1,15 @@
-{"id":"c:o27Xt","type":"ref","reusable":true,"ref":"c:ZGI9Z","x":518,"y":2086,"name":"Icon Button/Large/Default","padding":12,"descendants":{"c:J3Z6N":{"enabled":false}}}
+{
+  "id": "c:o27Xt",
+  "type": "ref",
+  "reusable": true,
+  "ref": "c:ZGI9Z",
+  "x": 518,
+  "y": 2086,
+  "name": "Icon Button/Large/Default",
+  "padding": 12,
+  "descendants": {
+    "c:J3Z6N": {
+      "enabled": false
+    }
+  }
+}

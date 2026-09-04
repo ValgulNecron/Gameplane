@@ -1,1 +1,9 @@
-{"id":"t9irnv","type":"ref","reusable":true,"ref":"WwNlX","name":"Gameplane/Dialog/Wipe World","x":0,"y":29918,"descendants":{"w08wp":{"content":"Wipe mc-survival's world data?"},"Hsj40":{"content":"Deletes the world save from the persistent volume. The server keeps its configuration and starts fresh on next boot. This cannot be undone."},"Rl5xE":{"content":"mc-survival"},"Xg5LE":{"content":"Wipe world data"}}}
+{
+    "id": "t9irnv",
+    "type": "ref",
+    "reusable": true,
+    "ref": "WwNlX",
+    "name": "Gameplane/Dialog/Wipe World",
+    "x": 0,
+    "y": 29918
+}

@@ -4,10 +4,7 @@
     "x": 1676,
     "y": 27182,
     "name": "Gameplane/Switch/Off",
-    "theme": {
-        "c:Mode": "Dark",
-        "semantic": "dark"
-    },
+    "theme": {},
     "reusable": true,
     "width": 36,
     "height": 20,

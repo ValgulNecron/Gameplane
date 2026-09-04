@@ -1,1 +1,1055 @@
-{"type":"frame","id":"xCJlu","x":16400,"y":10375,"name":"Screen/Server Detail — Settings · Share links","theme":{"c:Mode":"Dark"},"clip":true,"width":1440,"height":900,"fill":"$c:--background","children":[{"id":"oTwRW","type":"ref","ref":"kKFX9","height":"fill_container","descendants":{"z8Yor":{"id":"vb2XA","type":"ref","ref":"c:X6nwq","name":"navDashboard","width":"fill_container","cornerRadius":6,"padding":[8,12],"gap":12,"height":36,"alignItems":"center","fill":"#00000000","descendants":{"c:xGT5g":{"icon":"layout-dashboard","library":"lucide","width":18,"height":18,"fill":"#949494"},"c:TXca3":{"content":"Dashboard","fontSize":14,"fill":"#949494"}}},"wUkZr":{"id":"rmsTI","type":"ref","ref":"c:dOLzc","name":"navServers","width":"fill_container","cornerRadius":6,"padding":[8,12],"gap":12,"height":36,"alignItems":"center","fill":"#FF84001A","descendants":{"c:xGT5g":{"icon":"server","library":"lucide","width":18,"height":18,"fill":"#FF8400"},"c:TXca3":{"content":"Servers","fontSize":14,"fill":"#FF8400"}}}}},{"type":"frame","id":"blozd","name":"Main","width":"fill_container","height":"fill_container","fill":"$c:--background","layout":"vertical","children":[{"id":"H3zBj","type":"ref","ref":"gu5WY","width":"fill_container","descendants":{"GqBm6/c:bT3Mm":{"content":"mc-survival"}}},{"type":"frame","id":"zTKKm","name":"Body","width":"fill_container","height":"fill_container","fill":"$c:--background","layout":"vertical","gap":24,"padding":24,"children":[{"id":"thUaP","type":"ref","ref":"S4k0x","name":"Detail Header","width":"fill_container"},{"id":"u0xtqP","type":"ref","ref":"I9kvlZ","name":"Tabs Bar","width":"fill_container","padding":[0,0,0,24],"descendants":{"N37AkT":{"stroke":"#00000000"},"F2aQhk":{"fill":"#949494"},"Jilsi":{"stroke":"$c:--primary"},"nS5Qg":{"fill":"#F5F5F5"}}},{"type":"frame","id":"hG7GD","name":"Settings Content","width":"fill_container","height":"fill_container","children":[{"type":"frame","id":"TDdxP","name":"Settings Sub Nav","width":224,"height":"fill_container","fill":"#17171733","stroke":"$c:--border","strokeWidth":{"right":1},"strokeAlignment":"inner","strokeLinejoin":"round","layout":"vertical","padding":8,"children":[{"type":"frame","id":"w1fnE","name":"snGeneral","width":"fill_container","fill":"#00000000","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"d1SNRC","width":16,"height":16,"icon":"settings","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"j4n3Oj","fill":"#949494","content":"General","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"uDWeZ","name":"snVersion","width":"fill_container","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"IP5zr","width":16,"height":16,"icon":"layers","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"caYK7","fill":"#949494","content":"Version","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"mhlyY","name":"snResources","width":"fill_container","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"qjQO6","width":16,"height":16,"icon":"hard-drive","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"c37KXq","fill":"#949494","content":"Resources","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"l4rkb5","name":"snNetworking","width":"fill_container","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"LTwxj","width":16,"height":16,"icon":"network","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"hVtsX","fill":"#949494","content":"Networking","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"MZomr","name":"snEnvironment","width":"fill_container","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"s3G8u","width":16,"height":16,"icon":"variable","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"aIXre","fill":"#949494","content":"Environment","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"FRf22","name":"snLifecycle","width":"fill_container","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"l3FRM","width":16,"height":16,"icon":"sliders-vertical","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"H0MFP","fill":"#949494","content":"Lifecycle","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"VVsx7","name":"snScheduledBackups","width":"fill_container","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"Xd57d","width":16,"height":16,"icon":"calendar-clock","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"YfMcv","fill":"#949494","content":"Scheduled backups","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"rQQOJ","name":"snPlacement","width":"fill_container","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"PsbkG","width":16,"height":16,"icon":"map-pin","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"ViDMt","fill":"#949494","content":"Placement","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"A5x71W","name":"snRbacAccess","width":"fill_container","fill":"#00000000","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"HWjLV","width":16,"height":16,"icon":"shield-check","library":"lucide","weight":400,"fill":"#949494"},{"type":"text","id":"rEjXd","fill":"#949494","content":"RBAC & access","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"EazgV","name":"snShareLinks","width":"fill_container","fill":"#171717","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"CrVa6","width":16,"height":16,"icon":"link","library":"lucide","weight":400,"fill":"#F5F5F5"},{"type":"text","id":"Nkwwu","fill":"#F5F5F5","content":"Share links","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"O0ejE","name":"snDangerZone","width":"fill_container","cornerRadius":4,"gap":8,"padding":8,"alignItems":"center","children":[{"type":"icon","id":"VpByK","width":16,"height":16,"icon":"triangle-alert","library":"lucide","weight":400,"fill":"#DC2828"},{"type":"text","id":"REiaQ","fill":"#DC2828","content":"Danger zone","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]}]},{"type":"frame","id":"jq8Ik","name":"Settings Panel Wrap","width":"fill_container","height":"fill_container","layout":"vertical","children":[{"type":"frame","id":"oo5Et","name":"Settings Form","width":"fill_container","height":"fill_container","layout":"vertical","children":[{"type":"frame","id":"xlCWU","name":"Form Body","width":"fill_container","height":"fill_container","layout":"vertical","gap":16,"padding":24,"children":"..."}]}]}]}]}]}]}
+{
+    "type": "frame",
+    "id": "xCJlu",
+    "x": 16400,
+    "y": 10375,
+    "name": "Screen/Server Detail \u2014 Settings \u00b7 Share links",
+    "theme": {
+        "c:Mode": "Dark",
+        "semantic": "dark"
+    },
+    "clip": true,
+    "width": 1440,
+    "height": 900,
+    "fill": "$background/background",
+    "children": [
+        {
+            "id": "oTwRW",
+            "type": "ref",
+            "ref": "kKFX9",
+            "height": "fill_container",
+            "descendants": {
+                "z8Yor": {
+                    "id": "vb2XA",
+                    "type": "ref",
+                    "ref": "c:X6nwq",
+                    "name": "navDashboard",
+                    "width": "fill_container",
+                    "cornerRadius": 6,
+                    "padding": [
+                        8,
+                        12
+                    ],
+                    "gap": 12,
+                    "height": 36,
+                    "alignItems": "center",
+                    "fill": "#00000000",
+                    "descendants": {
+                        "c:xGT5g": {
+                            "icon": "layout-dashboard",
+                            "library": "lucide",
+                            "width": 18,
+                            "height": 18,
+                            "fill": "$muted"
+                        },
+                        "c:TXca3": {
+                            "content": "Dashboard",
+                            "fontSize": 14,
+                            "fill": "$muted"
+                        }
+                    }
+                },
+                "wUkZr": {
+                    "id": "rmsTI",
+                    "type": "ref",
+                    "ref": "c:dOLzc",
+                    "name": "navServers",
+                    "width": "fill_container",
+                    "cornerRadius": 6,
+                    "padding": [
+                        8,
+                        12
+                    ],
+                    "gap": 12,
+                    "height": 36,
+                    "alignItems": "center",
+                    "fill": "$accent/soft",
+                    "descendants": {
+                        "c:xGT5g": {
+                            "icon": "server",
+                            "library": "lucide",
+                            "width": 18,
+                            "height": 18,
+                            "fill": "$accent/accent"
+                        },
+                        "c:TXca3": {
+                            "content": "Servers",
+                            "fontSize": 14,
+                            "fill": "$accent/accent"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "frame",
+            "id": "blozd",
+            "name": "Main",
+            "width": "fill_container",
+            "height": "fill_container",
+            "fill": "$background/background",
+            "layout": "vertical",
+            "children": [
+                {
+                    "id": "H3zBj",
+                    "type": "ref",
+                    "ref": "gu5WY",
+                    "width": "fill_container",
+                    "descendants": {
+                        "GqBm6/c:bT3Mm": {
+                            "content": "mc-survival"
+                        }
+                    }
+                },
+                {
+                    "type": "frame",
+                    "id": "zTKKm",
+                    "name": "Body",
+                    "width": "fill_container",
+                    "height": "fill_container",
+                    "fill": "$background/background",
+                    "layout": "vertical",
+                    "gap": 24,
+                    "padding": 24,
+                    "children": [
+                        {
+                            "id": "thUaP",
+                            "type": "ref",
+                            "ref": "S4k0x",
+                            "name": "Detail Header",
+                            "width": "fill_container"
+                        },
+                        {
+                            "id": "u0xtqP",
+                            "type": "ref",
+                            "ref": "I9kvlZ",
+                            "name": "Tabs Bar",
+                            "width": "fill_container",
+                            "padding": [
+                                0,
+                                0,
+                                0,
+                                24
+                            ],
+                            "descendants": {
+                                "N37AkT": {
+                                    "stroke": "#00000000"
+                                },
+                                "F2aQhk": {
+                                    "fill": "$muted"
+                                },
+                                "oVyjI": {
+                                    "fill": "$muted"
+                                },
+                                "nr19d": {
+                                    "fill": "$muted"
+                                },
+                                "ZFqdG": {
+                                    "fill": "$muted"
+                                },
+                                "vSZtk": {
+                                    "fill": "$muted"
+                                },
+                                "bSVUu": {
+                                    "fill": "$muted"
+                                },
+                                "ki4l6": {
+                                    "fill": "$muted"
+                                },
+                                "yS1Dt": {
+                                    "fill": "$muted"
+                                },
+                                "P1zGbN": {
+                                    "fill": "$muted"
+                                },
+                                "R4v48": {
+                                    "fill": "$muted"
+                                },
+                                "Jilsi": {
+                                    "stroke": "$accent/accent"
+                                },
+                                "nS5Qg": {
+                                    "fill": "$foreground/foreground"
+                                }
+                            }
+                        },
+                        {
+                            "type": "frame",
+                            "id": "hG7GD",
+                            "name": "Settings Content",
+                            "width": "fill_container",
+                            "height": "fill_container",
+                            "children": [
+                                {
+                                    "type": "frame",
+                                    "id": "TDdxP",
+                                    "name": "Settings Sub Nav",
+                                    "width": 224,
+                                    "height": "fill_container",
+                                    "fill": "#17171733",
+                                    "stroke": "$border/border",
+                                    "strokeWidth": {
+                                        "right": 1
+                                    },
+                                    "strokeAlignment": "inner",
+                                    "strokeLinejoin": "round",
+                                    "layout": "vertical",
+                                    "padding": 8,
+                                    "children": [
+                                        {
+                                            "type": "frame",
+                                            "id": "w1fnE",
+                                            "name": "snGeneral",
+                                            "width": "fill_container",
+                                            "fill": "#00000000",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "d1SNRC",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "settings",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "j4n3Oj",
+                                                    "fill": "$muted",
+                                                    "content": "General",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "uDWeZ",
+                                            "name": "snVersion",
+                                            "width": "fill_container",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "IP5zr",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "layers",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "caYK7",
+                                                    "fill": "$muted",
+                                                    "content": "Version",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "mhlyY",
+                                            "name": "snResources",
+                                            "width": "fill_container",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "qjQO6",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "hard-drive",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "c37KXq",
+                                                    "fill": "$muted",
+                                                    "content": "Resources",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "l4rkb5",
+                                            "name": "snNetworking",
+                                            "width": "fill_container",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "LTwxj",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "network",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "hVtsX",
+                                                    "fill": "$muted",
+                                                    "content": "Networking",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "MZomr",
+                                            "name": "snEnvironment",
+                                            "width": "fill_container",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "s3G8u",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "variable",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "aIXre",
+                                                    "fill": "$muted",
+                                                    "content": "Environment",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "FRf22",
+                                            "name": "snLifecycle",
+                                            "width": "fill_container",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "l3FRM",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "sliders-vertical",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "H0MFP",
+                                                    "fill": "$muted",
+                                                    "content": "Lifecycle",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "VVsx7",
+                                            "name": "snScheduledBackups",
+                                            "width": "fill_container",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "Xd57d",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "calendar-clock",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "YfMcv",
+                                                    "fill": "$muted",
+                                                    "content": "Scheduled backups",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "rQQOJ",
+                                            "name": "snPlacement",
+                                            "width": "fill_container",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "PsbkG",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "map-pin",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "ViDMt",
+                                                    "fill": "$muted",
+                                                    "content": "Placement",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "A5x71W",
+                                            "name": "snRbacAccess",
+                                            "width": "fill_container",
+                                            "fill": "#00000000",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "HWjLV",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "shield-check",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "rEjXd",
+                                                    "fill": "$muted",
+                                                    "content": "RBAC & access",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "EazgV",
+                                            "name": "snShareLinks",
+                                            "width": "fill_container",
+                                            "fill": "$surface/secondary",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "CrVa6",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "link",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$foreground/foreground"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "Nkwwu",
+                                                    "fill": "$foreground/foreground",
+                                                    "content": "Share links",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "O0ejE",
+                                            "name": "snDangerZone",
+                                            "width": "fill_container",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": 8,
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "VpByK",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "triangle-alert",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "#DC2828"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "REiaQ",
+                                                    "fill": "#DC2828",
+                                                    "content": "Danger zone",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "frame",
+                                    "id": "jq8Ik",
+                                    "name": "Settings Panel Wrap",
+                                    "width": "fill_container",
+                                    "height": "fill_container",
+                                    "layout": "vertical",
+                                    "children": [
+                                        {
+                                            "type": "frame",
+                                            "id": "oo5Et",
+                                            "name": "Settings Form",
+                                            "width": "fill_container",
+                                            "height": "fill_container",
+                                            "layout": "vertical",
+                                            "children": [
+                                                {
+                                                    "type": "frame",
+                                                    "id": "xlCWU",
+                                                    "name": "Form Body",
+                                                    "width": "fill_container",
+                                                    "height": "fill_container",
+                                                    "layout": "vertical",
+                                                    "gap": 16,
+                                                    "padding": 24,
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "FSQFv",
+                                                            "name": "Share Links Header",
+                                                            "width": "fill_container",
+                                                            "justifyContent": "space_between",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "wrMwX",
+                                                                    "name": "titleCol",
+                                                                    "layout": "vertical",
+                                                                    "gap": 4,
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "S8qldJ",
+                                                                            "fill": "$foreground/foreground",
+                                                                            "content": "Share links",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 17,
+                                                                            "fontWeight": "500"
+                                                                        },
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "FCOnx",
+                                                                            "fill": "$muted",
+                                                                            "textGrowth": "fixed-width",
+                                                                            "width": 520,
+                                                                            "content": "Let people without a Gameplane account check this server's status and connection address. Only the owner can create or revoke links.",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 12,
+                                                                            "fontWeight": "normal"
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "id": "EmHnL",
+                                                                    "type": "ref",
+                                                                    "ref": "z9ShNE",
+                                                                    "name": "btnCreateLink",
+                                                                    "descendants": {
+                                                                        "nWTJb": {
+                                                                            "icon": "link"
+                                                                        },
+                                                                        "IVgQ8/U1xvSo": {
+                                                                            "content": "Create link"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "id": "jz8hC",
+                                                            "type": "ref",
+                                                            "ref": "c:pPOgy",
+                                                            "name": "Share Links Table",
+                                                            "width": "fill_container",
+                                                            "height": "fit_content",
+                                                            "fill": "$background/background",
+                                                            "stroke": "$border/border",
+                                                            "children": [
+                                                                {
+                                                                    "id": "P3rCI",
+                                                                    "type": "ref",
+                                                                    "ref": "c:T73Cd",
+                                                                    "name": "Header Row",
+                                                                    "width": "fill_container",
+                                                                    "stroke": "$border/border",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "E09uA",
+                                                                            "type": "ref",
+                                                                            "ref": "c:tbrR4",
+                                                                            "width": "fill_container",
+                                                                            "descendants": {
+                                                                                "c:XGc4z": {
+                                                                                    "content": "Created",
+                                                                                    "fill": "$muted"
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        {
+                                                                            "id": "P9lrKw",
+                                                                            "type": "ref",
+                                                                            "ref": "c:tbrR4",
+                                                                            "width": "fill_container",
+                                                                            "descendants": {
+                                                                                "c:XGc4z": {
+                                                                                    "content": "Expires",
+                                                                                    "fill": "$muted"
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        {
+                                                                            "id": "y8wlpT",
+                                                                            "type": "ref",
+                                                                            "ref": "c:tbrR4",
+                                                                            "width": 120,
+                                                                            "descendants": {
+                                                                                "c:XGc4z": {
+                                                                                    "content": "Can start",
+                                                                                    "fill": "$muted"
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        {
+                                                                            "id": "D20ai",
+                                                                            "type": "ref",
+                                                                            "ref": "c:tbrR4",
+                                                                            "width": 110,
+                                                                            "descendants": {
+                                                                                "c:XGc4z": {
+                                                                                    "content": "Status",
+                                                                                    "fill": "$muted"
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        {
+                                                                            "id": "Y9MKI",
+                                                                            "type": "ref",
+                                                                            "ref": "c:tbrR4",
+                                                                            "width": 100,
+                                                                            "descendants": {
+                                                                                "c:XGc4z": {
+                                                                                    "content": "",
+                                                                                    "fill": "$muted"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "id": "R2pKh",
+                                                                    "type": "ref",
+                                                                    "ref": "c:T73Cd",
+                                                                    "name": "Link Row",
+                                                                    "width": "fill_container",
+                                                                    "stroke": "$border/border",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "PXksB",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": "fill_container",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "WpoYq",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "content": "Jul 28, 2026",
+                                                                                    "fontFamily": "$c:--font-primary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "V0YxDy",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": "fill_container",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "Y9WNtz",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "content": "Aug 4, 2026",
+                                                                                    "fontFamily": "$c:--font-primary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "Ilgpm",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 120,
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "Y31a6i",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:A58oI",
+                                                                                    "fill": "$default/default",
+                                                                                    "descendants": {
+                                                                                        "c:ULCkh": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:tw01V": {
+                                                                                            "stroke": "$foreground/link"
+                                                                                        },
+                                                                                        "c:49I5i": {
+                                                                                            "content": "Can start",
+                                                                                            "fill": "$foreground/link"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "bnMoc",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 110,
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "X6FC9w",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:Ffti9",
+                                                                                    "fill": "$success/soft",
+                                                                                    "descendants": {
+                                                                                        "c:BFcCW": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:sDzhI": {
+                                                                                            "stroke": "$success/soft-foreground"
+                                                                                        },
+                                                                                        "c:AWwyf": {
+                                                                                            "content": "Active",
+                                                                                            "fill": "$success/soft-foreground"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "j8Y3ni",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 100,
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "rtQGC",
+                                                                                    "type": "ref",
+                                                                                    "ref": "IU7OG",
+                                                                                    "height": 28
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "id": "xgqjz",
+                                                                    "type": "ref",
+                                                                    "ref": "c:T73Cd",
+                                                                    "name": "Link Row",
+                                                                    "width": "fill_container",
+                                                                    "stroke": "$border/border",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "L8tbi",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": "fill_container",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "TREuf",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "content": "Jun 1, 2026",
+                                                                                    "fontFamily": "$c:--font-primary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "hA42e",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": "fill_container",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "nakOx",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "content": "Jun 8, 2026",
+                                                                                    "fontFamily": "$c:--font-primary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "EuC17",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 120,
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "tgCfK",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:XYdcn",
+                                                                                    "fill": "$default/default",
+                                                                                    "descendants": {
+                                                                                        "c:ULBkt": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:dVsjZ": {
+                                                                                            "stroke": "$foreground/foreground"
+                                                                                        },
+                                                                                        "c:izLyj": {
+                                                                                            "content": "View only",
+                                                                                            "fill": "$foreground/foreground"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "o2lk2O",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 110,
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "em50o",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:XYdcn",
+                                                                                    "fill": "$default/default",
+                                                                                    "descendants": {
+                                                                                        "c:ULBkt": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:dVsjZ": {
+                                                                                            "stroke": "$foreground/foreground"
+                                                                                        },
+                                                                                        "c:izLyj": {
+                                                                                            "content": "Expired",
+                                                                                            "fill": "$foreground/foreground"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "AGJOy",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 100,
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "OyQ3J",
+                                                                                    "fill": "$muted",
+                                                                                    "content": "\u2014",
+                                                                                    "fontFamily": "$c:--font-secondary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "id": "sLjWG",
+                                                                    "type": "ref",
+                                                                    "ref": "c:T73Cd",
+                                                                    "name": "Link Row",
+                                                                    "width": "fill_container",
+                                                                    "stroke": "$border/border",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "TJVkb",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": "fill_container",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "mHNuz",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "content": "May 12, 2026",
+                                                                                    "fontFamily": "$c:--font-primary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "grca3",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": "fill_container",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "rLvkS",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "content": "May 19, 2026",
+                                                                                    "fontFamily": "$c:--font-primary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "P9690",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 120,
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "u4dCM",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:A58oI",
+                                                                                    "fill": "$default/default",
+                                                                                    "descendants": {
+                                                                                        "c:ULCkh": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:tw01V": {
+                                                                                            "stroke": "$foreground/link"
+                                                                                        },
+                                                                                        "c:49I5i": {
+                                                                                            "content": "Can start",
+                                                                                            "fill": "$foreground/link"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "J3RyR",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 110,
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "CQb46",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:7Fif0",
+                                                                                    "fill": "$warning/soft",
+                                                                                    "descendants": {
+                                                                                        "c:rMf5x": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:XY32P": {
+                                                                                            "stroke": "$warning/soft-foreground"
+                                                                                        },
+                                                                                        "c:glumS": {
+                                                                                            "content": "Revoked",
+                                                                                            "fill": "$warning/soft-foreground"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "bExHY",
+                                                                            "type": "ref",
+                                                                            "ref": "c:uKYIj",
+                                                                            "width": 100,
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "IKnYd",
+                                                                                    "fill": "$muted",
+                                                                                    "content": "\u2014",
+                                                                                    "fontFamily": "$c:--font-secondary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
