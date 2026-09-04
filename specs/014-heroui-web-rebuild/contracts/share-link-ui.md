@@ -26,7 +26,7 @@ Multi-cluster: the authenticated calls thread `?cluster=` like every other endpo
 
 ### Public share page (`C2LQE4 q31B6w qFLfB EcoGD epZO2`)
 
-- Route path per OD-1 (default `/s/$token`), registered in `web/src/router/tree.tsx` outside the authenticated layout, no sidebar, no top bar.
+- Route path `/share/$token` per OD-1 (Settled 2026-09-03), registered in `web/src/router/tree.tsx` outside the authenticated layout, no sidebar, no top bar.
 - States from the resolve response: **Up** (address, port, players if exposed), **Asleep and can start** (Start button → `POST …/start` → **Starting** with polling), **Asleep view only**, **Invalid or expired** (neutral copy, no hint whether the token ever existed).
 - Honours the stored appearance preference; no toggle.
 
