@@ -244,9 +244,15 @@ When a HeroUI component a screen needs is absent from the `LtgNm` frame, import 
 
 **Note:** This export clears the design-export debt for HeroUI component definitions previously carried in `design.pen` since 2026-09-02, when the `heroUI template.pen` import was first added to the document. The snapshot `LtgNm.json` + `LtgNm.png` now serves as the authoritative, versioned record of the component library that all subsequent design slices reference. The Pencil MCP's import mechanism (`Execute` with duplicate detection) prevents accidental re-imports of the same component definition, so future imports from the template are safe.
 
-## Incremental export 2026-09-03 — Phase 2 Foundation: 24 redrawn atom components (Feature 014, Slice 0)
+## Incremental export 2026-09-04 — Phase 2 Foundation: 24 redrawn atom components + Cell Actions clip fix (Feature 014, Slice 0, T016)
 
-Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 24 foundational Gameplane atom components to be redrawn from HeroUI definitions in `design.pen` per contracts/component-map.md. This pass exports the redrawn components after the design-wave completion (Tasks T011–T014), representing the complete Gameplane atom layer that all subsequent slices will compose from.
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 24 foundational Gameplane atom components to be redrawn from HeroUI definitions in `design.pen` per contracts/component-map.md. This pass re-exports the 25 objects below (24 atoms + the `LtgNm` library frame) after a clip-fix pass on the redrawn atoms (`K7IJBQ` set to `width: fit_content`, `ntSEK`/`PoVsI`/`q5swpb` set to `height: 32`) and after the T017-adjacent `xCDF7` fit-content fix (`TgdLz` → `width: "fit_content(140)"`, verified resolving to 140×40). Superseded the previous 2026-09-03 interim export of the same 25 ids, which predated the clip fix.
+
+**Verified via `pencil` MCP (depth 2, `resolveInstances:true`) on 2026-09-04:**
+
+- `K7IJBQ` ("Cell Actions") resolves to bounds 332×56; `ntSEK`/`PoVsI`/`q5swpb` each resolve to 100×32. No clip problems reported for these four nodes in a `depth:10, resolveInstances:true` sweep of `m5kOm4`.
+- `xCDF7`'s child `TgdLz` (`phActions`) has `width: "fit_content(140)"`, resolving to bounds 140×40.
+- All three Cell Actions clusters in `m5kOm4` (`K7IJBQ`, `Pzncu`, `IswvX`) were fixed on 2026-09-04: `Pzncu` and `IswvX` set to `width: fit_content`, and all six button children (`dEMpK`/`wwNey`/`FeWvb` under `Pzncu`; `XT7fA`/`qIg25`/`wCqYx` under `IswvX`) set to `height: 32`, matching the fix previously applied to `K7IJBQ`.
 
 **Components (25):**
 
@@ -280,10 +286,10 @@ Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 2
 
 **Export method & validation:**
 
-- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` via the Pencil `execute` tool for each of the 25 components. All exports executed at depth ≥ 12 to ensure no `"..."` elision markers appear in structural fields.
-- **Validation of truncation markers:** Programmatic check of all 25 JSON files confirmed zero `"..."` as Pencil truncation markers in structural fields (`"children": "..."`, `"geometry": "..."`, etc.). `python3 json.load()` validation passed on all 25 files. (Note: LtgNm contains two instances of `"..."` as actual component content — the Pagination/Ellipsis symbol and tableEx cell text — both documented in its own section above.)
-- **Screenshots:** `export_nodes` PNG export of each component at 2× scale to `/design-export/screenshots/<id>.png`. All 25 PNG files present and verified non-empty.
-- **File inventory:** All 25 components have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-03.
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` via the Pencil `execute` tool for each of the 25 components (button components at depth 12; `LtgNm` iterated at depth 10–12 per child, per the section above). All exports executed at depth ≥ 12 (`LtgNm` 10–12) to ensure no `"..."` elision markers appear in structural fields.
+- **Validation of truncation markers:** Programmatic check of all 25 JSON files (`python3 json.load()` + a `"..."` scan) confirmed zero `"..."` as Pencil truncation markers in structural fields (`"children": "..."`, `"geometry": "..."`, etc.), and top-level `"id"` matches the filename in every file. `LtgNm` contains two instances of `"..."` as actual component content — the `Pagination/Ellipsis` (`i18Al2`) symbol and `tableEx` (`Q0ilUf`) cell text — confirmed by path (`.content` fields on leaf nodes `EHTqO`, `DpNvd`), not a structural elision. For the six button components (`tpKRk`, `rNhll`, `LMIom`, `XoX7L`, `z9ShNE`, `d5N3W3`), the first child is a `ref` node pointing at a HeroUI Button definition (`cb4rt`, `i6gfu`, `jsrtu`, `CFM8i`, `j9c5W`, `FIB65` respectively).
+- **Screenshots:** `export_nodes` PNG export of each component at 2× scale to `/design-export/screenshots/<id>.png`. All 25 PNG files present, verified non-empty and valid PNG via `file`.
+- **File inventory:** All 25 components have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-04 (git status confirms all 25 ids' json+png as modified).
 - **Verification command:** `for id in LtgNm tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 J09iP IU7OG D0cDM qvQPg Lmaf1 AT7ya hl7R3 rh2QH k38Uta ZWcwn xCDF7 x3beP WwNlX BPEpm FyV6E w4ntSc zzx8f igj2U; do grep -c "$id" design-export/MANIFEST.md; done` — each id appears exactly once in this section (grep returns 1).
 
 **Context:**
