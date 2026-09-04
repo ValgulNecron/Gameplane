@@ -1,1 +1,134 @@
-{"id":"DMnEi","type":"ref","reusable":true,"ref":"x3beP","name":"Gameplane/Dialog/Add Module Source","x":2640,"y":29221,"descendants":{"E7Whx":{"content":"Add module source"},"qzcst":{"content":"Equivalent to applying a ModuleSource resource directly."},"Nht52":{"type":"frame","id":"e8g6GR","name":"mBody","width":"fill_container","layout":"vertical","gap":16,"padding":[16,0,0,0],"children":[{"type":"frame","id":"Dy7HC","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"KgxT0","fill":"$c:--muted-foreground","content":"Name","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"id":"jV8Vg","type":"ref","ref":"D0cDM","name":"Input","width":"fill_container","descendants":{"PJERm":{"content":"community","fill":"#5C5C5C"}}},{"type":"text","id":"oafU1","fill":"$c:--muted-foreground","content":"DNS label identifying this source.","fontFamily":"$c:--font-secondary","fontSize":11,"fontWeight":"normal"}]},{"type":"frame","id":"johlb","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"NNDZs","fill":"$c:--muted-foreground","content":"Type","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"id":"JRooL","type":"ref","ref":"AT7ya","name":"Select","width":"fill_container","descendants":{"cFsFk":{"content":"oci"}}}]},{"type":"frame","id":"u6it9","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"K2Lrm","fill":"$c:--muted-foreground","content":"Registry URL","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"id":"SLiFX","type":"ref","ref":"D0cDM","name":"Input","width":"fill_container","descendants":{"PJERm":{"content":"ghcr.io/valgulnecron/gameplane-modules","fill":"#5C5C5C"}}}]}]}}}
+{
+    "id": "DMnEi",
+    "type": "ref",
+    "reusable": true,
+    "ref": "x3beP",
+    "name": "Gameplane/Dialog/Add Module Source",
+    "x": 2640,
+    "y": 29221,
+    "descendants": {
+        "E7Whx": {
+            "content": "Add module source"
+        },
+        "qzcst": {
+            "content": "Equivalent to applying a ModuleSource resource directly."
+        },
+        "Nht52": {
+            "type": "frame",
+            "id": "e8g6GR",
+            "name": "mBody",
+            "width": "fill_container",
+            "layout": "vertical",
+            "gap": 16,
+            "padding": [
+                16,
+                0,
+                0,
+                0
+            ],
+            "children": [
+                {
+                    "type": "frame",
+                    "id": "Dy7HC",
+                    "width": "fill_container",
+                    "layout": "vertical",
+                    "gap": 6,
+                    "children": [
+                        {
+                            "type": "text",
+                            "id": "KgxT0",
+                            "fill": "$c:--muted-foreground",
+                            "content": "Name",
+                            "fontFamily": "$c:--font-secondary",
+                            "fontSize": 12,
+                            "fontWeight": "normal"
+                        },
+                        {
+                            "id": "jV8Vg",
+                            "type": "ref",
+                            "ref": "D0cDM",
+                            "name": "Input",
+                            "width": "fill_container",
+                            "descendants": {
+                                "PJERm": {
+                                    "content": "community",
+                                    "fill": "#5C5C5C"
+                                }
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "id": "oafU1",
+                            "fill": "$c:--muted-foreground",
+                            "content": "DNS label identifying this source.",
+                            "fontFamily": "$c:--font-secondary",
+                            "fontSize": 11,
+                            "fontWeight": "normal"
+                        }
+                    ]
+                },
+                {
+                    "type": "frame",
+                    "id": "johlb",
+                    "width": "fill_container",
+                    "layout": "vertical",
+                    "gap": 6,
+                    "children": [
+                        {
+                            "type": "text",
+                            "id": "NNDZs",
+                            "fill": "$c:--muted-foreground",
+                            "content": "Type",
+                            "fontFamily": "$c:--font-secondary",
+                            "fontSize": 12,
+                            "fontWeight": "normal"
+                        },
+                        {
+                            "id": "JRooL",
+                            "type": "ref",
+                            "ref": "AT7ya",
+                            "name": "Select",
+                            "width": "fill_container",
+                            "descendants": {
+                                "cFsFk": {
+                                    "content": "oci"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "frame",
+                    "id": "u6it9",
+                    "width": "fill_container",
+                    "layout": "vertical",
+                    "gap": 6,
+                    "children": [
+                        {
+                            "type": "text",
+                            "id": "K2Lrm",
+                            "fill": "$c:--muted-foreground",
+                            "content": "Registry URL",
+                            "fontFamily": "$c:--font-secondary",
+                            "fontSize": 12,
+                            "fontWeight": "normal"
+                        },
+                        {
+                            "id": "SLiFX",
+                            "type": "ref",
+                            "ref": "D0cDM",
+                            "name": "Input",
+                            "width": "fill_container",
+                            "descendants": {
+                                "PJERm": {
+                                    "content": "ghcr.io/valgulnecron/gameplane-modules",
+                                    "fill": "#5C5C5C"
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}

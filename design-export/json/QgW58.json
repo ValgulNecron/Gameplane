@@ -1,1 +1,1586 @@
-{"type":"frame","id":"QgW58","x":17780,"y":21365,"name":"Screen/Admin Settings — Authentication (Save rejected)","theme":{"c:Mode":"Dark"},"clip":true,"width":1440,"height":1660,"fill":"$c:--background","children":[{"id":"m5cM1","type":"ref","ref":"kKFX9","height":"fill_container","descendants":{"z8Yor":{"id":"bZLRm","type":"ref","ref":"c:X6nwq","cornerRadius":6,"padding":[8,12],"gap":12,"height":36,"alignItems":"center","fill":"#00000000","descendants":{"c:xGT5g":{"icon":"layout-dashboard","width":18,"height":18,"fill":"#949494","library":"lucide"},"c:TXca3":{"content":"Dashboard","fontSize":14,"fill":"#949494"}}},"tm7Th":{"id":"ki3Dy","type":"ref","ref":"c:dOLzc","cornerRadius":6,"padding":[8,12],"gap":12,"height":36,"alignItems":"center","fill":"#FF84001A","descendants":{"c:xGT5g":{"icon":"settings","width":18,"height":18,"fill":"#FF8400","library":"lucide"},"c:TXca3":{"content":"Settings","fontSize":14,"fill":"#FF8400"}}}}},{"type":"frame","id":"DDFSU","name":"Main","width":"fill_container","height":"fill_container","fill":"$c:--background","layout":"vertical","children":[{"id":"hYTo4","type":"ref","ref":"gu5WY","width":"fill_container","descendants":{"GqBm6/c:bT3Mm":{"content":"Settings"}}},{"type":"frame","id":"xQzpE","name":"Body","width":"fill_container","height":"fill_container","layout":"vertical","gap":24,"padding":24,"children":[{"id":"hYUJr","type":"ref","ref":"xCDF7","width":"fill_container","descendants":{"spCmk":{"content":"Admin settings"},"VbHwU":{"content":"Platform-wide configuration for this Gameplane instance."},"TgdLz":{"enabled":false}}},{"type":"frame","id":"kGDhb","name":"Settings Layout","width":"fill_container","gap":24,"children":[{"type":"frame","id":"XDMKa","name":"Settings Nav","width":220,"layout":"vertical","gap":2,"padding":[8,0],"children":[{"type":"frame","id":"wfbqq","name":"snGeneral","width":"fill_container","height":36,"cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"pw5CO","width":16,"height":16,"icon":"cog","library":"lucide","weight":400,"fill":"$c:--muted-foreground"},{"type":"text","id":"jqKMN","fill":"$c:--muted-foreground","content":"General","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"TGQZZ","name":"snAuth","width":"fill_container","height":36,"fill":"#171717","cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"MyYGh","width":16,"height":16,"icon":"shield-check","library":"lucide","weight":400,"fill":"$c:--foreground"},{"type":"text","id":"qF8Xj","fill":"$c:--foreground","content":"Authentication","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"IT07b","name":"snBackups","width":"fill_container","height":36,"cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"n4XqYO","width":16,"height":16,"icon":"archive","library":"lucide","weight":400,"fill":"$c:--muted-foreground"},{"type":"text","id":"jCtli","fill":"$c:--muted-foreground","content":"Backup destinations","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"AOYUc","name":"snModules","width":"fill_container","height":36,"cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"MBlgy","width":16,"height":16,"icon":"boxes","library":"lucide","weight":400,"fill":"$c:--muted-foreground"},{"type":"text","id":"Ptmhx","fill":"$c:--muted-foreground","content":"Module sources","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"XfnzD","name":"snModRegistries","width":"fill_container","height":36,"cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"S1oZJB","width":16,"height":16,"icon":"key","library":"lucide","weight":400,"fill":"$c:--muted-foreground"},{"type":"text","id":"nk0gD","fill":"$c:--muted-foreground","content":"Mod registries","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"b33gf","name":"snNotifications","width":"fill_container","height":36,"cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"suzpv","width":16,"height":16,"icon":"bell","library":"lucide","weight":400,"fill":"$c:--muted-foreground"},{"type":"text","id":"unPiP","fill":"$c:--muted-foreground","content":"Notifications","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"Tc1S9","name":"snTelemetry","width":"fill_container","height":36,"cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"Ox3zS","width":16,"height":16,"icon":"activity","library":"lucide","weight":400,"fill":"$c:--muted-foreground"},{"type":"text","id":"TQw2M","fill":"$c:--muted-foreground","content":"Telemetry","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"tMMzQ","name":"snUpdates","width":"fill_container","height":36,"cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"J8kv9d","width":16,"height":16,"icon":"refresh-ccw","library":"lucide","weight":400,"fill":"$c:--muted-foreground"},{"type":"text","id":"sopNT","fill":"$c:--muted-foreground","content":"Updates","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"AA4ik","name":"snAbout","width":"fill_container","height":36,"cornerRadius":6,"gap":8,"padding":[8,12],"alignItems":"center","children":[{"type":"icon","id":"gBhfb","width":16,"height":16,"icon":"info","library":"lucide","weight":400,"fill":"$c:--muted-foreground"},{"type":"text","id":"hDBDl","fill":"$c:--muted-foreground","content":"About","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]}]},{"type":"frame","id":"mDN9n","name":"Settings Column","width":"fill_container","layout":"vertical","gap":24,"children":[{"id":"y99umC","type":"ref","ref":"c:ERkuB","name":"Settings Panel","width":"fill_container","cornerRadius":10,"effect":[],"descendants":{"c:4zoFt":{"height":"fit_content","layout":"vertical","gap":4,"padding":[20,20,16,20],"children":[{"type":"text","id":"UKZhy","fill":"$c:--foreground","content":"Authentication","fontFamily":"$c:--font-secondary","fontSize":16,"fontWeight":"500"},{"type":"text","id":"YKoko","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"Built-in local accounts plus federated identity providers. Changes take effect on save — no restart needed.","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},"c:QMHOm":{"type":"frame","id":"LNgcI","name":"Card Content","width":"fill_container","layout":"vertical","gap":16,"padding":[0,20],"children":[{"type":"frame","id":"I7V90m","name":"providerList","width":"fill_container","layout":"vertical","children":[{"type":"frame","id":"u9hKbJ","name":"provLocal","width":"fill_container","gap":12,"padding":[12,0],"alignItems":"center","children":[{"type":"frame","id":"gxk9a","name":"iconBox","width":32,"height":32,"fill":"#171717","cornerRadius":6,"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"JFvsL","width":16,"height":16,"icon":"key-round","library":"lucide","fill":"$c:--muted-foreground"}]},{"type":"frame","id":"ulRZE","width":"fill_container","layout":"vertical","gap":2,"children":[{"type":"text","id":"H4cyrg","fill":"$c:--foreground","content":"Local accounts","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"},{"type":"text","id":"wXFnJ","fill":"$c:--muted-foreground","content":"local","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},{"type":"frame","id":"yLfeQ","name":"enabledPill","fill":"#21C45D26","cornerRadius":4,"padding":[2,8],"justifyContent":"center","alignItems":"center","children":[{"type":"text","id":"AXOht","fill":"#21C45D","content":"ENABLED","fontFamily":"$c:--font-primary","fontSize":10,"fontWeight":"normal"}]}]}]},{"type":"text","id":"b8hrIz","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"At least one identity provider must stay enabled — the last enabled provider can't be turned off.","lineHeight":1.4,"fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"type":"frame","id":"jJ03g","name":"btnAddProvider","height":32,"cornerRadius":6,"stroke":"$c:--border","strokeWidth":1,"strokeAlignment":"inner","gap":6,"padding":[0,12],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"jGg5S","width":16,"height":16,"icon":"plus","library":"lucide","fill":"$c:--foreground"},{"type":"text","id":"f5fVu","fill":"$c:--foreground","content":"Add provider","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"}]}]},"c:tiojM":{"height":"fit_content","justifyContent":"end","padding":[8,20,20,20],"children":[{"id":"agPO3","type":"ref","ref":"tpKRk","name":"Btn Save Changes","descendants":{"G0IkVn":{"enabled":false},"ysUHS":{"content":"Save changes"}}}]}}},{"id":"R6tHVW","type":"ref","ref":"c:ERkuB","name":"Helm OIDC Provider Card","width":"fill_container","cornerRadius":10,"effect":[],"descendants":{"c:4zoFt":{"height":"fit_content","layout":"vertical","gap":4,"padding":[20,20,16,20],"children":[{"type":"text","id":"ITbjz","name":"cardTitle","fill":"$c:--foreground","content":"Helm-seeded OIDC provider","fontFamily":"$c:--font-secondary","fontSize":16,"fontWeight":"500"},{"type":"text","id":"FyyBI","name":"cardSubtitle","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time. Connection settings are not editable here; role mappings can be overridden below.","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},"c:QMHOm":{"height":"fit_content","layout":"vertical","gap":16,"padding":[0,20,20,20],"children":[{"type":"frame","id":"VSIaU","name":"oidcHeaderCol","width":"fill_container","layout":"vertical","gap":2,"children":[{"type":"text","id":"LKSn4","name":"oidcHeaderTitle","fill":"$c:--foreground","content":"Provider","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"500"},{"type":"text","id":"L853ap","name":"oidcHeaderHint","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"Groups claim and default role are seeded from the same Helm values and are not editable here.","fontFamily":"$c:--font-secondary","fontSize":11,"fontWeight":"normal"}]},{"type":"frame","id":"OIk0H","name":"rowGroupsClaim","width":"fill_container","justifyContent":"space_between","alignItems":"center","children":[{"type":"text","id":"h4UtJs","name":"claimLabel","fill":"$c:--muted-foreground","content":"Groups claim","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"type":"text","id":"w5vRW","name":"claimValue","fill":"$c:--foreground","content":"teams","fontFamily":"$c:--font-primary","fontSize":12,"fontWeight":"500"}]},{"type":"frame","id":"SCQzZ","name":"rowDefaultRole","width":"fill_container","justifyContent":"space_between","alignItems":"center","children":[{"type":"text","id":"rRAtc","name":"roleLabel","fill":"$c:--muted-foreground","content":"Default role","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"id":"tomj5","type":"ref","ref":"c:XYdcn","name":"defaultRolePill","descendants":{"c:ULBkt":{"enabled":false},"c:izLyj":{"content":"viewer"}}}]},{"type":"frame","id":"Yu3wP","name":"roleMappingsCol","width":"fill_container","layout":"vertical","gap":10,"children":[{"type":"text","id":"DsiuI","name":"roleMappingsLabel","fill":"$c:--muted-foreground","content":"Helm-seeded role mappings","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"type":"frame","id":"wzCup","name":"roleRow_admin","width":"fill_container","gap":12,"alignItems":"center","children":[{"type":"text","id":"z6AFkj","name":"roleName_admin","fill":"$c:--foreground","textGrowth":"fixed-width","width":70,"content":"Admin","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"},{"type":"frame","id":"yQTeC","name":"chips_admin","gap":6,"alignItems":"center","children":[{"id":"NJeh3","type":"ref","ref":"c:7Fif0","name":"chip_admin_gameplane-admins","descendants":{"c:rMf5x":{"enabled":false},"c:glumS":{"content":"gameplane-admins"}}}]}]},{"type":"frame","id":"w0g1D","name":"roleRow_operator","width":"fill_container","gap":12,"alignItems":"center","children":[{"type":"text","id":"qp40P","name":"roleName_operator","fill":"$c:--foreground","textGrowth":"fixed-width","width":70,"content":"Operator","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"},{"type":"frame","id":"KfzUt","name":"chips_operator","gap":6,"alignItems":"center","children":[{"id":"X2Qz9i","type":"ref","ref":"c:A58oI","name":"chip_operator_gameplane-ops","descendants":{"c:ULCkh":{"enabled":false},"c:49I5i":{"content":"gameplane-ops"}}}]}]},{"type":"frame","id":"NHFeW","name":"roleRow_viewer","width":"fill_container","gap":12,"alignItems":"center","children":[{"type":"text","id":"SUIiR","name":"roleName_viewer","fill":"$c:--foreground","textGrowth":"fixed-width","width":70,"content":"Viewer","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"},{"type":"frame","id":"lhj8f","name":"chips_viewer","gap":6,"alignItems":"center","children":[{"id":"vr0e4","type":"ref","ref":"c:XYdcn","name":"chip_viewer_gameplane-members","descendants":{"c:ULBkt":{"enabled":false},"c:izLyj":{"content":"gameplane-members"}}}]}]}]},{"id":"M9Ozt","type":"ref","ref":"c:vbyqV","name":"HelmAdminMappingWarning","width":"fill_container","descendants":{"c:TPf8O":{"content":"Helm-configured admin mapping"},"c:X4L5E":{"content":"The group(s) on the Admin row above were mapped to admin via Helm values, not the dashboard, so there is no confirmation step here. Verify they contain only trusted accounts — anyone in them gets full admin access."}}}]},"c:tiojM":{"enabled":false}}},{"id":"f6itjX","type":"ref","ref":"c:ERkuB","name":"Role Mapping Overrides Card","width":"fill_container","cornerRadius":10,"effect":[],"descendants":{"c:4zoFt":{"type":"frame","id":"Vrohw","name":"Card Header","width":"fill_container","layout":"vertical","gap":4,"padding":[20,20,16,20],"children":[{"type":"text","id":"bOXnW","name":"cardTitle","fill":"$c:--foreground","content":"Role mapping overrides","fontFamily":"$c:--font-secondary","fontSize":16,"fontWeight":"500"},{"type":"text","id":"tVkN1","name":"cardSubtitle","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"Override the Helm-seeded OIDC group mappings per role from here. A change takes effect the next time an affected user logs in — no restart or reinstall needed.","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},"c:QMHOm":{"type":"frame","id":"A3zQBw","name":"Card Content","width":"fill_container","layout":"vertical","gap":14,"padding":[0,20,20,20],"children":[{"type":"frame","id":"Hk5t8","name":"roleBlock_admin","width":"fill_container","layout":"vertical","gap":8,"children":[{"type":"frame","id":"q1f3jU","name":"headerRow_admin","width":"fill_container","justifyContent":"space_between","alignItems":"center","children":[{"type":"frame","id":"A9t6o","name":"leftGroup_admin","gap":8,"alignItems":"center","children":[{"type":"text","id":"z8EQN","name":"roleName_admin","fill":"$c:--foreground","textGrowth":"fixed-width","width":70,"content":"Admin","fontFamily":"$c:--font-secondary","fontSize":13,"fontWeight":"600"},{"id":"mZ4Sz","type":"ref","ref":"R65Xyx","name":"provenance_admin"}]},{"id":"NKh3P","type":"ref","ref":"d5N3W3","name":"btnReset_admin","descendants":{"kCY6f":{"icon":"rotate-ccw"},"WJAu2":{"content":"Reset to Helm default"}}}]},{"type":"frame","id":"RUyRK","name":"chipsRow_admin","width":"fill_container","gap":6,"alignItems":"center","children":[{"id":"UtD8v","type":"ref","ref":"XL5ZU","name":"chip_admin_gameplane-admins","descendants":{"v68RDf":{"content":"gameplane-admins"}}},{"id":"OhAaS","type":"ref","ref":"XL5ZU","name":"chip_admin_gameplane-sre","descendants":{"v68RDf":{"content":"gameplane-sre"}}}]},{"type":"frame","id":"BqSFu","name":"addRow_admin","width":"fill_container","gap":8,"alignItems":"center","children":[{"id":"Ttt5K","type":"ref","ref":"qvQPg","name":"inputAddGroup_admin","stroke":"#DC2626","descendants":{"o9Cn1t":{"content":"Add IdP group name…"}}},{"id":"GpowQ","type":"ref","ref":"d5N3W3","name":"btnAdd_admin","descendants":{"kCY6f":{"icon":"plus"},"WJAu2":{"content":"Add"}}}]},{"type":"text","id":"f8jL0","name":"fieldError_admin","fill":"#DC2626","textGrowth":"fixed-width","width":"fill_container","content":"Group name can't be blank.","fontFamily":"$c:--font-secondary","fontSize":11,"fontWeight":"normal"}]},{"type":"frame","id":"s9krep","name":"divider_operator","width":"fill_container","height":1,"fill":"$c:--border"},{"type":"frame","id":"WvrXm","name":"roleBlock_operator","width":"fill_container","layout":"vertical","gap":8,"children":[{"type":"frame","id":"F9on3","name":"headerRow_operator","width":"fill_container","justifyContent":"space_between","alignItems":"center","children":[{"type":"frame","id":"dhk7n","name":"leftGroup_operator","gap":8,"alignItems":"center","children":[{"type":"text","id":"Wtu1E","name":"roleName_operator","fill":"$c:--foreground","textGrowth":"fixed-width","width":70,"content":"Operator","fontFamily":"$c:--font-secondary","fontSize":13,"fontWeight":"600"},{"id":"hf41a","type":"ref","ref":"Rwnu3","name":"provenance_operator"}]}]},{"type":"frame","id":"WkjPR","name":"chipsRow_operator","width":"fill_container","gap":6,"alignItems":"center","children":[{"id":"ffhsZ","type":"ref","ref":"vStkb","name":"chip_operator_gameplane-ops","descendants":{"RNxys":{"content":"gameplane-ops"}}}]},{"type":"frame","id":"E6krw","name":"addRow_operator","width":"fill_container","gap":8,"alignItems":"center","children":[{"id":"EbCfr","type":"ref","ref":"qvQPg","name":"inputAddGroup_operator","descendants":{"o9Cn1t":{"content":"Add IdP group name…"}}},{"id":"P6COEC","type":"ref","ref":"d5N3W3","name":"btnAdd_operator","descendants":{"kCY6f":{"icon":"plus"},"WJAu2":{"content":"Add"}}}]}]},{"type":"frame","id":"T4UlJz","name":"divider_viewer","width":"fill_container","height":1,"fill":"$c:--border"},{"type":"frame","id":"YHpNQ","name":"roleBlock_viewer","width":"fill_container","layout":"vertical","gap":8,"children":[{"type":"frame","id":"ARd0x","name":"headerRow_viewer","width":"fill_container","justifyContent":"space_between","alignItems":"center","children":[{"type":"frame","id":"M9OyZ","name":"leftGroup_viewer","gap":8,"alignItems":"center","children":[{"type":"text","id":"GFAAP","name":"roleName_viewer","fill":"$c:--foreground","textGrowth":"fixed-width","width":70,"content":"Viewer","fontFamily":"$c:--font-secondary","fontSize":13,"fontWeight":"600"},{"id":"EnVxJ","type":"ref","ref":"R65Xyx","name":"provenance_viewer"}]},{"id":"MHtZP","type":"ref","ref":"d5N3W3","name":"btnReset_viewer","descendants":{"kCY6f":{"icon":"rotate-ccw"},"WJAu2":{"content":"Reset to Helm default"}}}]},{"type":"frame","id":"oOoIs","name":"emptyState_viewer","width":"fill_container","cornerRadius":6,"stroke":"$c:--border","strokeWidth":1,"strokeAlignment":"inner","gap":8,"padding":[6,10],"alignItems":"center","children":[{"type":"icon","id":"sy2XE","name":"emptyIcon_viewer","width":14,"height":14,"icon":"circle-slash-2","library":"lucide","fill":"$c:--muted-foreground"},{"type":"text","id":"qiHVu","name":"emptyText_viewer","fill":"$c:--muted-foreground","content":"No groups mapped — nobody signs in as viewer via OIDC.","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal","fontStyle":"italic"}]},{"type":"frame","id":"m2l1Kp","name":"addRow_viewer","width":"fill_container","gap":8,"alignItems":"center","children":[{"id":"nIVkN","type":"ref","ref":"qvQPg","name":"inputAddGroup_viewer","descendants":{"o9Cn1t":{"content":"Add IdP group name…"}}},{"id":"HsTLS","type":"ref","ref":"d5N3W3","name":"btnAdd_viewer","descendants":{"kCY6f":{"icon":"plus"},"WJAu2":{"content":"Add"}}}]}]},{"id":"aLXWq","type":"ref","ref":"igj2U","name":"saveErrorBanner","width":"fill_container","descendants":{"rLiOn":{"content":"Save failed (400): validation failed — helmOverride.roleMappings.admin must not contain blank group names. No changes were saved."}}}]},"c:tiojM":{"type":"frame","id":"aRAOv","name":"Card Actions","width":"fill_container","gap":12,"padding":[8,20,20,20],"justifyContent":"space_between","alignItems":"center","children":[{"type":"text","id":"AIlQv","name":"saveHelper","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"Saved changes take effect on next login for affected users — no restart or reinstall needed.","fontFamily":"$c:--font-secondary","fontSize":11,"fontWeight":"normal"},{"id":"i4t2M","type":"ref","ref":"rNhll","name":"Btn Save Role Mappings","descendants":{"IhVHs":{"enabled":false},"B52mnL":{"content":"Save role mappings"}}}]}}}]}]}]}]}]}
+{
+    "type": "frame",
+    "id": "QgW58",
+    "x": 17780,
+    "y": 21365,
+    "name": "Screen/Admin Settings \u2014 Authentication (Save rejected)",
+    "theme": {
+        "c:Mode": "Dark",
+        "semantic": "dark"
+    },
+    "clip": true,
+    "width": 1440,
+    "height": 1660,
+    "fill": "$background/background",
+    "children": [
+        {
+            "id": "m5cM1",
+            "type": "ref",
+            "ref": "kKFX9",
+            "height": "fill_container",
+            "descendants": {
+                "z8Yor": {
+                    "id": "bZLRm",
+                    "type": "ref",
+                    "ref": "c:X6nwq",
+                    "cornerRadius": 6,
+                    "padding": [
+                        8,
+                        12
+                    ],
+                    "gap": 12,
+                    "height": 36,
+                    "alignItems": "center",
+                    "fill": "#00000000",
+                    "descendants": {
+                        "c:xGT5g": {
+                            "icon": "layout-dashboard",
+                            "width": 18,
+                            "height": 18,
+                            "fill": "$muted",
+                            "library": "lucide"
+                        },
+                        "c:TXca3": {
+                            "content": "Dashboard",
+                            "fontSize": 14,
+                            "fill": "$muted"
+                        }
+                    }
+                },
+                "tm7Th": {
+                    "id": "ki3Dy",
+                    "type": "ref",
+                    "ref": "c:dOLzc",
+                    "cornerRadius": 6,
+                    "padding": [
+                        8,
+                        12
+                    ],
+                    "gap": 12,
+                    "height": 36,
+                    "alignItems": "center",
+                    "fill": "$accent/soft",
+                    "descendants": {
+                        "c:xGT5g": {
+                            "icon": "settings",
+                            "width": 18,
+                            "height": 18,
+                            "fill": "$accent/accent",
+                            "library": "lucide"
+                        },
+                        "c:TXca3": {
+                            "content": "Settings",
+                            "fontSize": 14,
+                            "fill": "$accent/accent"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "frame",
+            "id": "DDFSU",
+            "name": "Main",
+            "width": "fill_container",
+            "height": "fill_container",
+            "fill": "$background/background",
+            "layout": "vertical",
+            "children": [
+                {
+                    "id": "hYTo4",
+                    "type": "ref",
+                    "ref": "gu5WY",
+                    "width": "fill_container",
+                    "descendants": {
+                        "GqBm6/c:bT3Mm": {
+                            "content": "Settings"
+                        }
+                    }
+                },
+                {
+                    "type": "frame",
+                    "id": "xQzpE",
+                    "name": "Body",
+                    "width": "fill_container",
+                    "height": "fill_container",
+                    "layout": "vertical",
+                    "gap": 24,
+                    "padding": 24,
+                    "children": [
+                        {
+                            "id": "hYUJr",
+                            "type": "ref",
+                            "ref": "xCDF7",
+                            "width": "fill_container",
+                            "descendants": {
+                                "spCmk": {
+                                    "content": "Admin settings"
+                                },
+                                "VbHwU": {
+                                    "content": "Platform-wide configuration for this Gameplane instance."
+                                },
+                                "TgdLz": {
+                                    "enabled": false
+                                }
+                            }
+                        },
+                        {
+                            "type": "frame",
+                            "id": "kGDhb",
+                            "name": "Settings Layout",
+                            "width": "fill_container",
+                            "gap": 24,
+                            "children": [
+                                {
+                                    "type": "frame",
+                                    "id": "XDMKa",
+                                    "name": "Settings Nav",
+                                    "width": 220,
+                                    "layout": "vertical",
+                                    "gap": 2,
+                                    "padding": [
+                                        8,
+                                        0
+                                    ],
+                                    "children": [
+                                        {
+                                            "type": "frame",
+                                            "id": "wfbqq",
+                                            "name": "snGeneral",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "pw5CO",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "cog",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "jqKMN",
+                                                    "fill": "$muted",
+                                                    "content": "General",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "TGQZZ",
+                                            "name": "snAuth",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "fill": "$surface/secondary",
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "MyYGh",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "shield-check",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$foreground/foreground"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "qF8Xj",
+                                                    "fill": "$foreground/foreground",
+                                                    "content": "Authentication",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "IT07b",
+                                            "name": "snBackups",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "n4XqYO",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "archive",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "jCtli",
+                                                    "fill": "$muted",
+                                                    "content": "Backup destinations",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "AOYUc",
+                                            "name": "snModules",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "MBlgy",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "boxes",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "Ptmhx",
+                                                    "fill": "$muted",
+                                                    "content": "Module sources",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "XfnzD",
+                                            "name": "snModRegistries",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "S1oZJB",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "key",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "nk0gD",
+                                                    "fill": "$muted",
+                                                    "content": "Mod registries",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "b33gf",
+                                            "name": "snNotifications",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "suzpv",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "bell",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "unPiP",
+                                                    "fill": "$muted",
+                                                    "content": "Notifications",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "Tc1S9",
+                                            "name": "snTelemetry",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "Ox3zS",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "activity",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "TQw2M",
+                                                    "fill": "$muted",
+                                                    "content": "Telemetry",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "tMMzQ",
+                                            "name": "snUpdates",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "J8kv9d",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "refresh-ccw",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "sopNT",
+                                                    "fill": "$muted",
+                                                    "content": "Updates",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "AA4ik",
+                                            "name": "snAbout",
+                                            "width": "fill_container",
+                                            "height": 36,
+                                            "cornerRadius": 6,
+                                            "gap": 8,
+                                            "padding": [
+                                                8,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "icon",
+                                                    "id": "gBhfb",
+                                                    "width": 16,
+                                                    "height": 16,
+                                                    "icon": "info",
+                                                    "library": "lucide",
+                                                    "weight": 400,
+                                                    "fill": "$muted"
+                                                },
+                                                {
+                                                    "type": "text",
+                                                    "id": "hDBDl",
+                                                    "fill": "$muted",
+                                                    "content": "About",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 14,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "frame",
+                                    "id": "mDN9n",
+                                    "name": "Settings Column",
+                                    "width": "fill_container",
+                                    "layout": "vertical",
+                                    "gap": 24,
+                                    "children": [
+                                        {
+                                            "id": "y99umC",
+                                            "type": "ref",
+                                            "ref": "c:ERkuB",
+                                            "name": "Settings Panel",
+                                            "width": "fill_container",
+                                            "cornerRadius": 10,
+                                            "effect": [],
+                                            "fill": "$surface/surface",
+                                            "stroke": "$border/border",
+                                            "descendants": {
+                                                "c:4zoFt": {
+                                                    "height": "fit_content",
+                                                    "layout": "vertical",
+                                                    "gap": 4,
+                                                    "padding": [
+                                                        20,
+                                                        20,
+                                                        16,
+                                                        20
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "type": "text",
+                                                            "id": "UKZhy",
+                                                            "fill": "$foreground/foreground",
+                                                            "content": "Authentication",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 16,
+                                                            "fontWeight": "500"
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "YKoko",
+                                                            "fill": "$muted",
+                                                            "textGrowth": "fixed-width",
+                                                            "width": "fill_container",
+                                                            "content": "Built-in local accounts plus federated identity providers. Changes take effect on save \u2014 no restart needed.",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                },
+                                                "c:QMHOm": {
+                                                    "type": "frame",
+                                                    "id": "LNgcI",
+                                                    "name": "Card Content",
+                                                    "width": "fill_container",
+                                                    "layout": "vertical",
+                                                    "gap": 16,
+                                                    "padding": [
+                                                        0,
+                                                        20
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "I7V90m",
+                                                            "name": "providerList",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "children": [
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "u9hKbJ",
+                                                                    "name": "provLocal",
+                                                                    "width": "fill_container",
+                                                                    "gap": 12,
+                                                                    "padding": [
+                                                                        12,
+                                                                        0
+                                                                    ],
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "gxk9a",
+                                                                            "name": "iconBox",
+                                                                            "width": 32,
+                                                                            "height": 32,
+                                                                            "fill": "$surface/secondary",
+                                                                            "cornerRadius": 6,
+                                                                            "justifyContent": "center",
+                                                                            "alignItems": "center",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "icon",
+                                                                                    "id": "JFvsL",
+                                                                                    "width": 16,
+                                                                                    "height": 16,
+                                                                                    "icon": "key-round",
+                                                                                    "library": "lucide",
+                                                                                    "fill": "$muted"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "ulRZE",
+                                                                            "width": "fill_container",
+                                                                            "layout": "vertical",
+                                                                            "gap": 2,
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "H4cyrg",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "content": "Local accounts",
+                                                                                    "fontFamily": "$c:--font-secondary",
+                                                                                    "fontSize": 14,
+                                                                                    "fontWeight": "normal"
+                                                                                },
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "wXFnJ",
+                                                                                    "fill": "$muted",
+                                                                                    "content": "local",
+                                                                                    "fontFamily": "$c:--font-secondary",
+                                                                                    "fontSize": 12,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "yLfeQ",
+                                                                            "name": "enabledPill",
+                                                                            "fill": "#21C45D26",
+                                                                            "cornerRadius": 4,
+                                                                            "padding": [
+                                                                                2,
+                                                                                8
+                                                                            ],
+                                                                            "justifyContent": "center",
+                                                                            "alignItems": "center",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "AXOht",
+                                                                                    "fill": "#21C45D",
+                                                                                    "content": "ENABLED",
+                                                                                    "fontFamily": "$c:--font-primary",
+                                                                                    "fontSize": 10,
+                                                                                    "fontWeight": "normal"
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "b8hrIz",
+                                                            "fill": "$muted",
+                                                            "textGrowth": "fixed-width",
+                                                            "width": "fill_container",
+                                                            "content": "At least one identity provider must stay enabled \u2014 the last enabled provider can't be turned off.",
+                                                            "lineHeight": 1.4,
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "jJ03g",
+                                                            "name": "btnAddProvider",
+                                                            "height": 32,
+                                                            "cornerRadius": 6,
+                                                            "stroke": "$border/border",
+                                                            "strokeWidth": 1,
+                                                            "strokeAlignment": "inner",
+                                                            "gap": 6,
+                                                            "padding": [
+                                                                0,
+                                                                12
+                                                            ],
+                                                            "justifyContent": "center",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "icon",
+                                                                    "id": "jGg5S",
+                                                                    "width": 16,
+                                                                    "height": 16,
+                                                                    "icon": "plus",
+                                                                    "library": "lucide",
+                                                                    "fill": "$foreground/foreground"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "f5fVu",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "Add provider",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "500"
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                },
+                                                "c:tiojM": {
+                                                    "height": "fit_content",
+                                                    "justifyContent": "end",
+                                                    "padding": [
+                                                        8,
+                                                        20,
+                                                        20,
+                                                        20
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "id": "agPO3",
+                                                            "type": "ref",
+                                                            "ref": "tpKRk",
+                                                            "name": "Btn Save Changes",
+                                                            "descendants": {
+                                                                "q58In/Xpn7K": {
+                                                                    "enabled": false
+                                                                },
+                                                                "q58In/U6q13B": {
+                                                                    "content": "Save changes"
+                                                                }
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "id": "R6tHVW",
+                                            "type": "ref",
+                                            "ref": "c:ERkuB",
+                                            "name": "Helm OIDC Provider Card",
+                                            "width": "fill_container",
+                                            "cornerRadius": 10,
+                                            "effect": [],
+                                            "fill": "$surface/surface",
+                                            "stroke": "$border/border",
+                                            "descendants": {
+                                                "c:4zoFt": {
+                                                    "height": "fit_content",
+                                                    "layout": "vertical",
+                                                    "gap": 4,
+                                                    "padding": [
+                                                        20,
+                                                        20,
+                                                        16,
+                                                        20
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "type": "text",
+                                                            "id": "ITbjz",
+                                                            "name": "cardTitle",
+                                                            "fill": "$foreground/foreground",
+                                                            "content": "Helm-seeded OIDC provider",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 16,
+                                                            "fontWeight": "500"
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "FyyBI",
+                                                            "name": "cardSubtitle",
+                                                            "fill": "$muted",
+                                                            "textGrowth": "fixed-width",
+                                                            "width": "fill_container",
+                                                            "content": "Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time. Connection settings are not editable here; role mappings can be overridden below.",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                },
+                                                "c:QMHOm": {
+                                                    "height": "fit_content",
+                                                    "layout": "vertical",
+                                                    "gap": 16,
+                                                    "padding": [
+                                                        0,
+                                                        20,
+                                                        20,
+                                                        20
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "VSIaU",
+                                                            "name": "oidcHeaderCol",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 2,
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "LKSn4",
+                                                                    "name": "oidcHeaderTitle",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "Provider",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 14,
+                                                                    "fontWeight": "500"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "L853ap",
+                                                                    "name": "oidcHeaderHint",
+                                                                    "fill": "$muted",
+                                                                    "textGrowth": "fixed-width",
+                                                                    "width": "fill_container",
+                                                                    "content": "Groups claim and default role are seeded from the same Helm values and are not editable here.",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 11,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "OIk0H",
+                                                            "name": "rowGroupsClaim",
+                                                            "width": "fill_container",
+                                                            "justifyContent": "space_between",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "h4UtJs",
+                                                                    "name": "claimLabel",
+                                                                    "fill": "$muted",
+                                                                    "content": "Groups claim",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "w5vRW",
+                                                                    "name": "claimValue",
+                                                                    "fill": "$foreground/foreground",
+                                                                    "content": "teams",
+                                                                    "fontFamily": "$c:--font-primary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "500"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "SCQzZ",
+                                                            "name": "rowDefaultRole",
+                                                            "width": "fill_container",
+                                                            "justifyContent": "space_between",
+                                                            "alignItems": "center",
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "rRAtc",
+                                                                    "name": "roleLabel",
+                                                                    "fill": "$muted",
+                                                                    "content": "Default role",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                },
+                                                                {
+                                                                    "id": "tomj5",
+                                                                    "type": "ref",
+                                                                    "ref": "c:XYdcn",
+                                                                    "name": "defaultRolePill",
+                                                                    "fill": "$default/default",
+                                                                    "descendants": {
+                                                                        "c:ULBkt": {
+                                                                            "enabled": false
+                                                                        },
+                                                                        "c:dVsjZ": {
+                                                                            "stroke": "$foreground/foreground"
+                                                                        },
+                                                                        "c:izLyj": {
+                                                                            "content": "viewer",
+                                                                            "fill": "$foreground/foreground"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "Yu3wP",
+                                                            "name": "roleMappingsCol",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 10,
+                                                            "children": [
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "DsiuI",
+                                                                    "name": "roleMappingsLabel",
+                                                                    "fill": "$muted",
+                                                                    "content": "Helm-seeded role mappings",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 12,
+                                                                    "fontWeight": "normal"
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "wzCup",
+                                                                    "name": "roleRow_admin",
+                                                                    "width": "fill_container",
+                                                                    "gap": 12,
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "z6AFkj",
+                                                                            "name": "roleName_admin",
+                                                                            "fill": "$foreground/foreground",
+                                                                            "textGrowth": "fixed-width",
+                                                                            "width": 70,
+                                                                            "content": "Admin",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 12,
+                                                                            "fontWeight": "500"
+                                                                        },
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "yQTeC",
+                                                                            "name": "chips_admin",
+                                                                            "gap": 6,
+                                                                            "alignItems": "center",
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "NJeh3",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:7Fif0",
+                                                                                    "name": "chip_admin_gameplane-admins",
+                                                                                    "fill": "$warning/soft",
+                                                                                    "descendants": {
+                                                                                        "c:rMf5x": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:XY32P": {
+                                                                                            "stroke": "$warning/soft-foreground"
+                                                                                        },
+                                                                                        "c:glumS": {
+                                                                                            "content": "gameplane-admins",
+                                                                                            "fill": "$warning/soft-foreground"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "w0g1D",
+                                                                    "name": "roleRow_operator",
+                                                                    "width": "fill_container",
+                                                                    "gap": 12,
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "qp40P",
+                                                                            "name": "roleName_operator",
+                                                                            "fill": "$foreground/foreground",
+                                                                            "textGrowth": "fixed-width",
+                                                                            "width": 70,
+                                                                            "content": "Operator",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 12,
+                                                                            "fontWeight": "500"
+                                                                        },
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "KfzUt",
+                                                                            "name": "chips_operator",
+                                                                            "gap": 6,
+                                                                            "alignItems": "center",
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "X2Qz9i",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:A58oI",
+                                                                                    "name": "chip_operator_gameplane-ops",
+                                                                                    "fill": "$default/default",
+                                                                                    "descendants": {
+                                                                                        "c:ULCkh": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:tw01V": {
+                                                                                            "stroke": "$foreground/link"
+                                                                                        },
+                                                                                        "c:49I5i": {
+                                                                                            "content": "gameplane-ops",
+                                                                                            "fill": "$foreground/link"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "NHFeW",
+                                                                    "name": "roleRow_viewer",
+                                                                    "width": "fill_container",
+                                                                    "gap": 12,
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "SUIiR",
+                                                                            "name": "roleName_viewer",
+                                                                            "fill": "$foreground/foreground",
+                                                                            "textGrowth": "fixed-width",
+                                                                            "width": 70,
+                                                                            "content": "Viewer",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 12,
+                                                                            "fontWeight": "500"
+                                                                        },
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "lhj8f",
+                                                                            "name": "chips_viewer",
+                                                                            "gap": 6,
+                                                                            "alignItems": "center",
+                                                                            "children": [
+                                                                                {
+                                                                                    "id": "vr0e4",
+                                                                                    "type": "ref",
+                                                                                    "ref": "c:XYdcn",
+                                                                                    "name": "chip_viewer_gameplane-members",
+                                                                                    "fill": "$default/default",
+                                                                                    "descendants": {
+                                                                                        "c:ULBkt": {
+                                                                                            "enabled": false
+                                                                                        },
+                                                                                        "c:dVsjZ": {
+                                                                                            "stroke": "$foreground/foreground"
+                                                                                        },
+                                                                                        "c:izLyj": {
+                                                                                            "content": "gameplane-members",
+                                                                                            "fill": "$foreground/foreground"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "id": "M9Ozt",
+                                                            "type": "ref",
+                                                            "ref": "c:vbyqV",
+                                                            "name": "HelmAdminMappingWarning",
+                                                            "width": "fill_container",
+                                                            "fill": "$warning/soft",
+                                                            "descendants": {
+                                                                "c:BUQBt": {
+                                                                    "stroke": "$warning/soft-foreground"
+                                                                },
+                                                                "c:VT2S0": {
+                                                                    "stroke": "$warning/soft-foreground"
+                                                                },
+                                                                "c:yqA3L": {
+                                                                    "stroke": "$warning/soft-foreground"
+                                                                },
+                                                                "c:TPf8O": {
+                                                                    "content": "Helm-configured admin mapping",
+                                                                    "fill": "$warning/soft-foreground"
+                                                                },
+                                                                "c:X4L5E": {
+                                                                    "content": "The group(s) on the Admin row above were mapped to admin via Helm values, not the dashboard, so there is no confirmation step here. Verify they contain only trusted accounts \u2014 anyone in them gets full admin access.",
+                                                                    "fill": "$warning/soft-foreground"
+                                                                }
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                "c:tiojM": {
+                                                    "enabled": false
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "id": "f6itjX",
+                                            "type": "ref",
+                                            "ref": "c:ERkuB",
+                                            "name": "Role Mapping Overrides Card",
+                                            "width": "fill_container",
+                                            "cornerRadius": 10,
+                                            "effect": [],
+                                            "fill": "$surface/surface",
+                                            "stroke": "$border/border",
+                                            "descendants": {
+                                                "c:4zoFt": {
+                                                    "type": "frame",
+                                                    "id": "Vrohw",
+                                                    "name": "Card Header",
+                                                    "width": "fill_container",
+                                                    "layout": "vertical",
+                                                    "gap": 4,
+                                                    "padding": [
+                                                        20,
+                                                        20,
+                                                        16,
+                                                        20
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "type": "text",
+                                                            "id": "bOXnW",
+                                                            "name": "cardTitle",
+                                                            "fill": "$foreground/foreground",
+                                                            "content": "Role mapping overrides",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 16,
+                                                            "fontWeight": "500"
+                                                        },
+                                                        {
+                                                            "type": "text",
+                                                            "id": "tVkN1",
+                                                            "name": "cardSubtitle",
+                                                            "fill": "$muted",
+                                                            "textGrowth": "fixed-width",
+                                                            "width": "fill_container",
+                                                            "content": "Override the Helm-seeded OIDC group mappings per role from here. A change takes effect the next time an affected user logs in \u2014 no restart or reinstall needed.",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 12,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                },
+                                                "c:QMHOm": {
+                                                    "type": "frame",
+                                                    "id": "A3zQBw",
+                                                    "name": "Card Content",
+                                                    "width": "fill_container",
+                                                    "layout": "vertical",
+                                                    "gap": 14,
+                                                    "padding": [
+                                                        0,
+                                                        20,
+                                                        20,
+                                                        20
+                                                    ],
+                                                    "children": [
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "Hk5t8",
+                                                            "name": "roleBlock_admin",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 8,
+                                                            "children": [
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "q1f3jU",
+                                                                    "name": "headerRow_admin",
+                                                                    "width": "fill_container",
+                                                                    "justifyContent": "space_between",
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "A9t6o",
+                                                                            "name": "leftGroup_admin",
+                                                                            "gap": 8,
+                                                                            "alignItems": "center",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "z8EQN",
+                                                                                    "name": "roleName_admin",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "textGrowth": "fixed-width",
+                                                                                    "width": 70,
+                                                                                    "content": "Admin",
+                                                                                    "fontFamily": "$c:--font-secondary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "600"
+                                                                                },
+                                                                                {
+                                                                                    "id": "mZ4Sz",
+                                                                                    "type": "ref",
+                                                                                    "ref": "R65Xyx",
+                                                                                    "name": "provenance_admin"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "NKh3P",
+                                                                            "type": "ref",
+                                                                            "ref": "d5N3W3",
+                                                                            "name": "btnReset_admin",
+                                                                            "descendants": {
+                                                                                "X3iEI": {
+                                                                                    "icon": "rotate-ccw"
+                                                                                },
+                                                                                "i3zB62/zMNkR": {
+                                                                                    "content": "Reset to Helm default"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "RUyRK",
+                                                                    "name": "chipsRow_admin",
+                                                                    "width": "fill_container",
+                                                                    "gap": 6,
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "UtD8v",
+                                                                            "type": "ref",
+                                                                            "ref": "XL5ZU",
+                                                                            "name": "chip_admin_gameplane-admins",
+                                                                            "fill": "$warning/soft",
+                                                                            "descendants": {
+                                                                                "v68RDf": {
+                                                                                    "content": "gameplane-admins",
+                                                                                    "fill": "$warning/soft-foreground"
+                                                                                },
+                                                                                "sYR1u": {
+                                                                                    "fill": "$warning/soft-foreground"
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        {
+                                                                            "id": "OhAaS",
+                                                                            "type": "ref",
+                                                                            "ref": "XL5ZU",
+                                                                            "name": "chip_admin_gameplane-sre",
+                                                                            "fill": "$warning/soft",
+                                                                            "descendants": {
+                                                                                "v68RDf": {
+                                                                                    "content": "gameplane-sre",
+                                                                                    "fill": "$warning/soft-foreground"
+                                                                                },
+                                                                                "sYR1u": {
+                                                                                    "fill": "$warning/soft-foreground"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "BqSFu",
+                                                                    "name": "addRow_admin",
+                                                                    "width": "fill_container",
+                                                                    "gap": 8,
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "Ttt5K",
+                                                                            "type": "ref",
+                                                                            "ref": "qvQPg",
+                                                                            "name": "inputAddGroup_admin",
+                                                                            "stroke": "#DC2626"
+                                                                        },
+                                                                        {
+                                                                            "id": "GpowQ",
+                                                                            "type": "ref",
+                                                                            "ref": "d5N3W3",
+                                                                            "name": "btnAdd_admin",
+                                                                            "descendants": {
+                                                                                "X3iEI": {
+                                                                                    "icon": "plus"
+                                                                                },
+                                                                                "i3zB62/zMNkR": {
+                                                                                    "content": "Add"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "text",
+                                                                    "id": "f8jL0",
+                                                                    "name": "fieldError_admin",
+                                                                    "fill": "#DC2626",
+                                                                    "textGrowth": "fixed-width",
+                                                                    "width": "fill_container",
+                                                                    "content": "Group name can't be blank.",
+                                                                    "fontFamily": "$c:--font-secondary",
+                                                                    "fontSize": 11,
+                                                                    "fontWeight": "normal"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "s9krep",
+                                                            "name": "divider_operator",
+                                                            "width": "fill_container",
+                                                            "height": 1,
+                                                            "fill": "$border/border"
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "WvrXm",
+                                                            "name": "roleBlock_operator",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 8,
+                                                            "children": [
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "F9on3",
+                                                                    "name": "headerRow_operator",
+                                                                    "width": "fill_container",
+                                                                    "justifyContent": "space_between",
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "dhk7n",
+                                                                            "name": "leftGroup_operator",
+                                                                            "gap": 8,
+                                                                            "alignItems": "center",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "Wtu1E",
+                                                                                    "name": "roleName_operator",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "textGrowth": "fixed-width",
+                                                                                    "width": 70,
+                                                                                    "content": "Operator",
+                                                                                    "fontFamily": "$c:--font-secondary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "600"
+                                                                                },
+                                                                                {
+                                                                                    "id": "hf41a",
+                                                                                    "type": "ref",
+                                                                                    "ref": "Rwnu3",
+                                                                                    "name": "provenance_operator"
+                                                                                }
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "WkjPR",
+                                                                    "name": "chipsRow_operator",
+                                                                    "width": "fill_container",
+                                                                    "gap": 6,
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "ffhsZ",
+                                                                            "type": "ref",
+                                                                            "ref": "vStkb",
+                                                                            "name": "chip_operator_gameplane-ops",
+                                                                            "fill": "$default/default",
+                                                                            "descendants": {
+                                                                                "RNxys": {
+                                                                                    "content": "gameplane-ops",
+                                                                                    "fill": "$foreground/link"
+                                                                                },
+                                                                                "KDOjY": {
+                                                                                    "fill": "$foreground/link"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "E6krw",
+                                                                    "name": "addRow_operator",
+                                                                    "width": "fill_container",
+                                                                    "gap": 8,
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "EbCfr",
+                                                                            "type": "ref",
+                                                                            "ref": "qvQPg",
+                                                                            "name": "inputAddGroup_operator"
+                                                                        },
+                                                                        {
+                                                                            "id": "P6COEC",
+                                                                            "type": "ref",
+                                                                            "ref": "d5N3W3",
+                                                                            "name": "btnAdd_operator",
+                                                                            "descendants": {
+                                                                                "X3iEI": {
+                                                                                    "icon": "plus"
+                                                                                },
+                                                                                "i3zB62/zMNkR": {
+                                                                                    "content": "Add"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "T4UlJz",
+                                                            "name": "divider_viewer",
+                                                            "width": "fill_container",
+                                                            "height": 1,
+                                                            "fill": "$border/border"
+                                                        },
+                                                        {
+                                                            "type": "frame",
+                                                            "id": "YHpNQ",
+                                                            "name": "roleBlock_viewer",
+                                                            "width": "fill_container",
+                                                            "layout": "vertical",
+                                                            "gap": 8,
+                                                            "children": [
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "ARd0x",
+                                                                    "name": "headerRow_viewer",
+                                                                    "width": "fill_container",
+                                                                    "justifyContent": "space_between",
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "frame",
+                                                                            "id": "M9OyZ",
+                                                                            "name": "leftGroup_viewer",
+                                                                            "gap": 8,
+                                                                            "alignItems": "center",
+                                                                            "children": [
+                                                                                {
+                                                                                    "type": "text",
+                                                                                    "id": "GFAAP",
+                                                                                    "name": "roleName_viewer",
+                                                                                    "fill": "$foreground/foreground",
+                                                                                    "textGrowth": "fixed-width",
+                                                                                    "width": 70,
+                                                                                    "content": "Viewer",
+                                                                                    "fontFamily": "$c:--font-secondary",
+                                                                                    "fontSize": 13,
+                                                                                    "fontWeight": "600"
+                                                                                },
+                                                                                {
+                                                                                    "id": "EnVxJ",
+                                                                                    "type": "ref",
+                                                                                    "ref": "R65Xyx",
+                                                                                    "name": "provenance_viewer"
+                                                                                }
+                                                                            ]
+                                                                        },
+                                                                        {
+                                                                            "id": "MHtZP",
+                                                                            "type": "ref",
+                                                                            "ref": "d5N3W3",
+                                                                            "name": "btnReset_viewer",
+                                                                            "descendants": {
+                                                                                "X3iEI": {
+                                                                                    "icon": "rotate-ccw"
+                                                                                },
+                                                                                "i3zB62/zMNkR": {
+                                                                                    "content": "Reset to Helm default"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "oOoIs",
+                                                                    "name": "emptyState_viewer",
+                                                                    "width": "fill_container",
+                                                                    "cornerRadius": 6,
+                                                                    "stroke": "$border/border",
+                                                                    "strokeWidth": 1,
+                                                                    "strokeAlignment": "inner",
+                                                                    "gap": 8,
+                                                                    "padding": [
+                                                                        6,
+                                                                        10
+                                                                    ],
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "type": "icon",
+                                                                            "id": "sy2XE",
+                                                                            "name": "emptyIcon_viewer",
+                                                                            "width": 14,
+                                                                            "height": 14,
+                                                                            "icon": "circle-slash-2",
+                                                                            "library": "lucide",
+                                                                            "fill": "$muted"
+                                                                        },
+                                                                        {
+                                                                            "type": "text",
+                                                                            "id": "qiHVu",
+                                                                            "name": "emptyText_viewer",
+                                                                            "fill": "$muted",
+                                                                            "content": "No groups mapped \u2014 nobody signs in as viewer via OIDC.",
+                                                                            "fontFamily": "$c:--font-secondary",
+                                                                            "fontSize": 12,
+                                                                            "fontWeight": "normal",
+                                                                            "fontStyle": "italic"
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "frame",
+                                                                    "id": "m2l1Kp",
+                                                                    "name": "addRow_viewer",
+                                                                    "width": "fill_container",
+                                                                    "gap": 8,
+                                                                    "alignItems": "center",
+                                                                    "children": [
+                                                                        {
+                                                                            "id": "nIVkN",
+                                                                            "type": "ref",
+                                                                            "ref": "qvQPg",
+                                                                            "name": "inputAddGroup_viewer"
+                                                                        },
+                                                                        {
+                                                                            "id": "HsTLS",
+                                                                            "type": "ref",
+                                                                            "ref": "d5N3W3",
+                                                                            "name": "btnAdd_viewer",
+                                                                            "descendants": {
+                                                                                "X3iEI": {
+                                                                                    "icon": "plus"
+                                                                                },
+                                                                                "i3zB62/zMNkR": {
+                                                                                    "content": "Add"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "id": "aLXWq",
+                                                            "type": "ref",
+                                                            "ref": "igj2U",
+                                                            "name": "saveErrorBanner",
+                                                            "width": "fill_container"
+                                                        }
+                                                    ]
+                                                },
+                                                "c:tiojM": {
+                                                    "type": "frame",
+                                                    "id": "aRAOv",
+                                                    "name": "Card Actions",
+                                                    "width": "fill_container",
+                                                    "gap": 12,
+                                                    "padding": [
+                                                        8,
+                                                        20,
+                                                        20,
+                                                        20
+                                                    ],
+                                                    "justifyContent": "space_between",
+                                                    "alignItems": "center",
+                                                    "children": [
+                                                        {
+                                                            "type": "text",
+                                                            "id": "AIlQv",
+                                                            "name": "saveHelper",
+                                                            "fill": "$muted",
+                                                            "textGrowth": "fixed-width",
+                                                            "width": "fill_container",
+                                                            "content": "Saved changes take effect on next login for affected users \u2014 no restart or reinstall needed.",
+                                                            "fontFamily": "$c:--font-secondary",
+                                                            "fontSize": 11,
+                                                            "fontWeight": "normal"
+                                                        },
+                                                        {
+                                                            "id": "i4t2M",
+                                                            "type": "ref",
+                                                            "ref": "rNhll",
+                                                            "name": "Btn Save Role Mappings",
+                                                            "descendants": {
+                                                                "Q57b2/FCYQ9": {
+                                                                    "enabled": false
+                                                                },
+                                                                "Q57b2/GqVun": {
+                                                                    "content": "Save role mappings"
+                                                                }
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

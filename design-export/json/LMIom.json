@@ -1,1 +1,31 @@
-{"type":"frame","id":"LMIom","x":600,"y":26846,"name":"Gameplane/Button/Ghost","theme":{"c:Mode":"Dark"},"reusable":true,"height":36,"cornerRadius":6,"gap":8,"padding":[0,16],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"mmaZ3","name":"btnIcon","width":16,"height":16,"icon":"plus","library":"lucide","fill":"$c:--foreground"},{"type":"text","id":"xE9i0","name":"btnLabel","fill":"$c:--foreground","content":"Button","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"500"}]}
+{
+  "type": "frame",
+  "id": "LMIom",
+  "x": 600,
+  "y": 26846,
+  "name": "Gameplane/Button/Ghost",
+  "theme": {},
+  "reusable": true,
+  "height": 36,
+  "cornerRadius": "$radius/3xl",
+  "gap": "$spacing/2",
+  "padding": [
+    8,
+    "$spacing/4"
+  ],
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "id": "vWtyO",
+      "type": "ref",
+      "ref": "jsrtu",
+      "name": "Button",
+      "descendants": {
+        "ezEy1": {
+          "content": "Button"
+        }
+      }
+    }
+  ]
+}

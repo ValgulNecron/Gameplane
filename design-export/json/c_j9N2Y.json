@@ -1,1 +1,41 @@
-{"type":"frame","id":"c:j9N2Y","x":1000,"y":2134,"name":"Data Table Footer","reusable":true,"width":"fill_container(1024)","gap":16,"justifyContent":"space_between","alignItems":"center","children":[{"type":"text","id":"c:UmgWD","name":"0 of 5 row(s) selected.","fill":"$c:--muted-foreground","content":"Showing 10 records","lineHeight":1.4285714285714286,"fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"},{"id":"c:U9lxU","type":"ref","ref":"c:9PVw5","x":802,"y":0,"width":"fit_content","descendants":{"c:IXD5J":{"width":40,"justifyContent":"center","alignItems":"center","height":40}}}]}
+{
+  "type": "frame",
+  "id": "c:j9N2Y",
+  "x": 1000,
+  "y": 2134,
+  "name": "Data Table Footer",
+  "reusable": true,
+  "width": "fill_container(1024)",
+  "gap": 16,
+  "justifyContent": "space_between",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "text",
+      "id": "c:UmgWD",
+      "name": "0 of 5 row(s) selected.",
+      "fill": "$c:--muted-foreground",
+      "content": "Showing 10 records",
+      "lineHeight": 1.4285714285714286,
+      "fontFamily": "$c:--font-secondary",
+      "fontSize": 14,
+      "fontWeight": "normal"
+    },
+    {
+      "id": "c:U9lxU",
+      "type": "ref",
+      "ref": "c:9PVw5",
+      "x": 802,
+      "y": 0,
+      "width": "fit_content",
+      "descendants": {
+        "c:IXD5J": {
+          "width": 40,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "height": 40
+        }
+      }
+    }
+  ]
+}

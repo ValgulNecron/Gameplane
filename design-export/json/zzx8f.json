@@ -1,1 +1,43 @@
-{"type":"frame","id":"zzx8f","x":1672,"y":27518,"name":"Gameplane/Error Card","theme":{"c:Mode":"Dark"},"reusable":true,"width":400,"fill":"$c:--card","cornerRadius":10,"stroke":"$c:--border","strokeWidth":1,"strokeAlignment":"inner","padding":20,"children":[{"type":"text","id":"B2Fqsq","name":"ecMessage","fill":"#DC2626","textGrowth":"fixed-width","width":"fill_container","content":"Failed to load configuration. Refresh to retry.","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]}
+{
+  "type": "frame",
+  "id": "zzx8f",
+  "x": 1672,
+  "y": 27518,
+  "name": "Gameplane/Error Card",
+  "theme": {},
+  "reusable": true,
+  "width": 400,
+  "height": 58,
+  "fill": "$surface/surface",
+  "cornerRadius": "$radius/3xl",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "gap": 12,
+  "padding": 20,
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "icon",
+      "id": "QkxAg",
+      "name": "ErrorIcon",
+      "width": 16,
+      "height": 16,
+      "icon": "circle-alert",
+      "library": "lucide",
+      "fill": "$danger/danger"
+    },
+    {
+      "type": "text",
+      "id": "V8If8W",
+      "name": "ecMessage",
+      "fill": "$danger/danger",
+      "textGrowth": "fixed-width",
+      "width": "fill_container",
+      "content": "Failed to load configuration. Refresh to retry.",
+      "fontFamily": "$typography/font-sans",
+      "fontSize": 14,
+      "fontWeight": "normal"
+    }
+  ]
+}

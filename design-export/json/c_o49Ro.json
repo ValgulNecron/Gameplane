@@ -1,1 +1,15 @@
-{"id":"c:o49Ro","type":"ref","reusable":true,"ref":"c:HXajN","x":518,"y":2238,"name":"Icon Button/Large/Destructive","padding":12,"descendants":{"c:plTTh":{"enabled":false}}}
+{
+  "id": "c:o49Ro",
+  "type": "ref",
+  "reusable": true,
+  "ref": "c:HXajN",
+  "x": 518,
+  "y": 2238,
+  "name": "Icon Button/Large/Destructive",
+  "padding": 12,
+  "descendants": {
+    "c:plTTh": {
+      "enabled": false
+    }
+  }
+}

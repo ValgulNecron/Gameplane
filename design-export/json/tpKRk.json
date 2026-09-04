@@ -1,1 +1,32 @@
-{"type":"frame","id":"tpKRk","x":0,"y":26846,"name":"Gameplane/Button/Default","theme":{"c:Mode":"Dark"},"reusable":true,"height":36,"fill":"#FF8400","cornerRadius":6,"gap":8,"padding":[0,16],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"G0IkVn","name":"btnIcon","width":16,"height":16,"icon":"plus","library":"lucide","fill":"#FFFFFF"},{"type":"text","id":"ysUHS","name":"btnLabel","fill":"#FFFFFF","content":"Button","fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"500"}]}
+{
+    "type": "frame",
+    "id": "tpKRk",
+    "x": 0,
+    "y": 26846,
+    "name": "Gameplane/Button/Default",
+    "theme": {},
+    "reusable": true,
+    "height": 36,
+    "fill": "$accent/accent",
+    "cornerRadius": "$radius/3xl",
+    "gap": "$spacing/2",
+    "padding": [
+        8,
+        "$spacing/4"
+    ],
+    "justifyContent": "center",
+    "alignItems": "center",
+    "children": [
+        {
+            "id": "q58In",
+            "type": "ref",
+            "ref": "cb4rt",
+            "name": "Button",
+            "descendants": {
+                "U6q13B": {
+                    "content": "Button"
+                }
+            }
+        }
+    ]
+}

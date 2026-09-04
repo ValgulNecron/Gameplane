@@ -220,3 +220,88 @@ The previous pass's `warningLine` insert (documented above) was applied to the *
 **Re-export:** `o4LH8W.json` (24,583 bytes) re-fetched at `Get(id, {depth: 14, includePathGeometry: true})` and `o4LH8W.png` re-exported (731,533 bytes). The prior export's own claim of "zero `\"...\"` markers" was itself wrong: at `depth: 14` without `includePathGeometry`, three elisions remain (`"geometry":"..."` on the three sparkline paths `yELhK`/`dpUBm`/`VwSB9` inside the Metric cards) — `includePathGeometry: true` was needed to genuinely reach zero. Grep-validated: `PVCProvisioningFailed` (1 hit, banner) and `StorageClass 'fast-nvme' not found on cluster` (2 hits — the header warning line and the banner's warn message) both present — neither string would have appeared in an overrides-only serialization at insufficient depth, since both now live inside `ref` descendant overrides (`ypI0Y`, `XPvAe`) rather than a plain frame subtree.
 
 **Lesson:** when a `ref` instance's override subtree is the thing that changed, a depth check alone doesn't prove the export is current — the previous stale export was also technically "deep enough" but had captured the override tree from *before* this fix, i.e. the corrupted-component version, because the export was taken without re-reading the document after upstream changes. Always re-`Get` immediately before re-exporting, not from a cached read.
+
+## HeroUI Frame Export 2026-09-03 — Design System Components Library (Feature 014)
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) requires a snapshot of the HeroUI component library frame (`LtgNm`, "HeroUI: Design System Components") in `design.pen` — 192+ HeroUI-based component definitions that all downstream screens will reference and compose from. This frame was exported in a single pass as the foundational deliverable for Phase 2 (Atoms).
+
+**Object (1):**
+
+| ID | Name | Object type | Export notes |
+|---|---|---|---|
+| `LtgNm` | HeroUI: Design System Components | Frame (reusable component library root) | Design-system library frame containing 236 children: labels (section headers like "Accordion", "Buttons"), reusable HeroUI component definitions (`Accordion/Open`, `Accordion/Closed`, `Avatar/Text`, `Avatar/Image`, `Button/Primary/*`, `Button/Secondary/*`, `Button/Outline/*`, `Button/Danger/*`, `Button/Ghost/*`, `Alert/*`, `Input`, `Select`, `Card`, `Menu Item/*`, `Pagination/Ellipsis`, `Dropdown`, etc.), and supporting elements. Depth reaches max 6 levels (Card children → frame → layout → content frames → text/icon). Frame dimensions: 3116 × 3588 px. |
+
+**Export method & validation:**
+
+- **JSON:** `Get("LtgNm", {depth: 10..12, includePathGeometry: true})` via the Pencil `execute` tool, with all 236 direct children collected and assembled into a single JSON object with the structure `{id, name, type, children: [...]}`. Because the full depth-13+ export at once exceeded output size limits, direct children were iterated and collected at depth 10–12; this depth proved sufficient for all 236 children without truncation at the individual-child level. Final serialized JSON: 136,867 bytes.
+- **Validation of truncation markers:** Two instances of the literal string `"..."` were found in the JSON structure, both confirmed as **actual component content**, not Pencil elision markers: (1) `Pagination/Ellipsis` component (`i18Al2`), whose `content` field contains `"..."` — this is the designed ellipsis symbol that renders in pagination UI; (2) `tableEx` component (`Q0ilUf`), which includes `"..."` within a nested table cell's content. Programmatic validation confirmed zero `"..."` as Pencil truncation markers (which would appear as `"children": "..."` or similar structural elisions). `json.loads` validation passed.
+- **Screenshots:** `export_nodes` PNG export of `LtgNm` at 2× scale to `/design-export/screenshots/LtgNm.png`, dimensions 6232 × 7176 px (2× of frame bounds), file size 3.0 MB. Screenshot visually verified: all labeled sections render legibly, all component definitions visible without clipping.
+- **Confidence:** High — enumeration is exhaustive (all 236 children via iteration), no sampling, no gaps. Component names and visual inspection of screenshot confirm the full library is present (all Accordion / Alert / Avatar / Button / Input / Select / Card / Menu / Pagination / Dropdown / Tooltip families accounted for).
+
+**Import rule (FR-007):**
+
+When a HeroUI component a screen needs is absent from the `LtgNm` frame, import it into `LtgNm` from the `heroUI template.pen` Pencil file via the `pencil` MCP server before using it in the screen design. Never recreate the component by hand, never substitute a lunaris `c:` primitive, and do not leave the HeroUI component template `.pen` file tracked in git (add it to `.gitignore` alongside the existing `design.pen.bak` entry per FR-007, research.md R-05). Each slice's design-wave tasks will follow this rule: when redrawing screens from HeroUI definitions, any component needed that is not present in `LtgNm` must be imported from the template first, then used in the screen design. This ensures all screens compose only from the documented HeroUI library, never from ad-hoc Pencil recreations of HeroUI components or mismatches between what `LtgNm` defines and what screens actually use.
+
+**Note:** This export clears the design-export debt for HeroUI component definitions previously carried in `design.pen` since 2026-09-02, when the `heroUI template.pen` import was first added to the document. The snapshot `LtgNm.json` + `LtgNm.png` now serves as the authoritative, versioned record of the component library that all subsequent design slices reference. The Pencil MCP's import mechanism (`Execute` with duplicate detection) prevents accidental re-imports of the same component definition, so future imports from the template are safe.
+
+## Incremental export 2026-09-04 — Phase 2 Foundation: 24 redrawn atom components + Cell Actions clip fix (Feature 014, Slice 0, T016)
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 24 foundational Gameplane atom components to be redrawn from HeroUI definitions in `design.pen` per contracts/component-map.md. This pass re-exports the 25 objects below (24 atoms + the `LtgNm` library frame) after a clip-fix pass on the redrawn atoms (`K7IJBQ` set to `width: fit_content`, `ntSEK`/`PoVsI`/`q5swpb` set to `height: 32`) and after the T017-adjacent `xCDF7` fit-content fix (`TgdLz` → `width: "fit_content(140)"`, verified resolving to 140×40). Superseded the previous 2026-09-03 interim export of the same 25 ids, which predated the clip fix.
+
+**Verified via `pencil` MCP (depth 2, `resolveInstances:true`) on 2026-09-04:**
+
+- `K7IJBQ` ("Cell Actions") resolves to bounds 332×56; `ntSEK`/`PoVsI`/`q5swpb` each resolve to 100×32. No clip problems reported for these four nodes in a `depth:10, resolveInstances:true` sweep of `m5kOm4`.
+- `xCDF7`'s child `TgdLz` (`phActions`) has `width: "fit_content(140)"`, resolving to bounds 140×40.
+- All three Cell Actions clusters in `m5kOm4` (`K7IJBQ`, `Pzncu`, `IswvX`) were fixed on 2026-09-04: `Pzncu` and `IswvX` set to `width: fit_content`, and all six button children (`dEMpK`/`wwNey`/`FeWvb` under `Pzncu`; `XT7fA`/`qIg25`/`wCqYx` under `IswvX`) set to `height: 32`, matching the fix previously applied to `K7IJBQ`.
+
+**Components (25):**
+
+| ID | Name | Component type | Export notes |
+|---|---|---|---|
+| `LtgNm` | HeroUI: Design System Components | Component library | Frame (reusable component library root) containing 236 children: HeroUI component definitions, labels, and supporting elements. |
+| `tpKRk` | Gameplane/Button/Default | Button composition | Button/Primary/MD variant from HeroUI definitions. |
+| `rNhll` | Gameplane/Button/Outline | Button composition | Button/Outline/MD variant from HeroUI definitions. |
+| `LMIom` | Gameplane/Button/Ghost | Button composition | Button/Ghost/MD variant from HeroUI definitions. |
+| `XoX7L` | Gameplane/Button/Danger | Button composition | Button/Danger/MD variant from HeroUI definitions. |
+| `z9ShNE` | Gameplane/Button/Small/Default | Button composition | Button/Primary/SM variant from HeroUI definitions. |
+| `d5N3W3` | Gameplane/Button/Small/Outline | Button composition | Button/Outline/SM variant from HeroUI definitions. |
+| `J09iP` | Gameplane/Button/Small/Ghost | Button composition | Button/Ghost/SM variant from HeroUI definitions. |
+| `IU7OG` | Gameplane/Button/Small/Danger | Button composition | Button/Danger/SM variant from HeroUI definitions. |
+| `D0cDM` | Gameplane/Input | Form atom | Bare field row (280×40) restyled from HeroUI Input/Primary's field frame (`$field/background`, `$radius/xl`, `$field/border`, `$field/placeholder`), no label/description — matches the original atom's bare-field shape. |
+| `qvQPg` | Gameplane/Input/Small | Form atom | Bare field row (250×32), redrawn small-height variant of the same Input/Primary field style; T012 redo replaced a broken full Label+Field+Description instance (140 px tall) with this flat field-only frame. |
+| `Lmaf1` | Gameplane/Search Input | Form atom | Bare field row (280×36) restyled from HeroUI SearchField/Primary's field frame (search icon + placeholder text, `$field/*` tokens), no label. |
+| `AT7ya` | Gameplane/Select | Form atom | Bare field row (280×36) restyled from HeroUI Select/Primary's trigger frame (value text + chevron icon, `$field/*` tokens), no label/description. |
+| `hl7R3` | Gameplane/Switch/On | Form atom | Switch/MD enabled state variant from HeroUI definitions. |
+| `rh2QH` | Gameplane/Switch/Off | Form atom | Switch/MD disabled state variant from HeroUI definitions. |
+| `k38Uta` | Gameplane/Card | Composition | Card with default styling from HeroUI definitions. |
+| `ZWcwn` | Gameplane/Stat Card | Composition | Card composition with value/label/trend display for server stats. |
+| `xCDF7` | Gameplane/Page Header | Composition | Title/breadcrumbs/actions layout used by every dashboard page. |
+| `x3beP` | Gameplane/Modal | Composition | Modal with header/body/footer structure from HeroUI definitions. |
+| `WwNlX` | Gameplane/Confirm Dialog | Composition | AlertDialog (danger style) for destructive action confirmation. |
+| `BPEpm` | Gameplane/Dropdown Menu | Composition | Dropdown + Menu composition with item groups and dividers. |
+| `FyV6E` | Gameplane/Filter Popover | Composition | Popover + form controls for server-list phase/template/namespace filters. |
+| `w4ntSc` | Gameplane/Loading Card | Composition | Card with Spinner shown during async data loads. |
+| `zzx8f` | Gameplane/Error Card | Composition | Alert (danger) + Card composition for failed-load states. |
+| `igj2U` | Gameplane/Error Banner | Composition | Alert (danger) for inline error messages (failed save, provisioning failure). |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` via the Pencil `execute` tool for each of the 25 components (button components at depth 12; `LtgNm` iterated at depth 10–12 per child, per the section above). All exports executed at depth ≥ 12 (`LtgNm` 10–12) to ensure no `"..."` elision markers appear in structural fields.
+- **Validation of truncation markers:** Programmatic check of all 25 JSON files (`python3 json.load()` + a `"..."` scan) confirmed zero `"..."` as Pencil truncation markers in structural fields (`"children": "..."`, `"geometry": "..."`, etc.), and top-level `"id"` matches the filename in every file. `LtgNm` contains two instances of `"..."` as actual component content — the `Pagination/Ellipsis` (`i18Al2`) symbol and `tableEx` (`Q0ilUf`) cell text — confirmed by path (`.content` fields on leaf nodes `EHTqO`, `DpNvd`), not a structural elision. For the six button components (`tpKRk`, `rNhll`, `LMIom`, `XoX7L`, `z9ShNE`, `d5N3W3`), the first child is a `ref` node pointing at a HeroUI Button definition (`cb4rt`, `i6gfu`, `jsrtu`, `CFM8i`, `j9c5W`, `FIB65` respectively).
+- **Screenshots:** `export_nodes` PNG export of each component at 2× scale to `/design-export/screenshots/<id>.png`. All 25 PNG files present, verified non-empty and valid PNG via `file`.
+- **File inventory:** All 25 components have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-04 (git status confirms all 25 ids' json+png as modified).
+- **Verification command:** `for id in LtgNm tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 J09iP IU7OG D0cDM qvQPg Lmaf1 AT7ya hl7R3 rh2QH k38Uta ZWcwn xCDF7 x3beP WwNlX BPEpm FyV6E w4ntSc zzx8f igj2U; do grep -c "$id" design-export/MANIFEST.md; done` — each id appears exactly once in this section (grep returns 1).
+
+**Context:**
+
+These 25 components constitute the Phase 2 Foundation (Slice 0, second half) atom layer. They are the complete set of reusable, redrawn-from-HeroUI definitions (including the foundational HeroUI library frame, `LtgNm`, which all downstream components and screens compose from) that all subsequent user-story slices (1–5) will compose into screens. No screen rebuilds can proceed until this atom layer is complete and exported. The HeroUI library frame (`LtgNm`) was exported as the foundational deliverable; Tasks T011–T014 redrew the 24 Gameplane atom components in design.pen; Task T016 exports all 25 components here and updates MANIFEST.md. Tasks T019–T030 (Phase 2, code wave) implement the TypeScript component wrappers in `web/src/components/hero/`. Task T017 (token mapping in `web/src/styles/globals.css`) parallels the design-wave work.
+
+## Incremental export 2026-09-04 — Theme change (Feature 014, OD-8)
+
+**Why:** the brand palette moved from orange to pink (OD-8, settled 2026-09-04). Light: white page, `#FFF7FB` cards, `#F8DDE9` sidebar, `#DB2777` accent. Dark: `#121114` canvas, `#1C1A20` cards, `#17151A` sidebar, `#FF4FA3` accent. Every screen and Gameplane definition was re-pointed from the read-only lunaris `$c:--*` variables and legacy hex to HeroUI semantic tokens, so every previously exported node changed.
+
+**Scope:** 298 tracked exports refreshed in place (json + png). 14 new files added: the five light-mode preview frames `jOo7y` Screen/Login (Light), `Qqi8Q` Screen/Dashboard Home (Light), `zFiOW` Screen/Servers (Light), `sSISK` Screen/Server Detail — Overview (Light), `vvxCn` Screen/Mobile — Servers (Light), plus two screens whose Pencil ids changed: Screen/Servers `iGBIs` -> `F9pUrx` and Screen/Server Detail — Overview (Idle armed) `mQ1zB` -> `Hy9r0` (stale `iGBIs`/`mQ1zB` exports removed).
+
+**Unchanged:** lunaris library component exports (`c_*.json` / `c:*.png`) — the library definitions are read-only and were not edited.
+
+**Method:** `Get(id, {depth: 12, includePathGeometry: true})` (LtgNm at depth 14) written verbatim to `json/<id>.json`; `export_nodes` PNG at 2x to `screenshots/<id>.png`; every json parses, top-level id matches the filename, no `"..."` elision strings beyond genuine text content.

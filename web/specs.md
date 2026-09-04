@@ -30,6 +30,27 @@ The Gameplane dashboard is a React SPA providing a UI layer over the Gameplane A
 
 **Local-cluster WebSocket:** Console and Logs streams currently route only to the local cluster (`?cluster=` param is not threaded through WebSocket paths). Cross-cluster WebSocket support is deferred; see `docs/roadmap.md`.
 
+## HeroUI Component Layer
+
+The dashboard's visual surface composes twelve foundational atom components built on `@heroui/react` 3.2.4 primitives and Gameplane brand design tokens. These atoms reside in `web/src/components/hero/` and form the basis for all rebuilt screens:
+
+- **StatCard** — displays a metric with label, value, and optional trend indicator
+- **PhaseChip** — status badge rendering server phase (Running/Stopped/Pending/Failed) with semantic color
+- **PageHeader** — page title, description, and action button slot
+- **ConfirmDialog** — high-stakes confirmation modal with warning styling
+- **DropdownMenu** — contextual menu with keyboard navigation and icon support
+- **FilterPopover** — filter/search popover with form controls
+- **LoadingCard** — skeleton placeholder during data fetch
+- **ErrorCard** — error state card with message and recovery action slot
+- **ErrorBanner** — top-of-page alert for form/request errors
+- **Meter** — horizontal progress indicator with percentage display
+- **Sparkline** — mini inline chart for resource trends (CPU, memory)
+- **GameIcon** — cached game-specific icon with fallback
+
+Each atom composes HeroUI's headless react-aria-components (Adobe React Aria) and applies Gameplane's brand palette — orange accent, dark default mode, light mode supported — via HeroUI's semantic token layer. Token mapping from Gameplane brand values to HeroUI variables is documented in `specs/014-heroui-web-rebuild/contracts/theme-tokens.md` (FR-013).
+
+During the multi-slice rebuild transition, the previous Radix-based primitives remain in `web/src/components/ui/` and are used only by un-rebuilt screens. **No single screen mixes the HeroUI (`hero/`) and legacy (`ui/`) component families** — this is enforced mechanically at review (FR-012: any rebuilt file importing from `components/ui/` fails).
+
 ## Directory & Package Layout
 
 ```

@@ -1,1 +1,26 @@
-{"type":"frame","id":"J09iP","x":1768,"y":26846,"name":"Gameplane/Button/Small/Ghost","theme":{"c:Mode":"Dark"},"reusable":true,"height":32,"cornerRadius":6,"gap":8,"padding":[0,12],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"z0fN1","name":"btnIcon","width":14,"height":14,"icon":"pencil","library":"lucide","fill":"$c:--foreground"},{"type":"text","id":"UNxoy","name":"btnLabel","fill":"$c:--foreground","content":"Button","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"}]}
+{
+    "type": "frame",
+    "id": "J09iP",
+    "x": 1768,
+    "y": 26846,
+    "name": "Gameplane/Button/Small/Ghost",
+    "theme": {},
+    "reusable": true,
+    "height": 32,
+    "cornerRadius": "$radius/md",
+    "gap": 8,
+    "padding": [
+        0,
+        12
+    ],
+    "justifyContent": "center",
+    "alignItems": "center",
+    "children": [
+        {
+            "id": "eWkIT",
+            "type": "ref",
+            "ref": "rkF0p",
+            "name": "Button/Ghost/SM"
+        }
+    ]
+}

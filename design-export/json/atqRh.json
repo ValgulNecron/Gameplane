@@ -1,1 +1,197 @@
-{"id":"atqRh","type":"ref","reusable":true,"ref":"x3beP","name":"Gameplane/Dialog/Create Share Link","x":640,"y":29918,"descendants":{"E7Whx":{"content":"Create share link for mc-survival"},"qzcst":{"content":"Anyone with this link can check the server's status and connection address without signing in."},"Nht52":{"type":"frame","id":"p483p","name":"mBody","width":"fill_container","layout":"vertical","gap":16,"padding":[16,0,0,0],"children":[{"type":"frame","id":"N4srNq","name":"fExpiry","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"KIj9N","fill":"$c:--foreground","content":"Expires in","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"},{"id":"ax9CH","type":"ref","ref":"AT7ya","name":"Select","width":"fill_container","descendants":{"cFsFk":{"content":"7 days"}}},{"type":"text","id":"ggRrC","fill":"$c:--muted-foreground","content":"Maximum 90 days. You can revoke it earlier at any time.","fontFamily":"$c:--font-secondary","fontSize":11,"fontWeight":"normal"}]},{"type":"frame","id":"x22w2k","name":"fCanStart","width":"fill_container","gap":16,"justifyContent":"space_between","alignItems":"center","children":[{"type":"frame","id":"uuUdx","name":"canStartText","width":"fill_container","layout":"vertical","gap":4,"children":[{"type":"text","id":"qkKQ4","fill":"$c:--foreground","content":"Allow starting the server","fontFamily":"$c:--font-secondary","fontSize":13,"fontWeight":"500"},{"type":"text","id":"OMUzb","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"The link holder can wake mc-survival from asleep. Without this, they can only view its status.","lineHeight":1.4,"fontFamily":"$c:--font-secondary","fontSize":11,"fontWeight":"normal"}]},{"id":"WCA5l","type":"ref","ref":"rh2QH","name":"canStartSwitch"}]}]},"GCwAF":{"type":"frame","id":"m1KCBz","name":"mFooter","width":"fill_container","gap":8,"padding":[20,0,0,0],"justifyContent":"end","alignItems":"center","children":[{"type":"frame","id":"W31f4","name":"btnCancel","height":32,"cornerRadius":6,"padding":[0,12],"justifyContent":"center","alignItems":"center","children":[{"type":"text","id":"V2oEO","fill":"$c:--foreground","content":"Cancel","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"}]},{"type":"frame","id":"j6Xcf","name":"btnPrimary","height":32,"fill":"#FF8400","cornerRadius":6,"gap":6,"padding":[0,12],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"EmKR4","width":14,"height":14,"icon":"link","library":"lucide","fill":"#FFFFFF"},{"type":"text","id":"PGMfG","fill":"#FFFFFF","content":"Create link","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"500"}]}]}}}
+{
+    "id": "atqRh",
+    "type": "ref",
+    "reusable": true,
+    "ref": "x3beP",
+    "name": "Gameplane/Dialog/Create Share Link",
+    "x": 640,
+    "y": 29918,
+    "descendants": {
+        "E7Whx": {
+            "content": "Create share link for mc-survival"
+        },
+        "qzcst": {
+            "content": "Anyone with this link can check the server's status and connection address without signing in."
+        },
+        "Nht52": {
+            "type": "frame",
+            "id": "p483p",
+            "name": "mBody",
+            "width": "fill_container",
+            "layout": "vertical",
+            "gap": 16,
+            "padding": [
+                16,
+                0,
+                0,
+                0
+            ],
+            "children": [
+                {
+                    "type": "frame",
+                    "id": "N4srNq",
+                    "name": "fExpiry",
+                    "width": "fill_container",
+                    "layout": "vertical",
+                    "gap": 6,
+                    "children": [
+                        {
+                            "type": "text",
+                            "id": "KIj9N",
+                            "fill": "$c:--foreground",
+                            "content": "Expires in",
+                            "fontFamily": "$c:--font-secondary",
+                            "fontSize": 12,
+                            "fontWeight": "500"
+                        },
+                        {
+                            "id": "ax9CH",
+                            "type": "ref",
+                            "ref": "AT7ya",
+                            "name": "Select",
+                            "width": "fill_container",
+                            "descendants": {
+                                "cFsFk": {
+                                    "content": "7 days"
+                                }
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "id": "ggRrC",
+                            "fill": "$c:--muted-foreground",
+                            "content": "Maximum 90 days. You can revoke it earlier at any time.",
+                            "fontFamily": "$c:--font-secondary",
+                            "fontSize": 11,
+                            "fontWeight": "normal"
+                        }
+                    ]
+                },
+                {
+                    "type": "frame",
+                    "id": "x22w2k",
+                    "name": "fCanStart",
+                    "width": "fill_container",
+                    "gap": 16,
+                    "justifyContent": "space_between",
+                    "alignItems": "center",
+                    "children": [
+                        {
+                            "type": "frame",
+                            "id": "uuUdx",
+                            "name": "canStartText",
+                            "width": "fill_container",
+                            "layout": "vertical",
+                            "gap": 4,
+                            "children": [
+                                {
+                                    "type": "text",
+                                    "id": "qkKQ4",
+                                    "fill": "$c:--foreground",
+                                    "content": "Allow starting the server",
+                                    "fontFamily": "$c:--font-secondary",
+                                    "fontSize": 13,
+                                    "fontWeight": "500"
+                                },
+                                {
+                                    "type": "text",
+                                    "id": "OMUzb",
+                                    "fill": "$c:--muted-foreground",
+                                    "textGrowth": "fixed-width",
+                                    "width": "fill_container",
+                                    "content": "The link holder can wake mc-survival from asleep. Without this, they can only view its status.",
+                                    "lineHeight": 1.4,
+                                    "fontFamily": "$c:--font-secondary",
+                                    "fontSize": 11,
+                                    "fontWeight": "normal"
+                                }
+                            ]
+                        },
+                        {
+                            "id": "WCA5l",
+                            "type": "ref",
+                            "ref": "rh2QH",
+                            "name": "canStartSwitch"
+                        }
+                    ]
+                }
+            ]
+        },
+        "GCwAF": {
+            "type": "frame",
+            "id": "m1KCBz",
+            "name": "mFooter",
+            "width": "fill_container",
+            "gap": 8,
+            "padding": [
+                20,
+                0,
+                0,
+                0
+            ],
+            "justifyContent": "end",
+            "alignItems": "center",
+            "children": [
+                {
+                    "type": "frame",
+                    "id": "W31f4",
+                    "name": "btnCancel",
+                    "height": 32,
+                    "cornerRadius": 6,
+                    "padding": [
+                        0,
+                        12
+                    ],
+                    "justifyContent": "center",
+                    "alignItems": "center",
+                    "children": [
+                        {
+                            "type": "text",
+                            "id": "V2oEO",
+                            "fill": "$c:--foreground",
+                            "content": "Cancel",
+                            "fontFamily": "$c:--font-secondary",
+                            "fontSize": 12,
+                            "fontWeight": "500"
+                        }
+                    ]
+                },
+                {
+                    "type": "frame",
+                    "id": "j6Xcf",
+                    "name": "btnPrimary",
+                    "height": 32,
+                    "fill": "#FF8400",
+                    "cornerRadius": 6,
+                    "gap": 6,
+                    "padding": [
+                        0,
+                        12
+                    ],
+                    "justifyContent": "center",
+                    "alignItems": "center",
+                    "children": [
+                        {
+                            "type": "icon",
+                            "id": "EmKR4",
+                            "width": 14,
+                            "height": 14,
+                            "icon": "link",
+                            "library": "lucide",
+                            "fill": "#FFFFFF"
+                        },
+                        {
+                            "type": "text",
+                            "id": "PGMfG",
+                            "fill": "#FFFFFF",
+                            "content": "Create link",
+                            "fontFamily": "$c:--font-secondary",
+                            "fontSize": 12,
+                            "fontWeight": "500"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}

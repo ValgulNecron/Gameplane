@@ -129,6 +129,10 @@ Each slice is one branch, one PR, labelled `type: refactor` + `area: web` (slice
 
 Ordering rationale: slice 0 makes every later slice a pure translation job; 1 gives every screen its frame; 2a/2b split the largest story so each PR stays reviewable; 5 carries the new build because it is also the only slice allowed to delete the old layer (FR-008 "last step").
 
+### Theme (added 2026-09-04)
+
+Settled by the maintainer 2026-09-04: the slice 0 design pass establishes the brand re-theme across `design.pen`. Light mode palette: white page (#FFFFFF), extremely light pink cards (#FFF7FB) with pink borders, pink sidebar bar (#F8DDE9) with white selected pill, dark text (#2A0F1E). Dark mode: neutral obsidian canvas (#121114), layered charcoal surfaces, hot pink accent (#FF4FA3), zinc muted text (#9E98A6), purple focus ring (#A78BFA), blue links (#7DB4FF). Stat-card icons that were amber are now purple (#8B5CF6); success/warning/danger remain semantic per `contracts/theme-tokens.md`. The lunaris library variables (`$c:--*`) are read-only in Pencil, so every screen and Gameplane definition in `design.pen` is re-pointed to HeroUI semantic tokens instead of `$c:` references. Five light-mode preview frames (jOo7y Login, Qqi8Q Dashboard Home, zFiOW Servers, sSISK Server Detail Overview, vvxCn Mobile Servers) are added so both modes are visible side by side in Pencil. All token tables are finalized in `contracts/theme-tokens.md`; the code side (globals.css, theme.test.tsx, built by T017/T018) still carries the old orange values and is updated in a follow-up code commit of slice 0 (T032d, T032e).
+
 ## Per-slice execution (Workflow shape)
 
 1. **Design wave** (haiku, one agent per 4–6 screens, Pencil MCP): redraw from `LtgNm` definitions per `contracts/component-map.md`; swap `$c:` fills/text to HeroUI variables; keep layout, copy and node names; re-export JSON (depth ≥ 12, zero `"..."` markers) and PNG; update `MANIFEST.md`. Then the maintainer saves in the Pencil GUI and the design commit lands.

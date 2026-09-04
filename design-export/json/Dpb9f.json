@@ -1,1 +1,371 @@
-{"type":"frame","id":"Dpb9f","x":4920,"y":18965,"name":"Screen/Users & RBAC — Identity providers","theme":{"c:Mode":"Dark"},"clip":true,"width":1440,"height":900,"fill":"$c:--background","children":[{"id":"F4b9f","type":"ref","ref":"kKFX9","name":"App Sidebar","height":"fill_container","descendants":{"z8Yor":{"id":"vhfr3","type":"ref","ref":"c:X6nwq","cornerRadius":6,"padding":[8,12],"gap":12,"height":36,"alignItems":"center","fill":"#00000000","descendants":{"c:xGT5g":{"icon":"layout-dashboard","width":18,"height":18,"fill":"#949494","library":"lucide"},"c:TXca3":{"content":"Dashboard","fontSize":14,"fill":"#949494"}}},"ACmpq":{"id":"jpTyH","type":"ref","ref":"c:dOLzc","cornerRadius":6,"padding":[8,12],"gap":12,"height":36,"alignItems":"center","fill":"#FF84001A","descendants":{"c:xGT5g":{"icon":"users","width":18,"height":18,"fill":"#FF8400","library":"lucide"},"c:TXca3":{"content":"Users & RBAC","fontSize":14,"fill":"#FF8400"}}}}},{"type":"frame","id":"Z5r2sw","name":"Main","width":"fill_container","height":"fill_container","fill":"$c:--background","layout":"vertical","children":[{"id":"sDUyo","type":"ref","ref":"gu5WY","name":"Top Bar","width":"fill_container","descendants":{"GqBm6/c:bT3Mm":{"content":"Users & RBAC"}}},{"type":"frame","id":"VRpoV","name":"Body","width":"fill_container","height":"fill_container","fill":"$c:--background","layout":"vertical","gap":24,"padding":24,"children":[{"id":"j3ikM","type":"ref","ref":"xCDF7","name":"Page Header","width":"fill_container","descendants":{"spCmk":{"content":"Users & RBAC"},"VbHwU":{"content":"Manage access to the Gameplane control plane."},"TgdLz":{"width":"fit_content","children":[{"id":"hgScu","type":"ref","ref":"rNhll","name":"Audit Log Button","descendants":{"IhVHs":{"library":"lucide","icon":"scroll-text"},"B52mnL":{"content":"Audit log"}}},{"id":"k4Ecpc","type":"ref","ref":"tpKRk","name":"Invite User Button","descendants":{"G0IkVn":{"library":"lucide","icon":"plus"},"ysUHS":{"content":"Invite user"}}}]}}},{"type":"frame","id":"DgnZ8","name":"Filter Row","width":"fill_container","gap":12,"justifyContent":"space_between","alignItems":"center","children":[{"type":"frame","id":"fIYkm","name":"tabsWrap","fill":"$c:--card","cornerRadius":6,"stroke":"$c:--border","strokeWidth":1,"strokeAlignment":"inner","gap":4,"padding":4,"alignItems":"center","children":[{"type":"frame","id":"ZCZOp","name":"tabUsers","cornerRadius":4,"gap":8,"padding":[6,12],"alignItems":"center","children":[{"type":"text","id":"w28YSY","fill":"#949494","content":"Users","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"type":"frame","id":"EzpIG","name":"count","fill":"#29292999","cornerRadius":4,"padding":[0,6],"justifyContent":"center","alignItems":"center","children":"..."}]},{"type":"frame","id":"CZuqP","name":"tabRoles","cornerRadius":4,"gap":8,"padding":[6,12],"alignItems":"center","children":[{"type":"text","id":"U1UsXP","fill":"#949494","content":"Roles","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"},{"type":"frame","id":"W3FxYW","name":"count","fill":"#29292999","cornerRadius":4,"padding":[0,6],"justifyContent":"center","alignItems":"center","children":"..."}]},{"type":"frame","id":"fbZWw","name":"tabService","cornerRadius":4,"padding":[6,12],"alignItems":"center","children":[{"type":"text","id":"L9mNu","fill":"#949494","content":"Service accounts","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]},{"type":"frame","id":"dEqpG","name":"tabIdp","fill":"#FF840026","cornerRadius":4,"padding":[6,12],"alignItems":"center","children":[{"type":"text","id":"n5Gre","fill":"#FF8400","content":"Identity providers","fontFamily":"$c:--font-secondary","fontSize":12,"fontWeight":"normal"}]}]},{"id":"g0CkX","type":"ref","ref":"Lmaf1","name":"Search","width":256,"descendants":{"EJMtX":{"content":"Search…"}}}]},{"type":"frame","id":"hWMnJ","name":"Identity Providers Card","width":"fill_container","fill":"$c:--card","cornerRadius":10,"stroke":"$c:--border","strokeWidth":1,"strokeAlignment":"inner","padding":24,"children":[{"type":"text","id":"Z75kr","fill":"$c:--muted-foreground","textGrowth":"fixed-width","width":"fill_container","content":"OIDC identity providers configured in Helm values appear here. UI configuration is tracked for v1.1.","lineHeight":1.5,"fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]}]}]}]}
+{
+    "type": "frame",
+    "id": "Dpb9f",
+    "x": 4920,
+    "y": 18965,
+    "name": "Screen/Users & RBAC \u2014 Identity providers",
+    "theme": {
+        "c:Mode": "Dark",
+        "semantic": "dark"
+    },
+    "clip": true,
+    "width": 1440,
+    "height": 900,
+    "fill": "$background/background",
+    "children": [
+        {
+            "id": "F4b9f",
+            "type": "ref",
+            "ref": "kKFX9",
+            "name": "App Sidebar",
+            "height": "fill_container",
+            "descendants": {
+                "z8Yor": {
+                    "id": "vhfr3",
+                    "type": "ref",
+                    "ref": "c:X6nwq",
+                    "cornerRadius": 6,
+                    "padding": [
+                        8,
+                        12
+                    ],
+                    "gap": 12,
+                    "height": 36,
+                    "alignItems": "center",
+                    "fill": "#00000000",
+                    "descendants": {
+                        "c:xGT5g": {
+                            "icon": "layout-dashboard",
+                            "width": 18,
+                            "height": 18,
+                            "fill": "$muted",
+                            "library": "lucide"
+                        },
+                        "c:TXca3": {
+                            "content": "Dashboard",
+                            "fontSize": 14,
+                            "fill": "$muted"
+                        }
+                    }
+                },
+                "ACmpq": {
+                    "id": "jpTyH",
+                    "type": "ref",
+                    "ref": "c:dOLzc",
+                    "cornerRadius": 6,
+                    "padding": [
+                        8,
+                        12
+                    ],
+                    "gap": 12,
+                    "height": 36,
+                    "alignItems": "center",
+                    "fill": "$accent/soft",
+                    "descendants": {
+                        "c:xGT5g": {
+                            "icon": "users",
+                            "width": 18,
+                            "height": 18,
+                            "fill": "$accent/accent",
+                            "library": "lucide"
+                        },
+                        "c:TXca3": {
+                            "content": "Users & RBAC",
+                            "fontSize": 14,
+                            "fill": "$accent/accent"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "frame",
+            "id": "Z5r2sw",
+            "name": "Main",
+            "width": "fill_container",
+            "height": "fill_container",
+            "fill": "$background/background",
+            "layout": "vertical",
+            "children": [
+                {
+                    "id": "sDUyo",
+                    "type": "ref",
+                    "ref": "gu5WY",
+                    "name": "Top Bar",
+                    "width": "fill_container",
+                    "descendants": {
+                        "GqBm6/c:bT3Mm": {
+                            "content": "Users & RBAC"
+                        }
+                    }
+                },
+                {
+                    "type": "frame",
+                    "id": "VRpoV",
+                    "name": "Body",
+                    "width": "fill_container",
+                    "height": "fill_container",
+                    "fill": "$background/background",
+                    "layout": "vertical",
+                    "gap": 24,
+                    "padding": 24,
+                    "children": [
+                        {
+                            "id": "j3ikM",
+                            "type": "ref",
+                            "ref": "xCDF7",
+                            "name": "Page Header",
+                            "width": "fill_container",
+                            "descendants": {
+                                "spCmk": {
+                                    "content": "Users & RBAC"
+                                },
+                                "VbHwU": {
+                                    "content": "Manage access to the Gameplane control plane."
+                                },
+                                "TgdLz": {
+                                    "width": "fit_content",
+                                    "children": [
+                                        {
+                                            "id": "hgScu",
+                                            "type": "ref",
+                                            "ref": "rNhll",
+                                            "name": "Audit Log Button",
+                                            "descendants": {
+                                                "Q57b2/FCYQ9": {
+                                                    "library": "lucide",
+                                                    "icon": "scroll-text"
+                                                },
+                                                "Q57b2/GqVun": {
+                                                    "content": "Audit log"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "id": "k4Ecpc",
+                                            "type": "ref",
+                                            "ref": "tpKRk",
+                                            "name": "Invite User Button",
+                                            "descendants": {
+                                                "q58In/Xpn7K": {
+                                                    "library": "lucide",
+                                                    "icon": "plus"
+                                                },
+                                                "q58In/U6q13B": {
+                                                    "content": "Invite user"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "type": "frame",
+                            "id": "DgnZ8",
+                            "name": "Filter Row",
+                            "width": "fill_container",
+                            "gap": 12,
+                            "justifyContent": "space_between",
+                            "alignItems": "center",
+                            "children": [
+                                {
+                                    "type": "frame",
+                                    "id": "fIYkm",
+                                    "name": "tabsWrap",
+                                    "fill": "$surface/surface",
+                                    "cornerRadius": 6,
+                                    "stroke": "$border/border",
+                                    "strokeWidth": 1,
+                                    "strokeAlignment": "inner",
+                                    "gap": 4,
+                                    "padding": 4,
+                                    "alignItems": "center",
+                                    "children": [
+                                        {
+                                            "type": "frame",
+                                            "id": "ZCZOp",
+                                            "name": "tabUsers",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": [
+                                                6,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "w28YSY",
+                                                    "fill": "$muted",
+                                                    "content": "Users",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "normal"
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "EzpIG",
+                                                    "name": "count",
+                                                    "fill": "$muted",
+                                                    "cornerRadius": 4,
+                                                    "padding": [
+                                                        0,
+                                                        6
+                                                    ],
+                                                    "justifyContent": "center",
+                                                    "alignItems": "center",
+                                                    "children": [
+                                                        {
+                                                            "type": "text",
+                                                            "id": "KSqsT",
+                                                            "fill": "$muted",
+                                                            "content": "2",
+                                                            "fontFamily": "$c:--font-primary",
+                                                            "fontSize": 10,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "CZuqP",
+                                            "name": "tabRoles",
+                                            "cornerRadius": 4,
+                                            "gap": 8,
+                                            "padding": [
+                                                6,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "U1UsXP",
+                                                    "fill": "$muted",
+                                                    "content": "Roles",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "normal"
+                                                },
+                                                {
+                                                    "type": "frame",
+                                                    "id": "W3FxYW",
+                                                    "name": "count",
+                                                    "fill": "$muted",
+                                                    "cornerRadius": 4,
+                                                    "padding": [
+                                                        0,
+                                                        6
+                                                    ],
+                                                    "justifyContent": "center",
+                                                    "alignItems": "center",
+                                                    "children": [
+                                                        {
+                                                            "type": "text",
+                                                            "id": "W14HC9",
+                                                            "fill": "$muted",
+                                                            "content": "3",
+                                                            "fontFamily": "$c:--font-primary",
+                                                            "fontSize": 10,
+                                                            "fontWeight": "normal"
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "fbZWw",
+                                            "name": "tabService",
+                                            "cornerRadius": 4,
+                                            "padding": [
+                                                6,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "L9mNu",
+                                                    "fill": "$muted",
+                                                    "content": "Service accounts",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "frame",
+                                            "id": "dEqpG",
+                                            "name": "tabIdp",
+                                            "fill": "$accent/soft",
+                                            "cornerRadius": 4,
+                                            "padding": [
+                                                6,
+                                                12
+                                            ],
+                                            "alignItems": "center",
+                                            "children": [
+                                                {
+                                                    "type": "text",
+                                                    "id": "n5Gre",
+                                                    "fill": "$accent/accent",
+                                                    "content": "Identity providers",
+                                                    "fontFamily": "$c:--font-secondary",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "normal"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "id": "g0CkX",
+                                    "type": "ref",
+                                    "ref": "Lmaf1",
+                                    "name": "Search",
+                                    "width": 256,
+                                    "descendants": {
+                                        "EJMtX": {
+                                            "content": "Search\u2026"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "type": "frame",
+                            "id": "hWMnJ",
+                            "name": "Identity Providers Card",
+                            "width": "fill_container",
+                            "fill": "$surface/surface",
+                            "cornerRadius": 10,
+                            "stroke": "$border/border",
+                            "strokeWidth": 1,
+                            "strokeAlignment": "inner",
+                            "padding": 24,
+                            "children": [
+                                {
+                                    "type": "text",
+                                    "id": "Z75kr",
+                                    "fill": "$muted",
+                                    "textGrowth": "fixed-width",
+                                    "width": "fill_container",
+                                    "content": "OIDC identity providers configured in Helm values appear here. UI configuration is tracked for v1.1.",
+                                    "lineHeight": 1.5,
+                                    "fontFamily": "$c:--font-secondary",
+                                    "fontSize": 14,
+                                    "fontWeight": "normal"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

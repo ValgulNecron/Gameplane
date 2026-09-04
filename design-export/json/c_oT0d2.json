@@ -1,1 +1,41 @@
-{"type":"frame","id":"c:oT0d2","x":1802,"y":2459.211644890092,"name":"Pagination Item/Active","reusable":true,"width":40,"height":40,"fill":"$c:--background","cornerRadius":"$c:--radius-pill","stroke":"$c:--border","strokeWidth":1,"strokeAlignment":"inner","effect":{"type":"shadow","shadowType":"outer","color":"#0000000f","offset":{"x":0,"y":1},"blur":3.5,"spread":-1},"justifyContent":"center","alignItems":"center","children":[{"type":"text","id":"c:y7IIq","name":"1","fill":"$c:--foreground","content":"1","lineHeight":1.4285714285714286,"fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"500"}]}
+{
+  "type": "frame",
+  "id": "c:oT0d2",
+  "x": 1802,
+  "y": 2459.211644890092,
+  "name": "Pagination Item/Active",
+  "reusable": true,
+  "width": 40,
+  "height": 40,
+  "fill": "$c:--background",
+  "cornerRadius": "$c:--radius-pill",
+  "stroke": "$c:--border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#0000000f",
+    "offset": {
+      "x": 0,
+      "y": 1
+    },
+    "blur": 3.5,
+    "spread": -1
+  },
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "text",
+      "id": "c:y7IIq",
+      "name": "1",
+      "fill": "$c:--foreground",
+      "content": "1",
+      "lineHeight": 1.4285714285714286,
+      "fontFamily": "$c:--font-secondary",
+      "fontSize": 14,
+      "fontWeight": "500"
+    }
+  ]
+}

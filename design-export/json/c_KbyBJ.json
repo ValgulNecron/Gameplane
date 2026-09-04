@@ -1,1 +1,41 @@
-{"type":"frame","id":"c:KbyBJ","x":200,"y":2842,"name":"Tab Item/Active","reusable":true,"fill":"$c:--background","cornerRadius":"$c:--radius-pill","effect":{"type":"shadow","shadowType":"outer","color":"#0000000f","offset":{"x":0,"y":1},"blur":3.5,"spread":-1},"gap":8,"padding":[6,12],"justifyContent":"center","alignItems":"center","children":[{"type":"text","id":"c:248ys","name":"Label Selected","fill":"$c:--foreground","content":"Tab Item","lineHeight":1.4285714285714286,"fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"500"}]}
+{
+    "type": "frame",
+    "id": "c:KbyBJ",
+    "x": 200,
+    "y": 2842,
+    "name": "Tab Item/Active",
+    "reusable": true,
+    "fill": "$c:--background",
+    "cornerRadius": "$c:--radius-pill",
+    "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#0000000f",
+        "offset": {
+            "x": 0,
+            "y": 1
+        },
+        "blur": 3.5,
+        "spread": -1
+    },
+    "gap": 8,
+    "padding": [
+        6,
+        12
+    ],
+    "justifyContent": "center",
+    "alignItems": "center",
+    "children": [
+        {
+            "type": "text",
+            "id": "c:248ys",
+            "name": "Label Selected",
+            "fill": "$c:--foreground",
+            "content": "Tab Item",
+            "lineHeight": 1.4285714285714286,
+            "fontFamily": "$c:--font-secondary",
+            "fontSize": 14,
+            "fontWeight": "500"
+        }
+    ]
+}

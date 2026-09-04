@@ -1,1 +1,29 @@
-{"type":"frame","id":"c:nW26m","x":200,"y":1966,"name":"Breadcrumb Item/Default","reusable":true,"fill":{"type":"color","color":"$c:--white","enabled":false},"gap":8,"justifyContent":"center","alignItems":"center","children":[{"type":"text","id":"c:bT3Mm","name":"Breadcrumb Item","fill":"$c:--muted-foreground","content":"Breadcrumb Item","lineHeight":1.4285714285714286,"fontFamily":"$c:--font-secondary","fontSize":14,"fontWeight":"normal"}]}
+{
+  "type": "frame",
+  "id": "c:nW26m",
+  "x": 200,
+  "y": 1966,
+  "name": "Breadcrumb Item/Default",
+  "reusable": true,
+  "fill": {
+    "type": "color",
+    "color": "$c:--white",
+    "enabled": false
+  },
+  "gap": 8,
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "text",
+      "id": "c:bT3Mm",
+      "name": "Breadcrumb Item",
+      "fill": "$c:--muted-foreground",
+      "content": "Breadcrumb Item",
+      "lineHeight": 1.4285714285714286,
+      "fontFamily": "$c:--font-secondary",
+      "fontSize": 14,
+      "fontWeight": "normal"
+    }
+  ]
+}

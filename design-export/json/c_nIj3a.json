@@ -1,1 +1,48 @@
-{"id":"c:nIj3a","type":"ref","reusable":true,"ref":"c:ITZkn","x":200,"y":656,"name":"Alert/Success","fill":"$c:--color-success","descendants":{"c:fS3NL":{"type":"frame","id":"c:N77wx","name":"icon-Check","clip":true,"width":24,"height":24,"fill":{"type":"color","color":"$c:--white","enabled":false},"layout":"none","children":[{"type":"path","id":"c:03KN4","x":1.5,"y":5.5,"name":"Vector 2356","geometry":"...","width":21,"height":14,"stroke":"$c:--color-success-foreground","strokeWidth":1}]},"c:TPf8O":{"fill":"$c:--color-success-foreground","content":"Mission approved"},"c:X4L5E":{"fill":"$c:--color-success-foreground","content":"Your request to rent the Curiosity-X rover has been confirmed. Deployment scheduled for Sol 482."}}}
+{
+  "id": "c:nIj3a",
+  "type": "ref",
+  "reusable": true,
+  "ref": "c:ITZkn",
+  "x": 200,
+  "y": 656,
+  "name": "Alert/Success",
+  "fill": "$c:--color-success",
+  "descendants": {
+    "c:fS3NL": {
+      "type": "frame",
+      "id": "c:N77wx",
+      "name": "icon-Check",
+      "clip": true,
+      "width": 24,
+      "height": 24,
+      "fill": {
+        "type": "color",
+        "color": "$c:--white",
+        "enabled": false
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "path",
+          "id": "c:03KN4",
+          "x": 1.5,
+          "y": 5.5,
+          "name": "Vector 2356",
+          "geometry": "M0 7l7 7 14-14",
+          "width": 21,
+          "height": 14,
+          "stroke": "$c:--color-success-foreground",
+          "strokeWidth": 1
+        }
+      ]
+    },
+    "c:TPf8O": {
+      "fill": "$c:--color-success-foreground",
+      "content": "Mission approved"
+    },
+    "c:X4L5E": {
+      "fill": "$c:--color-success-foreground",
+      "content": "Your request to rent the Curiosity-X rover has been confirmed. Deployment scheduled for Sol 482."
+    }
+  }
+}

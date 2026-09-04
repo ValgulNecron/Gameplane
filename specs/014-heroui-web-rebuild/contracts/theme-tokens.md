@@ -1,33 +1,48 @@
 # Contract: theme tokens
 
-Binding for `web/src/styles/globals.css` and for the HeroUI variable values in `design.pen`. Brand values come from today's `globals.css` (R-01); HeroUI names come from the theming page (R-04). Converting HSL to oklch is mechanical; the implementer records the exact oklch strings in `globals.css` and the same values in Pencil.
+Binding for `web/src/styles/globals.css` and for the HeroUI variable values in `design.pen`. Brand values are final as of 2026-09-04 (maintainer, in-session); HeroUI names come from the theming page (R-04). The lunaris library variables are read-only in Pencil, so all screens are re-pointed to HeroUI semantic tokens rather than the library being edited. Converting HSL to oklch is mechanical; the implementer records the exact oklch strings in `globals.css` and the same values in Pencil.
 
 ## Brand → HeroUI token
 
-| HeroUI token (CSS) | Pencil variable | Dark value (today's `.dark`) | Light value (today's `:root`) | Notes |
+| HeroUI token (CSS) | Pencil variable | Dark value (`.dark`) | Light value (`:root`) | Notes |
 |---|---|---|---|---|
-| `--background` | `$background/background` | `#0F0F0F` (hsl 0 0% 6%) | `#FFFFFF` | page ground |
-| `--foreground` | `$foreground/foreground` | `#F5F5F5` | hsl 224 71% 4% | text |
-| `--surface` | `$surface/surface` | `#1C1C1C` (today's `card`) | `#FFFFFF` (today's `card`) | cards, panels |
-| `--surface-secondary` | `$surface/secondary` | `#171717` (today's `surface`) | hsl 220 14% 96% | sidebar, sunken areas |
-| `--overlay` | `$overlay/overlay` | `#1C1C1C` | `#FFFFFF` | modals, popovers |
-| `--accent` / `--accent-foreground` | `$accent/accent`, `$accent/foreground` | `#F97316` / `#FFFFFF` | hsl 22 95% 53% / `#FFFFFF` | orange brand primary |
-| `--default` / `--default-foreground` | `$default/default` | `#292929` / `#F5F5F5` | hsl 220 13% 91% / fg | secondary buttons, chips |
-| `--success` | `$success/success` | hsl 142 71% 45% | same | |
-| `--warning` | `$warning/warning` | hsl 38 92% 50% | same | |
-| `--danger` | `$danger/danger` | hsl 0 72% 51% | same | |
-| `--muted` | `$muted/muted` | `#949494` | hsl 220 9% 46% | secondary text |
-| `--border`, `--separator` | `$border/border` | `#292929` | hsl 220 13% 91% | |
-| `--field-background`, `--field-border`, `--field-placeholder` | `$field/*` | `#0F0F0F`, `#292929`, `#949494` | `#FFFFFF`, border, muted | inputs |
-| `--focus`, `--link` | `$focus`, `$link` | accent | accent | |
-| `--radius` | `$radius/*` | 10 px base (today's `--radius-lg`), `--field-radius` 6 px (today's `--radius-md`) | same | HeroUI defaults use pill buttons (`$radius/3xl`); the design pass keeps HeroUI's radii per component and the code does not override them |
+| `--background` | `$background/background` | `#121114` | `#FFFFFF` | page ground |
+| `--foreground` | `$foreground/foreground` | `#F5F3F7` | `#2A0F1E` | text |
+| `--surface` | `$surface/surface` | `#1C1A20` | `#FFF7FB` | cards, panels |
+| `--surface-secondary` | `$surface/secondary` | `#17151A` | `#F8DDE9` | sidebar, sunken areas |
+| `--overlay` | `$overlay/overlay` | `#201E24` | `#FFF7FB` | modals, popovers |
+| `--accent` / `--accent-foreground` | `$accent/accent`, `$accent/foreground` | `#FF4FA3` / `#FFFFFF` | `#DB2777` / `#FFFFFF` | brand primary (pink) |
+| `--accent-soft` / `--accent-soft-foreground` | `$accent/soft`, `$accent/soft-foreground` | `#331525` / `#FF8AC4` | `#FFFFFF` / `#BE185D` | accent hover/visited |
+| `--default` / `--default-foreground` | `$default/default`, `$default/foreground` | `#232128` / `#EDE9F0` | `#F6DCE7` / `#2A0F1E` | secondary buttons, chips |
+| `--success` | `$success/success` | hsl 142 71% 45% | same | semantic (unchanged) |
+| `--warning` | `$warning/warning` | hsl 38 92% 50% | same | semantic (unchanged) |
+| `--danger` | `$danger/danger` | `#E0304F` | `#DC2828` | semantic error |
+| `--danger-soft` / `--danger-soft-foreground` | `$danger/soft`, `$danger/soft-foreground` | `#2E1317` / `#F87171` | — | danger hover/visited (dark mode only) |
+| `--muted` | `$muted/muted` | `#9E98A6` | `#6E5262` | secondary text |
+| `--border`, `--separator` | `$border/border`, `$separator/separator` | `#2C2932`, `#232227` | `#EFC3D6`, `#EFC3D6` | |
+| `--field-background` | `$field/background` | `#17151A` | `#FFFFFF` | input backgrounds |
+| `--field-border` | `$field/border` | `#2C2932` | `#EFC3D6` | input borders |
+| `--field-foreground` | `$field/foreground` | `#FCFCFC` | `#2A0F1E` | input text |
+| `--field-placeholder` | `$field/placeholder` | `#7B7584` | `#8A6C7B` | input placeholder text |
+| `--focus` | `$focus` | `#A78BFA` | `#7C3AED` | focus ring (purple) |
+| `--link` | `$foreground/link` | `#7DB4FF` | `#2563EB` | hyperlink text |
+| `--surface-tertiary` | `$surface/tertiary` | `#141317` | `#F8DDE9` | deepest surface variant |
+| `--segment` | `$segment/segment` | `#1D1B22` | `#FFFFFF` | segmented control backgrounds |
+| `--segment-foreground` | `$segment/foreground` | `#F5F3F7` | `#2A0F1E` | segmented control text |
+| `--radius` | `$radius/*` | 10 px base (HeroUI default), 6 px field (component-level) | same | design pass keeps HeroUI's radii per component |
 | fonts | `$typography/font-sans`, `font-mono` | Geist / JetBrains Mono | same | loaded as today from `index.html` |
 
-`-hover`, `-soft` and `-soft-foreground` variants are left to HeroUI's derived defaults unless the design pass shows a mismatch, in which case the override is added to this table first.
+Soft variants (`-soft`, `-soft-foreground`) are now explicitly set above; all other HeroUI-derived variants use HeroUI's defaults unless a design mismatch requires an override.
+
+## History
+
+The original palette (R-01, orange accent `#F97316`) was superseded on 2026-09-04. The maintainer reviewed the slice-0 HeroUI atoms and approved a new brand theme: pink accent (`#FF4FA3` dark, `#DB2777` light), purple and blue secondaries (focus `#7C3AED` / `#A78BFA`, link `#2563EB` / `#7DB4FF`). Because the lunaris library variables are read-only in Pencil, all screens in `design.pen` were re-pointed to HeroUI semantic tokens (via the `$`-prefix notation) rather than the library values being edited. Five light-mode preview copies were added so both modes are visible side by side in the design canvas.
 
 ## Gameplane extra token
 
 `--color-violet` (hsl 258 90% 66%) stays in the `@theme` block permanently for the operator-role chips (`vStkb`, `c:rjvI1` today). It is not a HeroUI token.
+
+Stat-card icon color is a hardcoded design value: purple `#8B5CF6` (pending a formal token definition — open question).
 
 ## Legacy alias policy (transition only)
 
@@ -40,6 +55,10 @@ Slice 0 rewrites `globals.css` as:
 
 Rebuilt files use HeroUI's semantic utilities (`bg-surface`, `text-foreground`, `text-muted`, `bg-accent`) and never the legacy aliases. Slice 5 deletes steps 3 and 4 and `web/tailwind.config.ts`.
 
+## OKLCH values
+
+All hex colors in the table above have been converted to OKLCH format (sRGB → linear RGB → OKLab → LCH polar coordinates) and recorded in `web/src/styles/globals.css`. Format: `oklch(L% C H)` with L as percent (2 decimals), C as chroma (4 decimals), H as hue degrees (2 decimals). The conversion is mechanical and deterministic; see `globals.css` for the authoritative recorded values.
+
 ## Appearance selection
 
 - `<html class="dark">` stays the shipped default (`web/index.html`).
@@ -50,3 +69,4 @@ Rebuilt files use HeroUI's semantic utilities (`bg-surface`, `text-foreground`, 
 
 - A Vitest test in slice 0 renders a probe element and asserts the computed values of `--accent`, `--surface`, `--background`, `--foreground` in both `.dark` and `.light` equal the table above.
 - The design pass sets the same values on the HeroUI variables in `design.pen` (both semantic modes); the slice 0 export of `LtgNm` is the design-side evidence.
+- Five light-mode preview frames (jOo7y Login, Qqi8Q Dashboard Home, zFiOW Servers, sSISK Server Detail Overview, vvxCn Mobile Servers) show both light and dark modes side by side in `design.pen`, confirming the colour values across the brand refresh.
