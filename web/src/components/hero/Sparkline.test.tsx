@@ -25,7 +25,7 @@ describe("Sparkline", () => {
     expect(svg).not.toBeNull();
     expect(svg?.classList.contains("custom-class")).toBe(true);
     const poly = container.querySelector("polyline");
-    expect(poly?.getAttribute("strokeWidth")).toBe("2.5");
+    expect(poly?.getAttribute("stroke-width")).toBe("2.5");
   });
 
   it("handles flat data (all values identical) by scaling with unit range", () => {
@@ -41,7 +41,7 @@ describe("Sparkline", () => {
   it("renders with default stroke width of 1.5 when not specified", () => {
     const { container } = render(<Sparkline data={[1, 2, 3]} />);
     const poly = container.querySelector("polyline");
-    expect(poly?.getAttribute("strokeWidth")).toBe("1.5");
+    expect(poly?.getAttribute("stroke-width")).toBe("1.5");
   });
 
   it("has aria-hidden set to true", () => {

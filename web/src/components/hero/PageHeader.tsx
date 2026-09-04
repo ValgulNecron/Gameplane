@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Breadcrumbs, Link } from "@heroui/react";
+import { Breadcrumbs } from "@heroui/react";
 import { ChevronRight } from "lucide-react";
 
 export type BreadcrumbItem = {
@@ -25,14 +25,12 @@ export function PageHeader({
         <div className="flex">
           <Breadcrumbs separator={<ChevronRight className="h-4 w-4 text-muted" />}>
             {breadcrumbs.map((crumb, idx) => (
-              <Breadcrumbs.Item key={idx}>
-                {crumb.href ? (
-                  <Link href={crumb.href} className="text-sm text-foreground hover:text-accent">
-                    {crumb.label}
-                  </Link>
-                ) : (
-                  <span className="text-sm text-muted">{crumb.label}</span>
-                )}
+              <Breadcrumbs.Item
+                key={idx}
+                href={crumb.href}
+                className="text-sm text-foreground hover:text-accent data-[current]:text-muted data-[current]:hover:text-muted"
+              >
+                {crumb.label}
               </Breadcrumbs.Item>
             ))}
           </Breadcrumbs>

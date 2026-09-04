@@ -33,7 +33,7 @@ export function GameIcon({
   accentColor?: string;
   size?: "sm" | "md" | "lg";
 }) {
-  const g = (game ?? "?").toLowerCase();
+  const g = (game ?? "??").toLowerCase();
   const dims = { sm: "h-7 w-7 text-xs", md: "h-9 w-9 text-sm", lg: "h-12 w-12 text-base" }[size];
   const base = "flex shrink-0 items-center justify-center rounded-md font-mono uppercase";
 

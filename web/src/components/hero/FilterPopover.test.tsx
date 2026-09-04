@@ -24,8 +24,14 @@ describe("FilterPopover", () => {
       </FilterPopover>
     );
 
-    // Verify the trigger button is rendered
-    expect(screen.getByRole("button", { name: /^Filter/i })).toBeInTheDocument();
+    // Verify the trigger button is rendered. `isOpen` is a controlled prop and
+    // `onOpenChange` is a spy that doesn't flip it, so a click-driven open never
+    // actually opens the popover here — mounting pre-opened is the only viable
+    // path. That, however, makes react-aria's ariaHideOutside mark everything
+    // outside the overlay (including this trigger) aria-hidden, so the trigger
+    // must be queried with `hidden: true`; the popover content below is inside
+    // the overlay and unaffected.
+    expect(screen.getByRole("button", { name: /^Filter/i, hidden: true })).toBeInTheDocument();
 
     // Verify section headers are rendered
     expect(screen.getByText("Game")).toBeInTheDocument();

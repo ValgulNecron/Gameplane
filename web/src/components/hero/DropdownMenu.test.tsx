@@ -22,9 +22,7 @@ function Subject({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
-        <button aria-label="More actions">More</button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger aria-label="More actions">More</DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem
           icon={<Copy className="h-4 w-4" />}
@@ -48,9 +46,7 @@ function Subject({
 function CheckboxSubject() {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
-        <button aria-label="Options">Options</button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger aria-label="Options">Options</DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuCheckboxItem checked>
           Enabled

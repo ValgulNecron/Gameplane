@@ -1,5 +1,13 @@
-import { describe, it, expect } from "vitest";
-import cssText from "../styles/globals.css?raw";
+/// <reference types="node" />
+import { describe, it, expect, beforeAll } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// vitest's CSS plugin intercepts `?raw` imports of stylesheets and returns an
+// empty string when `test.css` is unset, so read the file directly instead.
+const cssPath = join(dirname(fileURLToPath(import.meta.url)), "..", "styles", "globals.css");
+const cssText = readFileSync(cssPath, "utf8");
 
 // Note: jsdom does not compute custom properties reliably, so this test
 // parses the stylesheet source directly instead of using getComputedStyle().
@@ -21,7 +29,10 @@ function parseTokens(cssSource: string, selectorPrefix: ":root" | ".dark"): Reco
   const match = cssSource.match(regex);
 
   if (!match) {
-    throw new Error(`Could not find ${selectorPrefix} block in CSS`);
+    const preview = cssSource.slice(0, 120);
+    throw new Error(
+      `Could not find ${selectorPrefix} block in CSS (cssSource.length=${cssSource.length}, first 120 chars: ${JSON.stringify(preview)})`,
+    );
   }
 
   const declarationText = match[1];
@@ -40,8 +51,13 @@ function parseTokens(cssSource: string, selectorPrefix: ":root" | ".dark"): Reco
 }
 
 describe("theme tokens", () => {
-  const lightTokens = parseTokens(cssText, ":root");
-  const darkTokens = parseTokens(cssText, ".dark");
+  let lightTokens: Record<string, string>;
+  let darkTokens: Record<string, string>;
+
+  beforeAll(() => {
+    lightTokens = parseTokens(cssText, ":root");
+    darkTokens = parseTokens(cssText, ".dark");
+  });
 
   describe("light mode", () => {
     // Contract values from specs/014-heroui-web-rebuild/contracts/theme-tokens.md

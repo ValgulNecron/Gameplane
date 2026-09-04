@@ -26,14 +26,14 @@ describe("PageHeader", () => {
         breadcrumbs={[
           { label: "Home", href: "/" },
           { label: "Infrastructure" },
-          { label: "Servers" },
+          { label: "Server List" },
         ]}
       />
     );
     // Check that all breadcrumb labels are present
     expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("Infrastructure")).toBeInTheDocument();
-    expect(screen.getByText("Servers")).toBeInTheDocument();
+    expect(screen.getByText("Server List")).toBeInTheDocument();
   });
 
   it("renders breadcrumbs with links for items with href", () => {
@@ -46,9 +46,13 @@ describe("PageHeader", () => {
         ]}
       />
     );
-    const link = screen.getByRole("link");
-    expect(link).toHaveTextContent("Dashboard");
+    const link = screen.getByText("Dashboard").closest("a");
+    expect(link).not.toBeNull();
     expect(link).toHaveAttribute("href", "/dashboard");
+
+    const current = screen.getByText("Current Page");
+    expect(current).toHaveAttribute("aria-current", "page");
+    expect(current).not.toHaveAttribute("href");
   });
 
   it("renders title, description, and actions together", () => {
@@ -92,14 +96,15 @@ describe("PageHeader", () => {
     expect(breadcrumbsNav).not.toBeInTheDocument();
   });
 
-  it("renders non-link breadcrumb items as spans with muted text", () => {
+  it("renders a non-href item as the current-page crumb with no href", () => {
     render(
       <PageHeader
         title="Test"
         breadcrumbs={[{ label: "No Link Item" }]}
       />
     );
-    const span = screen.getByText("No Link Item");
-    expect(span).toHaveClass("text-muted");
+    const crumb = screen.getByText("No Link Item");
+    expect(crumb).toHaveAttribute("aria-current", "page");
+    expect(crumb).not.toHaveAttribute("href");
   });
 });

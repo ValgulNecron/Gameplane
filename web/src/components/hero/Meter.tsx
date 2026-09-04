@@ -35,7 +35,7 @@ export function Meter({
       <div className="flex items-center justify-between text-[11px]">
         <span className="text-muted">{label}</span>
         <span className={cn("font-mono", unknown ? "text-muted" : "text-foreground")}>
-          {unknown ? "—" : `${Math.round(pct)}%`}
+          {unknown ? "—" : `${Math.max(0, Math.round(pct))}%`}
         </span>
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface">
