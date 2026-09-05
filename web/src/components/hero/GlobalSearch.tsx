@@ -1,13 +1,19 @@
-import { useState, useRef, type JSX, type KeyboardEvent } from "react";
+import { useRef, useState, type JSX, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, Server } from "lucide-react";
+import {
+  SearchFieldRoot,
+  SearchFieldInput,
+  SearchFieldClearButton,
+  PopoverContent,
+} from "@heroui/react";
 import { Servers } from "@/lib/endpoints";
 import { cn } from "@/lib/utils";
 
 /**
  * GlobalSearch provides a server search dropdown with keyboard navigation.
- * Ported from AppLayout.tsx with HeroUI components.
+ * Ported from AppLayout.tsx onto HeroUI's SearchField + Popover primitives.
  * Design export: IdaU7
  */
 export function GlobalSearch(): JSX.Element {
@@ -31,11 +37,23 @@ export function GlobalSearch(): JSX.Element {
           .slice(0, 6)
       : [];
 
-  // Note: selectedIndex is reset to -1 directly in the input's onChange
-  // handler below (and in navigateToServer) whenever the query text
-  // changes — not in a useEffect here, since `matches` is a fresh array
-  // every render and setState-in-effect off that would cascade renders.
+  // Note: selectedIndex is reset to -1 directly in the value-change handler
+  // below (and in navigateToServer) whenever the query text changes — not in
+  // a useEffect here, since `matches` is a fresh array every render and
+  // setState-in-effect off that would cascade renders.
 
+  const navigateToServer = async (name: string) => {
+    setOpen(false);
+    setQ("");
+    setSelectedIndex(-1);
+    await navigate({ to: "/servers/$name", params: { name } });
+  };
+
+  // HeroUI's SearchField already handles Enter (onSubmit, unused here) and
+  // Escape (clears the value, which our onChange below turns into a close)
+  // as native shortcuts before this handler runs — see
+  // node_modules/react-aria/dist/private/searchfield/useSearchField.mjs.
+  // We only need Arrow navigation and our own Enter-to-navigate behavior.
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!open || matches.length === 0) {
       if (e.key === "Enter") {
@@ -70,41 +88,43 @@ export function GlobalSearch(): JSX.Element {
     }
   };
 
-  const navigateToServer = async (name: string) => {
-    setOpen(false);
-    setQ("");
-    setSelectedIndex(-1);
-    await navigate({ to: "/servers/$name", params: { name } });
-  };
-
   return (
     <div className="relative hidden w-72 md:block">
-      <div className="relative">
+      <SearchFieldRoot
+        aria-label="Search servers"
+        value={q}
+        onChange={(value) => {
+          setQ(value);
+          setOpen(value.trim().length > 0);
+          setSelectedIndex(-1);
+        }}
+        className="relative flex items-center rounded-full border border-border bg-surface"
+      >
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <input
+        <SearchFieldInput
           ref={inputRef}
-          type="search"
-          aria-label="Search servers"
           placeholder="Search servers…"
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpen(e.target.value.length > 0);
-            setSelectedIndex(-1);
-          }}
+          data-testid="search-input"
           onFocus={() => {
-            if (q.length > 0) setOpen(true);
+            if (query.length > 0) setOpen(true);
           }}
-          // Delay so a result click registers before the dropdown unmounts.
+          // Delay so a result click registers before the popover unmounts.
           onBlur={() => setTimeout(() => setOpen(false), 120)}
           onKeyDown={handleKeyDown}
-          className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-hidden"
-          data-testid="search-input"
+          className="h-10 w-full rounded-full border-0 bg-transparent pl-9 pr-8 text-sm text-fg placeholder:text-muted focus:outline-hidden"
         />
-      </div>
+        <SearchFieldClearButton className="absolute right-2 top-1/2 -translate-y-1/2" />
+      </SearchFieldRoot>
 
-      {open && query.length > 0 && (
-        <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-border bg-background shadow-lg" role="listbox">
+      <PopoverContent
+        triggerRef={inputRef}
+        isOpen={open && query.length > 0}
+        onOpenChange={setOpen}
+        isNonModal
+        placement="bottom start"
+        className="w-72 overflow-hidden rounded-md border border-border bg-background p-0 shadow-lg"
+      >
+        <ul role="listbox" className="max-h-72 overflow-auto">
           {matches.length === 0 ? (
             <li className="px-3 py-2 text-sm text-muted">
               No servers match.
@@ -116,7 +136,7 @@ export function GlobalSearch(): JSX.Element {
                 role="option"
                 aria-selected={selectedIndex === idx}
                 onMouseEnter={() => setSelectedIndex(idx)}
-                onClick={() => navigateToServer(server.metadata.name)}
+                onClick={() => void navigateToServer(server.metadata.name)}
                 className={cn(
                   "flex cursor-pointer items-center gap-2 px-3 py-2 text-sm",
                   selectedIndex === idx
@@ -125,7 +145,7 @@ export function GlobalSearch(): JSX.Element {
                 )}
                 data-testid={`search-result-${server.metadata.name}`}
               >
-                <Server className="h-3.5 w-3.5 flex-shrink-0 text-muted" />
+                <Server className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <span className="truncate font-mono">
                   {server.metadata.name}
                 </span>
@@ -133,7 +153,7 @@ export function GlobalSearch(): JSX.Element {
             ))
           )}
         </ul>
-      )}
+      </PopoverContent>
     </div>
   );
 }

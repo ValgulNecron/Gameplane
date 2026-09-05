@@ -28,6 +28,22 @@ describe("AppearanceToggle", () => {
     expect(screen.getByLabelText(/Light/i)).not.toHaveClass("bg-primary/20");
   });
 
+  it("sets aria-pressed correctly for each button", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <AppearanceToggle value="light" onChange={onChange} />
+    );
+
+    expect(screen.getByLabelText(/Light/i)).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText(/Dark/i)).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText(/System/i)).toHaveAttribute("aria-pressed", "false");
+
+    rerender(<AppearanceToggle value="dark" onChange={onChange} />);
+    expect(screen.getByLabelText(/Light/i)).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText(/Dark/i)).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText(/System/i)).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("calls onChange when a button is clicked", async () => {
     const onChange = vi.fn();
     render(<AppearanceToggle value="light" onChange={onChange} />);

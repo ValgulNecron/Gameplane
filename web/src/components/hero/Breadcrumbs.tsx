@@ -1,5 +1,6 @@
 import type { JSX } from "react";
-import { Link } from "@tanstack/react-router";
+import { Breadcrumbs as HeroBreadcrumbs } from "@heroui/react";
+import { ChevronRight } from "lucide-react";
 
 export interface Crumb {
   label: string;
@@ -37,43 +38,28 @@ export function buildCrumbs(pathname: string): Crumb[] {
 
 /**
  * Route-hierarchy breadcrumb component.
- * Renders the provided crumbs array as navigable links
- * (except the last item, which is marked as the current page via aria-current).
- * Uses TanStack Router's Link for navigation.
+ * Renders the provided crumbs array as navigable links (except the last item,
+ * which is marked as the current page via aria-current).
+ * Uses HeroUI Breadcrumbs with ChevronRight separator.
  */
 export function Breadcrumbs({ items }: { items: Crumb[] }): JSX.Element {
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm">
-      <ol className="flex items-center gap-1">
+    <nav aria-label="Breadcrumb">
+      <HeroBreadcrumbs separator={<ChevronRight className="h-3.5 w-3.5 text-muted" />}>
         {items.map((crumb, index) => {
           const isLast = index === items.length - 1;
           return (
-            <li
+            <HeroBreadcrumbs.Item
               key={crumb.to ?? crumb.label}
-              className="flex items-center gap-1"
+              href={crumb.to && !isLast ? crumb.to : undefined}
               aria-current={isLast ? "page" : undefined}
+              className="text-sm text-foreground hover:text-accent data-[current]:text-muted data-[current]:hover:text-muted"
             >
-              {crumb.to && !isLast ? (
-                <Link
-                  to={crumb.to}
-                  className="hover:text-fg text-muted transition-colors"
-                >
-                  {crumb.label}
-                </Link>
-              ) : (
-                <span className={isLast ? "text-fg" : "text-muted"}>
-                  {crumb.label}
-                </span>
-              )}
-              {!isLast && (
-                <span className="text-muted" aria-hidden="true">
-                  /
-                </span>
-              )}
-            </li>
+              {crumb.label}
+            </HeroBreadcrumbs.Item>
           );
         })}
-      </ol>
+      </HeroBreadcrumbs>
     </nav>
   );
 }

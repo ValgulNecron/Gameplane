@@ -91,7 +91,7 @@ export function Sidebar({
         {navItems.map((group) => (
           group.items.length > 0 && (
             <div key={group.label}>
-              <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted">
+              <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted font-mono">
                 {group.label}
               </div>
               <ul className="flex flex-col gap-0.5">
@@ -138,7 +138,7 @@ export function Sidebar({
             {(user?.displayName || user?.username || "G").slice(0, 2).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm text-fg">
+            <div className="truncate text-sm text-fg font-mono">
               {user?.displayName || user?.username || "guest"}
             </div>
             <div className="truncate text-[11px] text-muted">
@@ -160,7 +160,7 @@ export function Sidebar({
   // Render as drawer if variant is "drawer"
   if (variant === "drawer") {
     return (
-      <Drawer.Root isOpen={isOpen ?? false} onOpenChange={onClose}>
+      <Drawer.Root isOpen={isOpen ?? false} onOpenChange={(open) => { if (!open) onClose?.(); }}>
         <Drawer.Backdrop />
         <Drawer.Content placement="left" className="w-[280px] max-w-[85vw]">
           <Drawer.Body className="p-0">

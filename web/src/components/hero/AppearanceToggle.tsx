@@ -21,12 +21,13 @@ export function AppearanceToggle({ value, onChange }: AppearanceToggleProps) {
   ];
 
   return (
-    <div className="flex items-center justify-center gap-1 rounded-lg bg-surface p-1">
+    <div role="group" aria-label="Appearance" className="flex items-center justify-center gap-1 rounded-lg bg-surface p-1">
       {modes.map(({ mode, icon, label }) => (
         <button
           key={mode}
           type="button"
           aria-label={label}
+          aria-pressed={value === mode}
           title={label}
           onClick={() => onChange(mode)}
           className={`

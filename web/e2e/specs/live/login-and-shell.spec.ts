@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import type { Page } from "@playwright/test";
 import { loginIfNeeded } from "./_seed";
 
 // Live: prove login flow and shell navigation work end-to-end on real backend.
@@ -112,7 +111,7 @@ test.describe("live: login and shell", () => {
 
     // Cycle through modes and check class on <html>
     const modes = ["light", "dark", "system"];
-    for (const expectedMode of modes) {
+    for (const _mode of modes) {
       // Click the toggle (if visible)
       if (await themeToggle.isVisible()) {
         await themeToggle.click();
@@ -121,8 +120,8 @@ test.describe("live: login and shell", () => {
 
         // Check the resolved theme class (light or dark; system resolves to one of those)
         const htmlElement = page.locator("html");
-        const classes = await htmlElement.evaluate((el) => el.className);
-        expect(["light", "dark"]).toContain(classes.split(" ").find((c) => c === "light" || c === "dark"));
+        const classes = await htmlElement.evaluate((el: HTMLElement) => el.className);
+        expect(["light", "dark"]).toContain(classes.split(" ").find((c: string) => c === "light" || c === "dark"));
       }
     }
   });

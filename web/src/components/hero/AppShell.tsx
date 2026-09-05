@@ -17,22 +17,19 @@ export function AppShell({ sidebar, topBar, children }: AppShellProps) {
   return (
     <div className="flex h-screen w-full bg-background">
       {/* Sidebar — desktop only, fixed 260px wide */}
-      <aside
-        role="navigation"
-        className="hidden lg:flex lg:w-[260px] flex-col border-r border-divider"
-      >
+      <aside className="hidden lg:flex lg:w-[260px] flex-col">
         {sidebar}
       </aside>
 
       {/* Main content area — sidebar + topBar + children in a column */}
       <div className="flex flex-1 flex-col">
-        {/* TopBar — fixed height 64px (h-16) */}
-        <div className="border-b border-divider h-16 flex-shrink-0">
+        {/* TopBar — fixed height 64px (h-16); TopBar's header provides the border */}
+        <div className="h-16 flex-shrink-0">
           {topBar}
         </div>
 
         {/* Main content — scrollable flex-1 */}
-        <main role="main" className="flex-1 overflow-auto bg-background">
+        <main className="flex-1 overflow-auto bg-background">
           {children}
         </main>
       </div>

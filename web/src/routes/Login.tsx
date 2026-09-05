@@ -15,6 +15,9 @@ import {
   Input,
   Label,
   InputGroup,
+  Button,
+  Alert,
+  Spinner,
 } from "@heroui/react";
 import { APIError } from "@/lib/api";
 import { Auth } from "@/lib/endpoints";
@@ -73,7 +76,7 @@ export function LoginPage() {
           </div>
 
           <div className="mb-6">
-            <h1 className="text-2xl font-semibold">Sign in</h1>
+            <h1 className="font-mono text-2xl font-semibold">Sign in</h1>
             <p className="pt-1 text-sm text-muted">Welcome to Gameplane.</p>
           </div>
 
@@ -98,7 +101,7 @@ export function LoginPage() {
               }}
             >
               <div className="space-y-1.5">
-                <Label htmlFor="username" className="text-xs text-muted">
+                <Label htmlFor="username" className="font-mono text-xs text-muted">
                   Email or username
                 </Label>
                 <Input
@@ -118,12 +121,12 @@ export function LoginPage() {
                     readers (and tests) resolve the label to the button, not the
                     password input. */}
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-xs text-muted">
+                  <Label htmlFor="password" className="font-mono text-xs text-muted">
                     Password
                   </Label>
                   <button
                     type="button"
-                    className="text-xs text-primary hover:underline"
+                    className="font-mono text-xs text-primary hover:underline"
                     onClick={() => setForgot((v) => !v)}
                   >
                     Forgot?
@@ -159,18 +162,22 @@ export function LoginPage() {
               </div>
 
               {err && (
-                <div role="alert" className="rounded-lg bg-danger/10 p-3 text-sm text-danger border border-danger/20">
+                <Alert role="alert" status="danger">
                   {err}
-                </div>
+                </Alert>
               )}
 
-              <button
+              <Button
                 type="submit"
-                disabled={busy}
-                className="w-full rounded-lg bg-primary px-4 py-2 text-white font-medium hover:bg-primary/90 disabled:opacity-50"
+                isDisabled={busy}
+                variant="primary"
+                size="lg"
+                fullWidth
+                className="rounded-full font-mono"
               >
+                {busy && <Spinner size="sm" color="current" className="mr-2" />}
                 Sign in →
-              </button>
+              </Button>
 
               {sso.length > 0 && (
                 <div className="relative py-2 text-center text-[11px] uppercase tracking-widest text-muted">
@@ -195,7 +202,7 @@ export function LoginPage() {
 
       <section className="hidden border-l border-border bg-surface/40 p-12 md:flex md:flex-col md:justify-center">
         <div className="max-w-md">
-          <div className="mb-2 text-[11px] uppercase tracking-widest text-muted">
+          <div className="mb-2 font-mono text-[11px] uppercase tracking-widest text-muted">
             AGPL-3.0
           </div>
           <h2 className="text-3xl font-semibold leading-tight">
@@ -240,15 +247,17 @@ function SSOButtons({ providers }: { providers: LoginProvider[] }) {
   return (
     <>
       {providers.map((p) => (
-        <button
+        <Button
           key={p.name ?? p.label}
           type="button"
-          className="w-full flex items-center justify-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-fg font-medium hover:bg-surface/50"
+          variant="outline"
+          fullWidth
+          className="font-mono"
           onClick={() => location.assign(Auth.oidcStartURL(p.name))}
         >
           <KeyRound className="h-4 w-4" />
           Continue with {p.label}
-        </button>
+        </Button>
       ))}
     </>
   );
@@ -261,7 +270,7 @@ function MarketingRow({ icon, title, body }: { icon: ReactNode; title: string; b
         {icon}
       </div>
       <div>
-        <div className="text-sm text-fg">{title}</div>
+        <div className="font-mono text-sm text-fg">{title}</div>
         <div className="pt-0.5 text-xs text-muted">{body}</div>
       </div>
     </li>

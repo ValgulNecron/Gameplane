@@ -46,7 +46,7 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
 
     // Verify the form is visible
     await expect(page.getByRole("textbox", { name: /username/i })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: /password/i })).toBeVisible();
+    await expect(page.locator('input[name="password"]')).toBeVisible();
     await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
 
     // Capture the default login state

@@ -56,19 +56,23 @@ export function ClusterSelector() {
 
   return (
     <Dropdown>
-      <DropdownTrigger>
-        <button
-          type="button"
-          aria-label="Select cluster"
-          className={cn(
-            "flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm",
-            "text-fg hover:bg-surface transition-colors cursor-pointer",
-          )}
-        >
+      {/* DropdownTrigger itself renders the real `<button>` (react-aria-components'
+          Button primitive); a raw `<button>` child here would nest buttons
+          (invalid HTML, breaks React's hydration and much of testing-library's
+          querying), so the trigger content is a plain `<div>` and the a11y
+          label moves onto DropdownTrigger, which forwards it to that button. */}
+      <DropdownTrigger
+        aria-label="Select cluster"
+        className={cn(
+          "flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm",
+          "text-fg hover:bg-surface transition-colors cursor-pointer",
+        )}
+      >
+        <>
           <span className={cn("h-2 w-2 rounded-full", phaseColor)} />
           <span className="truncate">{displayName}</span>
           <ChevronDown className="h-3.5 w-3.5 text-muted shrink-0" />
-        </button>
+        </>
       </DropdownTrigger>
 
       <DropdownMenu aria-label="Cluster options" className="min-w-[200px]">

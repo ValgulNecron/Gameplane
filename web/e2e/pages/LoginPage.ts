@@ -13,7 +13,7 @@ export class LoginPage {
   constructor(page: Page) {
     this.page = page;
     this.username = page.getByRole("textbox", { name: /email or username/i });
-    this.password = page.getByRole("textbox", { name: /password/i });
+    this.password = page.locator('input[name="password"]');
     this.submit = page.getByRole("button", { name: /sign in/i });
     this.error = page.getByRole("alert");
   }

@@ -53,7 +53,7 @@ export function TopBar({
   };
 
   return (
-    <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-6">
+    <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-6">
       {/* Left: hamburger + breadcrumbs */}
       <div className="flex min-w-0 items-center gap-2">
         <Button

@@ -27,6 +27,16 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { AppLayout } from "./AppLayout";
 
+// HeroUI's Breadcrumbs.Item always renders `role="link"` — even the
+// disabled, href-less current-page crumb (see Breadcrumbs.tsx) — so a
+// breadcrumb reading "Dashboard" (root path) or a route's own label (e.g.
+// "Servers") collides by accessible name with the matching sidebar nav
+// link. Scope queries to the sidebar's own `<nav aria-label="Primary">`
+// landmark wherever a query could ambiguously match both.
+function sidebarNav() {
+  return within(screen.getByRole("navigation", { name: "Primary" }));
+}
+
 describe("AppLayout", () => {
   it("renders the sidebar nav items shared by all roles", async () => {
     server.use(
@@ -35,13 +45,13 @@ describe("AppLayout", () => {
     );
     renderWithQuery(<AppLayout />);
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: /Dashboard/i })).toBeInTheDocument(),
+      expect(sidebarNav().getByRole("link", { name: /Dashboard/i })).toBeInTheDocument(),
     );
-    expect(screen.getByRole("link", { name: /Servers/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Modules/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Backups/i })).toBeInTheDocument();
+    expect(sidebarNav().getByRole("link", { name: /Servers/i })).toBeInTheDocument();
+    expect(sidebarNav().getByRole("link", { name: /Modules/i })).toBeInTheDocument();
+    expect(sidebarNav().getByRole("link", { name: /Backups/i })).toBeInTheDocument();
     // Viewer-restricted: /cluster, /users, /admin nav not rendered.
-    expect(screen.queryByRole("link", { name: /Audit log/i })).not.toBeInTheDocument();
+    expect(sidebarNav().queryByRole("link", { name: /Audit log/i })).not.toBeInTheDocument();
   });
 
   it("operator role unlocks the Cluster nav", async () => {
@@ -250,7 +260,7 @@ describe("AppLayout", () => {
     // before real data arrives — within() on that since-unmounted node then
     // never finds "AL" and hangs. Wait for a loaded-only element (a real
     // nav link, which the skeleton never renders) first.
-    await screen.findByRole("link", { name: /Dashboard/i });
+    await waitFor(() => expect(sidebarNav().getByRole("link", { name: /Dashboard/i })).toBeInTheDocument());
     const header = screen.getByRole("banner");
     expect(within(header).getByText("AL")).toBeInTheDocument();
   });
@@ -383,7 +393,7 @@ describe("AppLayout", () => {
         http.post("/auth/logout", () => new HttpResponse(null, { status: 204 })),
       );
       renderWithQuery(<AppLayout />);
-      await screen.findByRole("link", { name: /Dashboard/i });
+      await waitFor(() => expect(sidebarNav().getByRole("link", { name: /Dashboard/i })).toBeInTheDocument());
       const logoutBtn = screen.getByTitle("Sign out");
       await userEvent.click(logoutBtn);
       await waitFor(() => {
@@ -405,7 +415,7 @@ describe("AppLayout", () => {
     // relies on TanStack Router's `activeProps`/`.active` class hook, since
     // Sidebar now computes active state itself from useLocation()).
     await waitFor(() => {
-      const link = screen.getByRole("link", { name: /^Servers$/i });
+      const link = sidebarNav().getByRole("link", { name: /^Servers$/i });
       expect(link.className).toContain("text-primary");
     });
   });
@@ -416,9 +426,14 @@ describe("AppLayout", () => {
     );
     renderWithQuery(<AppLayout />);
     await screen.findByRole("link", { name: /Dashboard/i });
-    // The "hidden lg:flex" classes live on the wrapping <aside role="navigation">
-    // that AppShell renders around the desktop Sidebar.
-    const desktopSidebar = screen.getAllByRole("link", { name: /Dashboard/i })[0].closest('[role="navigation"]');
+    // The "hidden lg:flex" classes live on the <aside> AppShell renders
+    // around the desktop Sidebar, which itself renders its own inner
+    // <aside> (border, width) — so from a nav link, the closest <aside> is
+    // Sidebar's own, and AppShell's wrapper is that element's direct parent
+    // (landmarks now come from Sidebar's own <nav aria-label="Primary">,
+    // not an explicit role on either <aside>).
+    const innerSidebar = screen.getAllByRole("link", { name: /Dashboard/i })[0].closest("aside");
+    const desktopSidebar = innerSidebar?.parentElement;
     expect(desktopSidebar).toHaveClass("hidden");
   });
 
