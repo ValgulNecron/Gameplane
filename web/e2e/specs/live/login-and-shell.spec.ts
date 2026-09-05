@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loginIfNeeded } from "./_seed";
+import { LoginPage } from "../../pages/LoginPage";
 
 // Live: prove login flow and shell navigation work end-to-end on real backend.
 // Covers:
@@ -72,8 +73,8 @@ test.describe("live: login and shell", () => {
     const expectedLinks = ["Servers", "Modules", "Backups", "Cluster", "Users", "Audit log", "System logs", "Settings"];
     for (const link of expectedLinks) {
       const navLink = page.getByRole("link", { name: new RegExp(link, "i") }).first();
-      // Don't assert visibility here (mobile drawer might hide some), just check they exist
-      await expect(navLink).toBeDefined();
+      // Verify the nav link is visible
+      await expect(navLink).toBeVisible();
     }
   });
 
@@ -178,21 +179,43 @@ test.describe("live: login and shell", () => {
     await page.setViewportSize({ width: 1280, height: 720 });
   });
 
-  test("logout button redirects to login", async ({ page }) => {
-    await loginIfNeeded(page);
-    await page.goto("/");
+  test.describe("logout (isolated session)", () => {
+    // Use isolated storage state so logout doesn't invalidate the shared
+    // pre-authenticated session that globalSetup stores. Without isolation,
+    // every later spec's loginIfNeeded exhausts the per-IP login rate limit
+    // (burst 10, 5/min).
+    test.use({ storageState: { cookies: [], origins: [] } });
 
-    // Find logout button in sidebar footer. The button carries no
-    // aria-label — its accessible name falls back to its title
-    // attribute, "Sign out" (Sidebar.tsx), not "logout".
-    const logoutButton = page.getByRole("button", { name: /sign out/i }).first();
-    await expect(logoutButton).toBeVisible();
+    test("logout button redirects to login", async ({ page }) => {
+      // Perform an explicit login within this test (don't reuse shared session).
+      // Mirrors the form-based login from "login with admin credentials" test.
+      await page.goto("/login");
+      await page.waitForLoadState("domcontentloaded");
 
-    await logoutButton.click();
+      const login = new LoginPage(page);
+      const username =
+        process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
+      const password =
+        process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
 
-    // Should redirect to /login
-    await page.waitForURL(/\/login$/, { timeout: 5_000 });
-    expect(new URL(page.url()).pathname).toBe("/login");
+      await login.login(username, password);
+
+      // Verify login succeeded by waiting for redirect away from /login
+      await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
+
+      // Now we're logged in with this test's isolated session.
+      // Find and click the logout button in sidebar footer. The button carries no
+      // aria-label — its accessible name falls back to its title
+      // attribute, "Sign out" (Sidebar.tsx), not "logout".
+      const logoutButton = page.getByRole("button", { name: /sign out/i }).first();
+      await expect(logoutButton).toBeVisible();
+
+      await logoutButton.click();
+
+      // Should redirect to /login
+      await page.waitForURL(/\/login$/, { timeout: 5_000 });
+      expect(new URL(page.url()).pathname).toBe("/login");
+    });
   });
 
   test("unauthenticated access redirects to login", async ({ page }) => {
