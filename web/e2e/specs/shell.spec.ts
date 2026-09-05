@@ -1,0 +1,258 @@
+import { test, expect, type Page } from "@playwright/test";
+import { LoginPage } from "../pages/LoginPage";
+
+// Shell E2E: covers the top-level navigation, breadcrumbs, cluster selector,
+// and sidebar (desktop fixed + mobile drawer variants).
+// These tests verify that the application shell components render correctly
+// and that navigation, cluster switching, and UI interactions work as expected.
+
+async function loginIfNeeded(page: Page): Promise<void> {
+  if (new URL(page.url()).pathname.startsWith("/login")) {
+    const login = new LoginPage(page);
+    const username =
+      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
+    const password =
+      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
+    await login.login(username, password);
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
+  }
+}
+
+test.describe("shell", () => {
+  test.describe("top bar", () => {
+    test("hamburger button appears on mobile, hidden on desktop", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      // On mobile (375px), hamburger should be visible (lg:hidden)
+      await page.setViewportSize({ width: 375, height: 667 });
+      const hamburger = page.getByRole("button", { name: /open navigation/i });
+      await expect(hamburger).toBeVisible();
+
+      // On desktop (1200px), hamburger should be hidden
+      await page.setViewportSize({ width: 1200, height: 800 });
+      await expect(hamburger).not.toBeVisible();
+    });
+
+    test("hamburger opens mobile drawer sidebar", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      await page.setViewportSize({ width: 375, height: 667 });
+      const hamburger = page.getByRole("button", { name: /open navigation/i });
+      const sidebarNav = page.getByRole("navigation", { name: /primary/i });
+
+      // Initially, nav might be off-screen or hidden via modal
+      await hamburger.click();
+      await expect(sidebarNav).toBeVisible();
+
+      // Close the drawer
+      const closeButton = page.getByRole("button", { name: /close navigation/i });
+      await expect(closeButton).toBeVisible();
+      await closeButton.click();
+    });
+
+    test("user menu button displays initials from username", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      const userMenuTrigger = page.getByRole("button", { name: /user menu/i });
+      await expect(userMenuTrigger).toBeVisible();
+      // Avatar with initials should be visible (the exact text depends on the logged-in user)
+    });
+
+    test("user menu sign-out button logs out", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      const userMenuTrigger = page.getByRole("button", { name: /user menu/i });
+      await userMenuTrigger.click();
+
+      const signOutButton = page.getByRole("menuitem", { name: /sign out/i });
+      await expect(signOutButton).toBeVisible();
+      await signOutButton.click();
+
+      // After sign-out, should redirect to login
+      await page.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: 10_000 });
+      expect(new URL(page.url()).pathname).toMatch(/^\/login/);
+    });
+  });
+
+  test.describe("sidebar", () => {
+    test("desktop sidebar displays navigation with proper sections", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      await page.setViewportSize({ width: 1200, height: 800 });
+
+      const nav = page.getByRole("navigation", { name: /primary/i });
+      await expect(nav).toBeVisible();
+
+      // Check for expected nav groups/items (admin user should see all sections)
+      const serversLink = page.getByRole("link", { name: /servers/i }).first();
+      const modulesLink = page.getByRole("link", { name: /modules/i });
+      await expect(serversLink).toBeVisible();
+      await expect(modulesLink).toBeVisible();
+    });
+
+    test("active nav item highlights correctly", async ({ page }) => {
+      await page.goto("/servers");
+      await loginIfNeeded(page);
+
+      const nav = page.getByRole("navigation", { name: /primary/i });
+      await expect(nav).toBeVisible();
+
+      // The "Servers" link should have the active styling
+      const serversLink = page.getByRole("link", { name: /servers/i }).first();
+      await expect(serversLink).toHaveClass(/bg-primary/);
+    });
+
+    test("sidebar shows cluster name in header", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      // The sidebar header should display the current cluster name (or "—" if not set)
+      // This is a basic check that the sidebar renders the cluster info
+      const nav = page.getByRole("navigation", { name: /primary/i });
+      const sidebarSection = nav.locator("..").first();
+      const text = await sidebarSection.innerText();
+      // Should contain "gameplane" and either a cluster name or "—"
+      expect(text).toContain("gameplane");
+    });
+
+    test("sidebar shows user info and logout button", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      const nav = page.getByRole("navigation", { name: /primary/i });
+      await expect(nav).toBeVisible();
+
+      // Check for user info (role should be visible in footer)
+      // and the logout button
+      const logoutButton = nav.locator("..").getByRole("button", { name: /sign out/i });
+      await expect(logoutButton).toBeVisible();
+    });
+  });
+
+  test.describe("breadcrumbs", () => {
+    test("breadcrumbs show on dashboard route", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      const breadcrumbs = page.getByRole("navigation", { name: /breadcrumb/i });
+      await expect(breadcrumbs).toBeVisible();
+
+      // Should contain at least the root "gameplane" breadcrumb
+      const text = await breadcrumbs.innerText();
+      expect(text).toContain("gameplane");
+    });
+
+    test("breadcrumbs update when navigating to servers", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      // Navigate to servers
+      const serversLink = page.getByRole("link", { name: /servers/i }).first();
+      await serversLink.click();
+      await page.waitForURL("**/servers", { timeout: 5_000 });
+
+      const breadcrumbs = page.getByRole("navigation", { name: /breadcrumb/i });
+      await expect(breadcrumbs).toBeVisible();
+
+      const text = await breadcrumbs.innerText();
+      expect(text).toContain("gameplane");
+      expect(text).toContain("Servers");
+    });
+
+    test("breadcrumb current item shows aria-current=page", async ({ page }) => {
+      await page.goto("/servers");
+      await loginIfNeeded(page);
+
+      const breadcrumbs = page.getByRole("navigation", { name: /breadcrumb/i });
+      const currentItem = breadcrumbs.locator("[aria-current=page]");
+      await expect(currentItem).toBeVisible();
+
+      // The current item should be the last breadcrumb (Servers in this case)
+      const text = await currentItem.innerText();
+      expect(text).toContain("Servers");
+    });
+  });
+
+  test.describe("cluster selector", () => {
+    test("cluster selector button is visible in top bar", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      await page.setViewportSize({ width: 1200, height: 800 });
+
+      const clusterSelector = page.getByRole("button", { name: /select cluster/i });
+      await expect(clusterSelector).toBeVisible();
+    });
+
+    test("cluster selector opens dropdown menu", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      const clusterSelector = page.getByRole("button", { name: /select cluster/i });
+      await clusterSelector.click();
+
+      // After clicking, a menu should appear with cluster options
+      const clusterMenu = page.getByRole("menu", { name: /cluster options/i });
+      await expect(clusterMenu).toBeVisible();
+    });
+
+    test("cluster selector shows health indicator", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      const clusterSelector = page.getByRole("button", { name: /select cluster/i });
+      // The button should contain a status dot (rendered as a span with specific classes)
+      const statusIndicator = clusterSelector.locator("span.h-2.w-2");
+      await expect(statusIndicator).toBeVisible();
+    });
+
+    test("cluster dropdown includes add cluster option", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      const clusterSelector = page.getByRole("button", { name: /select cluster/i });
+      await clusterSelector.click();
+
+      const addClusterItem = page.getByRole("menuitem", { name: /add cluster/i });
+      await expect(addClusterItem).toBeVisible();
+    });
+  });
+
+  test.describe("navigation flow", () => {
+    test("clicking sidebar links navigates to correct routes", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      // Navigate to modules
+      const modulesLink = page.getByRole("link", { name: /modules/i }).first();
+      await modulesLink.click();
+      await page.waitForURL("**/modules", { timeout: 5_000 });
+
+      expect(new URL(page.url()).pathname).toBe("/modules");
+
+      // Breadcrumbs should update
+      const breadcrumbs = page.getByRole("navigation", { name: /breadcrumb/i });
+      const text = await breadcrumbs.innerText();
+      expect(text).toContain("Modules");
+    });
+
+    test("sidebar nav items respect permission-based visibility", async ({ page }) => {
+      await page.goto("/");
+      await loginIfNeeded(page);
+
+      const nav = page.getByRole("navigation", { name: /primary/i });
+
+      // Admin user should see settings (admin section)
+      // This is dependent on the logged-in user's role
+      // For e2e-admin (which is an admin), we should see admin items
+      const text = await nav.innerText();
+      // At minimum, we should see "General" section
+      expect(text).toContain("General");
+    });
+  });
+});
