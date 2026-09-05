@@ -196,8 +196,13 @@ test.describe("shell", () => {
       const clusterSelector = page.getByRole("button", { name: /select cluster/i });
       await clusterSelector.click();
 
-      // After clicking, a menu should appear with cluster options
-      const clusterMenu = page.getByRole("menu", { name: /cluster options/i });
+      // After clicking, a menu should appear. react-aria-components' Menu
+      // follows the WAI-ARIA menu-button pattern and derives its accessible
+      // name from the triggering button ("Select cluster") via an automatic
+      // aria-labelledby, which takes precedence over the DropdownMenu's own
+      // aria-label="Cluster options" in the accessible-name computation — so
+      // match the name the menu actually exposes.
+      const clusterMenu = page.getByRole("menu", { name: /select cluster/i });
       await expect(clusterMenu).toBeVisible();
     });
 
@@ -251,8 +256,11 @@ test.describe("shell", () => {
       // This is dependent on the logged-in user's role
       // For e2e-admin (which is an admin), we should see admin items
       const text = await nav.innerText();
-      // At minimum, we should see "General" section
-      expect(text).toContain("General");
+      // At minimum, we should see the "General" section. The section label is
+      // rendered with CSS `text-transform: uppercase` (source text stays
+      // "General" for a11y/i18n), and `innerText` reflects the rendered case,
+      // so match case-insensitively rather than the visual "GENERAL".
+      expect(text).toMatch(/general/i);
     });
   });
 });

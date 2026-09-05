@@ -162,10 +162,12 @@ export function Sidebar({
     return (
       <Drawer.Root isOpen={isOpen ?? false} onOpenChange={(open) => { if (!open) onClose?.(); }}>
         <Drawer.Backdrop />
-        <Drawer.Content placement="left" className="w-[280px] max-w-[85vw]">
-          <Drawer.Body className="p-0">
-            {sidebarContent}
-          </Drawer.Body>
+        <Drawer.Content placement="left">
+          <Drawer.Dialog className="w-[280px] max-w-[85vw] p-0">
+            <Drawer.Body className="p-0">
+              {sidebarContent}
+            </Drawer.Body>
+          </Drawer.Dialog>
         </Drawer.Content>
       </Drawer.Root>
     );
