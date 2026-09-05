@@ -115,19 +115,46 @@ test.describe("Slice 1: Shell + App (Desktop — 1440x900) @screenshots", () => 
 
   test("N13Xud: App — Loading State", async ({ page }) => {
     // Authenticated user, app is loading (queries pending, showing skeleton UI)
-    // This captures the AppShellSkeleton during the initial fetch phase
+    // This captures the AppShellSkeleton (AppLayout.tsx) that renders while
+    // useMe() -> GET /users/me is pending.
+    //
+    // MSW resolves /users/me fast enough that a bare navigation + short
+    // timeout races straight past the skeleton and into the loaded shell —
+    // `nav[aria-label="Primary"]` only exists in the *loaded* Sidebar
+    // (hero/Sidebar.tsx), never in AppShellSkeleton, so waiting on it was
+    // itself waiting for loading to finish. That made this screenshot
+    // pixel-identical to j24cXg (Dashboard — Admin View).
+    //
+    // Delay /users/me so the skeleton is actually on screen when we
+    // capture it. MSW's browser worker answers via a registered Service
+    // Worker, which Playwright's page.route()/CDP interception cannot see
+    // or delay (src/test/handlers.ts documents the same limitation for
+    // the 401 case and works around it with a cookie the handler itself
+    // reads). So the delay is injected in-page instead: wrap window.fetch
+    // before MSW's worker starts, and hold the already-resolved
+    // /users/me response for a beat before handing it back to the caller.
+    await page.addInitScript(() => {
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (/\/users\/me(\?|$)/.test(url)) {
+          return originalFetch(input, init).then(
+            (res) => new Promise<Response>((resolve) => setTimeout(() => resolve(res), 800)),
+          );
+        }
+        return originalFetch(input, init);
+      };
+    });
 
     // Navigate to the app
     await page.goto("/");
 
-    // Wait for the shell structure to render (sidebar and topbar visible)
-    // but don't wait for data queries to complete.
-    const sidebar = page.locator('nav[aria-label="Primary"]');
-    await expect(sidebar).toBeVisible({ timeout: 5000 });
-
-    // At this point the shell has rendered but may still be loading data.
-    // Capture before the dashboard content fully loads.
-    await page.waitForTimeout(100);
+    // Wait for the loading skeleton itself (AppShellSkeleton sets
+    // aria-busy="true" aria-label="Loading" on its root), not the
+    // post-load sidebar.
+    await expect(page.locator('[aria-busy="true"][aria-label="Loading"]')).toBeVisible({
+      timeout: 5000,
+    });
 
     // Capture the app loading state
     await capture(page, "N13Xud");

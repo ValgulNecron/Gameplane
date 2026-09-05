@@ -128,7 +128,7 @@ export function LoginPage() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="font-mono text-xs"
+                    className="font-mono text-xs text-accent hover:text-accent/80"
                     onPress={() => setForgot((v) => !v)}
                   >
                     Forgot?
@@ -169,7 +169,7 @@ export function LoginPage() {
                 <Alert
                   role="alert"
                   status="danger"
-                  className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+                  className="px-0 py-1 text-sm text-danger"
                 >
                   {err}
                 </Alert>

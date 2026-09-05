@@ -98,7 +98,7 @@ export function TopBar({
               color="default"
               aria-label="User menu"
             >
-              <Avatar.Fallback>{initials}</Avatar.Fallback>
+              <Avatar.Fallback className="bg-accent text-accent-foreground">{initials}</Avatar.Fallback>
             </Avatar>
           </DropdownTrigger>
           <DropdownPopover placement="bottom end">

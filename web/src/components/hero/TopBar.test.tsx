@@ -114,6 +114,25 @@ describe("TopBar", () => {
     expect(avatar).toBeInTheDocument();
   });
 
+  it("renders avatar fallback with accent background color", () => {
+    const { container } = renderWithQuery(
+      <TopBar
+        breadcrumbs={<div>Breadcrumbs</div>}
+        clusterSelector={<div>Cluster</div>}
+        search={<div>Search</div>}
+        notifications={<div>Notifications</div>}
+        user={mockUser}
+        onMenuClick={() => {}}
+      />
+    );
+
+    // Find the avatar fallback element (typically a span with initials)
+    const avatarFallback = container.querySelector("[class*='bg-accent']");
+    expect(avatarFallback).toBeInTheDocument();
+    expect(avatarFallback).toHaveClass("bg-accent");
+    expect(avatarFallback).toHaveClass("text-accent-foreground");
+  });
+
   it("renders user avatar with 'guest' when user is not provided", () => {
     renderWithQuery(
       <TopBar
