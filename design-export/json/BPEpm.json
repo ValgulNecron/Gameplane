@@ -1,1 +1,195 @@
-{"type":"frame","id":"BPEpm","x":-16881,"y":25506,"name":"Gameplane/Dropdown Menu","theme":{},"reusable":true,"width":220,"fill":"$surface/surface","cornerRadius":"$radius/md","stroke":"$border/border","strokeWidth":1,"strokeAlignment":"inner","effect":{"type":"shadow","shadowType":"outer","color":"#00000059","offset":{"x":0,"y":4},"blur":12,"spread":-2},"layout":"vertical","padding":4,"children":[{"type":"frame","id":"Cii7d","name":"Menu Item/Default","width":"fill_container","height":36,"cornerRadius":"$radius/2xl","gap":12,"padding":[6,8],"alignItems":"center","children":[{"type":"icon","id":"Cii7d/Sr2Q5","name":"menuIcon","width":16,"height":16,"icon":"copy","library":"lucide","fill":"$foreground/foreground"},{"type":"text","id":"Cii7d/Ra9NK","name":"Label","fill":"$foreground/foreground","content":"Clone server","fontFamily":"$typography/font-sans","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"NhChV","name":"Menu Item/Default","width":"fill_container","height":36,"cornerRadius":"$radius/2xl","gap":12,"padding":[6,8],"alignItems":"center","children":[{"type":"icon","id":"NhChV/Sr2Q5","name":"menuIcon","width":16,"height":16,"icon":"arrow-right-left","library":"lucide","fill":"$foreground/foreground"},{"type":"text","id":"NhChV/Ra9NK","name":"Label","fill":"$foreground/foreground","content":"Transfer ownership","fontFamily":"$typography/font-sans","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"V7Slhc","name":"Menu Item/Default","width":"fill_container","height":36,"cornerRadius":"$radius/2xl","gap":12,"padding":[6,8],"alignItems":"center","children":[{"type":"icon","id":"V7Slhc/Sr2Q5","name":"menuIcon","width":16,"height":16,"icon":"eraser","library":"lucide","fill":"$danger/danger"},{"type":"text","id":"V7Slhc/Ra9NK","name":"Label","fill":"$danger/danger","content":"Wipe world data","fontFamily":"$typography/font-sans","fontSize":14,"fontWeight":"normal"}]},{"type":"frame","id":"s5z5i","name":"Menu Divider","width":"fill_container","layout":"vertical","padding":[4,0],"justifyContent":"center","alignItems":"center","children":[{"type":"rectangle","id":"s5z5i/gxoCL","fill":"$separator/separator","width":"fill_container","height":1}]},{"type":"frame","id":"kdfaC","name":"Menu Item/Danger","width":"fill_container","height":36,"cornerRadius":"$radius/2xl","gap":12,"padding":[6,8],"alignItems":"center","children":[{"type":"icon","id":"kdfaC/wwl45","width":16,"height":16,"icon":"trash-2","library":"lucide","fill":"$danger/danger"},{"type":"text","id":"kdfaC/aJmcn","name":"Label","fill":"$danger/danger","content":"Delete server","fontFamily":"$typography/font-sans","fontSize":14,"fontWeight":"normal"}]}]}
+{
+  "type": "frame",
+  "id": "BPEpm",
+  "x": -16881,
+  "y": 25506,
+  "name": "Gameplane/Dropdown Menu",
+  "theme": {},
+  "reusable": true,
+  "width": 220,
+  "fill": "$surface/surface",
+  "cornerRadius": "$radius/md",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000059",
+    "offset": {
+      "x": 0,
+      "y": 4
+    },
+    "blur": 12,
+    "spread": -2
+  },
+  "layout": "vertical",
+  "padding": 4,
+  "children": [
+    {
+      "type": "frame",
+      "id": "Cii7d",
+      "name": "Menu Item/Default",
+      "width": "fill_container",
+      "height": 36,
+      "cornerRadius": "$radius/2xl",
+      "gap": 12,
+      "padding": [
+        6,
+        8
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "Cii7d/Sr2Q5",
+          "name": "menuIcon",
+          "width": 16,
+          "height": 16,
+          "icon": "copy",
+          "library": "lucide",
+          "fill": "$foreground/foreground"
+        },
+        {
+          "type": "text",
+          "id": "Cii7d/Ra9NK",
+          "name": "Label",
+          "fill": "$foreground/foreground",
+          "content": "Clone server",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "NhChV",
+      "name": "Menu Item/Default",
+      "width": "fill_container",
+      "height": 36,
+      "cornerRadius": "$radius/2xl",
+      "gap": 12,
+      "padding": [
+        6,
+        8
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "NhChV/Sr2Q5",
+          "name": "menuIcon",
+          "width": 16,
+          "height": 16,
+          "icon": "arrow-right-left",
+          "library": "lucide",
+          "fill": "$foreground/foreground"
+        },
+        {
+          "type": "text",
+          "id": "NhChV/Ra9NK",
+          "name": "Label",
+          "fill": "$foreground/foreground",
+          "content": "Transfer ownership",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "V7Slhc",
+      "name": "Menu Item/Default",
+      "width": "fill_container",
+      "height": 36,
+      "cornerRadius": "$radius/2xl",
+      "gap": 12,
+      "padding": [
+        6,
+        8
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "V7Slhc/Sr2Q5",
+          "name": "menuIcon",
+          "width": 16,
+          "height": 16,
+          "icon": "eraser",
+          "library": "lucide",
+          "fill": "$danger/danger"
+        },
+        {
+          "type": "text",
+          "id": "V7Slhc/Ra9NK",
+          "name": "Label",
+          "fill": "$danger/danger",
+          "content": "Wipe world data",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "s5z5i",
+      "name": "Menu Divider",
+      "width": "fill_container",
+      "layout": "vertical",
+      "padding": [
+        4,
+        0
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "rectangle",
+          "id": "s5z5i/gxoCL",
+          "fill": "$separator/separator",
+          "width": "fill_container",
+          "height": 1
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "kdfaC",
+      "name": "Menu Item/Danger",
+      "width": "fill_container",
+      "height": 36,
+      "cornerRadius": "$radius/2xl",
+      "gap": 12,
+      "padding": [
+        6,
+        8
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "kdfaC/wwl45",
+          "width": 16,
+          "height": 16,
+          "icon": "trash-2",
+          "library": "lucide",
+          "fill": "$danger/danger"
+        },
+        {
+          "type": "text",
+          "id": "kdfaC/aJmcn",
+          "name": "Label",
+          "fill": "$danger/danger",
+          "content": "Delete server",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    }
+  ]
+}

@@ -1,1 +1,324 @@
-{"type":"frame","id":"S4k0x","x":-15672,"y":25149,"name":"Gameplane/Server Detail Header","theme":{},"reusable":true,"width":1096,"fill":"$background/background","padding":[16,24],"justifyContent":"space_between","alignItems":"center","children":[{"type":"frame","id":"n3TKr","name":"srvLeft","gap":16,"alignItems":"center","children":[{"type":"frame","id":"wMMwe","name":"gameIcon","width":48,"height":48,"fill":"#5b9a3e33","cornerRadius":6,"justifyContent":"center","alignItems":"center","children":[{"type":"text","id":"Bwqml","name":"gameIconLabel","fill":"#5b9a3e","content":"MI","fontFamily":"$typography/font-mono","fontSize":16,"fontWeight":"700"}]},{"type":"frame","id":"ZArrg","name":"srvTitle","layout":"vertical","gap":6,"children":[{"type":"frame","id":"tjdOn","name":"srvNameRow","gap":10,"alignItems":"center","children":[{"type":"text","id":"tiIi2","name":"srvName","fill":"$foreground/foreground","content":"mc-survival","fontFamily":"$typography/font-mono","fontSize":24,"fontWeight":"600"},{"type":"frame","id":"B4q7Od","name":"statusBadge","height":20,"fill":"#21C45D33","cornerRadius":4,"gap":4,"padding":[0,8],"justifyContent":"center","alignItems":"center","children":[{"type":"frame","id":"B4q7Od/c:BFcCW","x":8,"y":8,"name":"icon-Star-2","enabled":false,"clip":true,"width":16,"height":16,"fill":{"type":"color","color":"#ffffffff","enabled":false},"layout":"none","children":[{"type":"path","id":"B4q7Od/c:sDzhI","x":1.8756510019302368,"y":1.89599609375,"name":"Vector 2134","geometry":"M9.187 0l-2.81 6.376-6.377 2.811 6.377 2.811 2.81 6.378 2.812-6.377 6.376-2.811-6.376-2.811-2.812-6.377z","width":12.25,"height":12.250665664672852,"stroke":"$success/soft-foreground","strokeWidth":1}]},{"type":"text","id":"B4q7Od/c:AWwyf","name":"Text","fill":"#21C45D","content":"Running","lineHeight":1.1428571428571428,"fontFamily":"$c:--font-primary","fontSize":12,"fontWeight":"normal"}]}]},{"type":"text","id":"UpnRk","name":"srvSubtitle","fill":"$muted","content":"minecraft-java · 1.21.4-fabric · ns: gameplane-games · up 3m","fontFamily":"$typography/font-sans","fontSize":12,"fontWeight":"normal"}]}]},{"type":"frame","id":"Gdnjm","name":"srvActions","gap":8,"alignItems":"center","children":[{"type":"frame","id":"GONKW","name":"Btn Restart","height":40,"cornerRadius":6,"stroke":"$border/border","strokeWidth":1,"strokeAlignment":"inner","gap":8,"padding":[10,16],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"j54TN","width":16,"height":16,"icon":"rotate-cw","library":"lucide","weight":400,"fill":"$foreground/foreground"},{"type":"text","id":"GONKW/c:7ZVG7","name":"Button","fill":"$foreground/foreground","content":"Restart","lineHeight":1.4285714285714286,"textAlign":"center","textAlignVertical":"middle","fontFamily":"$typography/font-sans","fontSize":14,"fontWeight":"500"}]},{"type":"frame","id":"B1gk9","name":"Btn Stop","height":40,"cornerRadius":6,"stroke":"$border/border","strokeWidth":1,"strokeAlignment":"inner","gap":8,"padding":[10,16],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"urmuG","width":16,"height":16,"icon":"square","library":"lucide","weight":400,"fill":"$foreground/foreground"},{"type":"text","id":"B1gk9/c:7ZVG7","name":"Button","fill":"$foreground/foreground","content":"Stop","lineHeight":1.4285714285714286,"textAlign":"center","textAlignVertical":"middle","fontFamily":"$typography/font-sans","fontSize":14,"fontWeight":"500"}]},{"type":"frame","id":"w9WHgh","name":"Btn Open Console","height":36,"fill":"$accent/accent","cornerRadius":6,"gap":8,"padding":[0,16],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"daPio","width":16,"height":16,"icon":"terminal","library":"lucide","weight":400,"fill":"#FFFFFF"},{"type":"text","id":"w9WHgh/c:q5Hn5","name":"Button","fill":"#FFFFFF","content":"Open console","lineHeight":1.4286,"textAlign":"center","textAlignVertical":"middle","fontFamily":"$typography/font-sans","fontSize":14,"fontWeight":"500"}]},{"type":"frame","id":"Spypf","name":"Btn More","width":36,"height":36,"cornerRadius":6,"stroke":"$border/border","strokeWidth":1,"strokeAlignment":"inner","gap":6,"padding":8,"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"yUjlB","width":20,"height":20,"icon":"ellipsis","library":"lucide","weight":400,"fill":"$foreground/foreground"},{"type":"text","id":"Spypf/c:7ZVG7","x":42,"y":10,"name":"Button","enabled":false,"fill":"$foreground/foreground","content":"Button","lineHeight":1.4285714285714286,"textAlign":"center","textAlignVertical":"middle","fontFamily":"$c:--font-primary","fontSize":14,"fontWeight":"500"}]}]}]}
+{
+  "type": "frame",
+  "id": "S4k0x",
+  "x": -15672,
+  "y": 25149,
+  "name": "Gameplane/Server Detail Header",
+  "theme": {},
+  "reusable": true,
+  "width": 1096,
+  "fill": "$background/background",
+  "padding": [
+    16,
+    24
+  ],
+  "justifyContent": "space_between",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "frame",
+      "id": "n3TKr",
+      "name": "srvLeft",
+      "gap": 16,
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "wMMwe",
+          "name": "gameIcon",
+          "width": 48,
+          "height": 48,
+          "fill": "#5b9a3e33",
+          "cornerRadius": 6,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "Bwqml",
+              "name": "gameIconLabel",
+              "fill": "#5b9a3e",
+              "content": "MI",
+              "fontFamily": "$typography/font-mono",
+              "fontSize": 16,
+              "fontWeight": "700"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ZArrg",
+          "name": "srvTitle",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "frame",
+              "id": "tjdOn",
+              "name": "srvNameRow",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "tiIi2",
+                  "name": "srvName",
+                  "fill": "$foreground/foreground",
+                  "content": "mc-survival",
+                  "fontFamily": "$typography/font-mono",
+                  "fontSize": 24,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "B4q7Od",
+                  "name": "statusBadge",
+                  "height": 20,
+                  "fill": "#21C45D33",
+                  "cornerRadius": 4,
+                  "gap": 4,
+                  "padding": [
+                    0,
+                    8
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "B4q7Od/c:BFcCW",
+                      "x": 8,
+                      "y": 8,
+                      "name": "icon-Star-2",
+                      "enabled": false,
+                      "clip": true,
+                      "width": 16,
+                      "height": 16,
+                      "fill": {
+                        "type": "color",
+                        "color": "#ffffffff",
+                        "enabled": false
+                      },
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "path",
+                          "id": "B4q7Od/c:sDzhI",
+                          "x": 1.8756510019302368,
+                          "y": 1.89599609375,
+                          "name": "Vector 2134",
+                          "geometry": "M9.187 0l-2.81 6.376-6.377 2.811 6.377 2.811 2.81 6.378 2.812-6.377 6.376-2.811-6.376-2.811-2.812-6.377z",
+                          "width": 12.25,
+                          "height": 12.250665664672852,
+                          "stroke": "$success/soft-foreground",
+                          "strokeWidth": 1
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "B4q7Od/c:AWwyf",
+                      "name": "Text",
+                      "fill": "#21C45D",
+                      "content": "Running",
+                      "lineHeight": 1.1428571428571428,
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "UpnRk",
+              "name": "srvSubtitle",
+              "fill": "$muted",
+              "content": "minecraft-java · 1.21.4-fabric · ns: gameplane-games · up 3m",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Gdnjm",
+      "name": "srvActions",
+      "gap": 8,
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "GONKW",
+          "name": "Btn Restart",
+          "height": 40,
+          "cornerRadius": 6,
+          "stroke": "$border/border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "gap": 8,
+          "padding": [
+            10,
+            16
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "j54TN",
+              "width": 16,
+              "height": 16,
+              "icon": "rotate-cw",
+              "library": "lucide",
+              "weight": 400,
+              "fill": "$foreground/foreground"
+            },
+            {
+              "type": "text",
+              "id": "GONKW/c:7ZVG7",
+              "name": "Button",
+              "fill": "$foreground/foreground",
+              "content": "Restart",
+              "lineHeight": 1.4285714285714286,
+              "textAlign": "center",
+              "textAlignVertical": "middle",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 14,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "B1gk9",
+          "name": "Btn Stop",
+          "height": 40,
+          "cornerRadius": 6,
+          "stroke": "$border/border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "gap": 8,
+          "padding": [
+            10,
+            16
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "urmuG",
+              "width": 16,
+              "height": 16,
+              "icon": "square",
+              "library": "lucide",
+              "weight": 400,
+              "fill": "$foreground/foreground"
+            },
+            {
+              "type": "text",
+              "id": "B1gk9/c:7ZVG7",
+              "name": "Button",
+              "fill": "$foreground/foreground",
+              "content": "Stop",
+              "lineHeight": 1.4285714285714286,
+              "textAlign": "center",
+              "textAlignVertical": "middle",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 14,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "w9WHgh",
+          "name": "Btn Open Console",
+          "height": 36,
+          "fill": "$accent/accent",
+          "cornerRadius": 6,
+          "gap": 8,
+          "padding": [
+            0,
+            16
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "daPio",
+              "width": 16,
+              "height": 16,
+              "icon": "terminal",
+              "library": "lucide",
+              "weight": 400,
+              "fill": "#FFFFFF"
+            },
+            {
+              "type": "text",
+              "id": "w9WHgh/c:q5Hn5",
+              "name": "Button",
+              "fill": "#FFFFFF",
+              "content": "Open console",
+              "lineHeight": 1.4286,
+              "textAlign": "center",
+              "textAlignVertical": "middle",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 14,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Spypf",
+          "name": "Btn More",
+          "width": 36,
+          "height": 36,
+          "cornerRadius": 6,
+          "stroke": "$border/border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "gap": 6,
+          "padding": 8,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "yUjlB",
+              "width": 20,
+              "height": 20,
+              "icon": "ellipsis",
+              "library": "lucide",
+              "weight": 400,
+              "fill": "$foreground/foreground"
+            },
+            {
+              "type": "text",
+              "id": "Spypf/c:7ZVG7",
+              "x": 42,
+              "y": 10,
+              "name": "Button",
+              "enabled": false,
+              "fill": "$foreground/foreground",
+              "content": "Button",
+              "lineHeight": 1.4285714285714286,
+              "textAlign": "center",
+              "textAlignVertical": "middle",
+              "fontFamily": "$c:--font-primary",
+              "fontSize": 14,
+              "fontWeight": "500"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

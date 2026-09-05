@@ -1,1 +1,56 @@
-{"type":"frame","id":"J09iP","x":-16661,"y":26107,"name":"Gameplane/Button/Small/Ghost","theme":{},"reusable":true,"height":32,"cornerRadius":"$radius/md","gap":8,"padding":[0,12],"justifyContent":"center","alignItems":"center","children":[{"type":"frame","id":"eWkIT","name":"Button/Ghost/SM","height":32,"cornerRadius":"$radius/3xl","gap":5,"padding":[8,"$spacing/3"],"justifyContent":"center","alignItems":"center","children":[{"type":"icon","id":"eWkIT/WtPjS","name":"i7","width":14,"height":14,"icon":"pencil","library":"lucide","fill":"$foreground/foreground"},{"type":"text","id":"eWkIT/r4VbAi","name":"Label","fill":"$foreground/foreground","content":"Button","fontFamily":"$typography/font-sans","fontSize":13,"fontWeight":"500"}]}]}
+{
+  "type": "frame",
+  "id": "J09iP",
+  "x": -16661,
+  "y": 26107,
+  "name": "Gameplane/Button/Small/Ghost",
+  "theme": {},
+  "reusable": true,
+  "height": 32,
+  "cornerRadius": "$radius/md",
+  "gap": 8,
+  "padding": [
+    0,
+    12
+  ],
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "frame",
+      "id": "eWkIT",
+      "name": "Button/Ghost/SM",
+      "height": 32,
+      "cornerRadius": "$radius/3xl",
+      "gap": 5,
+      "padding": [
+        8,
+        "$spacing/3"
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "eWkIT/WtPjS",
+          "name": "i7",
+          "width": 14,
+          "height": 14,
+          "icon": "pencil",
+          "library": "lucide",
+          "fill": "$foreground/foreground"
+        },
+        {
+          "type": "text",
+          "id": "eWkIT/r4VbAi",
+          "name": "Label",
+          "fill": "$foreground/foreground",
+          "content": "Button",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 13,
+          "fontWeight": "500"
+        }
+      ]
+    }
+  ]
+}
