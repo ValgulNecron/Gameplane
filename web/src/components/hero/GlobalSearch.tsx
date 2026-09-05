@@ -89,7 +89,7 @@ export function GlobalSearch(): JSX.Element {
   };
 
   return (
-    <div className="relative hidden w-72 md:block">
+    <div className="relative hidden w-[300px] md:block">
       <SearchFieldRoot
         aria-label="Search servers"
         value={q}

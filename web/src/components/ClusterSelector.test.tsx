@@ -44,6 +44,26 @@ describe("ClusterSelector", () => {
     expect(button).toHaveTextContent(/[Ll]ocal/);
   });
 
+  it("keeps the dropdown menu closed until the trigger is pressed", async () => {
+    const clusters: ClusterRegistry[] = [
+      { name: "local", displayName: "Local", phase: "Healthy" },
+      { name: "prod", displayName: "Production", phase: "Healthy" },
+    ];
+
+    server.use(
+      http.get("/clusters", () => HttpResponse.json({ items: clusters })),
+    );
+
+    renderWithQuery(<ClusterSelector />);
+
+    // Trigger renders, but the menu (and its items) must not be present
+    // until the trigger is actually pressed — regression guard for the menu
+    // rendering inline/permanently visible instead of inside a popover.
+    await screen.findByRole("button", { name: /select cluster/i });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByText("Production")).not.toBeInTheDocument();
+  });
+
   it("opens the dropdown and lists all clusters", async () => {
     const clusters: ClusterRegistry[] = [
       { name: "local", displayName: "Local", phase: "Healthy" },

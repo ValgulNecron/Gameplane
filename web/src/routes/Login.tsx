@@ -3,11 +3,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Archive,
-  Cpu,
-  Gauge,
+  Code,
+  HardDrive,
   KeyRound,
+  Network,
   ShieldCheck,
-  Terminal,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -166,7 +166,11 @@ export function LoginPage() {
               </div>
 
               {err && (
-                <Alert role="alert" status="danger">
+                <Alert
+                  role="alert"
+                  status="danger"
+                  className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+                >
                   {err}
                 </Alert>
               )}
@@ -219,27 +223,19 @@ export function LoginPage() {
             An open-source alternative to proprietary game panels — CRDs, Operators, and
             StatefulSets all the way down.
           </p>
-          <ul className="mt-10 space-y-4 text-sm">
-            <MarketingRow
-              icon={<Gauge className="h-4 w-4 text-primary" />}
-              title="Deploy any game"
-              body="Minecraft, Valheim, Factorio, Palworld, ARK, CS2, Terraria. Template-driven."
-            />
-            <MarketingRow
-              icon={<Cpu className="h-4 w-4 text-primary" />}
-              title="Scale with your cluster"
-              body="Single-node k3s or multi-node bare metal or cloud."
-            />
-            <MarketingRow
-              icon={<Archive className="h-4 w-4 text-primary" />}
-              title="Backups, auto-restart, rolling upgrades"
-              body="WAL, production-grade defaults out of the box."
-            />
-            <MarketingRow
-              icon={<Terminal className="h-4 w-4 text-primary" />}
-              title="GitOps-friendly"
-              body="kubectl get gameservers — just works."
-            />
+          <ul className="mt-10 space-y-4">
+            <MarketingRow icon={<HardDrive className="h-5 w-5" />}>
+              Deploy any game. Minecraft, Valheim, Factorio, Palworld, ARK, CS2, Terraria, and more.
+            </MarketingRow>
+            <MarketingRow icon={<Network className="h-5 w-5" />}>
+              Scale from single-node k3s to multi-node bare metal or cloud.
+            </MarketingRow>
+            <MarketingRow icon={<Archive className="h-5 w-5" />}>
+              Backups, auto-restart, rolling upgrades, RBAC. Production-grade defaults.
+            </MarketingRow>
+            <MarketingRow icon={<Code className="h-5 w-5" />}>
+              GitOps-friendly. <code className="text-xs">kubectl get gameservers</code> just works.
+            </MarketingRow>
           </ul>
         </div>
       </section>
@@ -270,16 +266,13 @@ function SSOButtons({ providers }: { providers: LoginProvider[] }) {
   );
 }
 
-function MarketingRow({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
+function MarketingRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
     <li className="flex gap-3">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent/20 text-accent">
         {icon}
       </div>
-      <div>
-        <div className="font-mono text-sm text-fg">{title}</div>
-        <div className="pt-0.5 text-xs text-muted">{body}</div>
-      </div>
+      <div className="font-mono text-sm text-fg">{children}</div>
     </li>
   );
 }

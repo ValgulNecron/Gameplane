@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   Dropdown,
   DropdownTrigger,
+  DropdownPopover,
   DropdownMenu,
   DropdownItem,
   DropdownSection,
@@ -75,54 +76,56 @@ export function ClusterSelector() {
         </>
       </DropdownTrigger>
 
-      <DropdownMenu aria-label="Cluster options" className="min-w-[200px]">
-        {isLoading || error ? (
-          <DropdownItem isDisabled>
-            <span className="text-sm text-muted">
-              {isLoading ? "Loading…" : "Error loading clusters"}
-            </span>
-          </DropdownItem>
-        ) : clusters.length === 0 ? (
-          <DropdownItem isDisabled>
-            <span className="text-sm text-muted">No clusters available</span>
-          </DropdownItem>
-        ) : (
-          <>
-            <DropdownSection>
-              {clusters.map((cluster) => (
+      <DropdownPopover placement="bottom start">
+        <DropdownMenu aria-label="Cluster options" className="min-w-[200px]">
+          {isLoading || error ? (
+            <DropdownItem isDisabled>
+              <span className="text-sm text-muted">
+                {isLoading ? "Loading…" : "Error loading clusters"}
+              </span>
+            </DropdownItem>
+          ) : clusters.length === 0 ? (
+            <DropdownItem isDisabled>
+              <span className="text-sm text-muted">No clusters available</span>
+            </DropdownItem>
+          ) : (
+            <>
+              <DropdownSection>
+                {clusters.map((cluster) => (
+                  <DropdownItem
+                    key={cluster.name}
+                    onPress={() => handleSelectCluster(cluster.name)}
+                    textValue={cluster.displayName || cluster.name}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="flex items-center gap-2 flex-1">
+                      <span
+                        className={cn("h-2 w-2 rounded-full", getPhaseColor(cluster.phase))}
+                      />
+                      <span>{cluster.displayName || cluster.name}</span>
+                    </div>
+                    {cluster.name === currentClusterId && (
+                      <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                    )}
+                  </DropdownItem>
+                ))}
+              </DropdownSection>
+
+              <DropdownSection>
                 <DropdownItem
-                  key={cluster.name}
-                  onPress={() => handleSelectCluster(cluster.name)}
-                  textValue={cluster.displayName || cluster.name}
+                  key="add-cluster"
+                  onPress={handleAddCluster}
+                  textValue="Add cluster"
                   className="flex items-center gap-2"
                 >
-                  <div className="flex items-center gap-2 flex-1">
-                    <span
-                      className={cn("h-2 w-2 rounded-full", getPhaseColor(cluster.phase))}
-                    />
-                    <span>{cluster.displayName || cluster.name}</span>
-                  </div>
-                  {cluster.name === currentClusterId && (
-                    <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                  )}
+                  <Plus className="h-3.5 w-3.5 text-muted shrink-0" />
+                  <span>Add cluster</span>
                 </DropdownItem>
-              ))}
-            </DropdownSection>
-
-            <DropdownSection>
-              <DropdownItem
-                key="add-cluster"
-                onPress={handleAddCluster}
-                textValue="Add cluster"
-                className="flex items-center gap-2"
-              >
-                <Plus className="h-3.5 w-3.5 text-muted shrink-0" />
-                <span>Add cluster</span>
-              </DropdownItem>
-            </DropdownSection>
-          </>
-        )}
-      </DropdownMenu>
+              </DropdownSection>
+            </>
+          )}
+        </DropdownMenu>
+      </DropdownPopover>
     </Dropdown>
   );
 }

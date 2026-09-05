@@ -568,6 +568,25 @@ export const handlers = [
 ];
 
 /**
+ * SSO-only dataset handlers — overrides just `/auth/providers` to report
+ * no local-login provider, so Login.tsx renders its SSO-only branch (no
+ * username/password form, just the provider button). MSW matches array
+ * order, so this override must precede the default `/auth/providers`
+ * handler. Served when localStorage.getItem("gameplane-e2e-dataset") ===
+ * "sso-only".
+ */
+export function buildSsoOnlyHandlers() {
+  return [
+    http.get("/auth/providers", () =>
+      HttpResponse.json({
+        providers: [{ kind: "oidc", label: "OIDC" }],
+      }),
+    ),
+    ...handlers,
+  ];
+}
+
+/**
  * Screenshot dataset handlers — a richer, more diverse set of test data
  * for demo/screenshot purposes. Reuses the existing handler functions and
  * factories so shapes stay in sync. Served when

@@ -78,39 +78,28 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
   });
 
   test("ljdA5: Login — SSO Only", async ({ page }) => {
-    // Mock the auth/providers endpoint to return SSO-only (no local auth)
-    // The local login form should be hidden, SSO button should be visible
-    await page.route("/auth/providers", (route) => {
-      route.abort("blockedbyClient");
-    });
-
-    await page.route("**/auth/providers", async (route) => {
-      await route.abort();
-    });
-
-    // Instead of modifying MSW mid-test, use a different approach:
-    // Set a query param or visit with a specific state that the app respects
-    // For now, we'll create a handler override by using page.on("request")
-    // Actually, in Playwright + MSW, we need the server to already know about this.
-    // The safest approach is to rely on MSW's setRequestHandler in the page context.
-
-    // Use a simpler approach: use page.addInitScript to set a flag
-    // that the app can check to modify the login UI
+    // Mock-mode MSW reads this flag (src/test/browser-msw.ts) and swaps in
+    // buildSsoOnlyHandlers(), which reports no local-login provider so
+    // Login.tsx renders its SSO-only branch (no username/password form).
     await page.addInitScript(() => {
-      // Mock a custom provider scenario in localStorage
       localStorage.setItem("gameplane-e2e-dataset", "sso-only");
     });
 
     await page.goto("/login");
     await page.waitForLoadState("domcontentloaded");
 
-    // In this scenario, only SSO buttons should be visible
-    // The username/password form is not visible (or hidden via CSS)
-    // For now, just capture the default login form state
-    // (full SSO-only variant handling requires app-level support for this flag)
+    // Wait for the SSO button to actually render before asserting/capturing —
+    // domcontentloaded fires before React mounts and MSW resolves the
+    // providers fetch, so screenshotting immediately after it races the
+    // paint and captures a blank/black frame.
+    const ssoButton = page.getByRole("button", { name: /continue with/i });
+    await expect(ssoButton).toBeVisible();
 
-    // Capture the SSO scenario (will show default login for now,
-    // updated once app supports sso-only mode via flag)
+    // The local login form must not render in this state.
+    await expect(page.getByRole("textbox", { name: /username/i })).toHaveCount(0);
+    await expect(page.locator('input[name="password"]')).toHaveCount(0);
+
+    // Capture the SSO-only scenario.
     await capture(page, "ljdA5");
     expect(true).toBe(true);
   });
@@ -128,20 +117,21 @@ test.describe("Slice 1: Shell + App (Desktop — 1440x900) @screenshots", () => 
     // Authenticated user, app is loading (queries pending, showing skeleton UI)
     // This captures the AppShellSkeleton during the initial fetch phase
 
-    // We need to slow down the queries so we can capture the loading state
-    // Add a delay to the /cluster endpoint to keep the loading state visible
-    await page.route("/cluster", async (route) => {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await route.abort();
-    });
-
+    // Navigate to the app
     await page.goto("/");
 
-    // Wait briefly to ensure loading state is visible
-    await page.waitForTimeout(500);
+    // Wait for the shell structure to render (sidebar and topbar visible)
+    // but don't wait for data queries to complete.
+    const sidebar = page.locator('nav[aria-label="Primary"]');
+    await expect(sidebar).toBeVisible({ timeout: 5000 });
 
-    // Capture the loading skeleton
+    // At this point the shell has rendered but may still be loading data.
+    // Capture before the dashboard content fully loads.
+    await page.waitForTimeout(100);
+
+    // Capture the app loading state
     await capture(page, "N13Xud");
+
     expect(true).toBe(true);
   });
 

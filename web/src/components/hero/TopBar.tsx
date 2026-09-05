@@ -5,6 +5,7 @@ import {
   Avatar,
   Dropdown,
   DropdownTrigger,
+  DropdownPopover,
   DropdownMenu,
   DropdownItem,
 } from "@heroui/react";
@@ -21,6 +22,8 @@ export interface TopBarProps {
   search: ReactNode;
   /** Notifications panel slot — typically <NotificationsPanel /> */
   notifications: ReactNode;
+  /** Current page title for mobile display (derived from last breadcrumb) */
+  mobileTitle?: string;
   /** Current user for display in the avatar menu */
   user?: User;
   /** Called when hamburger button is clicked (mobile navigation trigger) */
@@ -38,6 +41,7 @@ export function TopBar({
   clusterSelector,
   search,
   notifications,
+  mobileTitle,
   user,
   onMenuClick,
 }: TopBarProps): JSX.Element {
@@ -54,7 +58,7 @@ export function TopBar({
 
   return (
     <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-6">
-      {/* Left: hamburger + breadcrumbs */}
+      {/* Left: hamburger + breadcrumbs (desktop only) + mobile title (mobile only) */}
       <div className="flex min-w-0 items-center gap-2">
         <Button
           isIconOnly
@@ -62,18 +66,28 @@ export function TopBar({
           size="sm"
           aria-label="Open navigation"
           onClick={onMenuClick}
-          className="lg:hidden"
+          className="shrink-0 lg:hidden"
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <div className="min-w-0 text-sm text-muted">{breadcrumbs}</div>
+        {/* Mobile title — shown below lg breakpoint */}
+        {mobileTitle && (
+          <div className="min-w-0 font-mono text-base font-bold text-foreground lg:hidden">
+            {mobileTitle}
+          </div>
+        )}
+        {/* Desktop breadcrumbs — hidden below lg breakpoint */}
+        <div className="hidden min-w-0 text-sm text-muted lg:block">{breadcrumbs}</div>
       </div>
 
       {/* Right: cluster selector, search, notifications, user menu */}
       <div className="flex shrink-0 items-center gap-3">
-        {clusterSelector}
-        {search}
-        {notifications}
+        {/* Cluster selector — hidden below lg breakpoint */}
+        <div className="hidden lg:flex">{clusterSelector}</div>
+        {/* Search — hidden below lg breakpoint */}
+        <div className="hidden lg:flex">{search}</div>
+        {/* Notifications — hidden below lg breakpoint */}
+        <div className="hidden lg:flex">{notifications}</div>
 
         {/* User avatar dropdown menu */}
         <Dropdown>
@@ -87,21 +101,23 @@ export function TopBar({
               <Avatar.Fallback>{initials}</Avatar.Fallback>
             </Avatar>
           </DropdownTrigger>
-          <DropdownMenu disabledKeys={["profile"]} className="w-48">
-            <DropdownItem key="profile" className="py-2">
-              <div className="flex flex-col">
-                <span className="font-semibold text-foreground">{name}</span>
-                <span className="text-xs text-muted">{user?.role ?? "—"}</span>
-              </div>
-            </DropdownItem>
-            <DropdownItem
-              key="logout"
-              onClick={handleLogout}
-              className="text-danger"
-            >
-              Sign out
-            </DropdownItem>
-          </DropdownMenu>
+          <DropdownPopover placement="bottom end">
+            <DropdownMenu disabledKeys={["profile"]} className="w-48">
+              <DropdownItem key="profile" className="py-2">
+                <div className="flex flex-col">
+                  <span className="font-semibold text-foreground">{name}</span>
+                  <span className="text-xs text-muted">{user?.role ?? "—"}</span>
+                </div>
+              </DropdownItem>
+              <DropdownItem
+                key="logout"
+                onClick={handleLogout}
+                className="text-danger"
+              >
+                Sign out
+              </DropdownItem>
+            </DropdownMenu>
+          </DropdownPopover>
         </Dropdown>
       </div>
     </header>

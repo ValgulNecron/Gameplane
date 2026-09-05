@@ -142,6 +142,8 @@ export function AppLayout() {
   ];
 
   const crumbs = buildCrumbs(pathname);
+  // Extract the last breadcrumb label as the mobile title
+  const mobileTitle = crumbs.length > 0 ? crumbs[crumbs.length - 1].label : "";
 
   return (
     <>
@@ -163,6 +165,7 @@ export function AppLayout() {
             clusterSelector={<ClusterSelector />}
             search={<GlobalSearch />}
             notifications={<NotificationsPanel />}
+            mobileTitle={mobileTitle}
             user={me}
             onMenuClick={() => setDrawerOpen(true)}
           />

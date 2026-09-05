@@ -156,6 +156,29 @@ describe("LoginPage", () => {
     expect(screen.queryByRole("button", { name: /sign in/i })).not.toBeInTheDocument();
   });
 
+  it("renders the full SSO-only card (brand, heading, provider button, caption, right panel) with no username field", async () => {
+    providers = [{ name: "corp", kind: "oidc", label: "Acme SSO" }];
+    renderWithQuery(<LoginPage />);
+
+    // Brand + heading render regardless of provider mix.
+    expect(screen.getByText("gameplane")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /sign in/i })).toBeInTheDocument();
+
+    // The SSO provider button renders once the providers fetch resolves.
+    expect(
+      await screen.findByRole("button", { name: /Continue with Acme SSO/i }),
+    ).toBeInTheDocument();
+
+    // No local-login form in this state.
+    expect(screen.queryByLabelText(/email or username/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^password$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^sign in/i })).not.toBeInTheDocument();
+
+    // Footer caption and marketing right panel still render.
+    expect(screen.getByText("AGPL-3.0 licensed")).toBeInTheDocument();
+    expect(screen.getByText(/Kubernetes-native/)).toBeInTheDocument();
+  });
+
   it("keeps the password form when the providers fetch fails", async () => {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       if (String(url).includes("/auth/providers")) {
@@ -182,5 +205,14 @@ describe("LoginPage", () => {
     const { container } = renderWithQuery(<LoginPage />);
     expect(container.textContent).not.toMatch(/v\d+\.\d+\.\d+/);
     expect(container.textContent).not.toMatch(/alpha/i);
+  });
+
+  it("displays the correct marketing copy on the right panel", () => {
+    const { container } = renderWithQuery(<LoginPage />);
+    // Verify new marketing copy is present
+    expect(container.textContent).toContain("Deploy any game. Minecraft, Valheim, Factorio, Palworld, ARK, CS2, Terraria, and more.");
+    expect(container.textContent).toContain("Scale from single-node k3s to multi-node bare metal or cloud.");
+    expect(container.textContent).toContain("Backups, auto-restart, rolling upgrades, RBAC. Production-grade defaults.");
+    expect(container.textContent).toContain("kubectl get gameservers");
   });
 });
