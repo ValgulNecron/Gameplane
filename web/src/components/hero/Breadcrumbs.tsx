@@ -53,7 +53,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }): JSX.Element {
               key={crumb.to ?? crumb.label}
               href={crumb.to && !isLast ? crumb.to : undefined}
               aria-current={isLast ? "page" : undefined}
-              className="text-sm text-foreground hover:text-accent data-[current]:text-muted data-[current]:hover:text-muted"
+              className="text-sm text-muted hover:text-foreground data-[current]:text-foreground data-[current]:hover:text-foreground"
             >
               {crumb.label}
             </HeroBreadcrumbs.Item>
