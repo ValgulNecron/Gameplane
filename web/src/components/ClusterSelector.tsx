@@ -5,13 +5,13 @@ import { setCurrentCluster, useCurrentCluster } from "@/lib/cluster";
 import { Clusters } from "@/lib/endpoints";
 import type { ClusterRegistry } from "@/types";
 import { cn } from "@/lib/utils";
-import * as Menu from "@radix-ui/react-dropdown-menu";
 import {
+  Dropdown,
+  DropdownTrigger,
   DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+  DropdownItem,
+  DropdownSection,
+} from "@heroui/react";
 
 function getPhaseColor(phase: ClusterRegistry["phase"]): string {
   switch (phase) {
@@ -55,61 +55,70 @@ export function ClusterSelector() {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Dropdown>
+      <DropdownTrigger>
         <button
           type="button"
           aria-label="Select cluster"
           className={cn(
             "flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm",
-            "text-fg hover:bg-surface transition-colors",
+            "text-fg hover:bg-surface transition-colors cursor-pointer",
           )}
         >
           <span className={cn("h-2 w-2 rounded-full", phaseColor)} />
           <span className="truncate">{displayName}</span>
           <ChevronDown className="h-3.5 w-3.5 text-muted shrink-0" />
         </button>
-      </DropdownMenuTrigger>
+      </DropdownTrigger>
 
-      <DropdownMenuContent align="end" className="min-w-[200px]">
+      <DropdownMenu aria-label="Cluster options" className="min-w-[200px]">
         {isLoading || error ? (
-          <div className="px-2 py-1.5 text-sm text-muted">{isLoading ? "Loading…" : "Error loading clusters"}</div>
+          <DropdownItem isDisabled>
+            <span className="text-sm text-muted">
+              {isLoading ? "Loading…" : "Error loading clusters"}
+            </span>
+          </DropdownItem>
         ) : clusters.length === 0 ? (
-          <div className="px-2 py-1.5 text-sm text-muted">No clusters available</div>
+          <DropdownItem isDisabled>
+            <span className="text-sm text-muted">No clusters available</span>
+          </DropdownItem>
         ) : (
           <>
-            {clusters.map((cluster) => (
-              <Menu.Item
-                key={cluster.name}
-                onSelect={() => handleSelectCluster(cluster.name)}
-                className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-hidden",
-                  "text-fg data-[highlighted]:bg-surface/70",
-                )}
+            <DropdownSection>
+              {clusters.map((cluster) => (
+                <DropdownItem
+                  key={cluster.name}
+                  onPress={() => handleSelectCluster(cluster.name)}
+                  textValue={cluster.displayName || cluster.name}
+                  className="flex items-center gap-2"
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <span
+                      className={cn("h-2 w-2 rounded-full", getPhaseColor(cluster.phase))}
+                    />
+                    <span>{cluster.displayName || cluster.name}</span>
+                  </div>
+                  {cluster.name === currentClusterId && (
+                    <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                  )}
+                </DropdownItem>
+              ))}
+            </DropdownSection>
+
+            <DropdownSection>
+              <DropdownItem
+                key="add-cluster"
+                onPress={handleAddCluster}
+                textValue="Add cluster"
+                className="flex items-center gap-2"
               >
-                <span className={cn("h-2 w-2 rounded-full", getPhaseColor(cluster.phase))} />
-                <span className="flex-1 text-left">{cluster.displayName || cluster.name}</span>
-                {cluster.name === currentClusterId && (
-                  <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                )}
-              </Menu.Item>
-            ))}
-
-            <DropdownMenuSeparator />
-
-            <Menu.Item
-              onSelect={handleAddCluster}
-              className={cn(
-                "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-hidden",
-                "text-fg data-[highlighted]:bg-surface/70",
-              )}
-            >
-              <Plus className="h-3.5 w-3.5 text-muted shrink-0" />
-              <span>Add cluster</span>
-            </Menu.Item>
+                <Plus className="h-3.5 w-3.5 text-muted shrink-0" />
+                <span>Add cluster</span>
+              </DropdownItem>
+            </DropdownSection>
           </>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenu>
+    </Dropdown>
   );
 }

@@ -66,7 +66,7 @@ describe("LoginPage", () => {
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
     renderWithQuery(<LoginPage />, { client });
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "admin" } });
+    fireEvent.change(screen.getByLabelText(/email or username/i), { target: { value: "admin" } });
     // The show/hide toggle also carries "password" in its aria-label, so
     // scope the query to the input element.
     fireEvent.change(screen.getByLabelText(/password/i, { selector: "input" }), {
@@ -94,13 +94,14 @@ describe("LoginPage", () => {
   it("shows an error message on 401", async () => {
     loginResponse = () => new Response("nope", { status: 401 });
     renderWithQuery(<LoginPage />);
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "x" } });
+    fireEvent.change(screen.getByLabelText(/email or username/i), { target: { value: "x" } });
     fireEvent.change(screen.getByLabelText(/password/i, { selector: "input" }), {
       target: { value: "y" },
     });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
-    expect(await screen.findByText("Invalid credentials")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Invalid credentials");
     expect(assignMock).not.toHaveBeenCalled();
     expect(navigateMock).not.toHaveBeenCalled();
   });
@@ -151,7 +152,7 @@ describe("LoginPage", () => {
     providers = [{ name: "corp", kind: "oidc", label: "Acme SSO" }];
     renderWithQuery(<LoginPage />);
     await screen.findByRole("button", { name: /Continue with Acme SSO/i });
-    expect(screen.queryByLabelText(/username/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/email or username/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /sign in/i })).not.toBeInTheDocument();
   });
 

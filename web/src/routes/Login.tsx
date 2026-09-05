@@ -8,10 +8,14 @@ import {
   KeyRound,
   ShieldCheck,
   Terminal,
+  Eye,
+  EyeOff,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/ui/password-input";
+import {
+  Input,
+  Label,
+  InputGroup,
+} from "@heroui/react";
 import { APIError } from "@/lib/api";
 import { Auth } from "@/lib/endpoints";
 import type { LoginProvider } from "@/types";
@@ -26,6 +30,7 @@ export function LoginPage() {
   const [p, setP] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   // Enabled login methods, fetched pre-auth. null = not loaded (failed or
   // pending) — the password form stays visible then, so a failed/slow
   // fetch never blocks sign-in.
@@ -93,18 +98,19 @@ export function LoginPage() {
               }}
             >
               <div className="space-y-1.5">
-                <label htmlFor="username" className="block text-xs text-muted">
+                <Label htmlFor="username" className="text-xs text-muted">
                   Email or username
-                </label>
+                </Label>
                 <Input
                   id="username"
                   name="username"
-                  autoComplete="username"
-                  autoFocus
                   value={u}
                   onChange={(e) => setU(e.target.value)}
+                  autoFocus
+                  autoComplete="username"
                 />
               </div>
+
               <div className="space-y-1.5">
                 {/* The "Forgot?" control must sit OUTSIDE the <label>: a <label>
                     that wraps a second interactive element steals that element's
@@ -112,9 +118,9 @@ export function LoginPage() {
                     readers (and tests) resolve the label to the button, not the
                     password input. */}
                 <div className="flex items-center justify-between">
-                  <label htmlFor="password" className="block text-xs text-muted">
+                  <Label htmlFor="password" className="text-xs text-muted">
                     Password
-                  </label>
+                  </Label>
                   <button
                     type="button"
                     className="text-xs text-primary hover:underline"
@@ -123,29 +129,56 @@ export function LoginPage() {
                     Forgot?
                   </button>
                 </div>
-                <PasswordInput
-                  id="password"
-                  name="password"
-                  autoComplete="current-password"
-                  value={p}
-                  onChange={(e) => setP(e.target.value)}
-                />
+                <InputGroup>
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={p}
+                    onChange={(e) => setP(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="flex items-center justify-center px-2 text-muted hover:text-fg"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </InputGroup>
                 {forgot && (
                   <p className="text-xs text-muted">
                     Contact your administrator to reset your password.
                   </p>
                 )}
               </div>
-              {err && <p className="text-sm text-danger">{err}</p>}
-              <Button type="submit" className="w-full rounded-full" size="lg" disabled={busy}>
+
+              {err && (
+                <div role="alert" className="rounded-lg bg-danger/10 p-3 text-sm text-danger border border-danger/20">
+                  {err}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full rounded-lg bg-primary px-4 py-2 text-white font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
                 Sign in →
-              </Button>
+              </button>
+
               {sso.length > 0 && (
                 <div className="relative py-2 text-center text-[11px] uppercase tracking-widest text-muted">
                   <span className="relative z-10 bg-background px-2">or</span>
                   <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
                 </div>
               )}
+
               <SSOButtons providers={sso} />
             </form>
           ) : (
@@ -207,17 +240,15 @@ function SSOButtons({ providers }: { providers: LoginProvider[] }) {
   return (
     <>
       {providers.map((p) => (
-        <Button
+        <button
           key={p.name ?? p.label}
           type="button"
-          variant="outline"
-          className="w-full rounded-full"
-          size="lg"
+          className="w-full flex items-center justify-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-fg font-medium hover:bg-surface/50"
           onClick={() => location.assign(Auth.oidcStartURL(p.name))}
         >
           <KeyRound className="h-4 w-4" />
           Continue with {p.label}
-        </Button>
+        </button>
       ))}
     </>
   );
@@ -236,4 +267,3 @@ function MarketingRow({ icon, title, body }: { icon: ReactNode; title: string; b
     </li>
   );
 }
-
