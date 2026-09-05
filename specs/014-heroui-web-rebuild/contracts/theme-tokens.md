@@ -30,7 +30,7 @@ Binding for `web/src/styles/globals.css` and for the HeroUI variable values in `
 | `--segment` | `$segment/segment` | `#1D1B22` | `#FFFFFF` | segmented control backgrounds |
 | `--segment-foreground` | `$segment/foreground` | `#F5F3F7` | `#2A0F1E` | segmented control text |
 | `--radius` | `$radius/*` | 10 px base (HeroUI default), 6 px field (component-level) | same | design pass keeps HeroUI's radii per component |
-| fonts | `$typography/font-sans`, `font-mono` | Geist / JetBrains Mono | same | loaded as today from `index.html` |
+| fonts | `$typography/font-sans`, `font-mono` | Geist / JetBrains Mono | same | Pencil variables typography/font-sans = Geist and typography/font-mono = JetBrains Mono set on 2026-09-05; loaded from `index.html` |
 
 Soft variants (`-soft`, `-soft-foreground`) are now explicitly set above; all other HeroUI-derived variants use HeroUI's defaults unless a design mismatch requires an override.
 
@@ -69,4 +69,4 @@ All hex colors in the table above have been converted to OKLCH format (sRGB → 
 
 - A Vitest test in slice 0 renders a probe element and asserts the computed values of `--accent`, `--surface`, `--background`, `--foreground` in both `.dark` and `.light` equal the table above.
 - The design pass sets the same values on the HeroUI variables in `design.pen` (both semantic modes); the slice 0 export of `LtgNm` is the design-side evidence.
-- Five light-mode preview frames (jOo7y Login, Qqi8Q Dashboard Home, zFiOW Servers, sSISK Server Detail Overview, vvxCn Mobile Servers) show both light and dark modes side by side in `design.pen`, confirming the colour values across the brand refresh.
+- Five light-mode preview frames (gX7um Screen/Login (Light), oyoTs Screen/Dashboard Home (Light), zFiOW Screen/Servers (Light), sSISK Screen/Server Detail — Overview (Light), DWztv Screen/Mobile — Servers (Light)) show both light and dark modes side by side in `design.pen`, confirming the colour values across the brand refresh. Previews refreshed 2026-09-05 (final).
