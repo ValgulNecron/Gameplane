@@ -227,6 +227,28 @@ describe("Sidebar", () => {
   });
 
   describe("drawer variant", () => {
+    it("uses a distinct accessible name from the fixed sidebar's nav landmark", () => {
+      // The fixed sidebar (mounted separately by AppLayout, see
+      // AppLayout.tsx) also renders a `<nav aria-label="Primary">`. Both
+      // can be present in the accessibility tree at once whenever the
+      // drawer is open, so they must not share a name — otherwise a
+      // `getByRole("navigation", { name: "Primary" })` query becomes
+      // ambiguous (this broke a live e2e spec: login-and-shell.spec.ts).
+      render(
+        <Sidebar
+          variant="drawer"
+          isOpen={true}
+          onClose={vi.fn()}
+          navItems={generalNav}
+          user={mockUser}
+          onLogout={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole("navigation", { name: "Mobile navigation" })).toBeInTheDocument();
+      expect(screen.queryByRole("navigation", { name: "Primary" })).not.toBeInTheDocument();
+    });
+
     it("renders drawer content when isOpen is true", async () => {
       const onClose = vi.fn();
       render(

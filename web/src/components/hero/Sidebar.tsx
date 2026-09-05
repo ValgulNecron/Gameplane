@@ -87,7 +87,16 @@ export function Sidebar({
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-auto px-3 py-2 scrollbar-thin" aria-label="Primary">
+      {/* Distinct accessible names per variant: the fixed sidebar and the
+          mobile drawer both render this markup, and — unlike a raw CSS
+          attribute selector — an assistive tech's accessibility tree (and
+          Playwright's getByRole) can see both landmarks at once whenever
+          the drawer is open, so sharing one name would give two
+          indistinguishable "Primary" navigation landmarks. */}
+      <nav
+        className="flex-1 overflow-auto px-3 py-2 scrollbar-thin"
+        aria-label={variant === "drawer" ? "Mobile navigation" : "Primary"}
+      >
         {navItems.map((group) => (
           group.items.length > 0 && (
             <div key={group.label}>

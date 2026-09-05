@@ -204,8 +204,12 @@ test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
     const hamburger = page.getByRole("button", { name: /open navigation/i });
     await hamburger.click();
 
-    // Wait for the drawer to become visible
-    await expect(page.locator('nav[aria-label="Primary"]')).toBeVisible({ timeout: 2000 });
+    // Wait for the drawer to become visible. Its nav carries its own
+    // accessible name ("Mobile navigation"), distinct from the fixed
+    // sidebar's "Primary" (Sidebar.tsx) — a raw `nav[aria-label="Primary"]`
+    // selector would instead resolve to the fixed sidebar, which stays
+    // display:none (and therefore never visible) below the `lg` breakpoint.
+    await expect(page.locator('nav[aria-label="Mobile navigation"]')).toBeVisible({ timeout: 2000 });
 
     // Verify drawer is open and visible (look for the close button or nav items)
     await expect(page.getByRole("button", { name: /close navigation/i })).toBeVisible();

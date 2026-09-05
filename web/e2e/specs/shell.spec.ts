@@ -57,7 +57,11 @@ test.describe("shell", () => {
 
       await page.setViewportSize({ width: 375, height: 667 });
       const hamburger = page.getByRole("button", { name: /open navigation/i });
-      const sidebarNav = page.getByRole("navigation", { name: /primary/i });
+      // The drawer's nav carries its own accessible name ("Mobile
+      // navigation"), distinct from the fixed sidebar's "Primary" — see
+      // Sidebar.tsx — so this targets the drawer's own landmark rather
+      // than one that (before that split) ambiguously matched both.
+      const sidebarNav = page.getByRole("navigation", { name: /mobile navigation/i });
 
       // Initially, nav might be off-screen or hidden via modal
       await hamburger.click();

@@ -65,8 +65,12 @@ test.describe("live: login and shell", () => {
     await loginIfNeeded(page);
     await page.goto("/");
 
-    // Verify we're logged in (sidebar renders)
-    const sidebar = page.locator("nav[aria-label='Primary']");
+    // Verify we're logged in (sidebar renders). getByRole (unlike a raw
+    // CSS attribute locator) reads the accessibility tree, so a
+    // CSS-hidden landmark (e.g. the fixed sidebar's "hidden lg:flex"
+    // wrapper below lg) is excluded automatically instead of causing a
+    // strict-mode violation.
+    const sidebar = page.getByRole("navigation", { name: "Primary" });
     await expect(sidebar).toBeVisible();
 
     // Check for nav links (case-insensitive, partial match)
@@ -89,7 +93,11 @@ test.describe("live: login and shell", () => {
       { name: "Cluster", path: "/cluster" },
       { name: "Users", path: "/users" },
       { name: "Audit log", path: "/admin/audit" },
-      { name: "System logs", path: "/logs" },
+      // The "System logs" nav item links to /admin/logs (AppLayout.tsx),
+      // matching the API's admin-wildcard-gated /admin/system-logs route —
+      // not /logs. A prior version of this expected path was simply wrong,
+      // which made every waitForURL below it a guaranteed 15s timeout.
+      { name: "System logs", path: "/admin/logs" },
     ];
 
     for (const { name, path } of navigationTests) {
@@ -139,8 +147,14 @@ test.describe("live: login and shell", () => {
 
     await page.goto("/");
 
-    // At 390px, sidebar should be in drawer mode (hidden by default)
-    const sidebar = page.locator("nav[aria-label='Primary']");
+    // At 390px, sidebar should be in drawer mode (hidden by default).
+    // The drawer's nav carries its own accessible name ("Mobile
+    // navigation", distinct from the fixed sidebar's "Primary") so this
+    // assertion targets the drawer's landmark specifically, rather than a
+    // raw `nav[aria-label]` selector that (unlike getByRole) does not
+    // account for the fixed sidebar also being present, off-screen, in
+    // the DOM.
+    const sidebar = page.getByRole("navigation", { name: "Mobile navigation" });
     const drawer = page.locator("[role='dialog']"); // Drawer uses role=dialog
 
     // Drawer should be hidden or off-screen initially
