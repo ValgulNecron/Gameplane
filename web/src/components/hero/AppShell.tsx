@@ -17,9 +17,9 @@ export function AppShell({ sidebar, topBar, children }: AppShellProps) {
   return (
     <div className="flex h-screen w-full bg-background">
       {/* Sidebar — desktop only, fixed 260px wide */}
-      <aside className="hidden lg:flex lg:w-[260px] flex-col">
+      <div className="hidden lg:flex lg:w-[260px] flex-col" data-testid="app-shell-sidebar">
         {sidebar}
-      </aside>
+      </div>
 
       {/* Main content area — sidebar + topBar + children in a column */}
       <div className="flex flex-1 flex-col">

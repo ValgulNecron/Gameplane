@@ -91,7 +91,7 @@ export function Sidebar({
         {navItems.map((group) => (
           group.items.length > 0 && (
             <div key={group.label}>
-              <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted font-mono">
+              <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted">
                 {group.label}
               </div>
               <ul className="flex flex-col gap-0.5">
@@ -138,7 +138,7 @@ export function Sidebar({
             {(user?.displayName || user?.username || "G").slice(0, 2).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm text-fg font-mono">
+            <div className="truncate text-sm text-fg">
               {user?.displayName || user?.username || "guest"}
             </div>
             <div className="truncate text-[11px] text-muted">

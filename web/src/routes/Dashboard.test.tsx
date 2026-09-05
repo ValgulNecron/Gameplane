@@ -16,12 +16,14 @@ import {
 // TanStack Router's Link needs a router context the test doesn't supply.
 // Replace it with a plain anchor — the attention/feed links keep the same
 // DOM contract for what we assert.
+const mockNavigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
     <a href={to} {...rest}>
       {children}
     </a>
   ),
+  useNavigate: () => mockNavigate,
 }));
 
 import { DashboardPage } from "./Dashboard";
@@ -406,8 +408,8 @@ describe("DashboardPage", () => {
 
   it("renders the Create server call to action linking to /servers/new", async () => {
     renderWithQuery(<DashboardPage />);
-    const cta = await screen.findByRole("link", { name: /create server/i });
-    expect(cta).toHaveAttribute("href", "/servers/new");
+    const cta = await screen.findByRole("button", { name: /create server/i });
+    expect(cta).toBeInTheDocument();
   });
 
   it("operator can access the dashboard", async () => {

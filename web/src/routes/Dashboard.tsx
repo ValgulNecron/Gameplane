@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@heroui/react";
+import { Button, Card } from "@heroui/react";
 import {
   Activity,
   Archive,
@@ -47,6 +47,7 @@ import type {
 } from "@/types";
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { data: me } = useMe();
   const canAudit = can(me, "audit:read");
   const canCluster = can(me, "servers:write");
@@ -106,12 +107,13 @@ export function DashboardPage() {
         title="Dashboard"
         subtitle="At-a-glance health of your Gameplane cluster."
         actions={
-          <Link
-            to="/servers/new"
-            className="inline-flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-medium text-background transition hover:opacity-90"
+          <Button
+            variant="primary"
+            className="rounded-full"
+            onPress={() => void navigate({ to: "/servers/new" })}
           >
             <Plus className="h-4 w-4" /> Create server
-          </Link>
+          </Button>
         }
       />
 

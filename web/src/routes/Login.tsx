@@ -124,13 +124,15 @@ export function LoginPage() {
                   <Label htmlFor="password" className="font-mono text-xs text-muted">
                     Password
                   </Label>
-                  <button
+                  <Button
                     type="button"
-                    className="font-mono text-xs text-primary hover:underline"
-                    onClick={() => setForgot((v) => !v)}
+                    variant="ghost"
+                    size="sm"
+                    className="font-mono text-xs"
+                    onPress={() => setForgot((v) => !v)}
                   >
                     Forgot?
-                  </button>
+                  </Button>
                 </div>
                 <InputGroup>
                   <Input
@@ -141,18 +143,20 @@ export function LoginPage() {
                     onChange={(e) => setP(e.target.value)}
                     autoComplete="current-password"
                   />
-                  <button
+                  <Button
+                    isIconOnly
                     type="button"
-                    className="flex items-center justify-center px-2 text-muted hover:text-fg"
-                    onClick={() => setShowPassword(!showPassword)}
+                    variant="ghost"
+                    size="sm"
                     aria-label={showPassword ? "Hide password" : "Show password"}
+                    onPress={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
                     ) : (
                       <Eye className="h-4 w-4" />
                     )}
-                  </button>
+                  </Button>
                 </InputGroup>
                 {forgot && (
                   <p className="text-xs text-muted">
@@ -202,10 +206,13 @@ export function LoginPage() {
 
       <section className="hidden border-l border-border bg-surface/40 p-12 md:flex md:flex-col md:justify-center">
         <div className="max-w-md">
-          <div className="mb-2 font-mono text-[11px] uppercase tracking-widest text-muted">
-            AGPL-3.0
+          <div className="mb-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 font-mono text-[11px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              AGPL-3.0
+            </span>
           </div>
-          <h2 className="text-3xl font-semibold leading-tight">
+          <h2 className="text-3xl font-semibold leading-tight font-mono">
             Kubernetes-native<br />game server hosting.
           </h2>
           <p className="mt-4 text-sm text-muted">

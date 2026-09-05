@@ -426,14 +426,9 @@ describe("AppLayout", () => {
     );
     renderWithQuery(<AppLayout />);
     await screen.findByRole("link", { name: /Dashboard/i });
-    // The "hidden lg:flex" classes live on the <aside> AppShell renders
-    // around the desktop Sidebar, which itself renders its own inner
-    // <aside> (border, width) — so from a nav link, the closest <aside> is
-    // Sidebar's own, and AppShell's wrapper is that element's direct parent
-    // (landmarks now come from Sidebar's own <nav aria-label="Primary">,
-    // not an explicit role on either <aside>).
-    const innerSidebar = screen.getAllByRole("link", { name: /Dashboard/i })[0].closest("aside");
-    const desktopSidebar = innerSidebar?.parentElement;
+    // AppShell renders a wrapper div with data-testid="app-shell-sidebar"
+    // that holds the "hidden lg:flex" classes.
+    const desktopSidebar = screen.getByTestId("app-shell-sidebar");
     expect(desktopSidebar).toHaveClass("hidden");
   });
 

@@ -19,7 +19,7 @@ describe("AppShell", () => {
   });
 
   it("renders sidebar container (landmarks provided by Sidebar and TopBar)", () => {
-    const { container } = render(
+    render(
       <AppShell
         sidebar={<div>Nav Items</div>}
         topBar={<div>TopBar</div>}
@@ -28,9 +28,9 @@ describe("AppShell", () => {
       </AppShell>
     );
 
-    const aside = container.querySelector("aside");
-    expect(aside).toBeInTheDocument();
-    expect(aside).toHaveTextContent("Nav Items");
+    const sidebarWrapper = screen.getByTestId("app-shell-sidebar");
+    expect(sidebarWrapper).toBeInTheDocument();
+    expect(sidebarWrapper).toHaveTextContent("Nav Items");
   });
 
   it("renders main content area container", () => {
@@ -63,11 +63,11 @@ describe("AppShell", () => {
     expect(outerDiv).toBeInTheDocument();
 
     // Sidebar should have hidden on mobile, flex and fixed width on lg+
-    const aside = container.querySelector("aside");
-    expect(aside).toHaveClass("hidden", "lg:flex", "lg:w-[260px]");
+    const sidebarWrapper = screen.getByTestId("app-shell-sidebar");
+    expect(sidebarWrapper).toHaveClass("hidden", "lg:flex", "lg:w-[260px]");
 
     // Sidebar should have flex-col (border now handled by Sidebar component)
-    expect(aside).toHaveClass("flex-col");
+    expect(sidebarWrapper).toHaveClass("flex-col");
 
     // TopBar container should have fixed height h-16 (border handled by TopBar's header)
     const topBarWrapper = container.querySelector(".h-16");
