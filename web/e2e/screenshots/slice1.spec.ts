@@ -183,11 +183,19 @@ test.describe("Slice 1: Shell + App (Desktop — 1440x900) @screenshots", () => 
 });
 
 test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
-  // Mobile viewport for all tests in this describe block
+  // Mobile viewport for all tests in this describe block.
+  // reducedMotion: "reduce" plus the addStyleTag below (SeizD) belt-and-braces
+  // the drawer's enter transition — HeroUI's Drawer marks its dialog visible
+  // (and the close button focusable) the instant it mounts, well before the
+  // 250ms translate transition that slides it in from off-screen finishes.
+  // Without forcing the animation away, a screenshot taken right after the
+  // visibility assertions below captures the dialog mid-slide (observed at
+  // x≈-170px in a diagnostic run) instead of seated at x=0.
   test.use({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     colorScheme: "dark",
+    reducedMotion: "reduce",
   });
 
   test("tooKB: Servers — Mobile", async ({ page }) => {
@@ -219,6 +227,14 @@ test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
     await page.goto("/servers");
     await page.waitForLoadState("networkidle");
 
+    // Belt-and-braces on top of test.use({ reducedMotion: "reduce" }) above:
+    // force every transition/animation off directly, so the drawer's
+    // enter translate is a no-op regardless of how HeroUI's own
+    // prefers-reduced-motion media query is wired.
+    await page.addStyleTag({
+      content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+    });
+
     // Click the hamburger menu to open the drawer
     const hamburger = page.getByRole("button", { name: /open navigation/i });
     await hamburger.click();
@@ -232,6 +248,15 @@ test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
 
     // Verify drawer is open and visible (look for the close button or nav items)
     await expect(page.getByRole("button", { name: /close navigation/i })).toBeVisible();
+
+    // HeroUI's Drawer marks the dialog visible (and its close button
+    // focusable) the instant it mounts, before the 250ms enter transition
+    // that translates it from off-screen to x=0 has actually finished —
+    // so the visibility assertions above are not proof the drawer has
+    // finished sliding in. Poll the dialog's own bounding box and only
+    // capture once it is seated flush against the left edge.
+    const dialog = page.locator('[role="dialog"]');
+    await expect.poll(() => dialog.boundingBox().then((box) => box?.x)).toBe(0);
 
     // Capture the mobile drawer state
     await capture(page, "SeizD");
