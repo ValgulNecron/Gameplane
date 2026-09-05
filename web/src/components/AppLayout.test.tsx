@@ -7,11 +7,13 @@ import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeServer, makeUser } from "@/test/factories";
 
-// TanStack Router APIs the layout reaches into.
+// TanStack Router APIs the layout (and the hero/* components it composes)
+// reach into.
 const routerMocks = {
   useLocation: () => ({ pathname: "/" } as ReturnType<typeof import("@tanstack/react-router").useLocation>),
   useNavigate: () => vi.fn(),
 };
+const navigateMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
@@ -20,10 +22,20 @@ vi.mock("@tanstack/react-router", () => ({
   Outlet: () => <div data-testid="outlet">outlet</div>,
   useLocation: () => routerMocks.useLocation(),
   useMatches: () => [],
-  useNavigate: () => routerMocks.useNavigate(),
+  useNavigate: () => navigateMock,
 }));
 
 import { AppLayout } from "./AppLayout";
+
+// HeroUI's Breadcrumbs.Item always renders `role="link"` — even the
+// disabled, href-less current-page crumb (see Breadcrumbs.tsx) — so a
+// breadcrumb reading "Dashboard" (root path) or a route's own label (e.g.
+// "Servers") collides by accessible name with the matching sidebar nav
+// link. Scope queries to the sidebar's own `<nav aria-label="Primary">`
+// landmark wherever a query could ambiguously match both.
+function sidebarNav() {
+  return within(screen.getByRole("navigation", { name: "Primary" }));
+}
 
 describe("AppLayout", () => {
   it("renders the sidebar nav items shared by all roles", async () => {
@@ -33,13 +45,13 @@ describe("AppLayout", () => {
     );
     renderWithQuery(<AppLayout />);
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: /Dashboard/i })).toBeInTheDocument(),
+      expect(sidebarNav().getByRole("link", { name: /Dashboard/i })).toBeInTheDocument(),
     );
-    expect(screen.getByRole("link", { name: /Servers/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Modules/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Backups/i })).toBeInTheDocument();
+    expect(sidebarNav().getByRole("link", { name: /Servers/i })).toBeInTheDocument();
+    expect(sidebarNav().getByRole("link", { name: /Modules/i })).toBeInTheDocument();
+    expect(sidebarNav().getByRole("link", { name: /Backups/i })).toBeInTheDocument();
     // Viewer-restricted: /cluster, /users, /admin nav not rendered.
-    expect(screen.queryByRole("link", { name: /Audit log/i })).not.toBeInTheDocument();
+    expect(sidebarNav().queryByRole("link", { name: /Audit log/i })).not.toBeInTheDocument();
   });
 
   it("operator role unlocks the Cluster nav", async () => {
@@ -84,7 +96,7 @@ describe("AppLayout", () => {
     const menuBtn = await screen.findByRole("button", { name: /open navigation/i });
     await userEvent.click(menuBtn);
 
-    // The drawer is now open with its nav rendered. Desktop sidebar is aria-hidden.
+    // The drawer is now open with its nav rendered. Desktop sidebar is hidden below `lg`.
     const closeBtn = await screen.findByRole("button", { name: /close navigation/i });
     expect(screen.getByRole("link", { name: /Dashboard/i })).toBeInTheDocument();
 
@@ -103,7 +115,7 @@ describe("AppLayout", () => {
     );
   });
 
-  it("drawer closes when Escape is pressed (Radix Dialog default)", async () => {
+  it("drawer closes when Escape is pressed (HeroUI Drawer default)", async () => {
     renderWithQuery(<AppLayout />);
     const menuBtn = await screen.findByRole("button", { name: /open navigation/i });
     await userEvent.click(menuBtn);
@@ -111,7 +123,9 @@ describe("AppLayout", () => {
     // Drawer is open — close button is visible.
     await screen.findByRole("button", { name: /close navigation/i });
 
-    // Press Escape to close (Radix Dialog handles this automatically).
+    // Press Escape to close (HeroUI's Drawer, built on react-aria-components
+    // Modal, handles this automatically — same contract as the old Radix
+    // Dialog it replaces).
     await userEvent.keyboard("{Escape}");
 
     // Close button should be gone, drawer is closed.
@@ -120,7 +134,7 @@ describe("AppLayout", () => {
     );
   });
 
-  it("global search filters servers by name and links to detail", async () => {
+  it("global search filters servers by name and navigates to detail", async () => {
     server.use(
       http.get("/servers", () =>
         HttpResponse.json({
@@ -131,9 +145,14 @@ describe("AppLayout", () => {
     renderWithQuery(<AppLayout />);
     const search = await screen.findByLabelText(/search servers/i);
     await userEvent.type(search, "alph");
-    const link = await screen.findByRole("link", { name: /alpha/i });
-    expect(link).toHaveAttribute("href", "/servers/$name");
-    expect(screen.queryByText("beta")).not.toBeInTheDocument();
+    const result = await screen.findByTestId("search-result-alpha");
+    expect(result).toBeInTheDocument();
+    expect(screen.queryByTestId("search-result-beta")).not.toBeInTheDocument();
+
+    await userEvent.click(result);
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({ to: "/servers/$name", params: { name: "alpha" } }),
+    );
   });
 
   it("shows a shell skeleton while useMe is loading", async () => {
@@ -202,8 +221,14 @@ describe("AppLayout", () => {
       ),
     );
     renderWithQuery(<AppLayout />);
-    expect(await screen.findByText("operator")).toBeInTheDocument();
-    expect(screen.getByText("Alice")).toBeInTheDocument();
+    // "operator"/"Alice" also appear a second time in the TopBar's user-menu
+    // dropdown item, so scope to the sign-out button's own footer row (the
+    // fixed sidebar's profile footer — the only one mounted while the
+    // mobile drawer is closed) to keep the match unique.
+    const signOut = await screen.findByTitle("Sign out");
+    const footer = signOut.closest("div")!.parentElement!;
+    expect(await within(footer).findByText("operator")).toBeInTheDocument();
+    expect(within(footer).getByText("Alice")).toBeInTheDocument();
   });
 
   it("shows guest username when displayName is absent", async () => {
@@ -213,7 +238,9 @@ describe("AppLayout", () => {
       ),
     );
     renderWithQuery(<AppLayout />);
-    expect(await screen.findByText("bob")).toBeInTheDocument();
+    const signOut = await screen.findByTitle("Sign out");
+    const footer = signOut.closest("div")!.parentElement!;
+    expect(await within(footer).findByText("bob")).toBeInTheDocument();
   });
 
   it("renders avatar initials correctly", async () => {
@@ -226,14 +253,14 @@ describe("AppLayout", () => {
     // Initials should be "AL" (first 2 chars uppercase). The same initials
     // also render in the desktop sidebar's profile footer (present in the
     // DOM even though it's visually hidden below `lg`), so scope to the
-    // Topbar (the page's <header>, role "banner") to keep the match unique.
+    // TopBar (the page's <header>, role "banner") to keep the match unique.
     // AppShellSkeleton *also* renders a <header role="banner"> (with no
     // "AL" text inside) while useMe() is loading, so an unscoped
     // findByRole("banner") can resolve to that transient skeleton header
     // before real data arrives — within() on that since-unmounted node then
     // never finds "AL" and hangs. Wait for a loaded-only element (a real
     // nav link, which the skeleton never renders) first.
-    await screen.findByRole("link", { name: /Dashboard/i });
+    await waitFor(() => expect(sidebarNav().getByRole("link", { name: /Dashboard/i })).toBeInTheDocument());
     const header = screen.getByRole("banner");
     expect(within(header).getByText("AL")).toBeInTheDocument();
   });
@@ -253,30 +280,24 @@ describe("AppLayout", () => {
   });
 
   it("search navigates on Enter key with first match", async () => {
-    const originalLocation = window.location;
-    Object.defineProperty(window, "location", {
-      writable: true,
-      value: { ...originalLocation, assign: vi.fn() },
-    });
-    try {
-      server.use(
-        http.get("/servers", () =>
-          HttpResponse.json({
-            items: [
-              makeServer({ metadata: { name: "alpha" } }),
-              makeServer({ metadata: { name: "beta" } }),
-            ],
-          }),
-        ),
-      );
-      renderWithQuery(<AppLayout />);
-      const search = await screen.findByLabelText(/search servers/i);
-      await userEvent.type(search, "a");
-      await userEvent.keyboard("{Enter}");
-      expect(window.location.assign).toHaveBeenCalledWith("/servers/alpha");
-    } finally {
-      Object.defineProperty(window, "location", { value: originalLocation });
-    }
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "alpha" } }),
+            makeServer({ metadata: { name: "beta" } }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    const search = await screen.findByLabelText(/search servers/i);
+    await userEvent.type(search, "a");
+    await screen.findByTestId("search-result-alpha");
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({ to: "/servers/$name", params: { name: "alpha" } }),
+    );
   });
 
   it("search dropdown closes on blur", async () => {
@@ -293,12 +314,12 @@ describe("AppLayout", () => {
     // The matches dropdown only renders once a query is typed (empty query
     // shows nothing to blur-close), so type before looking for the match.
     await userEvent.type(search, "a");
-    const link = await screen.findByRole("link", { name: /alpha/i });
-    expect(link).toBeInTheDocument();
+    const result = await screen.findByTestId("search-result-alpha");
+    expect(result).toBeInTheDocument();
     // Blur closes dropdown after 120ms
     search.blur();
     await waitFor(
-      () => expect(screen.queryByRole("link", { name: /alpha/i })).not.toBeInTheDocument(),
+      () => expect(screen.queryByTestId("search-result-alpha")).not.toBeInTheDocument(),
       { timeout: 200 },
     );
   });
@@ -315,8 +336,8 @@ describe("AppLayout", () => {
     const search = await screen.findByLabelText(/search servers/i) as HTMLInputElement;
     await userEvent.type(search, "alpha");
     expect(search.value).toBe("alpha");
-    const link = await screen.findByRole("link", { name: /alpha/i });
-    await userEvent.click(link);
+    const result = await screen.findByTestId("search-result-alpha");
+    await userEvent.click(result);
     await waitFor(() => expect(search.value).toBe(""));
   });
 
@@ -331,11 +352,11 @@ describe("AppLayout", () => {
     renderWithQuery(<AppLayout />);
     const search = await screen.findByLabelText(/search servers/i);
     await userEvent.type(search, "a");
-    const link = await screen.findByRole("link", { name: /alpha/i });
-    expect(link).toBeInTheDocument();
+    const result = await screen.findByTestId("search-result-alpha");
+    expect(result).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
-      expect(screen.queryByRole("link", { name: /alpha/i })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("search-result-alpha")).not.toBeInTheDocument();
     });
   });
 
@@ -372,7 +393,7 @@ describe("AppLayout", () => {
         http.post("/auth/logout", () => new HttpResponse(null, { status: 204 })),
       );
       renderWithQuery(<AppLayout />);
-      await screen.findByRole("link", { name: /Dashboard/i });
+      await waitFor(() => expect(sidebarNav().getByRole("link", { name: /Dashboard/i })).toBeInTheDocument());
       const logoutBtn = screen.getByTitle("Sign out");
       await userEvent.click(logoutBtn);
       await waitFor(() => {
@@ -383,16 +404,19 @@ describe("AppLayout", () => {
     }
   });
 
-  it("sidebar nav item has active class when exact match", async () => {
+  it("sidebar nav item has active styling when exact match", async () => {
     routerMocks.useLocation = () => ({ pathname: "/servers" } as ReturnType<typeof import("@tanstack/react-router").useLocation>);
     server.use(
       http.get("/users/me", () => HttpResponse.json(makeUser())),
     );
     renderWithQuery(<AppLayout />);
-    // The /servers link should have active class (exact path match, but has sub-paths)
+    // The /servers link should carry the active-state class (Sidebar marks
+    // the active item with "text-primary" — HeroUI's rebuild no longer
+    // relies on TanStack Router's `activeProps`/`.active` class hook, since
+    // Sidebar now computes active state itself from useLocation()).
     await waitFor(() => {
-      const link = screen.getByRole("link", { name: /^Servers$/i });
-      expect(link.className).toContain("active");
+      const link = sidebarNav().getByRole("link", { name: /^Servers$/i });
+      expect(link.className).toContain("text-primary");
     });
   });
 
@@ -402,10 +426,10 @@ describe("AppLayout", () => {
     );
     renderWithQuery(<AppLayout />);
     await screen.findByRole("link", { name: /Dashboard/i });
-    // The "hidden lg:flex" classes live on the wrapping <div> around the
-    // desktop <aside>, not on the <aside> itself — assert on that ancestor.
-    const desktopSidebar = screen.getAllByRole("link", { name: /Dashboard/i })[0].closest("aside");
-    expect(desktopSidebar?.parentElement).toHaveClass("hidden");
+    // AppShell renders a wrapper div with data-testid="app-shell-sidebar"
+    // that holds the "hidden lg:flex" classes.
+    const desktopSidebar = screen.getByTestId("app-shell-sidebar");
+    expect(desktopSidebar).toHaveClass("hidden");
   });
 
   it("system logs nav only visible with * permission", async () => {
@@ -441,6 +465,25 @@ describe("AppLayout", () => {
       // The last breadcrumb (alpha) should be text, not a link
       const breadcrumbs = screen.getAllByText(/gameplane|Servers|alpha/);
       expect(breadcrumbs.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("appearance toggle switches theme and persists it", async () => {
+    localStorage.clear();
+    document.documentElement.classList.remove("dark", "light");
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser())),
+    );
+    renderWithQuery(<AppLayout />);
+    await screen.findByRole("link", { name: /Dashboard/i });
+
+    const darkBtn = screen.getAllByRole("button", { name: /^Dark$/i })[0];
+    await userEvent.click(darkBtn);
+
+    await waitFor(() => {
+      expect(document.documentElement.classList.contains("dark")).toBe(true);
+      expect(document.documentElement.dataset.theme).toBe("dark");
+      expect(localStorage.getItem("gameplane-theme")).toBe("dark");
     });
   });
 });

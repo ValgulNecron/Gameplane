@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "zzx8f",
-  "x": 1672,
-  "y": 27518,
+  "x": -15622,
+  "y": 25404,
   "name": "Gameplane/Error Card",
   "theme": {},
   "reusable": true,
@@ -17,16 +17,6 @@
   "padding": 20,
   "alignItems": "center",
   "children": [
-    {
-      "type": "icon",
-      "id": "QkxAg",
-      "name": "ErrorIcon",
-      "width": 16,
-      "height": 16,
-      "icon": "circle-alert",
-      "library": "lucide",
-      "fill": "$danger/danger"
-    },
     {
       "type": "text",
       "id": "V8If8W",

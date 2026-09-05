@@ -1,27 +1,58 @@
 {
-    "type": "frame",
-    "id": "IU7OG",
-    "x": 2052,
-    "y": 26846,
-    "name": "Gameplane/Button/Small/Danger",
-    "theme": {},
-    "reusable": true,
-    "height": 32,
-    "fill": "$danger/danger",
-    "cornerRadius": "$radius/md",
-    "gap": 8,
-    "padding": [
-        0,
-        12
-    ],
-    "justifyContent": "center",
-    "alignItems": "center",
-    "children": [
+  "type": "frame",
+  "id": "IU7OG",
+  "x": -16661,
+  "y": 26203,
+  "name": "Gameplane/Button/Small/Danger",
+  "theme": {},
+  "reusable": true,
+  "height": 32,
+  "fill": "$danger/danger",
+  "cornerRadius": "$radius/md",
+  "gap": 8,
+  "padding": [
+    0,
+    12
+  ],
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "frame",
+      "id": "E4lQce",
+      "name": "Button/Danger/SM",
+      "height": 32,
+      "fill": "$danger/danger",
+      "cornerRadius": "$radius/3xl",
+      "gap": 5,
+      "padding": [
+        8,
+        "$spacing/3"
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
         {
-            "id": "E4lQce",
-            "type": "ref",
-            "ref": "rDRDV",
-            "name": "Button/Danger/SM"
+          "type": "icon",
+          "id": "E4lQce/gsuz1",
+          "name": "i1",
+          "width": 14,
+          "height": 14,
+          "icon": "trash-2",
+          "library": "lucide",
+          "fill": "$danger/foreground"
+        },
+        {
+          "type": "text",
+          "id": "E4lQce/IUtnC",
+          "name": "Label",
+          "fill": "$danger/foreground",
+          "content": "Delete",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 13,
+          "fontWeight": "500"
         }
-    ]
+      ]
+    }
+  ]
 }

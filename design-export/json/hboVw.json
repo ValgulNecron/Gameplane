@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "hboVw",
-  "x": 420,
-  "y": 26409,
+  "x": -16485,
+  "y": 25462,
   "name": "Gameplane/Notifications Panel",
   "theme": {},
   "reusable": true,
@@ -47,7 +47,7 @@
           "id": "k7Sfk",
           "fill": "$muted",
           "content": "Recent activity",
-          "fontFamily": "$c:--font-secondary",
+          "fontFamily": "$typography/font-sans",
           "fontSize": 12,
           "fontWeight": "500"
         }
@@ -55,7 +55,7 @@
     },
     {
       "type": "frame",
-      "id": "bHDiZ",
+      "id": "eQWvo",
       "name": "npRow1",
       "width": "fill_container",
       "gap": 8,
@@ -68,19 +68,19 @@
       "children": [
         {
           "type": "text",
-          "id": "Ev4gK",
+          "id": "MVgc5",
           "fill": "$foreground/foreground",
           "content": "modified gameserver mc-survival",
-          "fontFamily": "$c:--font-primary",
+          "fontFamily": "$typography/font-mono",
           "fontSize": 12,
           "fontWeight": "normal"
         },
         {
           "type": "text",
-          "id": "pYM85",
+          "id": "H7hC3",
           "fill": "$muted",
           "content": "14:41:09",
-          "fontFamily": "$c:--font-secondary",
+          "fontFamily": "$typography/font-sans",
           "fontSize": 10,
           "fontWeight": "normal"
         }
@@ -88,7 +88,7 @@
     },
     {
       "type": "frame",
-      "id": "mTpu5",
+      "id": "WBstP",
       "name": "npRow2",
       "width": "fill_container",
       "gap": 8,
@@ -101,19 +101,19 @@
       "children": [
         {
           "type": "text",
-          "id": "S7mP44",
+          "id": "iJMjf",
           "fill": "$foreground/foreground",
           "content": "added backup mc-survival-0713",
-          "fontFamily": "$c:--font-primary",
+          "fontFamily": "$typography/font-mono",
           "fontSize": 12,
           "fontWeight": "normal"
         },
         {
           "type": "text",
-          "id": "M76KU8",
+          "id": "UfWCL",
           "fill": "$muted",
           "content": "14:40:52",
-          "fontFamily": "$c:--font-secondary",
+          "fontFamily": "$typography/font-sans",
           "fontSize": 10,
           "fontWeight": "normal"
         }
@@ -121,7 +121,7 @@
     },
     {
       "type": "frame",
-      "id": "dtrHx",
+      "id": "Q5STPi",
       "name": "npRow3",
       "width": "fill_container",
       "gap": 8,
@@ -134,19 +134,19 @@
       "children": [
         {
           "type": "text",
-          "id": "enAer",
+          "id": "gaIv2",
           "fill": "$foreground/foreground",
           "content": "deleted module terraria",
-          "fontFamily": "$c:--font-primary",
+          "fontFamily": "$typography/font-mono",
           "fontSize": 12,
           "fontWeight": "normal"
         },
         {
           "type": "text",
-          "id": "LBasf",
+          "id": "dbGQl",
           "fill": "$muted",
           "content": "14:38:02",
-          "fontFamily": "$c:--font-secondary",
+          "fontFamily": "$typography/font-sans",
           "fontSize": 10,
           "fontWeight": "normal"
         }

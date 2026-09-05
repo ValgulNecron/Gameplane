@@ -3,15 +3,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Archive,
-  Cpu,
-  Gauge,
+  Code,
+  HardDrive,
   KeyRound,
+  Network,
   ShieldCheck,
-  Terminal,
+  Eye,
+  EyeOff,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/ui/password-input";
+import {
+  Input,
+  Label,
+  InputGroup,
+  Button,
+  Alert,
+  Spinner,
+} from "@heroui/react";
 import { APIError } from "@/lib/api";
 import { Auth } from "@/lib/endpoints";
 import type { LoginProvider } from "@/types";
@@ -26,6 +33,7 @@ export function LoginPage() {
   const [p, setP] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   // Enabled login methods, fetched pre-auth. null = not loaded (failed or
   // pending) — the password form stays visible then, so a failed/slow
   // fetch never blocks sign-in.
@@ -68,7 +76,7 @@ export function LoginPage() {
           </div>
 
           <div className="mb-6">
-            <h1 className="text-2xl font-semibold">Sign in</h1>
+            <h1 className="font-mono text-2xl font-semibold">Sign in</h1>
             <p className="pt-1 text-sm text-muted">Welcome to Gameplane.</p>
           </div>
 
@@ -93,18 +101,19 @@ export function LoginPage() {
               }}
             >
               <div className="space-y-1.5">
-                <label htmlFor="username" className="block text-xs text-muted">
+                <Label htmlFor="username" className="font-mono text-xs text-muted">
                   Email or username
-                </label>
+                </Label>
                 <Input
                   id="username"
                   name="username"
-                  autoComplete="username"
-                  autoFocus
                   value={u}
                   onChange={(e) => setU(e.target.value)}
+                  autoFocus
+                  autoComplete="username"
                 />
               </div>
+
               <div className="space-y-1.5">
                 {/* The "Forgot?" control must sit OUTSIDE the <label>: a <label>
                     that wraps a second interactive element steals that element's
@@ -112,40 +121,79 @@ export function LoginPage() {
                     readers (and tests) resolve the label to the button, not the
                     password input. */}
                 <div className="flex items-center justify-between">
-                  <label htmlFor="password" className="block text-xs text-muted">
+                  <Label htmlFor="password" className="font-mono text-xs text-muted">
                     Password
-                  </label>
-                  <button
+                  </Label>
+                  <Button
                     type="button"
-                    className="text-xs text-primary hover:underline"
-                    onClick={() => setForgot((v) => !v)}
+                    variant="ghost"
+                    size="sm"
+                    className="font-mono text-xs text-accent hover:text-accent/80"
+                    onPress={() => setForgot((v) => !v)}
                   >
                     Forgot?
-                  </button>
+                  </Button>
                 </div>
-                <PasswordInput
-                  id="password"
-                  name="password"
-                  autoComplete="current-password"
-                  value={p}
-                  onChange={(e) => setP(e.target.value)}
-                />
+                <InputGroup>
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={p}
+                    onChange={(e) => setP(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                  <Button
+                    isIconOnly
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </InputGroup>
                 {forgot && (
                   <p className="text-xs text-muted">
                     Contact your administrator to reset your password.
                   </p>
                 )}
               </div>
-              {err && <p className="text-sm text-danger">{err}</p>}
-              <Button type="submit" className="w-full rounded-full" size="lg" disabled={busy}>
+
+              {err && (
+                <Alert
+                  role="alert"
+                  status="danger"
+                  className="px-0 py-1 text-sm text-danger"
+                >
+                  {err}
+                </Alert>
+              )}
+
+              <Button
+                type="submit"
+                isDisabled={busy}
+                variant="primary"
+                size="lg"
+                fullWidth
+                className="rounded-full font-mono"
+              >
+                {busy && <Spinner size="sm" color="current" className="mr-2" />}
                 Sign in →
               </Button>
+
               {sso.length > 0 && (
                 <div className="relative py-2 text-center text-[11px] uppercase tracking-widest text-muted">
                   <span className="relative z-10 bg-background px-2">or</span>
                   <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
                 </div>
               )}
+
               <SSOButtons providers={sso} />
             </form>
           ) : (
@@ -162,37 +210,32 @@ export function LoginPage() {
 
       <section className="hidden border-l border-border bg-surface/40 p-12 md:flex md:flex-col md:justify-center">
         <div className="max-w-md">
-          <div className="mb-2 text-[11px] uppercase tracking-widest text-muted">
-            AGPL-3.0
+          <div className="mb-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 font-mono text-[11px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              AGPL-3.0
+            </span>
           </div>
-          <h2 className="text-3xl font-semibold leading-tight">
+          <h2 className="text-3xl font-semibold leading-tight font-mono">
             Kubernetes-native<br />game server hosting.
           </h2>
           <p className="mt-4 text-sm text-muted">
             An open-source alternative to proprietary game panels — CRDs, Operators, and
             StatefulSets all the way down.
           </p>
-          <ul className="mt-10 space-y-4 text-sm">
-            <MarketingRow
-              icon={<Gauge className="h-4 w-4 text-primary" />}
-              title="Deploy any game"
-              body="Minecraft, Valheim, Factorio, Palworld, ARK, CS2, Terraria. Template-driven."
-            />
-            <MarketingRow
-              icon={<Cpu className="h-4 w-4 text-primary" />}
-              title="Scale with your cluster"
-              body="Single-node k3s or multi-node bare metal or cloud."
-            />
-            <MarketingRow
-              icon={<Archive className="h-4 w-4 text-primary" />}
-              title="Backups, auto-restart, rolling upgrades"
-              body="WAL, production-grade defaults out of the box."
-            />
-            <MarketingRow
-              icon={<Terminal className="h-4 w-4 text-primary" />}
-              title="GitOps-friendly"
-              body="kubectl get gameservers — just works."
-            />
+          <ul className="mt-10 space-y-4">
+            <MarketingRow icon={<HardDrive className="h-5 w-5" />}>
+              Deploy any game. Minecraft, Valheim, Factorio, Palworld, ARK, CS2, Terraria, and more.
+            </MarketingRow>
+            <MarketingRow icon={<Network className="h-5 w-5" />}>
+              Scale from single-node k3s to multi-node bare metal or cloud.
+            </MarketingRow>
+            <MarketingRow icon={<Archive className="h-5 w-5" />}>
+              Backups, auto-restart, rolling upgrades, RBAC. Production-grade defaults.
+            </MarketingRow>
+            <MarketingRow icon={<Code className="h-5 w-5" />}>
+              GitOps-friendly. <code className="text-xs">kubectl get gameservers</code> just works.
+            </MarketingRow>
           </ul>
         </div>
       </section>
@@ -211,8 +254,8 @@ function SSOButtons({ providers }: { providers: LoginProvider[] }) {
           key={p.name ?? p.label}
           type="button"
           variant="outline"
-          className="w-full rounded-full"
-          size="lg"
+          fullWidth
+          className="font-mono"
           onClick={() => location.assign(Auth.oidcStartURL(p.name))}
         >
           <KeyRound className="h-4 w-4" />
@@ -223,17 +266,13 @@ function SSOButtons({ providers }: { providers: LoginProvider[] }) {
   );
 }
 
-function MarketingRow({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
+function MarketingRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
     <li className="flex gap-3">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent/20 text-accent">
         {icon}
       </div>
-      <div>
-        <div className="text-sm text-fg">{title}</div>
-        <div className="pt-0.5 text-xs text-muted">{body}</div>
-      </div>
+      <div className="font-mono text-sm text-fg">{children}</div>
     </li>
   );
 }
-

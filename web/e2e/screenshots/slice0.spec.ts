@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "path";
+import { fileURLToPath } from "node:url";
 
 // Slice 0 Foundation: Screenshot verification tests for HeroUI component library atoms
 // These are placeholder tests for the design export comparison workflow.
@@ -19,7 +20,8 @@ test.use({
  * @param id The design frame id for naming the screenshot
  */
 async function capture(page: Page, id: string): Promise<void> {
-  const screenshotPath = path.join(__dirname, `${id}.png`);
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const screenshotPath = path.join(here, `${id}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
 }
 

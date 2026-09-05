@@ -280,7 +280,7 @@ Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 2
 | `WwNlX` | Gameplane/Confirm Dialog | Composition | AlertDialog (danger style) for destructive action confirmation. |
 | `BPEpm` | Gameplane/Dropdown Menu | Composition | Dropdown + Menu composition with item groups and dividers. |
 | `FyV6E` | Gameplane/Filter Popover | Composition | Popover + form controls for server-list phase/template/namespace filters. |
-| `w4ntSc` | Gameplane/Loading Card | Composition | Card with Spinner shown during async data loads. |
+| `w4ntSc` | Gameplane/Loading Card | Composition | Card with text-only loading message shown during async data loads. |
 | `zzx8f` | Gameplane/Error Card | Composition | Alert (danger) + Card composition for failed-load states. |
 | `igj2U` | Gameplane/Error Banner | Composition | Alert (danger) for inline error messages (failed save, provisioning failure). |
 
@@ -305,3 +305,55 @@ These 25 components constitute the Phase 2 Foundation (Slice 0, second half) ato
 **Unchanged:** lunaris library component exports (`c_*.json` / `c:*.png`) — the library definitions are read-only and were not edited.
 
 **Method:** `Get(id, {depth: 12, includePathGeometry: true})` (LtgNm at depth 14) written verbatim to `json/<id>.json`; `export_nodes` PNG at 2x to `screenshots/<id>.png`; every json parses, top-level id matches the filename, no `"..."` elision strings beyond genuine text content.
+
+## Incremental export 2026-09-04/2026-09-05 — Slice 1 design wave (Feature 014)
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 1 (Shell + login) design wave completed. Phase 2 Foundation atoms (24 components, T016) were exported 2026-09-04; Slice 1 screens and shell compositions were redrawn, repaired, and re-exported 2026-09-05 after resolving HeroUI primitives and repairing interim preview copies.
+
+**Screens exported (7):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `N1GkB` | Screen/Login — Default | Redrawn from HeroUI Button, Input, Alert definitions; HeroUI tokens throughout. Re-exported 2026-09-05 (fix wave). |
+| `jmoi3` | Screen/Login — Invalid Credentials | Login form state with validation error alert; HeroUI tokens. Re-exported 2026-09-05 (fix wave). |
+| `ljdA5` | Screen/Login — SSO Only | OIDC-only login variant; HeroUI Button, Input, Alert definitions. Re-exported 2026-09-05 (fix wave). |
+| `N13Xud` | Screen/App Loading | Loading spinner + card layout from HeroUI definitions. Re-exported 2026-09-05 (fix wave). |
+| `j24cXg` | Screen/Dashboard — Home | Dashboard home screen redrawn from HeroUI Card, Stat Card, and other composition definitions. Re-exported 2026-09-05 (fix wave). |
+| `tooKB` | Screen/Mobile — Servers | Mobile servers list (390px viewport) redrawn from HeroUI Drawer, ListBox, Link definitions. Re-exported 2026-09-05 (fix wave). |
+| `SeizD` | Screen/Mobile — Navigation Drawer | Mobile navigation drawer with user profile and logout; HeroUI-based sidebar navigation composition. Re-exported 2026-09-05 (fix wave). |
+
+**Compositions exported (6):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `kKFX9` | Gameplane/App Sidebar | Sidebar composition from HeroUI Button, Link, ListBox, Avatar, Separator; profile footer with appearance toggle (OD-2). Re-exported 2026-09-05 (fix wave). |
+| `gu5WY` | Gameplane/Top Bar | Top bar composition with branding, cluster selector, search, notifications trigger; HeroUI Button, SearchField, Popover. Re-exported 2026-09-05 (fix wave). |
+| `aI9PL` | Gameplane/Cluster Selector | Dropdown composition for multi-cluster selection; HeroUI Button, Dropdown, Menu. Re-exported 2026-09-05 (fix wave). |
+| `hboVw` | Gameplane/Notifications Panel | Notifications popover composition; HeroUI Popover, ListBox; dismissible notification items. Re-exported 2026-09-05 (fix wave). |
+| `IdaU7` | Gameplane/Search Results | Search results panel composition; HeroUI ListBox, Link; result grouping by type (servers, templates, etc.). Re-exported 2026-09-05 (fix wave). |
+| `iA2C8` | Gameplane/Appearance Toggle | Light/dark/system selector placed in sidebar profile footer next to logout; HeroUI Switch composition with three state variants. Exported 2026-09-05 (OD-2). |
+
+**Light-mode preview frames (5, refreshed 2026-09-05, final):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `gX7um` | Screen/Login (Light) | Light-mode preview of login screen, duplicated fresh from `N1GkB` and re-exported 2026-09-05 (final). Replaces stale copy `zNdhE`. |
+| `oyoTs` | Screen/Dashboard Home (Light) | Light-mode preview of dashboard home, duplicated fresh from `j24cXg` (with the four dashboard cards as real `Gameplane/Card` instances) and re-exported 2026-09-05 (final). Replaces stale copy `D8hocG`. |
+| `zFiOW` | Screen/Servers (Light) | Light-mode preview of servers list screen redrawn with HeroUI tokens. Note: carries lunaris refs and legacy $c:--font-* bindings; Servers is a slice-2a screen (F9pUrx) redrawn and light copy re-created in slice 2a, not here. Re-exported 2026-09-05 (JSON, PNG). |
+| `sSISK` | Screen/Server Detail — Overview (Light) | Light-mode preview of server detail overview screen redrawn with HeroUI tokens. Re-exported 2026-09-05 (JSON, PNG). |
+| `DWztv` | Screen/Mobile — Servers (Light) | Light-mode preview of mobile servers screen, duplicated fresh from `tooKB` and re-exported 2026-09-05 (final). Replaces stale copy `kUx5J`. |
+
+**Interim preview copies superseded:** Multiple interim light-mode preview frames were re-created several times on 2026-09-04/05 as the slice-0 atoms (`BPEpm`, `WwNlX`, `IU7OG`) and shell compositions (Top Bar, Appearance Toggle) were iteratively repaired. The final versions of the five frames above supersede those interim copies.
+
+**Context:**
+
+Slice 1 (Shell + login, P1 priority per spec.md) delivers User Story 1: authenticated sign-in and app-shell navigation with theme toggle per OD-2 (appearance selector in sidebar), fully testable by all three roles (admin, operator, viewer). The login page preserves pre-auth privacy (FR-005, rule 3 in CLAUDE.md). Five light-mode preview frames show both light and dark modes side by side in `design.pen` for visual verification of the pink brand refresh (OD-8) without switching the Pencil appearance UI.
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` for each of the 13 objects via the Pencil `execute` tool. All 13 JSON files pass `python3 json.load()` validation with zero `"..."` structural elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/<id>.png`. All 13 PNG files present and valid.
+- **File inventory:** All 13 design ids have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-05 (git status confirms all 13 ids' json+png as modified). Three interim light-preview files (jOo7y, Qqi8Q, vvxCn) with their json/png pairs deleted.
+- **Verification:** Each id appears exactly once in this section (grep count = 1 per id). No `$c:` variable references remain in any exported JSON file (grep -l '"$c:' returns empty).
+- **Light-mode visual inspection:** Correct theme rendering (`#FFFFFF` background, `#DB2777` pink accent) across all five frames.
+

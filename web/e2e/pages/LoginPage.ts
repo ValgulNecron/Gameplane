@@ -15,7 +15,7 @@ export class LoginPage {
     this.username = page.getByRole("textbox", { name: /email or username/i });
     this.password = page.locator('input[name="password"]');
     this.submit = page.getByRole("button", { name: /sign in/i });
-    this.error = page.locator(".text-danger");
+    this.error = page.getByRole("alert");
   }
 
   async goto(): Promise<void> {

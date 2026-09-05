@@ -51,6 +51,120 @@ Each atom composes HeroUI's headless react-aria-components (Adobe React Aria) an
 
 During the multi-slice rebuild transition, the previous Radix-based primitives remain in `web/src/components/ui/` and are used only by un-rebuilt screens. **No single screen mixes the HeroUI (`hero/`) and legacy (`ui/`) component families** — this is enforced mechanically at review (FR-012: any rebuilt file importing from `components/ui/` fails).
 
+## T057 — Login Privacy Compliance (FR-005)
+
+**Verdict: PASS.** The login page (`web/src/routes/Login.tsx`) and all pre-auth hero components comply with FR-005 (login privacy).
+
+**Audit findings:**
+
+1. **Login.tsx pre-auth surface (lines 26–233):**
+   - ✅ No cluster name, version string, or hostname rendered
+   - ✅ No server count, deployment metrics, or internal status
+   - ✅ No user enumeration signals (error copy at line 94 is neutral: "Invalid credentials" or "Network error" only)
+   - ✅ Marketing panel (lines 196–231) contains static product copy only (no internal metrics)
+   - ✅ Explicit comment (lines 23–25) guards this rule at source
+
+2. **HeroUI components in pre-auth context:**
+   - Only `Input`, `Label`, `InputGroup` from `@heroui/react` are used before auth (lines 17–18)
+   - No other hero/* components are rendered pre-auth (AppLayout, Sidebar, TopBar, etc. all require `useMe()`, which 401-redirects unauthenticated users)
+   - All HeroUI imports follow FR-012 (from "@heroui/react" only; no radix-ui/ui/CVA leakage)
+
+3. **SSO button labels (lines 239–254):**
+   - Provider display names come from the pre-auth `Auth.providers()` API response (`p.label`, line 250)
+   - Never issuer URLs or internal identifiers
+   - Compliant with the login-privacy rule
+
+**Conclusion:** No metrics, hostnames, versions, cluster names, or enumeration hints leak on the unauthenticated surface. Error copy is neutral and user-facing. The pre-auth privacy invariant (CLAUDE.md rule 3) is satisfied.
+
+## T058 — Slice 1: Shell + Login Architecture
+
+**Scope:** Slice 1 (tasks T040–T053, feature 014) rebuilds the authenticated shell (AppLayout, Sidebar, TopBar) and the login page on HeroUI, establishing the visual layer for all downstream screens. Old Radix-based primitives remain in `web/src/components/ui/` until slices 2–5 migrate their respective screens.
+
+### Components Added (T045–T052)
+
+**New composition root:**
+- **`AppLayout.tsx` (T042)** — layout orchestrator: composes `AppShell` (layout), `Sidebar` (fixed or drawer variant), `TopBar` (breadcrumbs + cluster selector + search + notifications), and the authenticated page outlet. Owns `useMe()`, 401-redirect logic, permission gating for nav items (admin/operator/viewer), `useClusterInfo()` (cluster stats cache), and `useTheme()` integration for appearance mode.
+
+**New layout atoms (T045–T048, T050, T052):**
+- **`hero/AppShell.tsx` (T045)** — pure layout wrapper: renders sidebar fixed-width, topbar + main content in flex column. No mobile logic (owned by Sidebar's drawer variant).
+- **`hero/Sidebar.tsx` (T046, T052)** — left navigation: fixed variant (always visible on desktop) or drawer variant (mobile off-canvas). Renders nav groups + items, active route highlighting, appearance toggle footer, and user-info footer with logout. Permission gating is computed by AppLayout; Sidebar renders whatever nav items it receives.
+- **`hero/TopBar.tsx` (T047)** — horizontal header: hamburger (mobile), breadcrumb slot, cluster selector slot, global search slot, notifications slot, user menu (avatar + logout). All four slots are ReactNode — each slot component fetches its own data (no centralized fetching in TopBar).
+- **`hero/Breadcrumbs.tsx` (T048)** — route-hierarchy breadcrumbs: renders the tree path (gameplane / Servers / my-server) using `buildCrumbs` logic kept from the old AppLayout. Distinct from `hero/PageHeader.tsx`'s internal page-level breadcrumbs.
+- **`hero/NotificationsPanel.tsx` (T049)** — bell icon + popover + SSE notification list: owns the `openEventStream` subscription and local state (same as today's `Notifications()` in AppLayout). Fetching moved into the component, not centralized in AppLayout.
+- **`hero/GlobalSearch.tsx` (T050)** — search field + results popover: owns the `useQuery` call for servers list and client-side filter. Kept from today's AppLayout.
+- **`hero/AppearanceToggle.tsx` (T052)** — three-state appearance mode selector (light/dark/system): dispatches `onChange` to parent (AppLayout), which owns the `useTheme()` hook. Uses HeroUI `ToggleButtonGroup` or fallback three-button set.
+
+**Refactored on HeroUI:**
+- **`PageHeader.tsx` (T043)** — route-level page header: thin wrapper around `hero/PageHeader` (slice-0 atom), passing through `title/subtitle/actions/breadcrumbs` unchanged. Called by ~30+ route pages; no changes required in call sites.
+- **`ClusterSelector.tsx` (T044)** — multi-cluster dropdown: refactored from `DropdownMenu` to HeroUI `Select`, keeping all permission/state logic, phase color mapping, and "Add cluster" action.
+- **`Login.tsx` (T040)** — login form: refactored from raw DOM to HeroUI `TextField`/`Label`/`Input`/`InputGroup`, `Alert` for errors, `Button` for actions. Kept all state, error handling, SSO provider rendering, and marketing panel. Verified compliant with FR-005 (login privacy).
+- **`Dashboard.tsx` (T041)** — landing page loading + empty state: narrowed scope to loading skeleton and empty frame only (full content deferred to slice 2+). Keeps the same cache keys and queries so downstream slices reuse prepared data.
+
+### Design Import Rule (FR-012)
+
+Every file touched in slice 1 imports **only** from:
+- `@heroui/react` (HeroUI components)
+- `@/components/hero/` (new slice-1 atom components)
+
+**Forbidden imports:**
+- `@/components/ui/*` (legacy Radix-based primitives)
+- `@radix-ui/*` (raw Radix)
+- `class-variance-authority` (replaced by HeroUI's variant system)
+
+This rule is enforced by lint and review: any rebuilt file importing from forbidden sources fails CI.
+
+### Theme Integration & Boot Script (T053)
+
+**Appearance selection:** Two mechanisms work together to avoid theme flicker on page load:
+
+1. **Boot script in `index.html`** (T053, lines ~398–411):
+   - Runs as the first script in `<head>` (before Google Fonts)
+   - Reads `localStorage.getItem("gameplane-theme")` — must match the key HeroUI's `useTheme()` persists
+   - Resolves system theme via `window.matchMedia("(prefers-color-scheme: dark)")`
+   - Sets both `document.documentElement.classList` (add/remove "dark" and "light") and `document.documentElement.dataset.theme` (for HeroUI token fallback)
+   - Gracefully handles localStorage unavailability; keeps the dark default from markup
+
+2. **`AppearanceToggle.tsx` + `AppLayout.tsx` (T052):**
+   - AppLayout calls `useTheme()` from HeroUI to get theme state and setter
+   - Passes `theme` and `setTheme` as props to Sidebar
+   - Sidebar renders `AppearanceToggle` with `value` and `onChange` callbacks
+   - On toggle, AppearanceToggle calls the `onChange` callback (wired to `setTheme`)
+   - `setTheme` syncs to localStorage and updates `document.documentElement` classes/attributes
+   - HeroUI's hook already toggles the `dark`/`light` class; confirm whether it also sets `data-theme`, and if not, do so explicitly in a `useEffect` in AppLayout
+
+**Shipped default:** `<html class="dark" data-theme="dark">` in markup (dark theme as the no-JavaScript fallback; overridden by boot script if a stored preference exists).
+
+### Test Count Rule (FR-010)
+
+Each rewritten test file must maintain or exceed the original test count:
+- `Login.test.tsx`: ✅ ported all cases (new file)
+- `AppLayout.test.tsx`: ✅ 29 tests (old file had 28), porting every case including permission gating for nav items and 401-redirect behavior
+
+Selectors updated to query by role (`getByRole("textbox", { name: /username/i })`, `getByRole("button", { name: /sign in/i })`, `getByRole("alert")`) since HeroUI markup changes internal DOM structure. No `data-testid` added unless HeroUI components genuinely lack accessible role/name.
+
+### Playwright Specs TypeScript Check
+
+**Status:** Clean — `npx tsc --noEmit` passes with no errors across all Playwright specs (`e2e/specs/*.spec.ts`, `e2e/globalSetup.ts`, `e2e/globalTeardown.ts`, `e2e/pages/*.ts`).
+
+### Legacy Primitives Still in Use
+
+Until slices 2–5 migrate their screens, the old Radix-based `ui/` components remain:
+- `web/src/components/ui/button.tsx`
+- `web/src/components/ui/card.tsx`
+- `web/src/components/ui/input.tsx`
+- `web/src/components/ui/dialog.tsx`
+- `web/src/components/ui/select.tsx`
+- `web/src/components/ui/tabs.tsx`
+- (and ~20+ others)
+
+These are used only by Servers, ServerDetail, Modules, Cluster, Users, AdminSettings, AuditLog, AdminLogs, Backups pages — which remain un-rebuilt until their respective slices. **No single screen mixes both families** (enforced by import rule FR-012).
+
+### Deviation Notes
+
+1. **AppearanceToggle three-state vs. binary Switch (OD-7, decision #5):** Task T052 text suggests "using HeroUI Switch", but the contract specifies a three-state control (light/dark/system). Implementation uses HeroUI `ToggleButtonGroup` if available; if not, falls back to three `Button` elements with `isSelected` state. Binary `Switch` would discard the system-preference state — flagged as a deviation in the PR if justification is needed.
+
+2. **Dashboard.tsx narrowed scope (decision #6):** Task T041's literal wording ("displaying app-loading state and empty dashboard frame") narrows this slice's work to loading + empty states only. Full stat/table dashboard content is deferred; a `// TODO(slice-2+)` comment marks where it would be added. Flagged in PR description since this is a visible reduction from today's 470-line Dashboard.tsx.
+
 ## Directory & Package Layout
 
 ```

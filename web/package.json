@@ -13,6 +13,7 @@
     "test:cover": "vitest run --coverage",
     "test:e2e:mock": "GAMEPLANE_E2E_TARGET=mock playwright test",
     "test:e2e:live": "GAMEPLANE_E2E_TARGET=live playwright test",
+    "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
     "screenshots": "GAMEPLANE_E2E_TARGET=mock GAMEPLANE_SCREENSHOTS=1 playwright test"
   },
   "dependencies": {

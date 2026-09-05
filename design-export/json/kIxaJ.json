@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "kIxaJ",
-  "x": 6362,
-  "y": 25209,
+  "x": -16485,
+  "y": 25269,
   "name": "Gameplane/Audit Integrity Banner",
   "theme": {},
   "reusable": true,
@@ -16,8 +16,8 @@
       "type": "text",
       "id": "ZEqkj",
       "fill": "$muted",
-      "content": "Audit Integrity Banner \u2014 Broken state (reference)",
-      "fontFamily": "$c:--font-primary",
+      "content": "Audit Integrity Banner — Broken state (reference)",
+      "fontFamily": "$typography/font-mono",
       "fontSize": 12,
       "fontWeight": "500"
     },
@@ -29,7 +29,15 @@
       "width": "fill_container",
       "layout": "horizontal",
       "alignItems": "center",
+      "fill": "$danger/danger",
+      "cornerRadius": 0,
       "descendants": {
+        "c:LB3Fl": {
+          "fill": "$foreground/foreground"
+        },
+        "c:FTYwP": {
+          "stroke": "$danger/foreground"
+        },
         "c:7IdrZ": {
           "type": "frame",
           "id": "H3d0vj",
@@ -42,10 +50,10 @@
               "type": "text",
               "id": "fuKsy",
               "name": "Message",
-              "fill": "$c:--color-error-foreground",
-              "content": "Integrity check failed \u2014 chain breaks at event #286",
+              "fill": "$danger/foreground",
+              "content": "Integrity check failed — chain breaks at event #286",
               "lineHeight": 1.5,
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 16,
               "fontWeight": "500"
             }

@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "w4ntSc",
-  "x": 2272,
-  "y": 27518,
+  "x": -15622,
+  "y": 25858,
   "name": "Gameplane/Loading Card",
   "theme": {},
   "reusable": true,
@@ -17,12 +17,6 @@
   "padding": 20,
   "alignItems": "center",
   "children": [
-    {
-      "id": "e3x1sI",
-      "type": "ref",
-      "ref": "o2R4Ci",
-      "name": "Spinner"
-    },
     {
       "type": "text",
       "id": "aejfH",
