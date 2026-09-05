@@ -1,32 +1,79 @@
-import { Outlet, Link, useLocation, useMatches } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Dialog from "@radix-ui/react-dialog";
+import { Outlet, useLocation } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   Archive,
-  Bell,
-  ChevronDown,
   LayoutDashboard,
-  LogOut,
-  Menu,
   Package,
   ScrollText,
-  Search,
   Server,
   Settings,
   ShieldCheck,
   Terminal,
   Users,
-  X,
 } from "lucide-react";
+import { Skeleton } from "@heroui/react";
 import { APIError } from "@/lib/api";
-import { Auth, Cluster as ClusterAPI, Servers } from "@/lib/endpoints";
+import { Cluster as ClusterAPI, Auth } from "@/lib/endpoints";
 import { useMe, can } from "@/lib/auth";
-import type { ClusterInfo, User } from "@/types";
-import { cn } from "@/lib/utils";
-import { openEventStream, queryKeyForKind, type GameplaneEvent } from "@/lib/sse";
+import type { ClusterInfo } from "@/types";
 import { useEffect, useState } from "react";
 import { ClusterSelector } from "@/components/ClusterSelector";
+import { AppShell } from "@/components/hero/AppShell";
+import { Sidebar, type SidebarNavGroup } from "@/components/hero/Sidebar";
+import { TopBar } from "@/components/hero/TopBar";
+import { Breadcrumbs, buildCrumbs } from "@/components/hero/Breadcrumbs";
+import { GlobalSearch } from "@/components/hero/GlobalSearch";
+import { NotificationsPanel } from "@/components/hero/NotificationsPanel";
+import type { AppearanceMode } from "@/components/hero/AppearanceToggle";
+
+// The localStorage key the theme boot script in index.html reads before
+// React mounts — must stay in sync (see index.html and theme-tokens.md).
+// Note: HeroUI's own `useTheme()` hook hardcodes a different key
+// ("heroui-theme"), which would silently diverge from the boot script, so
+// theme state is owned here rather than via that hook (deviation from the
+// contract's preferred approach, flagged for the maintainer).
+const THEME_STORAGE_KEY = "gameplane-theme";
+
+function readStoredTheme(): AppearanceMode {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === "light" || saved === "dark" || saved === "system") return saved;
+  } catch {
+    // localStorage unavailable — fall back to system default.
+  }
+  return "system";
+}
+
+function applyTheme(mode: AppearanceMode) {
+  const resolved =
+    mode === "system"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
+      : mode;
+  document.documentElement.classList.remove("dark", "light");
+  document.documentElement.classList.add(resolved);
+  document.documentElement.dataset.theme = resolved;
+}
+
+function useAppearance(): [AppearanceMode, (mode: AppearanceMode) => void] {
+  const [theme, setThemeState] = useState<AppearanceMode>(readStoredTheme);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  const setTheme = (mode: AppearanceMode) => {
+    setThemeState(mode);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, mode);
+    } catch {
+      // localStorage unavailable — theme still applies for this session.
+    }
+  };
+
+  return [theme, setTheme];
+}
 
 function useClusterInfo() {
   return useQuery({
@@ -40,9 +87,11 @@ function useClusterInfo() {
 export function AppLayout() {
   const { data: me, error, isLoading } = useMe();
   const { data: cluster } = useClusterInfo();
+  const { pathname } = useLocation();
+  const [theme, setTheme] = useAppearance();
   // Below `lg`, the fixed sidebar becomes an off-canvas drawer toggled by
-  // the Topbar's hamburger button. Desktop (`lg`+) keeps the always-on
-  // sidebar and never mounts the drawer/scrim.
+  // the TopBar's hamburger button. Desktop (`lg`+) keeps the always-on
+  // sidebar and never mounts the drawer.
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
@@ -53,42 +102,92 @@ export function AppLayout() {
 
   if (isLoading) return <AppShellSkeleton />;
 
+  const onLogout = async () => {
+    await Auth.logout().catch(() => {});
+    location.assign("/login");
+  };
+
+  const navItems: SidebarNavGroup[] = [
+    {
+      label: "General",
+      items: [
+        { to: "/", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/servers", label: "Servers", icon: Server },
+        { to: "/modules", label: "Modules", icon: Package },
+        { to: "/backups", label: "Backups", icon: Archive },
+      ],
+    },
+    {
+      label: "Admin",
+      items: [
+        ...(can(me, "servers:write")
+          ? [{ to: "/cluster", label: "Cluster", icon: Server }]
+          : []),
+        ...(can(me, "users:manage")
+          ? [{ to: "/users", label: "Users & RBAC", icon: Users }]
+          : []),
+        ...(can(me, "audit:read")
+          ? [{ to: "/admin/audit", label: "Audit log", icon: ScrollText }]
+          : []),
+        // System logs match the API's /admin/system-logs guard: the admin
+        // wildcard permission, not a narrower named one.
+        ...(can(me, "*")
+          ? [{ to: "/admin/logs", label: "System logs", icon: Terminal }]
+          : []),
+        ...(can(me, "config:manage")
+          ? [{ to: "/admin", label: "Settings", icon: Settings }]
+          : []),
+      ],
+    },
+  ];
+
+  const crumbs = buildCrumbs(pathname);
+
   return (
-    <div className="flex h-full bg-background text-fg">
-      <div className="hidden lg:flex">
-        <Sidebar me={me} clusterName={cluster?.clusterName} />
-      </div>
+    <>
+      <AppShell
+        sidebar={
+          <Sidebar
+            navItems={navItems}
+            clusterName={cluster?.clusterName}
+            user={me}
+            variant="fixed"
+            onLogout={onLogout}
+            theme={theme}
+            onThemeChange={setTheme}
+          />
+        }
+        topBar={
+          <TopBar
+            breadcrumbs={<Breadcrumbs items={crumbs} />}
+            clusterSelector={<ClusterSelector />}
+            search={<GlobalSearch />}
+            notifications={<NotificationsPanel />}
+            user={me}
+            onMenuClick={() => setDrawerOpen(true)}
+          />
+        }
+      >
+        <Outlet />
+      </AppShell>
 
-      <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 lg:hidden" />
-          <Dialog.Content
-            className="fixed inset-0 z-50 flex h-full w-[280px] max-w-[85vw] flex-col border-r border-border bg-surface/60 lg:hidden"
-            onInteractOutside={(e) => {
-              // Allow Escape and scrim clicks to close the drawer
-              e.preventDefault();
-              setDrawerOpen(false);
-            }}
-          >
-            <Dialog.Title className="sr-only">Navigation</Dialog.Title>
-            <Sidebar
-              me={me}
-              clusterName={cluster?.clusterName}
-              className="flex-1 w-full"
-              onNavigate={() => setDrawerOpen(false)}
-              onClose={() => setDrawerOpen(false)}
-            />
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar user={me} onMenuClick={() => setDrawerOpen(true)} />
-        <main className="flex-1 overflow-auto scrollbar-thin">
-          <Outlet />
-        </main>
-      </div>
-    </div>
+      {/* Mobile off-canvas drawer — rendered outside AppShell so it never
+          nests inside the <main> landmark; HeroUI's Drawer portals its
+          content regardless, but keeping it a sibling here avoids
+          confusing the accessibility tree in source order too. */}
+      <Sidebar
+        navItems={navItems}
+        clusterName={cluster?.clusterName}
+        user={me}
+        variant="drawer"
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onNavigate={() => setDrawerOpen(false)}
+        onLogout={onLogout}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
+    </>
   );
 }
 
@@ -105,13 +204,12 @@ function AppShellSkeleton() {
             </div>
             <div className="min-w-0 flex-1 leading-tight">
               <div className="font-mono text-base font-semibold text-fg">gameplane</div>
-              <div className="h-3 w-20 animate-pulse rounded bg-border/60" />
+              <Skeleton className="h-3 w-20 rounded" />
             </div>
           </div>
 
           {/* Nav area with skeleton items */}
           <nav className="flex-1 overflow-auto px-3 py-2 scrollbar-thin">
-            {/* General section */}
             <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted">
               General
             </div>
@@ -119,14 +217,13 @@ function AppShellSkeleton() {
               {Array.from({ length: 4 }).map((_, i) => (
                 <li key={`general-${i}`}>
                   <div className="flex items-center gap-3 rounded-md px-3 py-2">
-                    <div className="h-[18px] w-[18px] shrink-0 animate-pulse rounded bg-border/60" />
-                    <div className="h-3 flex-1 animate-pulse rounded bg-border/60" />
+                    <Skeleton className="h-[18px] w-[18px] shrink-0 rounded" />
+                    <Skeleton className="h-3 flex-1 rounded" />
                   </div>
                 </li>
               ))}
             </ul>
 
-            {/* Admin section */}
             <div className="h-3" />
             <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted">
               Admin
@@ -135,8 +232,8 @@ function AppShellSkeleton() {
               {Array.from({ length: 3 }).map((_, i) => (
                 <li key={`admin-${i}`}>
                   <div className="flex items-center gap-3 rounded-md px-3 py-2">
-                    <div className="h-[18px] w-[18px] shrink-0 animate-pulse rounded bg-border/60" />
-                    <div className="h-3 flex-1 animate-pulse rounded bg-border/60" />
+                    <Skeleton className="h-[18px] w-[18px] shrink-0 rounded" />
+                    <Skeleton className="h-3 flex-1 rounded" />
                   </div>
                 </li>
               ))}
@@ -146,10 +243,10 @@ function AppShellSkeleton() {
           {/* Profile footer skeleton */}
           <div className="border-t border-border px-3 py-3">
             <div className="flex items-center gap-3 rounded-md px-2 py-1.5">
-              <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border/60" />
+              <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
               <div className="min-w-0 flex-1 space-y-1">
-                <div className="h-3 animate-pulse rounded bg-border/60" />
-                <div className="h-2 w-16 animate-pulse rounded bg-border/60" />
+                <Skeleton className="h-3 rounded" />
+                <Skeleton className="h-2 w-16 rounded" />
               </div>
             </div>
           </div>
@@ -158,455 +255,48 @@ function AppShellSkeleton() {
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Topbar skeleton */}
+        {/* TopBar skeleton */}
         <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-6">
-          {/* Left: hamburger + breadcrumb skeleton */}
           <div className="flex min-w-0 items-center gap-2">
-            <div
-              aria-hidden="true"
-              className="shrink-0 rounded-md p-2 text-muted lg:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </div>
-            <div className="flex min-w-0 items-center gap-2 text-sm text-muted">
-              <div className="h-3 w-20 animate-pulse rounded bg-border/60" />
-            </div>
+            <Skeleton className="h-3 w-20 rounded" />
           </div>
-          {/* Right: controls + avatar skeleton */}
           <div className="flex shrink-0 items-center gap-3">
             <div className="hidden md:flex">
-              <div className="h-9 w-72 animate-pulse rounded-md bg-border/60" />
+              <Skeleton className="h-9 w-72 rounded-md" />
             </div>
-            <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border/60" />
-            <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border/60" />
-            <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border/60" />
+            <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+            <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+            <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
           </div>
         </header>
 
         {/* Main content skeleton */}
         <main className="flex-1 overflow-auto scrollbar-thin p-6">
-          {/* Header bar */}
-          <div className="mb-6 h-4 w-48 animate-pulse rounded bg-border/60" />
+          <Skeleton className="mb-6 h-4 w-48 rounded" />
 
-          {/* Stat cards skeleton */}
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={`stat-${i}`}
-                className="rounded-md border border-border bg-surface/60 p-4"
-              >
-                <div className="mb-2 h-3 w-24 animate-pulse rounded bg-border/60" />
-                <div className="h-6 w-12 animate-pulse rounded bg-border/60" />
+              <div key={`stat-${i}`} className="rounded-md border border-border bg-surface/60 p-4">
+                <Skeleton className="mb-2 h-3 w-24 rounded" />
+                <Skeleton className="h-6 w-12 rounded" />
               </div>
             ))}
           </div>
 
-          {/* Table skeleton */}
           <div className="rounded-md border border-border">
-            {/* Header */}
             <div className="flex border-b border-border px-4 py-3">
-              <div className="h-3 flex-1 animate-pulse rounded bg-border/60" />
-              <div className="ml-4 h-3 w-20 animate-pulse rounded bg-border/60" />
+              <Skeleton className="h-3 flex-1 rounded" />
+              <Skeleton className="ml-4 h-3 w-20 rounded" />
             </div>
-            {/* Rows */}
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={`row-${i}`} className="flex border-b border-border px-4 py-3 last:border-b-0">
-                <div className="h-3 flex-1 animate-pulse rounded bg-border/60" />
-                <div className="ml-4 h-3 w-20 animate-pulse rounded bg-border/60" />
+                <Skeleton className="h-3 flex-1 rounded" />
+                <Skeleton className="ml-4 h-3 w-20 rounded" />
               </div>
             ))}
           </div>
         </main>
       </div>
     </div>
-  );
-}
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-}
-
-function Sidebar({
-  me,
-  clusterName,
-  className,
-  onNavigate,
-  onClose,
-}: {
-  me?: User;
-  clusterName?: string;
-  /** Overrides the fixed desktop width — used by the mobile drawer instance. */
-  className?: string;
-  /** Called when a nav link is clicked — the mobile drawer closes itself. */
-  onNavigate?: () => void;
-  /** Renders a close (X) button in the header — mobile drawer only. */
-  onClose?: () => void;
-}) {
-  const general: NavItem[] = [
-    { to: "/",        label: "Dashboard", icon: LayoutDashboard },
-    { to: "/servers", label: "Servers",   icon: Server },
-    { to: "/modules", label: "Modules",   icon: Package },
-    { to: "/backups", label: "Backups",   icon: Archive },
-  ];
-  const admin: NavItem[] = [];
-  if (can(me, "servers:write")) {
-    admin.push({ to: "/cluster", label: "Cluster", icon: Server });
-  }
-  if (can(me, "users:manage")) {
-    admin.push({ to: "/users", label: "Users & RBAC", icon: Users });
-  }
-  if (can(me, "audit:read")) {
-    admin.push({ to: "/admin/audit", label: "Audit log", icon: ScrollText });
-  }
-  // System logs match the API's /admin/system-logs guard: the admin
-  // wildcard permission, not a narrower named one.
-  if (can(me, "*")) {
-    admin.push({ to: "/admin/logs", label: "System logs", icon: Terminal });
-  }
-  if (can(me, "config:manage")) {
-    admin.push({ to: "/admin", label: "Settings", icon: Settings });
-  }
-
-  return (
-    <aside className={cn("flex shrink-0 flex-col border-r border-border bg-surface/60", className ?? "w-[260px]")}>
-      <div className="flex items-center gap-2 px-5 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15">
-          <ShieldCheck className="h-4 w-4 text-primary" />
-        </div>
-        <div className="min-w-0 flex-1 leading-tight">
-          <div className="font-mono text-base font-semibold text-fg">gameplane</div>
-          <div className="text-[11px] text-muted">{clusterName || "—"}</div>
-        </div>
-        {onClose && (
-          <button
-            type="button"
-            aria-label="Close navigation"
-            onClick={onClose}
-            className="rounded-md p-1.5 text-muted hover:bg-border/60 hover:text-fg"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      <nav className="flex-1 overflow-auto px-3 py-2 scrollbar-thin">
-        <SectionLabel>General</SectionLabel>
-        <NavGroup items={general} onNavigate={onNavigate} />
-        {admin.length > 0 && (
-          <>
-            <div className="h-3" />
-            <SectionLabel>Admin</SectionLabel>
-            <NavGroup items={admin} onNavigate={onNavigate} />
-          </>
-        )}
-      </nav>
-
-      <ProfileFooter me={me} />
-    </aside>
-  );
-}
-
-function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted">
-      {children}
-    </div>
-  );
-}
-
-function NavGroup({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
-  return (
-    <ul className="flex flex-col gap-0.5">
-      {items.map(({ to, label, icon: Icon }) => {
-        // A parent link (e.g. /admin "Settings") must match exactly when a
-        // sibling links to a sub-path (e.g. /admin/audit), otherwise
-        // prefix-matching lights up both. Links with no sibling sub-path
-        // keep prefix matching, so e.g. Servers stays active on
-        // /servers/:name.
-        const exact = to === "/" || items.some((o) => o.to !== to && o.to.startsWith(to + "/"));
-        return (
-          <li key={to}>
-            <Link
-              to={to}
-              onClick={onNavigate}
-              className={cn(
-                "group flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted transition-colors",
-                "hover:bg-border/60 hover:text-fg",
-                "[&.active]:bg-primary/10 [&.active]:text-primary",
-              )}
-              activeProps={{ className: "active" }}
-              activeOptions={{ exact }}
-            >
-              <Icon className="h-[18px] w-[18px]" />
-              <span>{label}</span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function ProfileFooter({ me }: { me?: User }) {
-  const name = me?.displayName || me?.username || "guest";
-  const initials = name.slice(0, 2).toUpperCase();
-  return (
-    <div className="border-t border-border px-3 py-3">
-      <div className="group flex items-center gap-3 rounded-md px-2 py-1.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
-          {initials}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm text-fg">{name}</div>
-          <div className="truncate text-[11px] text-muted">{me?.role ?? "—"}</div>
-        </div>
-        <button
-          title="Sign out"
-          className="rounded p-1 text-muted hover:bg-border/60 hover:text-fg"
-          onClick={async () => {
-            await Auth.logout().catch(() => {});
-            location.assign("/login");
-          }}
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Topbar({ user, onMenuClick }: { user?: User; onMenuClick: () => void }) {
-  const { pathname } = useLocation();
-  const matches = useMatches();
-
-  const crumbs = buildCrumbs(pathname, matches);
-  const name = user?.displayName || user?.username || "guest";
-  const initials = name.slice(0, 2).toUpperCase();
-
-  return (
-    <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-6">
-      <div className="flex min-w-0 items-center gap-2">
-        <button
-          type="button"
-          aria-label="Open navigation"
-          onClick={onMenuClick}
-          className="shrink-0 rounded-md p-2 text-muted hover:bg-surface hover:text-fg lg:hidden"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-        <Breadcrumbs items={crumbs} />
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        <ClusterSelector />
-        <GlobalSearch />
-        <Notifications />
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
-          {initials}
-        </div>
-      </div>
-    </header>
-  );
-}
-
-interface Notice {
-  id: number;
-  text: string;
-  at: string;
-}
-
-// Notifications opens the /events SSE stream once for the app: each watch
-// event invalidates the matching TanStack Query cache (so views refresh
-// without waiting for the next poll) and is buffered into a dropdown
-// panel. The badge shows the unread count.
-function Notifications() {
-  const qc = useQueryClient();
-  const [notices, setNotices] = useState<Notice[]>([]);
-  const [open, setOpen] = useState(false);
-  const [unread, setUnread] = useState(0);
-
-  useEffect(() => {
-    let seq = 0;
-    const dispose = openEventStream({
-      onEvent: (ev: GameplaneEvent) => {
-        const key = queryKeyForKind(ev.kind);
-        if (key) void qc.invalidateQueries({ queryKey: key });
-        const name = ev.object?.metadata?.name ?? "";
-        const verb = ev.eventType.toLowerCase();
-        seq += 1;
-        const notice: Notice = {
-          id: seq,
-          text: `${verb} ${ev.kind.replace(/s$/, "")} ${name}`.trim(),
-          at: new Date().toLocaleTimeString(),
-        };
-        setNotices((prev) => [notice, ...prev].slice(0, 50));
-        setUnread((u) => u + 1);
-      },
-    });
-    return dispose;
-  }, [qc]);
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-label="Notifications"
-        title="Notifications"
-        onClick={() => {
-          setOpen((o) => !o);
-          setUnread(0);
-        }}
-        className="relative rounded-md p-2 text-muted hover:bg-surface hover:text-fg"
-      >
-        <Bell className="h-[18px] w-[18px]" />
-        {unread > 0 && (
-          <span className="absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium text-primary-fg">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
-      </button>
-      {open && (
-        <div className="absolute right-0 z-30 mt-1 w-72 overflow-hidden rounded-md border border-border bg-background shadow-lg">
-          <div className="border-b border-border px-3 py-2 text-xs font-medium text-muted">
-            Recent activity
-          </div>
-          {notices.length === 0 ? (
-            <div className="px-3 py-4 text-sm text-muted">No recent activity.</div>
-          ) : (
-            <ul className="max-h-80 overflow-auto">
-              {notices.map((n) => (
-                <li key={n.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                  <span className="truncate font-mono text-xs">{n.text}</span>
-                  <span className="shrink-0 text-[10px] text-muted">{n.at}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// GlobalSearch is the header search box. It filters the (cached) server
-// list by name and shows a dropdown of matches; selecting one navigates
-// to its detail page. Enter jumps to the first match.
-function GlobalSearch() {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const { data } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => Servers.list(),
-    staleTime: 10_000,
-  });
-  const query = q.trim().toLowerCase();
-  const matches =
-    query.length > 0
-      ? (data?.items ?? [])
-          .filter((s) => s.metadata.name.toLowerCase().includes(query))
-          .slice(0, 6)
-      : [];
-
-  return (
-    <div className="relative hidden w-72 md:block">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-      <input
-        type="search"
-        aria-label="Search servers"
-        placeholder="Search servers…"
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        // Delay so a result click registers before the dropdown unmounts.
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setOpen(false);
-          if (e.key === "Enter" && matches.length > 0) {
-            location.assign(`/servers/${matches[0].metadata.name}`);
-          }
-        }}
-        className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-hidden"
-      />
-      {open && query.length > 0 && (
-        <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-border bg-background shadow-lg">
-          {matches.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-muted">No servers match.</li>
-          ) : (
-            matches.map((s) => (
-              <li key={s.metadata.name}>
-                <Link
-                  to="/servers/$name"
-                  params={{ name: s.metadata.name }}
-                  onClick={() => {
-                    setOpen(false);
-                    setQ("");
-                  }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-fg hover:bg-surface"
-                >
-                  <Server className="h-3.5 w-3.5 text-muted" />
-                  <span className="truncate font-mono">{s.metadata.name}</span>
-                </Link>
-              </li>
-            ))
-          )}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-interface Crumb {
-  label: string;
-  to?: string;
-}
-
-function buildCrumbs(pathname: string, _matches: unknown[]): Crumb[] {
-  // Map route paths → human labels. Keeps breadcrumbs simple without
-  // requiring per-route loader data.
-  const crumbs: Crumb[] = [{ label: "gameplane", to: "/" }];
-  const parts = pathname.split("/").filter(Boolean);
-  const labels: Record<string, string> = {
-    servers: "Servers",
-    modules: "Modules",
-    cluster: "Cluster",
-    users:   "Users & RBAC",
-    admin:   "Settings",
-    audit:   "Audit log",
-    logs:    "System logs",
-    backups: "Backups",
-    new:     "New",
-  };
-  let acc = "";
-  for (const p of parts) {
-    acc += "/" + p;
-    crumbs.push({ label: labels[p] ?? p, to: acc });
-  }
-  if (parts.length === 0) crumbs.push({ label: "Dashboard" });
-  return crumbs;
-}
-
-function Breadcrumbs({ items }: { items: Crumb[] }) {
-  return (
-    <nav className="flex min-w-0 items-center gap-2 text-sm text-muted">
-      {items.map((c, i) => {
-        const last = i === items.length - 1;
-        return (
-          <span key={c.to ?? c.label} className="flex min-w-0 items-center gap-2">
-            {c.to && !last ? (
-              <Link to={c.to} className="hover:text-fg truncate">
-                {c.label}
-              </Link>
-            ) : (
-              <span className={cn("truncate", last && "text-fg")}>{c.label}</span>
-            )}
-            {!last && <ChevronDown aria-hidden="true" className="h-3 w-3 -rotate-90 text-muted" />}
-          </span>
-        );
-      })}
-    </nav>
   );
 }
