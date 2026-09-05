@@ -19,6 +19,23 @@ async function loginIfNeeded(page: Page): Promise<void> {
 }
 
 test.describe("shell", () => {
+  // Live mode pre-authenticates every test via a single shared session
+  // (globalSetup + storageState, web/playwright.config.ts). This file's
+  // own "sign-out" test does a real logout against that shared session,
+  // which invalidates it for every test that runs after — each one then
+  // falls through loginIfNeeded and performs a real POST /auth/login,
+  // quickly exceeding the API's per-IP login rate limit (burst 10, 5/min;
+  // see CLAUDE.md's e2e conventions) and cascading into ~14 failures that
+  // all land on /login. Shell/sidebar/breadcrumb/cluster-selector behavior
+  // against the real backend is covered by
+  // e2e/specs/live/login-and-shell.spec.ts instead, which is written to
+  // stay within the live login budget; this file is mock-only, matching
+  // the precedent in rbacEnforcement.spec.ts.
+  test.skip(
+    process.env.GAMEPLANE_E2E_TARGET === "live",
+    "shell/sidebar UI is covered live by login-and-shell.spec.ts; this file's sign-out test would burn the login rate limit for every test after it",
+  );
+
   test.describe("top bar", () => {
     test("hamburger button appears on mobile, hidden on desktop", async ({ page }) => {
       await page.goto("/");

@@ -94,10 +94,14 @@ test.describe("live: login and shell", () => {
     for (const { name, path } of navigationTests) {
       const link = page.getByRole("link", { name: new RegExp(name, "i") }).first();
       await link.click();
-      await page.waitForURL((u) => new URL(u).pathname === path, { timeout: 5_000 });
+      // 5s is enough on the mock dev server but not against the real
+      // kind cluster + port-forward round trip this live spec drives —
+      // match the 15-20s budget the other live specs use for
+      // backend-dependent renders (see dataScreens.spec.ts).
+      await page.waitForURL((u) => new URL(u).pathname === path, { timeout: 15_000 });
       expect(new URL(page.url()).pathname).toBe(path);
       // Each page should render a heading (at minimum)
-      await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible({ timeout: 5_000 });
+      await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible({ timeout: 15_000 });
     }
   });
 
@@ -153,8 +157,10 @@ test.describe("live: login and shell", () => {
     if (await hamburger.isVisible()) {
       await hamburger.click();
 
-      // Drawer should now be visible
-      await expect(drawer).toBeVisible({ timeout: 2_000 });
+      // Drawer should now be visible. 2s was tuned against the mock dev
+      // server; the real cluster round trip (session/permission checks
+      // that gate the drawer's nav content) needs more room live.
+      await expect(drawer).toBeVisible({ timeout: 10_000 });
       await expect(sidebar).toBeVisible();
 
       // Click a nav link in the drawer
@@ -176,8 +182,10 @@ test.describe("live: login and shell", () => {
     await loginIfNeeded(page);
     await page.goto("/");
 
-    // Find logout button in sidebar footer
-    const logoutButton = page.getByRole("button", { name: /logout/i }).first();
+    // Find logout button in sidebar footer. The button carries no
+    // aria-label — its accessible name falls back to its title
+    // attribute, "Sign out" (Sidebar.tsx), not "logout".
+    const logoutButton = page.getByRole("button", { name: /sign out/i }).first();
     await expect(logoutButton).toBeVisible();
 
     await logoutButton.click();
