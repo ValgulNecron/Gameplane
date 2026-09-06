@@ -10,10 +10,8 @@ import {
   ShieldQuestion,
   Trash2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { GameIcon } from "@/components/ui/game-icon";
-import { cn } from "@/lib/utils";
+import { Button, buttonVariants, Card, CardHeader, CardContent, CardFooter, Chip } from "@heroui/react";
+import { GameIcon } from "@/components/hero/GameIcon";
 import { resolveCategories } from "@/lib/games";
 import type { EntryVerify } from "@/lib/verify";
 import type { CatalogEntry } from "@/types";
@@ -91,65 +89,66 @@ export function ModuleCard({
   const digest = entry.appliedDigest ?? entry.digest;
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <GameIcon game={entry.game ?? entry.name} size="md" />
-        <div className="flex items-center gap-1.5">
-          {verify && <VerifyBadge verify={verify} />}
-          <StatusPill entry={entry} />
+    <Card>
+      <CardHeader className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <GameIcon game={entry.game ?? entry.name} size="md" />
+          <div className="flex items-center gap-1.5">
+            {verify && <VerifyBadge verify={verify} />}
+            <StatusPill entry={entry} />
+          </div>
         </div>
-      </div>
-      <div>
-        <div className="font-medium text-fg">
-          {entry.displayName ?? entry.name}
+        <div>
+          <div className="font-medium text-foreground">
+            {entry.displayName ?? entry.name}
+          </div>
+          <div className="pt-0.5 font-mono text-[11px] text-muted">{versionLabel}</div>
+          {digest && (
+            <div className="flex items-center gap-1 pt-0.5 font-mono text-[10px] text-muted">
+              <Fingerprint className="h-3 w-3 shrink-0" />
+              <span className="truncate">{shortDigest(digest)}</span>
+            </div>
+          )}
+          {entry.installed && entry.previousVersion && (
+            <div className="flex items-center gap-1 pt-0.5 text-[10px] text-muted">
+              <History className="h-3 w-3 shrink-0" />
+              rollback target · v{entry.previousVersion}
+            </div>
+          )}
         </div>
-        <div className="pt-0.5 font-mono text-[11px] text-muted">{versionLabel}</div>
-        {digest && (
-          <div className="flex items-center gap-1 pt-0.5 font-mono text-[10px] text-muted">
-            <Fingerprint className="h-3 w-3 shrink-0" />
-            <span className="truncate">{shortDigest(digest)}</span>
+        {resolveCategories(entry.categories, entry.game ?? entry.name).length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {resolveCategories(entry.categories, entry.game ?? entry.name).map((c) => (
+              <Chip key={c} variant="soft" size="sm" className="text-[11px]">
+                {c}
+              </Chip>
+            ))}
           </div>
         )}
-        {entry.installed && entry.previousVersion && (
-          <div className="flex items-center gap-1 pt-0.5 text-[10px] text-muted">
-            <History className="h-3 w-3 shrink-0" />
-            rollback target · v{entry.previousVersion}
+      </CardHeader>
+      <CardContent className="gap-3">
+        <p className="line-clamp-3 text-xs text-muted">
+          {entry.summary ?? "No summary."}
+        </p>
+        {versionUnavailable ? (
+          <div className="rounded border border-primary/40 bg-primary/10 px-2 py-1 text-[11px] text-primary">
+            Pinned to v{entry.pinnedVersion} — no longer in the catalog. Update to v
+            {entry.latestVersion}.
           </div>
-        )}
-      </div>
-      {resolveCategories(entry.categories, entry.game ?? entry.name).length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {resolveCategories(entry.categories, entry.game ?? entry.name).map((c) => (
-            <span
-              key={c}
-              className="rounded bg-muted/10 px-2 py-0.5 text-[11px] text-muted"
-            >
-              {c}
-            </span>
-          ))}
-        </div>
-      )}
-      <p className="line-clamp-3 flex-1 text-xs text-muted">
-        {entry.summary ?? "No summary."}
-      </p>
-      {versionUnavailable ? (
-        <div className="rounded border border-primary/40 bg-primary/10 px-2 py-1 text-[11px] text-primary">
-          Pinned to v{entry.pinnedVersion} — no longer in the catalog. Update to v
-          {entry.latestVersion}.
-        </div>
-      ) : entry.phase === "Failed" &&
-        entry.reason !== "VersionUnavailable" &&
-        entry.lastError ? (
-        // Only surface the raw error for a genuine, current failure. Gating on
-        // phase===Failed hides a stale error while the operator is Pulling a
-        // new version; excluding VersionUnavailable keeps the actionable
-        // "update" banner (above) the sole treatment for that reason and
-        // suppresses its leftover error during a re-pin transition.
-        <div className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-[11px] text-danger">
-          {entry.lastError}
-        </div>
-      ) : null}
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
+        ) : entry.phase === "Failed" &&
+          entry.reason !== "VersionUnavailable" &&
+          entry.lastError ? (
+          // Only surface the raw error for a genuine, current failure. Gating on
+          // phase===Failed hides a stale error while the operator is Pulling a
+          // new version; excluding VersionUnavailable keeps the actionable
+          // "update" banner (above) the sole treatment for that reason and
+          // suppresses its leftover error during a re-pin transition.
+          <div className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-[11px] text-danger">
+            {entry.lastError}
+          </div>
+        ) : null}
+      </CardContent>
+      <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
         <span className="font-mono">
           {entry.sources.length === 1
             ? `${entry.sources[0].name} (${entry.sources[0].type})`
@@ -157,29 +156,43 @@ export function ModuleCard({
         </span>
         <div className="flex items-center gap-1">
           {entry.installed && entry.phase === "Ready" && entry.moduleName && (
-            <Button size="sm" variant="outline" asChild>
-              <Link
-                to="/servers/new"
-                search={{ template: entry.moduleName }}
-              >
-                <ExternalLink className="h-3.5 w-3.5" /> Deploy
-              </Link>
-            </Button>
+            <Link
+              to="/servers/new"
+              search={{ template: entry.moduleName }}
+              className={buttonVariants({ size: "sm", variant: "outline" }) + " h-8"}
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> Deploy
+            </Link>
           )}
           {upgradeAvailable && entry.phase === "Ready" && (
-            <Button size="sm" onClick={() => onUpgrade(entry)} disabled={busy}>
+            <Button
+              size="sm"
+              onPress={() => onUpgrade(entry)}
+              isDisabled={busy}
+              className="h-8"
+            >
               <ArrowUpCircle className="h-3.5 w-3.5" />
               Upgrade
             </Button>
           )}
           {versionUnavailable && (
-            <Button size="sm" onClick={() => onUpgrade(entry)} disabled={busy}>
+            <Button
+              size="sm"
+              onPress={() => onUpgrade(entry)}
+              isDisabled={busy}
+              className="h-8"
+            >
               <ArrowUpCircle className="h-3.5 w-3.5" />
               Update to v{entry.latestVersion}
             </Button>
           )}
           {!entry.installed && (
-            <Button size="sm" onClick={() => onInstall(entry)} disabled={busy}>
+            <Button
+              size="sm"
+              onPress={() => onInstall(entry)}
+              isDisabled={busy}
+              className="h-8"
+            >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               Install
             </Button>
@@ -188,8 +201,9 @@ export function ModuleCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => onUninstall(entry)}
-              disabled={busy || !!inFlight}
+              onPress={() => onUninstall(entry)}
+              isDisabled={busy || !!inFlight}
+              className="h-8"
             >
               Uninstall
             </Button>
@@ -198,15 +212,16 @@ export function ModuleCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => onRemoveUpload?.(entry)}
-              disabled={busy}
+              onPress={() => onRemoveUpload?.(entry)}
+              isDisabled={busy}
+              className="h-8"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Remove upload
             </Button>
           )}
         </div>
-      </div>
+      </CardFooter>
     </Card>
   );
 }
@@ -229,23 +244,29 @@ function VerifyBadge({ verify }: { verify: EntryVerify }) {
   const keyless = verify.mode === "keyless";
   if (verify.enforced) {
     return (
-      <span
-        className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 font-mono text-[10px] uppercase text-success"
+      <Chip
+        color="success"
+        size="sm"
+        variant="soft"
         title={keyless ? "keyless (Fulcio) signature verified" : "signature verified"}
+        className="font-mono text-[10px] uppercase inline-flex items-center gap-1"
       >
         <ShieldCheck className="h-3 w-3" />
         verified
-      </span>
+      </Chip>
     );
   }
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-transparent px-2 py-0.5 font-mono text-[10px] uppercase text-success/80"
+    <Chip
+      color="success"
+      size="sm"
+      variant="soft"
       title={keyless ? "keyless (Fulcio) signature policy declared" : "signature policy declared"}
+      className="font-mono text-[10px] uppercase inline-flex items-center gap-1"
     >
       <ShieldQuestion className="h-3 w-3" />
       policy
-    </span>
+    </Chip>
   );
 }
 
@@ -261,11 +282,11 @@ function shortDigest(d: string): string {
 
 function StatusPill({ entry }: { entry: CatalogEntry }) {
   let label = "available";
-  let cls = "bg-muted/20 text-muted";
+  let color: "default" | "success" | "primary" | "danger" | "warning" = "default";
   if (entry.installed) {
     if (entry.phase === "Ready") {
       label = "installed";
-      cls = "bg-success/15 text-success";
+      color = "success";
     } else if (
       entry.installed &&
       entry.phase === "Failed" &&
@@ -278,23 +299,23 @@ function StatusPill({ entry }: { entry: CatalogEntry }) {
       // Guarded on the pin genuinely being gone (not a stale status mid-re-pin)
       // and that a newer version is available.
       label = "update";
-      cls = "bg-primary/15 text-primary";
+      color = "primary";
     } else if (entry.phase === "Failed") {
       label = "failed";
-      cls = "bg-danger/15 text-danger";
+      color = "danger";
     } else {
       label = (entry.phase ?? "pending").toLowerCase();
-      cls = "bg-warning/15 text-warning";
+      color = "warning";
     }
   }
   return (
-    <span
-      className={cn(
-        "rounded-full px-2 py-0.5 font-mono text-[10px] uppercase",
-        cls,
-      )}
+    <Chip
+      color={color}
+      size="sm"
+      variant="soft"
+      className="font-mono text-[10px] uppercase"
     >
       {label}
-    </span>
+    </Chip>
   );
 }

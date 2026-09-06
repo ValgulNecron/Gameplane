@@ -118,34 +118,34 @@ describe("specFrom", () => {
 });
 
 describe("SourceDialog", () => {
-  it("renders oci fields by default and switches per type", () => {
+  it("renders oci fields by default and switches per type", async () => {
     renderDialog();
     expect(screen.getByText("Registry URL")).toBeInTheDocument();
     expect(screen.getByText("Modules")).toBeInTheDocument();
 
     // Switch to upload: no url fields, just the explainer.
-    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+    fireEvent.change(screen.getByDisplayValue("oci"), {
       target: { value: "upload" },
     });
+    await screen.findByText(/Indexes bundles uploaded/);
     expect(screen.queryByText("Registry URL")).not.toBeInTheDocument();
-    expect(screen.getByText(/Indexes bundles uploaded/)).toBeInTheDocument();
   });
 
-  it("renders the git, http and local field sets", () => {
+  it("renders the git, http and local field sets", async () => {
     renderDialog();
-    const typeSelect = screen.getByRole("combobox", { name: "Type" });
+    const typeSelect = screen.getByDisplayValue("oci");
 
     fireEvent.change(typeSelect, { target: { value: "git" } });
-    expect(screen.getByText("Clone URL")).toBeInTheDocument();
+    await screen.findByText("Clone URL");
     expect(screen.getByText("Ref")).toBeInTheDocument();
     expect(screen.getByText("Subdirectory")).toBeInTheDocument();
 
     fireEvent.change(typeSelect, { target: { value: "http" } });
-    expect(screen.getByText("Archive URL")).toBeInTheDocument();
+    await screen.findByText("Archive URL");
     expect(screen.getByText(/Allow plain HTTP/)).toBeInTheDocument();
 
     fireEvent.change(typeSelect, { target: { value: "local" } });
-    expect(screen.getByText("Path")).toBeInTheDocument();
+    await screen.findByText("Path");
     expect(screen.queryByText("Archive URL")).not.toBeInTheDocument();
   });
 
@@ -231,10 +231,11 @@ describe("SourceDialog", () => {
     });
 
     // Keyless reveals issuer + identity inputs.
-    fireEvent.change(screen.getByRole("combobox", { name: /Signature verification/ }), {
+    const verifySelect = screen.getByDisplayValue("none");
+    fireEvent.change(verifySelect, {
       target: { value: "keyless" },
     });
-    expect(screen.getByText("OIDC issuer")).toBeInTheDocument();
+    await screen.findByText("OIDC issuer");
     const identity = screen.getByPlaceholderText(/release.yml/);
     fireEvent.change(screen.getByPlaceholderText("https://token.actions.githubusercontent.com"), {
       target: { value: "https://issuer" },
@@ -304,10 +305,11 @@ describe("SourceDialog", () => {
     });
 
     // Switch to keyed verify mode.
-    fireEvent.change(screen.getByRole("combobox", { name: /Signature verification/ }), {
+    const verifySelect = screen.getByDisplayValue("none");
+    fireEvent.change(verifySelect, {
       target: { value: "keyed" },
     });
-    expect(screen.getByText("Public key secret")).toBeInTheDocument();
+    await screen.findByText("Public key secret");
 
     // Blank secret name blocks submit.
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
@@ -348,7 +350,7 @@ describe("SourceDialog", () => {
   it("validates git source requires URL", async () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "git-src" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+    fireEvent.change(screen.getByDisplayValue("oci"), {
       target: { value: "git" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
@@ -359,7 +361,7 @@ describe("SourceDialog", () => {
   it("validates http source requires URL", async () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "http-src" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+    fireEvent.change(screen.getByDisplayValue("oci"), {
       target: { value: "http" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
@@ -373,7 +375,7 @@ describe("SourceDialog", () => {
       <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={onConfirm} />,
     );
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "local-src" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+    fireEvent.change(screen.getByDisplayValue("oci"), {
       target: { value: "local" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
@@ -389,7 +391,7 @@ describe("SourceDialog", () => {
       <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={onConfirm} />,
     );
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upload-src" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+    fireEvent.change(screen.getByDisplayValue("oci"), {
       target: { value: "upload" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));

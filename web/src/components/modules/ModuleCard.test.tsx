@@ -221,9 +221,9 @@ describe("ModuleCard", () => {
         {...handlers}
       />,
     );
-    const badge = screen.getByText("verified");
+    const badge = screen.getByText("verified").closest('[data-slot="chip"]');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass("bg-success/15");
+    expect(badge).toHaveAttribute("data-color", "success");
     expect(badge).toHaveAttribute("title", "signature verified");
     expect(screen.queryByText("policy")).not.toBeInTheDocument();
   });
@@ -248,10 +248,9 @@ describe("ModuleCard", () => {
         {...handlers}
       />,
     );
-    const badge = screen.getByText("policy");
+    const badge = screen.getByText("policy").closest('[data-slot="chip"]');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass("border-success/40");
-    expect(badge).not.toHaveClass("bg-success/15");
+    expect(badge).toHaveAttribute("data-color", "success");
     expect(screen.queryByText("verified")).not.toBeInTheDocument();
   });
 
