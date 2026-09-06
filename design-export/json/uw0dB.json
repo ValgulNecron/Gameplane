@@ -1,13 +1,12 @@
 {
   "type": "frame",
   "id": "uw0dB",
-  "x": 1072,
-  "y": 27599,
+  "x": -17088,
+  "y": 26399,
   "name": "Gameplane/Removable Group Chip/Secondary",
-  "theme": {},
   "reusable": true,
   "fill": "$default/default",
-  "cornerRadius": "$c:--radius-pill",
+  "cornerRadius": 9999,
   "gap": 6,
   "padding": [
     8,
@@ -15,5 +14,40 @@
     8,
     12
   ],
-  "alignItems": "center"
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "text",
+      "id": "m7gnz",
+      "name": "chipLabel",
+      "fill": "$foreground/foreground",
+      "content": "group-name",
+      "lineHeight": 1.1428571428571428,
+      "fontFamily": "$typography/font-mono",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "frame",
+      "id": "XKZKq",
+      "name": "chipRemove",
+      "width": 16,
+      "height": 16,
+      "cornerRadius": 9999,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "DsEhy",
+          "name": "chipRemoveIcon",
+          "width": 12,
+          "height": 12,
+          "icon": "x",
+          "library": "lucide",
+          "fill": "$foreground/foreground"
+        }
+      ]
+    }
+  ]
 }

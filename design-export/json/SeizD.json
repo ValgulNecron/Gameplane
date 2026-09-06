@@ -5,7 +5,6 @@
   "y": 22565,
   "name": "Screen/Mobile — Nav Drawer",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,

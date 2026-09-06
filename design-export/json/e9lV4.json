@@ -3,13 +3,612 @@
   "id": "e9lV4",
   "x": 1640,
   "y": 18965,
-  "name": "Screen/Users & RBAC \u2014 Roles",
+  "name": "Screen/Users & RBAC — Roles",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,
   "width": 1440,
   "height": 900,
-  "fill": "$background/background"
+  "fill": "$background/background",
+  "children": [
+    {
+      "id": "lrcBK",
+      "type": "ref",
+      "ref": "kKFX9",
+      "name": "App Sidebar",
+      "height": "fill_container",
+      "descendants": {
+        "iTbd8": {
+          "fill": "#00000000"
+        },
+        "iTbd8/ghUsw": {
+          "fill": "$foreground/foreground"
+        },
+        "iTbd8/bpSQ7": {
+          "fill": "$foreground/foreground"
+        },
+        "dNsbz": {
+          "fill": "$accent/soft"
+        },
+        "dNsbz/Sr2Q5": {
+          "fill": "$accent/soft-foreground"
+        },
+        "dNsbz/Ra9NK": {
+          "fill": "$accent/soft-foreground"
+        }
+      }
+    },
+    {
+      "type": "frame",
+      "id": "v4XAfN",
+      "name": "Main",
+      "width": "fill_container",
+      "height": "fill_container",
+      "fill": "$background/background",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "p3fBE",
+          "type": "ref",
+          "ref": "gu5WY",
+          "name": "Top Bar",
+          "width": "fill_container",
+          "descendants": {
+            "Gl7AY": {
+              "content": "Users & RBAC"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "xV0gC",
+          "name": "Body",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$background/background",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 24,
+          "children": [
+            {
+              "id": "EoYyK",
+              "type": "ref",
+              "ref": "xCDF7",
+              "name": "Page Header",
+              "width": "fill_container",
+              "descendants": {
+                "spCmk": {
+                  "content": "Users & RBAC"
+                },
+                "VbHwU": {
+                  "content": "Manage access to the Gameplane control plane."
+                },
+                "TgdLz": {
+                  "width": "fit_content",
+                  "children": [
+                    {
+                      "id": "kbXKj",
+                      "type": "ref",
+                      "ref": "rNhll",
+                      "name": "Audit Log Button",
+                      "descendants": {
+                        "Q57b2/FCYQ9": {
+                          "library": "lucide",
+                          "icon": "scroll-text"
+                        },
+                        "Q57b2/GqVun": {
+                          "content": "Audit log"
+                        }
+                      }
+                    },
+                    {
+                      "id": "AshJq",
+                      "type": "ref",
+                      "ref": "tpKRk",
+                      "name": "Invite User Button",
+                      "descendants": {
+                        "q58In/Xpn7K": {
+                          "library": "lucide",
+                          "icon": "plus"
+                        },
+                        "q58In/U6q13B": {
+                          "content": "Invite user"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "frame",
+              "id": "d4G69O",
+              "name": "Filter Row",
+              "width": "fill_container",
+              "gap": 12,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "UZIAN",
+                  "name": "tabsWrap",
+                  "fill": "$surface/surface",
+                  "cornerRadius": 6,
+                  "stroke": "$border/border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 4,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "gFuT9",
+                      "name": "tabUsers",
+                      "cornerRadius": 4,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "FVchr",
+                          "fill": "$muted",
+                          "content": "Users",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "O5E4K",
+                          "name": "count",
+                          "fill": "$muted",
+                          "cornerRadius": 4,
+                          "padding": [
+                            0,
+                            6
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Vih1R",
+                              "fill": "$muted",
+                              "content": "2",
+                              "fontFamily": "$typography/font-mono",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Vc0rt",
+                      "name": "tabRoles",
+                      "fill": "$accent/soft",
+                      "cornerRadius": 4,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "v7rg7",
+                          "fill": "$accent/accent",
+                          "content": "Roles",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "DHOmb",
+                          "name": "count",
+                          "fill": "$accent/soft",
+                          "cornerRadius": 4,
+                          "padding": [
+                            0,
+                            6
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "O0evD",
+                              "fill": "$accent/accent",
+                              "content": "3",
+                              "fontFamily": "$typography/font-mono",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "JijEP",
+                      "name": "tabService",
+                      "cornerRadius": 4,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "k0nn4",
+                          "fill": "$muted",
+                          "content": "Service accounts",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "jj7bU",
+                      "name": "tabIdp",
+                      "cornerRadius": 4,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "kZdga",
+                          "fill": "$muted",
+                          "content": "Identity providers",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "czO2m",
+                  "type": "ref",
+                  "ref": "Lmaf1",
+                  "name": "Search",
+                  "width": 256,
+                  "descendants": {
+                    "EJMtX": {
+                      "content": "Search…"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ddJED",
+              "name": "Roles Panel",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "TZeyZ",
+                  "name": "newRoleRow",
+                  "width": "fill_container",
+                  "justifyContent": "end",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "I3GsWw",
+                      "type": "ref",
+                      "ref": "tpKRk",
+                      "name": "New Role Button",
+                      "descendants": {
+                        "q58In/Xpn7K": {
+                          "icon": "plus"
+                        },
+                        "q58In/U6q13B": {
+                          "content": "New role"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "nfo7a",
+                  "name": "Roles Grid",
+                  "width": "fill_container",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "id": "X7zuUK",
+                      "type": "ref",
+                      "ref": "XDZ0E",
+                      "name": "WGuii",
+                      "width": "fill_container",
+                      "padding": 16,
+                      "gap": 8,
+                      "stroke": "$border/border",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "J9wT8u",
+                          "name": "hdr",
+                          "width": "fill_container",
+                          "gap": 8,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "PorxV",
+                              "name": "title",
+                              "fill": "$foreground/foreground",
+                              "content": "admin",
+                              "fontFamily": "$typography/font-mono",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "id": "Xlz0Y",
+                              "type": "ref",
+                              "ref": "KmZnF",
+                              "name": "builtin",
+                              "descendants": {
+                                "xZ9ah": {
+                                  "content": "BUILT-IN"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "EF3Vf",
+                          "name": "desc",
+                          "fill": "$muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Full access to all resources, including users, roles, and global config.",
+                          "lineHeight": 1.4,
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "g78L4i",
+                          "name": "perm",
+                          "fill": "$muted",
+                          "content": "all permissions",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "v39SCb",
+                      "type": "ref",
+                      "ref": "XDZ0E",
+                      "name": "r7TxVl",
+                      "width": "fill_container",
+                      "padding": 16,
+                      "gap": 8,
+                      "stroke": "$border/border",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "GR9kn",
+                          "name": "hdr",
+                          "width": "fill_container",
+                          "gap": 8,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "I0NJLl",
+                              "name": "title",
+                              "fill": "$foreground/foreground",
+                              "content": "operator",
+                              "fontFamily": "$typography/font-mono",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "id": "TjRxn",
+                              "type": "ref",
+                              "ref": "KmZnF",
+                              "name": "builtin",
+                              "descendants": {
+                                "xZ9ah": {
+                                  "content": "BUILT-IN"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "gbSJG",
+                          "name": "desc",
+                          "fill": "$muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Manage game servers, backups, templates, and schedules.",
+                          "lineHeight": 1.4,
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "WFYwH",
+                          "name": "perm",
+                          "fill": "$muted",
+                          "content": "14 permissions",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "o1ALAb",
+                          "name": "actions",
+                          "gap": 8,
+                          "padding": [
+                            4,
+                            0,
+                            0,
+                            0
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "id": "O38j8",
+                              "type": "ref",
+                              "ref": "J09iP",
+                              "name": "Edit Button",
+                              "descendants": {
+                                "eWkIT/WtPjS": {
+                                  "icon": "pencil"
+                                },
+                                "eWkIT/r4VbAi": {
+                                  "content": "Edit"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "b3GlP",
+                      "type": "ref",
+                      "ref": "XDZ0E",
+                      "name": "u5YFvQ",
+                      "width": "fill_container",
+                      "padding": 16,
+                      "gap": 8,
+                      "stroke": "$border/border",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "sCnFu",
+                          "name": "hdr",
+                          "width": "fill_container",
+                          "gap": 8,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "zZeEF",
+                              "name": "title",
+                              "fill": "$foreground/foreground",
+                              "content": "viewer",
+                              "fontFamily": "$typography/font-mono",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "id": "MZflM",
+                              "type": "ref",
+                              "ref": "KmZnF",
+                              "name": "builtin",
+                              "descendants": {
+                                "xZ9ah": {
+                                  "content": "BUILT-IN"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "iM246",
+                          "name": "desc",
+                          "fill": "$muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Read-only access across the control panel.",
+                          "lineHeight": 1.4,
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "K3blNi",
+                          "name": "perm",
+                          "fill": "$muted",
+                          "content": "8 permissions",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "xBMbu",
+                          "name": "actions",
+                          "gap": 8,
+                          "padding": [
+                            4,
+                            0,
+                            0,
+                            0
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "id": "OifU9",
+                              "type": "ref",
+                              "ref": "J09iP",
+                              "name": "Edit Button",
+                              "descendants": {
+                                "eWkIT/WtPjS": {
+                                  "icon": "pencil"
+                                },
+                                "eWkIT/r4VbAi": {
+                                  "content": "Edit"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

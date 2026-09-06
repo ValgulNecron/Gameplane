@@ -5,7 +5,6 @@
   "y": 5700,
   "name": "Screen/Dashboard Home (Light)",
   "theme": {
-    "c:Mode": "Light",
     "semantic": "light"
   },
   "clip": true,

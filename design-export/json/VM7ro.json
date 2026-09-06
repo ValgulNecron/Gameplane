@@ -4,6 +4,135 @@
   "reusable": true,
   "ref": "x3beP",
   "name": "Gameplane/Dialog/Share Link Created",
-  "x": 1320,
-  "y": 29918
+  "x": -15865,
+  "y": 27934,
+  "descendants": {
+    "E7Whx": {
+      "content": "Share link created"
+    },
+    "qzcst": {
+      "content": "Send this to your friend. It works without a Gameplane account."
+    },
+    "Nht52": {
+      "type": "frame",
+      "id": "J5VxNe",
+      "name": "mBody",
+      "width": "fill_container",
+      "layout": "vertical",
+      "gap": 12,
+      "padding": [
+        16,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "id": "P8AoUw",
+          "type": "ref",
+          "ref": "Llzos",
+          "name": "One-time warning",
+          "width": "fill_container",
+          "descendants": {
+            "sINBP": {
+              "icon": "megaphone"
+            },
+            "BXuYr": {
+              "content": "You will not see this link again"
+            },
+            "JmFhb": {
+              "content": "Gameplane stores only a one-way hash of the token, so it can't be shown or recovered after you close this dialog. Copy it now."
+            },
+            "c0FRXZ": {
+              "enabled": false
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "SICns",
+          "name": "tokenRow",
+          "width": "fill_container",
+          "fill": "$default/default",
+          "cornerRadius": 8,
+          "stroke": "$border/border",
+          "strokeWidth": 1,
+          "gap": 12,
+          "padding": [
+            10,
+            14
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "OEaBF",
+              "fill": "$foreground/foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "https://play.gameplane.example/s/8f3ac1e0b2d94f7c9a5e6b7d1c0e2f4a",
+              "fontFamily": "$typography/font-mono",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "icon",
+              "id": "w5JpSz",
+              "width": 16,
+              "height": 16,
+              "icon": "copy",
+              "library": "lucide",
+              "fill": "$muted"
+            }
+          ]
+        }
+      ]
+    },
+    "GCwAF": {
+      "type": "frame",
+      "id": "bvUYp",
+      "name": "mFooter",
+      "width": "fill_container",
+      "gap": 8,
+      "padding": [
+        20,
+        0,
+        0,
+        0
+      ],
+      "justifyContent": "end",
+      "alignItems": "center",
+      "children": [
+        {
+          "id": "kbpwg",
+          "type": "ref",
+          "ref": "FIB65",
+          "name": "btnCopy",
+          "descendants": {
+            "K8d1zg": {
+              "icon": "copy"
+            },
+            "zMNkR": {
+              "content": "Copy link"
+            }
+          }
+        },
+        {
+          "id": "m6ngX",
+          "type": "ref",
+          "ref": "j9c5W",
+          "name": "btnPrimary",
+          "descendants": {
+            "n8Hmwk": {
+              "enabled": false
+            },
+            "U1xvSo": {
+              "content": "Done"
+            }
+          }
+        }
+      ]
+    }
+  }
 }

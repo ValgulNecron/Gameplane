@@ -4,7 +4,6 @@
   "x": -16881,
   "y": 25187,
   "name": "Gameplane/Server Detail Tabs",
-  "theme": {},
   "reusable": true,
   "width": 1096,
   "fill": "$background/background",
@@ -14,312 +13,139 @@
   },
   "strokeAlignment": "inner",
   "strokeLinejoin": "round",
+  "padding": [
+    12,
+    16
+  ],
+  "alignItems": "center",
   "children": [
     {
-      "type": "frame",
-      "id": "N37AkT",
-      "name": "tabOverview",
-      "stroke": "$accent/accent",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
+      "id": "xJNKQ",
+      "type": "ref",
+      "ref": "Dx8S8",
+      "name": "tabsBar",
+      "width": "fit_content",
       "children": [
         {
-          "type": "text",
-          "id": "F2aQhk",
-          "name": "Label",
-          "fill": "$accent/accent",
-          "content": "Overview",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "aLqgH",
-      "name": "tabEvents",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "Wp6q1",
+          "type": "ref",
+          "ref": "CEWo3",
+          "name": "tabOverview",
+          "descendants": {
+            "YUR8N": {
+              "content": "Overview"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "oVyjI",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Events",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "LOsBm",
-      "name": "tabConsole",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "j3sCE",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabEvents",
+          "descendants": {
+            "VcxMI": {
+              "content": "Events"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "nr19d",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Console",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "eP67b",
-      "name": "tabLogs",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "jcWsD",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabConsole",
+          "descendants": {
+            "VcxMI": {
+              "content": "Console"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "ZFqdG",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Logs",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "buv0S",
-      "name": "tabFiles",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "tEfPq",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabLogs",
+          "descendants": {
+            "VcxMI": {
+              "content": "Logs"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "vSZtk",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Files",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "TW8zU",
-      "name": "tabMods",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "YbqYm",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabFiles",
+          "descendants": {
+            "VcxMI": {
+              "content": "Files"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "bSVUu",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Mods",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "Y0MSLV",
-      "name": "tabModpacks",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "RfiZy",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabMods",
+          "descendants": {
+            "VcxMI": {
+              "content": "Mods"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "ki4l6",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Modpacks",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "goKNE",
-      "name": "tabPlayers",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "cvlrU",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabModpacks",
+          "descendants": {
+            "VcxMI": {
+              "content": "Modpacks"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "yS1Dt",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Players",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "NXLqV",
-      "name": "tabBackups",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "hNitQ",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabPlayers",
+          "descendants": {
+            "VcxMI": {
+              "content": "Players"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "P1zGbN",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Backups",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "k62ubV",
-      "name": "tabCapture",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "cocgj",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabBackups",
+          "descendants": {
+            "VcxMI": {
+              "content": "Backups"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "R4v48",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Capture",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "Jilsi",
-      "name": "tabSettings",
-      "stroke": "#00000000",
-      "strokeWidth": {
-        "bottom": 2
-      },
-      "strokeAlignment": "inner",
-      "strokeLinejoin": "round",
-      "padding": [
-        12,
-        16
-      ],
-      "children": [
+          "id": "XcBPc",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabCapture",
+          "descendants": {
+            "VcxMI": {
+              "content": "Capture"
+            }
+          }
+        },
         {
-          "type": "text",
-          "id": "nS5Qg",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Settings",
-          "lineHeight": 1.4285714285714286,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
+          "id": "Y4QES",
+          "type": "ref",
+          "ref": "qAFbJ",
+          "name": "tabSettings",
+          "descendants": {
+            "VcxMI": {
+              "content": "Settings"
+            }
+          }
         }
       ]
     }

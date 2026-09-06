@@ -5,7 +5,6 @@
   "y": 22565,
   "name": "Screen/Mobile — Servers",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,
@@ -260,7 +259,7 @@
                           "name": "Label",
                           "fill": "$success/soft-foreground",
                           "content": "Running",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }
@@ -472,7 +471,7 @@
                           "name": "Label",
                           "fill": "$color-sleep-foreground",
                           "content": "Asleep",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }
@@ -684,7 +683,7 @@
                           "name": "Label",
                           "fill": "$success/soft-foreground",
                           "content": "Running",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }
@@ -896,7 +895,7 @@
                           "name": "Label",
                           "fill": "$warning/soft-foreground",
                           "content": "Starting",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }
@@ -1108,7 +1107,7 @@
                           "name": "Label",
                           "fill": "$danger/soft-foreground",
                           "content": "CrashLoop",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }

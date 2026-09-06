@@ -3,12 +3,197 @@
   "id": "qFLfB",
   "x": 3280,
   "y": 23709,
-  "name": "Screen/Share Link \u2014 Asleep (view only)",
+  "name": "Screen/Share Link — Asleep (view only)",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,
   "width": 1440,
-  "height": 900
+  "height": 900,
+  "fill": "$background/background",
+  "layout": "vertical",
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "frame",
+      "id": "As73F",
+      "name": "shareCard",
+      "width": 440,
+      "fill": "$surface/surface",
+      "cornerRadius": 12,
+      "stroke": "$border/border",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 36,
+      "children": [
+        {
+          "type": "frame",
+          "id": "cXkr7",
+          "name": "brand",
+          "width": "fill_container",
+          "gap": 10,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "VgY98",
+              "name": "logoK",
+              "width": 36,
+              "height": 36,
+              "fill": "$accent/soft",
+              "cornerRadius": 8,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "WnVZK",
+                  "name": "shield",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "shield-check",
+                  "library": "lucide",
+                  "fill": "$accent/accent"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uCDOn",
+              "name": "logoCol",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BTVXE",
+                  "fill": "$foreground/foreground",
+                  "content": "gameplane",
+                  "fontFamily": "$typography/font-mono",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "f95oCm",
+                  "fill": "$muted",
+                  "content": "shared server link",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "g0l7u0",
+          "name": "serverIdCol",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 10,
+          "children": [
+            {
+              "type": "text",
+              "id": "gDOhB",
+              "fill": "$foreground/foreground",
+              "content": "mc-survival",
+              "fontFamily": "$typography/font-mono",
+              "fontSize": 22,
+              "fontWeight": "600"
+            },
+            {
+              "id": "g8yT5",
+              "type": "ref",
+              "ref": "KmZnF",
+              "name": "statusBadge",
+              "fill": "#8B5CF633",
+              "stroke": "#A78BFA99",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "padding": [
+                2,
+                4,
+                2,
+                20
+              ],
+              "descendants": {
+                "xZ9ah": {
+                  "content": "Asleep",
+                  "fill": "#A78BFA",
+                  "fontFamily": "$typography/font-mono"
+                }
+              }
+            },
+            {
+              "type": "ellipse",
+              "id": "AJc6E",
+              "layoutPosition": "absolute",
+              "x": 10,
+              "y": 45.5,
+              "name": "statusDot",
+              "fill": "#A78BFA",
+              "width": 6,
+              "height": 6
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Y2b553",
+          "name": "asleepBlock",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "F5lfL",
+              "fill": "$muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "This server is asleep right now. Check back later, or ask the server owner to start it.",
+              "lineHeight": 1.5,
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "lmN4E",
+          "x": 36,
+          "y": 275,
+          "name": "playersRow",
+          "enabled": false,
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "P21uhS",
+              "width": 14,
+              "height": 14,
+              "icon": "users",
+              "library": "lucide",
+              "fill": "$muted"
+            },
+            {
+              "type": "text",
+              "id": "j9WSw",
+              "fill": "$muted",
+              "content": "3 players online",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

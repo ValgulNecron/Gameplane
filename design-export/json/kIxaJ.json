@@ -4,7 +4,6 @@
   "x": -16485,
   "y": 25269,
   "name": "Gameplane/Audit Integrity Banner",
-  "theme": {},
   "reusable": true,
   "width": 700,
   "fill": "$background/background",
@@ -22,44 +21,51 @@
       "fontWeight": "500"
     },
     {
-      "id": "aAaPa",
-      "type": "ref",
-      "ref": "c:YZjRF",
+      "type": "frame",
+      "id": "m1hP1j",
       "name": "Integrity Banner (Broken)",
       "width": "fill_container",
-      "layout": "horizontal",
-      "alignItems": "center",
       "fill": "$danger/danger",
-      "cornerRadius": 0,
-      "descendants": {
-        "c:LB3Fl": {
-          "fill": "$foreground/foreground"
-        },
-        "c:FTYwP": {
-          "stroke": "$danger/foreground"
-        },
-        "c:7IdrZ": {
+      "gap": 12,
+      "padding": 16,
+      "alignItems": "center",
+      "children": [
+        {
           "type": "frame",
-          "id": "H3d0vj",
-          "name": "contents",
-          "width": "fill_container",
-          "layout": "vertical",
-          "gap": 4,
+          "id": "gJjR4",
+          "name": "Icon",
+          "width": 32,
+          "height": 32,
+          "fill": "$foreground/foreground",
+          "cornerRadius": 6,
+          "padding": 4,
+          "justifyContent": "center",
+          "alignItems": "center",
           "children": [
             {
-              "type": "text",
-              "id": "fuKsy",
-              "name": "Message",
-              "fill": "$danger/foreground",
-              "content": "Integrity check failed — chain breaks at event #286",
-              "lineHeight": 1.5,
-              "fontFamily": "$typography/font-sans",
-              "fontSize": 16,
-              "fontWeight": "500"
+              "type": "icon",
+              "id": "z04z2",
+              "name": "Icon",
+              "width": 20,
+              "height": 20,
+              "icon": "activity",
+              "library": "lucide",
+              "fill": "$danger/foreground"
             }
           ]
+        },
+        {
+          "type": "text",
+          "id": "Mtc22",
+          "name": "Message",
+          "fill": "$danger/foreground",
+          "content": "Integrity check failed — chain breaks at event #286",
+          "lineHeight": 1.5,
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 16,
+          "fontWeight": "500"
         }
-      }
+      ]
     }
   ]
 }

@@ -4,11 +4,9 @@
   "x": -16812,
   "y": 26108,
   "name": "Gameplane/Button/Small/Default",
-  "theme": {},
   "reusable": true,
   "height": 32,
-  "fill": "$accent/accent",
-  "cornerRadius": "$radius/md",
+  "fill": "#00000000",
   "gap": 8,
   "padding": [
     0,
@@ -18,21 +16,12 @@
   "alignItems": "center",
   "children": [
     {
-      "type": "frame",
       "id": "IVgQ8",
+      "type": "ref",
+      "ref": "j9c5W",
       "name": "Button",
-      "height": 32,
-      "fill": "$accent/accent",
-      "cornerRadius": "$radius/3xl",
-      "gap": 5,
-      "padding": [
-        8,
-        "$spacing/3"
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
-      "children": [
-        {
+      "descendants": {
+        "n8Hmwk": {
           "type": "icon",
           "id": "nWTJb",
           "name": "i1",
@@ -42,17 +31,10 @@
           "library": "lucide",
           "fill": "$accent/foreground"
         },
-        {
-          "type": "text",
-          "id": "IVgQ8/U1xvSo",
-          "name": "Label",
-          "fill": "$accent/foreground",
-          "content": "Button",
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 13,
-          "fontWeight": "500"
+        "U1xvSo": {
+          "content": "Button"
         }
-      ]
+      }
     }
   ]
 }
