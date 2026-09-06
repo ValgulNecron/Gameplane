@@ -5,6 +5,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { RouterProvider as AriaRouterProvider } from "react-aria-components";
 
 import { routeTree } from "@/router/tree";
+import { createAriaNavigate, createAriaUseHref } from "@/lib/ariaRouter";
 import "@/styles/globals.css";
 
 const router = createRouter({ routeTree });
@@ -34,10 +35,8 @@ async function bootstrap(): Promise<void> {
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <AriaRouterProvider
-          navigate={(to: string) =>
-            router.navigate({ to })
-          }
-          useHref={(to: string) => router.buildLocation({ to }).href}
+          navigate={createAriaNavigate(router)}
+          useHref={createAriaUseHref(router)}
         >
           <RouterProvider router={router} />
         </AriaRouterProvider>

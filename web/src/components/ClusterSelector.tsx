@@ -90,7 +90,7 @@ export function ClusterSelector() {
             </DropdownItem>
           ) : (
             <>
-              <DropdownSection>
+              <DropdownSection aria-label="Clusters">
                 {clusters.map((cluster) => (
                   <DropdownItem
                     key={cluster.name}
@@ -111,7 +111,7 @@ export function ClusterSelector() {
                 ))}
               </DropdownSection>
 
-              <DropdownSection>
+              <DropdownSection aria-label="Actions">
                 <DropdownItem
                   key="add-cluster"
                   onPress={handleAddCluster}

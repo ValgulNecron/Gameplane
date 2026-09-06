@@ -8,11 +8,7 @@ export interface AppearanceToggleProps {
   onChange: (mode: AppearanceMode) => void;
 }
 
-/**
- * Three-state appearance toggle: light → dark → system → light.
- * Uses ToggleButtonGroup if available, otherwise three button elements.
- * Persists to localStorage and updates both class and data-theme on <html>.
- */
+/** Three-state appearance toggle: light, dark, system. Controlled component — the caller owns persistence. */
 export function AppearanceToggle({ value, onChange }: AppearanceToggleProps) {
   const modes: Array<{ mode: AppearanceMode; icon: ReactNode; label: string }> = [
     { mode: "light", icon: <Sun className="h-4 w-4" />, label: "Light" },

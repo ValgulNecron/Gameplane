@@ -1,4 +1,4 @@
-import { useRef, useState, type JSX, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, Server } from "lucide-react";
@@ -21,7 +21,14 @@ export function GlobalSearch(): JSX.Element {
   const [open, setOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const { data } = useQuery({
     queryKey: ["servers"],
@@ -105,11 +112,22 @@ export function GlobalSearch(): JSX.Element {
           ref={inputRef}
           placeholder="Search servers…"
           data-testid="search-input"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="global-search-results"
+          aria-activedescendant={
+            selectedIndex >= 0 && selectedIndex < matches.length
+              ? `search-result-${matches[selectedIndex].metadata.name}`
+              : ""
+          }
           onFocus={() => {
             if (query.length > 0) setOpen(true);
           }}
           // Delay so a result click registers before the popover unmounts.
-          onBlur={() => setTimeout(() => setOpen(false), 120)}
+          onBlur={() => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => setOpen(false), 120);
+          }}
           onKeyDown={handleKeyDown}
           className="h-10 w-full rounded-full border-0 bg-transparent pl-9 pr-8 text-sm text-fg placeholder:text-muted focus:outline-hidden"
         />
@@ -124,7 +142,7 @@ export function GlobalSearch(): JSX.Element {
         placement="bottom start"
         className="w-72 overflow-hidden rounded-md border border-border bg-background p-0 shadow-lg"
       >
-        <ul role="listbox" className="max-h-72 overflow-auto">
+        <ul role="listbox" id="global-search-results" className="max-h-72 overflow-auto">
           {matches.length === 0 ? (
             <li className="px-3 py-2 text-sm text-muted">
               No servers match.
@@ -133,6 +151,7 @@ export function GlobalSearch(): JSX.Element {
             matches.map((server, idx) => (
               <li
                 key={server.metadata.name}
+                id={`search-result-${server.metadata.name}`}
                 role="option"
                 aria-selected={selectedIndex === idx}
                 onMouseEnter={() => setSelectedIndex(idx)}

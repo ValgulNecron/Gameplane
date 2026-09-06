@@ -61,6 +61,14 @@ function useAppearance(): [AppearanceMode, (mode: AppearanceMode) => void] {
 
   useEffect(() => {
     applyTheme(theme);
+
+    // Subscribe to OS theme changes only in system mode
+    if (theme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleChange = () => applyTheme("system");
+      mq.addEventListener("change", handleChange);
+      return () => mq.removeEventListener("change", handleChange);
+    }
   }, [theme]);
 
   const setTheme = (mode: AppearanceMode) => {

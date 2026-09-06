@@ -53,14 +53,16 @@ export function Sidebar({
       group.items.some((o) => o.to !== to && o.to.startsWith(to + "/"))
     );
     if (exact) return to === pathname;
-    return pathname.startsWith(to);
+    return pathname === to || pathname.startsWith(to + "/");
   };
 
   const sidebarContent = (
-    <aside className={cn(
-      "flex flex-col border-r border-border bg-surface/60",
-      variant === "fixed" ? "w-[260px] shrink-0" : "w-full h-full"
-    )}>
+    <aside
+      aria-label="Sidebar"
+      className={cn(
+        "flex flex-col border-r border-border bg-surface/60",
+        variant === "fixed" ? "w-[260px] shrink-0" : "w-full h-full"
+      )}>
       {/* Header */}
       <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15">
@@ -109,6 +111,7 @@ export function Sidebar({
                     <Link
                       to={to}
                       onClick={onNavigate}
+                      aria-current={isActive(to) ? "page" : undefined}
                       className={cn(
                         "group flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted transition-colors",
                         "hover:bg-border/60 hover:text-fg",
@@ -130,7 +133,7 @@ export function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border px-3 py-3 space-y-2">
+      <div className="border-t border-border px-3 py-3 space-y-2" aria-label="Sidebar footer">
         {/* Appearance toggle row */}
         <div className="flex justify-center">
           {onThemeChange && (
@@ -155,9 +158,9 @@ export function Sidebar({
             </div>
           </div>
           <button
-            title="Sign out"
+            aria-label="Sign out"
             className="rounded p-1 text-muted hover:bg-border/60 hover:text-fg transition-colors"
-            onClick={onLogout}
+            onClick={() => void onLogout()}
           >
             <LogOut className="h-4 w-4" />
           </button>

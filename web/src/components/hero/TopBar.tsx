@@ -111,7 +111,7 @@ export function TopBar({
               </DropdownItem>
               <DropdownItem
                 key="logout"
-                onClick={handleLogout}
+                onClick={() => void handleLogout()}
                 className="text-danger"
               >
                 Sign out

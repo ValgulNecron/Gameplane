@@ -256,7 +256,7 @@ function SSOButtons({ providers }: { providers: LoginProvider[] }) {
           variant="outline"
           fullWidth
           className="font-mono"
-          onClick={() => location.assign(Auth.oidcStartURL(p.name))}
+          onPress={() => location.assign(Auth.oidcStartURL(p.name))}
         >
           <KeyRound className="h-4 w-4" />
           Continue with {p.label}
@@ -272,7 +272,7 @@ function MarketingRow({ icon, children }: { icon: ReactNode; children: ReactNode
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent/20 text-accent">
         {icon}
       </div>
-      <div className="font-mono text-sm text-fg">{children}</div>
+      <div className="font-mono text-sm text-foreground">{children}</div>
     </li>
   );
 }
