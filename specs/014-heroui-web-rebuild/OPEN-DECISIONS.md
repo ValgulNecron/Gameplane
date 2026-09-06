@@ -1,6 +1,6 @@
 # Open decisions — feature 014
 
-Values here are not traceable to `spec.md`, `CLAUDE.md` or the constitution. Each was a question for the maintainer, not a decision, until ruled on. All seven rows below were settled by the maintainer on 2026-09-03; each is now enforced in CI and written into contracts/tasks as settled, per the ruling recorded in its row.
+Values here are not traceable to `spec.md`, `CLAUDE.md` or the constitution. Each was a question for the maintainer, not a decision, until ruled on. Ruled rows are now enforced in CI and written into contracts/tasks as settled, per the ruling recorded in each row; open rows await maintainer decision.
 
 | ID | Question | Ruling | Status |
 |---|---|---|---|
@@ -17,3 +17,4 @@ Values here are not traceable to `spec.md`, `CLAUDE.md` or the constitution. Eac
 | OD-11 | `Screen/Server Detail — Settings · Share links (Empty)` (`dQV9N`) keeps a full `enabled:false` copy of the three-row share-links table beside its empty state; it was rebuilt on HeroUI and will drift from the real table on `xCJlu`. | Delete the disabled table subtree from `dQV9N` and re-export; `xCJlu` is the single source for the table. | Settled 2026-09-06 |
 | OD-12 | Several original screens carry literal placeholder buttons labelled "Button" (Create Server step 4 add-row, Backup Detail Drawer header action, Players row action, per-mod actions on Mods by ID and beside Save changes). Faithful re-skin keeps them; reviews keep flagging them. | Give them real labels in the re-skin: "Add port override" (plus icon), "Remove" on each selected-mod row and "Discard" beside "Save changes" on Mods by ID, "Restore" (rotate-ccw) on the Backup Detail Drawer header, "Refresh" (refresh-cw) on the Players online row. The last two names were chosen by the agent from the screen's function — maintainer may rename. | Settled 2026-09-06 |
 | OD-13 | The rebuilt `Gameplane/Server Detail Tabs` (`I9kvlZ`) grew from 88 px to 128 px with the HeroUI Tabs pill, shifting every detail screen's vertical rhythm. | Keep the HeroUI pill height (128 px); reviews stop flagging it. | Settled 2026-09-06 |
+| OD-14 | Screen/Create Server — Step 5 Review (UMJli): the original Create server button shows label then a trailing check icon; HeroUI's Button definitions only have a leading-icon slot and LtgNm must not be edited. Options: no icon / leading check icon / new Gameplane trailing-icon Button variant. | Leading check icon — keep the HeroUI Button/Primary/LG instance, un-hide its leading icon set to check. | Settled 2026-09-06 |
