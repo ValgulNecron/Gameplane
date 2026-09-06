@@ -69,8 +69,8 @@ During the multi-slice rebuild transition, the previous Radix-based primitives r
    - No other hero/* components are rendered pre-auth (AppLayout, Sidebar, TopBar, etc. all require `useMe()`, which 401-redirects unauthenticated users)
    - All HeroUI imports follow FR-012 (from "@heroui/react" only; no radix-ui/ui/CVA leakage)
 
-3. **SSO button labels (lines 239–254):**
-   - Provider display names come from the pre-auth `Auth.providers()` API response (`p.label`, line 250)
+3. **SSO button labels (SSOButtons, lines 249–267; MarketingRow, lines 269–278):**
+   - Provider display names come from the pre-auth `Auth.providers()` API response (`p.label`, line 262 in SSOButtons)
    - Never issuer URLs or internal identifiers
    - Compliant with the login-privacy rule
 
@@ -125,12 +125,12 @@ This rule is enforced by lint and review: any rebuilt file importing from forbid
    - Gracefully handles localStorage unavailability; keeps the dark default from markup
 
 2. **`AppearanceToggle.tsx` + `AppLayout.tsx` (T052):**
-   - AppLayout calls `useTheme()` from HeroUI to get theme state and setter
+   - AppLayout calls `useAppearance()` (custom hook) to get theme state and setter
    - Passes `theme` and `setTheme` as props to Sidebar
    - Sidebar renders `AppearanceToggle` with `value` and `onChange` callbacks
    - On toggle, AppearanceToggle calls the `onChange` callback (wired to `setTheme`)
-   - `setTheme` syncs to localStorage and updates `document.documentElement` classes/attributes
-   - HeroUI's hook already toggles the `dark`/`light` class; confirm whether it also sets `data-theme`, and if not, do so explicitly in a `useEffect` in AppLayout
+   - `setTheme` syncs to localStorage; `useAppearance()` calls `applyTheme()` via useEffect on every theme change
+   - `applyTheme()` (web/src/components/AppLayout.tsx lines 48–57) explicitly sets both `document.documentElement.classList` (adds/removes dark/light) and `document.documentElement.dataset.theme = resolved`, ensuring consistent theme application without requiring a separate hook from HeroUI
 
 **Shipped default:** `<html class="dark" data-theme="dark">` in markup (dark theme as the no-JavaScript fallback; overridden by boot script if a stored preference exists).
 

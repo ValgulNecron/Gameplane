@@ -267,7 +267,7 @@ Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 2
 | `d5N3W3` | Gameplane/Button/Small/Outline | Button composition | Button/Outline/SM variant from HeroUI definitions. |
 | `J09iP` | Gameplane/Button/Small/Ghost | Button composition | Button/Ghost/SM variant from HeroUI definitions. |
 | `IU7OG` | Gameplane/Button/Small/Danger | Button composition | Button/Danger/SM variant from HeroUI definitions. |
-| `D0cDM` | Gameplane/Input | Form atom | Bare field row (280×40) restyled from HeroUI Input/Primary's field frame (`$field/background`, `$radius/xl`, `$field/border`, `$field/placeholder`), no label/description — matches the original atom's bare-field shape. |
+| `D0cDM` | Gameplane/Input | Form atom | Bare field row (280×36) restyled from HeroUI Input/Primary's field frame (`$field/background`, `$radius/xl`, `$field/border`, `$field/placeholder`), no label/description — matches the original atom's bare-field shape. |
 | `qvQPg` | Gameplane/Input/Small | Form atom | Bare field row (250×32), redrawn small-height variant of the same Input/Primary field style; T012 redo replaced a broken full Label+Field+Description instance (140 px tall) with this flat field-only frame. |
 | `Lmaf1` | Gameplane/Search Input | Form atom | Bare field row (280×36) restyled from HeroUI SearchField/Primary's field frame (search icon + placeholder text, `$field/*` tokens), no label. |
 | `AT7ya` | Gameplane/Select | Form atom | Bare field row (280×36) restyled from HeroUI Select/Primary's trigger frame (value text + chevron icon, `$field/*` tokens), no label/description. |
