@@ -316,11 +316,13 @@ func (r *GameServerReconciler) reconcileTunnel(
 		if tunnel.CredentialsSecretRef != nil && tunnel.CredentialsSecretRef.Name != "" {
 			secName := tunnel.CredentialsSecretRef.Name
 			var sec corev1.Secret
-			if err := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: secName}, &sec); err != nil {
+			err := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: secName}, &sec)
+			if err == nil {
+				if !isServerOwnedSecret(&sec, gs) {
+					return fmt.Errorf("tunnel credentials secret %q is not owned by GameServer %s/%s", secName, gs.Namespace, gs.Name)
+				}
+			} else if !apierrors.IsNotFound(err) {
 				return fmt.Errorf("tunnel credentials secret %q: %w", secName, err)
-			}
-			if !isServerOwnedSecret(&sec, gs) {
-				return fmt.Errorf("tunnel credentials secret %q is not owned by GameServer %s/%s", secName, gs.Namespace, gs.Name)
 			}
 			volumes = append(volumes, corev1.Volume{
 				Name: tunnelAuthVolume,
