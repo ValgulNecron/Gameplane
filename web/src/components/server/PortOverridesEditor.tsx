@@ -65,10 +65,12 @@ export function PortOverridesEditor({
             size="sm"
             isIconOnly
             className="justify-self-start sm:justify-self-auto"
-            title="Remove"
+            aria-label="Remove"
             onPress={() => remove(idx)}
           >
-            <X className="h-4 w-4" />
+            <span title="Remove">
+              <X className="h-4 w-4" />
+            </span>
           </Button>
         </div>
       ))}

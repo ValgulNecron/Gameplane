@@ -3,7 +3,6 @@ import { Card, Alert } from "@heroui/react";
 
 import type { GameServer } from "@/types";
 import { formatRelative, capitalize } from "@/lib/utils";
-import { Chip } from "@/components/hero/PhaseChip";
 
 export function ServerSleepCard({ gs }: { gs?: GameServer }) {
   const spec = gs?.spec.idle;

@@ -52,10 +52,9 @@ export function Breadcrumbs({ items }: { items: Crumb[] }): JSX.Element {
             <HeroBreadcrumbs.Item
               key={crumb.to ?? crumb.label}
               href={crumb.to && !isLast ? crumb.to : undefined}
-              aria-current={isLast ? "page" : undefined}
               className={isLast ? "text-sm text-foreground" : "text-sm text-muted hover:text-foreground"}
             >
-              {crumb.label}
+              {isLast ? <span aria-current="page">{crumb.label}</span> : crumb.label}
             </HeroBreadcrumbs.Item>
           );
         })}

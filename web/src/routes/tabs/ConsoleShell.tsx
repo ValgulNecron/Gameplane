@@ -39,27 +39,27 @@ export function ConsoleShell({ handle }: { handle: ConsoleHandle }) {
         <div className="ml-auto flex flex-wrap gap-2">
           <Button
             isIconOnly
-            variant="light"
+            variant="ghost"
             size="sm"
-            onClick={clear}
+            onPress={clear}
             aria-label="Clear terminal"
           >
             <Eraser className="h-4 w-4" />
           </Button>
           <Button
             isIconOnly
-            variant="light"
+            variant="ghost"
             size="sm"
-            onClick={download}
+            onPress={download}
             aria-label="Download terminal buffer"
           >
             <Download className="h-4 w-4" />
           </Button>
           <Button
             isIconOnly
-            variant="light"
+            variant="ghost"
             size="sm"
-            onClick={toggleFullscreen}
+            onPress={toggleFullscreen}
             aria-label="Toggle fullscreen"
           >
             <Maximize2 className="h-4 w-4" />
@@ -88,7 +88,7 @@ export function ConsoleShell({ handle }: { handle: ConsoleHandle }) {
         <Button
           type="submit"
           size="sm"
-          color="primary"
+          variant="primary"
           isDisabled={!cmd.trim()}
         >
           Send

@@ -328,11 +328,11 @@ function ActionDialog({
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button color="default" variant="flat" onPress={onCancel} isDisabled={pending}>
+            <Button variant="secondary" onPress={onCancel} isDisabled={pending}>
               Cancel
             </Button>
             <Button
-              color={action.danger ? "danger" : "primary"}
+              variant={action.danger ? "danger" : "primary"}
               isDisabled={!valid || pending}
               onPress={() => onRun(collect(params, values))}
             >

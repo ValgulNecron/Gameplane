@@ -153,19 +153,19 @@ export function LogsTab({
               size="sm"
               variant={effectiveSource === "pod" ? "primary" : "outline"}
               onPress={() => setSource("pod")}
-              title="Follow the pod's setup + game container output (install/startup)"
               className={cn(effectiveSource === "pod" && "font-medium")}
             >
-              Container output
+              <span title="Follow the pod's setup + game container output (install/startup)">
+                Container output
+              </span>
             </Button>
             <Button
               size="sm"
               variant={effectiveSource === "file" ? "primary" : "outline"}
               onPress={() => setSource("file")}
-              title="Tail the configured game log file via the agent"
               className={cn(effectiveSource === "file" && "font-medium")}
             >
-              Game log
+              <span title="Tail the configured game log file via the agent">Game log</span>
             </Button>
           </div>
         ) : (
@@ -206,8 +206,8 @@ export function LogsTab({
             onPress={() => {
               window.location.href = Logs.downloadURL(name);
             }}
-            startContent={<Download className="h-4 w-4" />}
           >
+            <Download className="h-4 w-4" />
             Download
           </Button>
         </div>

@@ -81,7 +81,7 @@ describe("DeleteServerDialog", () => {
   });
 
   it("calls mutation on confirm", async () => {
-    const mockRemove = vi.mocked(ServersAPI.Servers.remove).mockResolvedValue({});
+    const mockRemove = vi.mocked(ServersAPI.Servers.remove).mockResolvedValue(undefined);
     const onDeleted = vi.fn();
 
     renderWithProviders(
@@ -106,7 +106,7 @@ describe("DeleteServerDialog", () => {
   });
 
   it("passes namespace when provided", async () => {
-    const mockRemove = vi.mocked(ServersAPI.Servers.remove).mockResolvedValue({});
+    const mockRemove = vi.mocked(ServersAPI.Servers.remove).mockResolvedValue(undefined);
 
     renderWithProviders(
       <DeleteServerDialog
@@ -174,6 +174,7 @@ describe("DeleteServerDialog", () => {
     expect(screen.getByRole("button", { name: "Working…" })).toBeDisabled();
     const cancelBtn = screen.getByRole("button", { name: "Cancel" });
     expect(cancelBtn).toBeDisabled();
+    expect(mockRemove).toHaveBeenCalledWith("test-server", undefined);
   });
 
   it("closes dialog on cancel", async () => {
@@ -276,5 +277,6 @@ describe("DeleteServerDialog", () => {
 
     // Error message should be cleared
     expect(screen.queryByText(/delete failed/)).not.toBeInTheDocument();
+    expect(mockRemove).toHaveBeenCalledWith("test-server", undefined);
   });
 });

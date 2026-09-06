@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Tabs, Tab } from "@heroui/react";
+import { Button, Tab, Tabs } from "@heroui/react";
 import {
   AlertTriangle,
   Loader2,
@@ -231,18 +231,19 @@ export function ServerDetailPage() {
           </div>
         </div>
 
-        <nav>
-          <Tabs
-            selectedKey={tab}
-            onSelectionChange={(k) => setTab(k as TabKey)}
-            aria-label="Server detail tabs"
-            className="w-full"
-          >
+        <Tabs
+          selectedKey={tab}
+          onSelectionChange={(key) => setTab(key as TabKey)}
+          className="w-full"
+        >
+          <Tabs.List aria-label="Server detail tabs" className="flex w-full gap-1 overflow-x-auto">
             {visibleTabs.map((t) => (
-              <Tab key={t.key} title={t.label} />
+              <Tab key={t.key} id={t.key}>
+                {t.label}
+              </Tab>
             ))}
-          </Tabs>
-        </nav>
+          </Tabs.List>
+        </Tabs>
       </header>
 
       <div className="flex-1 overflow-auto scrollbar-thin">

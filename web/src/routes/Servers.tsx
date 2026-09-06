@@ -16,10 +16,9 @@ import {
   Square,
   Sunrise,
   Users as UsersIcon,
-  EllipsisVertical,
 } from "lucide-react";
 
-import { Button, Card, Input, Chip, Tabs, Tab, Table } from "@heroui/react";
+import { Button, Card, Input, Chip, Tabs, Tab, Table, buttonVariants } from "@heroui/react";
 import { StatCard } from "@/components/hero/StatCard";
 import { PhaseChip } from "@/components/hero/PhaseChip";
 import { FilterPopover } from "@/components/hero/FilterPopover";
@@ -174,9 +173,9 @@ export function ServersPage() {
         title="Servers"
         subtitle="Manage game server workloads across your cluster."
         actions={
-          <Button asChild>
-            <Link to="/servers/new"><Plus className="h-4 w-4" /> Create server</Link>
-          </Button>
+          <Link to="/servers/new" className={buttonVariants({ variant: "primary" })}>
+            <Plus className="h-4 w-4" /> Create server
+          </Link>
         }
       />
 
@@ -222,21 +221,24 @@ export function ServersPage() {
         <Tabs
           selectedKey={filter}
           onSelectionChange={(key) => setFilter(key as FilterKey)}
-          aria-label="Server status filter"
         >
-          <Tab key="all" title={`All ${servers.length}`} />
-          <Tab key="running" title={`Running ${counts.running}`} />
-          <Tab key="stopped" title={`Stopped ${counts.stopped}`} />
+          <Tabs.List aria-label="Server status filter">
+            <Tab id="all">{`All ${servers.length}`}</Tab>
+            <Tab id="running">{`Running ${counts.running}`}</Tab>
+            <Tab id="stopped">{`Stopped ${counts.stopped}`}</Tab>
+          </Tabs.List>
         </Tabs>
         <div className="ml-auto flex items-center gap-2">
-          <Input
-            startContent={<Search className="h-4 w-4" />}
-            placeholder="Search servers…"
-            value={query}
-            onValueChange={setQuery}
-            className="w-64"
-            aria-label="Search servers"
-          />
+          <div className="relative w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
+            <Input
+              placeholder="Search servers…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full pl-9"
+              aria-label="Search servers"
+            />
+          </div>
           <FilterPopover
             games={distinctGames}
             selectedGames={draftGames}
@@ -249,15 +251,11 @@ export function ServersPage() {
             isOpen={isFilterOpen}
             onOpenChange={handleOpenFilterChange}
           >
-            <Button
-              isIconOnly={false}
-              variant="bordered"
-              className="relative"
-              startContent={<Filter className="h-4 w-4" />}
-            >
+            <Button variant="outline" className="relative">
+              <Filter className="h-4 w-4" />
               Filter
               {appliedFacetCount > 0 && (
-                <Chip size="sm" variant="light" className="ml-1.5">
+                <Chip size="sm" variant="soft" className="ml-1.5">
                   {appliedFacetCount}
                 </Chip>
               )}
@@ -296,27 +294,26 @@ export function ServersPage() {
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
-          <Table
-            aria-label="Server list"
-            classNames={{
-              table: "bg-transparent",
-            }}
-          >
-            <Table.Header>
-              <Table.Column key="name">Name</Table.Column>
-              <Table.Column key="game">Game</Table.Column>
-              <Table.Column key="status">Status</Table.Column>
-              <Table.Column key="cpu">CPU</Table.Column>
-              <Table.Column key="memory">Memory</Table.Column>
-              <Table.Column key="players">Players</Table.Column>
-              <Table.Column key="node">Node</Table.Column>
-              <Table.Column key="actions" align="end">Actions</Table.Column>
-            </Table.Header>
-            <Table.Body
-              isLoading={isLoading}
-              loadingContent={<div className="text-center py-10 text-foreground/60">Loading…</div>}
-              emptyContent={visible.length === 0 && visibleShared.length === 0 ? "No servers match." : undefined}
-            >
+          <Table.Root className="bg-transparent">
+            <Table.ScrollContainer>
+              <Table.Content aria-label="Server list">
+                <Table.Header>
+                  <Table.Column id="name">Name</Table.Column>
+                  <Table.Column id="game">Game</Table.Column>
+                  <Table.Column id="status">Status</Table.Column>
+                  <Table.Column id="cpu">CPU</Table.Column>
+                  <Table.Column id="memory">Memory</Table.Column>
+                  <Table.Column id="players">Players</Table.Column>
+                  <Table.Column id="node">Node</Table.Column>
+                  <Table.Column id="actions" className="text-right">Actions</Table.Column>
+                </Table.Header>
+                <Table.Body
+                  renderEmptyState={() => (
+                    <div className="text-center py-10 text-foreground/60">
+                      {isLoading ? "Loading…" : "No servers match."}
+                    </div>
+                  )}
+                >
               {visible.map((gs) => (
                 <Table.Row key={gs.metadata.name}>
                   <Table.Cell>
@@ -368,7 +365,7 @@ export function ServersPage() {
                       return <span className="font-mono text-foreground/60">{node ?? "—"}</span>;
                     })()}
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell className="text-right">
                     {(() => {
                       const { isSharedNonDefault, phase, asleep } = serverRowData(gs);
                       return !isSharedNonDefault ? <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={act.mutate} /> : null;
@@ -438,7 +435,7 @@ export function ServersPage() {
                           return <span className="font-mono text-foreground/60">{node ?? "—"}</span>;
                         })()}
                       </Table.Cell>
-                      <Table.Cell>
+                      <Table.Cell className="text-right">
                         {(() => {
                           const { isSharedNonDefault, phase, asleep } = serverRowData(gs);
                           return !isSharedNonDefault ? <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={act.mutate} /> : null;
@@ -448,8 +445,10 @@ export function ServersPage() {
                   ))}
                 </>
               )}
-            </Table.Body>
-          </Table>
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
+          </Table.Root>
         </div>
       )}
     </div>
@@ -638,14 +637,14 @@ function ActionButton({
   return (
     <Button
       isIconOnly
-      variant="light"
-      title={title}
+      variant="ghost"
+      aria-label={title}
       onPress={onClick}
       isDisabled={disabled}
       size="sm"
       className="text-foreground/60 hover:text-foreground"
     >
-      {children}
+      <span title={title}>{children}</span>
     </Button>
   );
 }

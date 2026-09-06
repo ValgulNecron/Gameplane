@@ -120,10 +120,11 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
           size="sm"
           onClick={() => refetch()}
           isDisabled={isFetching}
-          title="Refresh"
           aria-label="Refresh players"
         >
-          <RotateCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          <span title="Refresh">
+            <RotateCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          </span>
         </Button>
       </header>
 
@@ -160,14 +161,15 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     isIconOnly
                     variant="ghost"
                     size="sm"
-                    title="Kick"
                     aria-label={`Kick ${p}`}
                     onClick={() => {
                       setPending({ player: p, action: "kick" });
                       setReason("");
                     }}
                   >
-                    <UserMinus className="h-4 w-4" />
+                    <span title="Kick">
+                      <UserMinus className="h-4 w-4" />
+                    </span>
                   </Button>
                 )}
                 {caps.ban && (
@@ -175,14 +177,15 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     isIconOnly
                     variant="ghost"
                     size="sm"
-                    title="Ban"
                     aria-label={`Ban ${p}`}
                     onClick={() => {
                       setPending({ player: p, action: "ban" });
                       setReason("");
                     }}
                   >
-                    <Ban className="h-4 w-4" />
+                    <span title="Ban">
+                      <Ban className="h-4 w-4" />
+                    </span>
                   </Button>
                 )}
               </div>
@@ -244,9 +247,8 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                   type="submit"
                   isDisabled={!wlName.trim() || whitelistMut.isPending}
                   variant="primary"
-                  startContent={<UserPlus className="h-4 w-4" />}
                 >
-                  Add
+                  <UserPlus className="h-4 w-4" /> Add
                 </Button>
               </form>
               {whitelistFetching && !whitelist && <p className="text-sm text-muted">Loading…</p>}
@@ -260,12 +262,13 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     isIconOnly
                     variant="ghost"
                     size="sm"
-                    title="Remove from whitelist"
                     aria-label={`Remove ${w} from whitelist`}
                     isDisabled={whitelistMut.isPending}
                     onClick={() => whitelistMut.mutate({ op: "remove", player: w })}
                   >
-                    <UserMinus className="h-4 w-4" />
+                    <span title="Remove from whitelist">
+                      <UserMinus className="h-4 w-4" />
+                    </span>
                   </Button>
                 </div>
               ))}
@@ -305,12 +308,13 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    title="Unban"
                     aria-label={`Unban ${b.name}`}
                     isDisabled={moderate.isPending}
                     onClick={() => moderate.mutate({ action: "unban", player: b.name })}
-                    startContent={<Undo2 className="h-4 w-4" />}
                   >
+                    <span title="Unban">
+                      <Undo2 className="h-4 w-4" />
+                    </span>{" "}
                     Unban
                   </Button>
                 </div>

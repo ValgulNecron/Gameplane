@@ -208,34 +208,30 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
         <BreadcrumbsNav cwd={cwd} onNavigate={navigateTo} />
         <div className="flex items-center gap-2">
           <Button
-            variant="bordered"
+            variant="secondary"
             size="sm"
             onPress={() => setNewFileOpen(true)}
-            startContent={<FilePlus className="h-4 w-4" />}
           >
-            New file
+            <FilePlus className="h-4 w-4" /> New file
           </Button>
           <Button
-            variant="bordered"
+            variant="secondary"
             size="sm"
             onPress={() => setMkdirOpen(true)}
-            startContent={<FolderPlus className="h-4 w-4" />}
           >
-            New folder
+            <FolderPlus className="h-4 w-4" /> New folder
           </Button>
           <Button
-            variant="bordered"
+            variant="secondary"
             size="sm"
             onPress={() => uploadInputRef.current?.click()}
             isDisabled={uploadMutation.isPending}
-            startContent={
-              uploadMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )
-            }
           >
+            {uploadMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}{" "}
             Upload
           </Button>
           <input
@@ -248,7 +244,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
           />
           <Button
             isIconOnly
-            variant="bordered"
+            variant="ghost"
             size="sm"
             aria-label="Refresh"
             onPress={() => refetch()}
@@ -318,7 +314,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
           <div className="flex items-center border-b border-divider bg-background px-2 py-1.5 md:hidden">
             <Button
               isIconOnly
-              variant="light"
+              variant="ghost"
               size="sm"
               onPress={() => setPane("tree")}
               aria-label="Back to files"
@@ -340,35 +336,30 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
-                    variant="bordered"
+                    variant="secondary"
                     size="sm"
                     onPress={downloadSelected}
-                    startContent={<Download className="h-3 w-3" />}
                   >
-                    Download
+                    <Download className="h-3 w-3" /> Download
                   </Button>
                   <Button
-                    variant="bordered"
-                    color="danger"
+                    variant="danger"
                     size="sm"
                     onPress={() => setConfirmDelete(selected)}
-                    startContent={<Trash2 className="h-3 w-3" />}
                   >
-                    Delete
+                    <Trash2 className="h-3 w-3" /> Delete
                   </Button>
                   <Button
                     size="sm"
                     isDisabled={!dirty || saveMutation.isPending}
                     onPress={() => saveMutation.mutate(editorValue)}
-                    color="primary"
-                    startContent={
-                      saveMutation.isPending ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Save className="h-3 w-3" />
-                      )
-                    }
+                    variant="primary"
                   >
+                    {saveMutation.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Save className="h-3 w-3" />
+                    )}{" "}
                     Save
                   </Button>
                 </div>
@@ -549,15 +540,14 @@ function NamePromptDialog({
           </ModalBody>
           <ModalFooter>
             <Button
-              color="default"
-              variant="light"
+              variant="secondary"
               onPress={() => onOpenChange(false)}
               isDisabled={busy}
             >
               Cancel
             </Button>
             <Button
-              color="primary"
+              variant="primary"
               isDisabled={!valid || busy}
               onPress={() => {
                 if (valid && !busy) onSubmit(trimmed);
