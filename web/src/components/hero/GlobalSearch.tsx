@@ -21,7 +21,7 @@ export function GlobalSearch(): JSX.Element {
   const [open, setOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
