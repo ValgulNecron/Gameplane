@@ -39,7 +39,7 @@
 # (or `crane digest steamcmd/steamcmd:latest` if docker isn't available),
 # then replace the FROM line below with the resulting
 # steamcmd/steamcmd@sha256:... reference and commit it.
-FROM steamcmd/steamcmd:latest
+FROM steamcmd/steamcmd@sha256:7178bc460bf7f9658135f57760bf7f486638a2b8855ca65dbae55d688abfff50
 
 # ARGs must be re-declared after FROM to be in scope for RUN instructions in
 # this build stage. A bare `ARG X` before the first FROM is scoped ONLY to
