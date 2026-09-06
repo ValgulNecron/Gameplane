@@ -69,4 +69,26 @@ spec:
   selector: { app.kubernetes.io/name: gameplane-telemetry-receiver }
   ports:
     - { name: http, port: 8080, targetPort: http }
+{{- if .Values.networkPolicies.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gameplane-telemetry-receiver
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-telemetry-receiver
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gameplane-api
+      ports:
+        - protocol: TCP
+          port: 8080
+{{- end }}
 {{- end }}
