@@ -13,7 +13,7 @@ export class ServersPage {
   constructor(page: Page) {
     this.page = page;
     // Table with aria-label="Server list"
-    this.serversTable = page.getByRole("table", { name: /Server list/i });
+    this.serversTable = page.getByRole("grid", { name: /Server list/i });
 
     // Status filter tabs: All, Running, Stopped
     this.statusTabs = page.getByRole("tablist", { name: /Server status filter/i });
@@ -25,7 +25,7 @@ export class ServersPage {
     this.filterButton = page.getByRole("button", { name: /^filter$/i }).first();
 
     // Create server button
-    this.createServerButton = page.getByRole("button", { name: /Create server/i });
+    this.createServerButton = page.getByRole("link", { name: /Create server/i });
   }
 
   async goto(): Promise<void> {
