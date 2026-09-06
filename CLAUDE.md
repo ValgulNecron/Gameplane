@@ -694,6 +694,17 @@ When a feature is complete, rename its folder from `specs/<NNN>-<slug>/` to `spe
 
 *Why:* `specs/` only grows, and without the marker every session re-reads finished features to work out whether they still need doing — a converge run has already re-litigated a feature that shipped weeks earlier. The convention predates this rule (`done_001-gameprotocol-e2e-coverage`, `done_003`, `done_004`, `done_005`, `done_006`); it is written down here so it stops being folklore.
 
+### 17. Design waves are grep-first, blind-edit, haiku — never "read the node and re-skin it"
+
+A Pencil re-skin (swapping `$c:` colour refs, fonts, radii on existing nodes) is a **mechanical edit list**, not a judgement task. Build the list with shell, apply it blind, verify by screenshot. No model reads a node tree unless a screenshot mismatch points at one specific node.
+
+- *Why:* on 2026-09-05 five parallel design waves burned ~7.7M tokens in 14 minutes and pushed the session to 80% of its budget. Every agent was told to "reconcile the node against its original" and did the obvious thing: loaded the full original JSON, `Get` the live subtree at full depth, compared, then edited. A screen subtree is thousands of lines; the edit touched a few dozen properties. Separately, asking haiku to "re-skin with judgement" is how slice 1 lost its content (screens replaced, root frames deleted, 27 definitions rewritten) — the judgement was the failure, not the tier.
+- **Do — precompute the edit list once, with grep, from the committed export.** `design-export/json/<id>.json` already holds every `$c:` ref with its node id and property. One shell pass (`grep -o`/`jq`) produces a flat list: `nodeId  property  oldToken  newToken`. Nobody reads a `.pen` file or a full node dump to build it.
+- **Do — agents apply the list blind, at `haiku`.** Each agent receives 20–30 `Update(id, {prop: value})` calls to make and nothing to read, compare, or decide. With the judgement removed there is nothing for haiku to get wrong, so haiku is the correct tier and escalating to `sonnet` "because design" is not justified — rule 13's escalate-on-failure applies to *this* task shape, not to the earlier judgement-task failure.
+- **Do — verify by screenshot, not by tree dump.** The tier+1 reviewer compares the `export_nodes` PNG against the original PNG in `design-export/screenshots/`. Only a visible mismatch triggers a `Get` — on that one node, with the smallest `depth` that shows the property, never the whole screen.
+- **Don't:** `Get(id, {depth: 10+})` on a screen or component "to understand it"; load `orig*/<id>.json` into a model's context; tell an agent to "reconcile", "compare", "re-skin", or "make it match HeroUI" — those words are the instruction to read everything. Don't run more than one design wave at a time unless the human has been told the per-wave token cost and said yes.
+- **Budget rule for every wave, design or code:** state the expected token cost and the model tier per agent in the launch message. If a running wave passes 1M tokens without finishing, report it instead of letting it run to the session limit.
+
 ---
 
 ## Architecture quick reference
