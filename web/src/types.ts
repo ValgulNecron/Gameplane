@@ -1000,3 +1000,38 @@ export interface CatalogEntry {
   // UI can act on WHY a module failed.
   reason?: string;
 }
+
+// ShareLink mirrors the list/create response shapes from the API's shareResp
+// (api/internal/handlers/shares.go). The token is only present in create
+// responses; list/revoke never include it.
+export interface ShareLink {
+  id: string;
+  createdAt: string; // RFC3339 timestamp
+  expiresAt: string; // RFC3339 timestamp
+  canStart: boolean;
+  token?: string; // only in create response
+}
+
+// ShareLinkCreateRequest is the request body for POST /servers/{name}:shares.
+export interface ShareLinkCreateRequest {
+  expiresIn?: string; // e.g. "24h", "7d"; undefined = default (7 days)
+  canStart: boolean;
+}
+
+// ShareAddr is the public address + port pair on the public resolve response.
+export interface ShareAddr {
+  host: string;
+  port: number;
+}
+
+// ShareLinkPublic mirrors the sharePublicResp response shape from the API
+// (api/internal/handlers/shares.go), returned by GET /shares/{token} without
+// authentication. Contains only the minimal public view: server name, status,
+// address (if exposed), and player count (if exposed). Never reveals cluster,
+// namespace, version, user names, or other internal metadata.
+export interface ShareLinkPublic {
+  serverName: string;
+  status: string; // e.g. "Running", "Asleep", "Failed"
+  address?: ShareAddr; // undefined if no public endpoint is exposed
+  playersOnline?: number; // undefined if not exposed by the game
+}

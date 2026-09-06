@@ -766,7 +766,20 @@ export const ModuleSources = {
     api<ModuleSource>(`/modules/sources/${name}`, { method: "PUT", body: spec }),
   remove: (name: string) =>
     api<void>(`/modules/sources/${name}`, { method: "DELETE" }),
-  upload: uploadBundle,
-  removeUpload: (source: string, module: string) =>
-    api<void>(`/modules/sources/${source}/upload/${module}`, { method: "DELETE" }),
+
+// Share link endpoint paths for authenticated (create, list, revoke) and public
+// (resolve, start) operations. Paths are returned without automatic cluster param;
+// the api functions in api.ts apply clustering and auth headers as needed.
+export const Shares = {
+  // POST /servers/{name}:shares (authenticated, owner-only).
+  create: (server: string) => `/servers/${encodeURIComponent(server)}:shares`,
+  // GET /servers/{name}:shares (authenticated, owner-only).
+  list: (server: string) => `/servers/${encodeURIComponent(server)}:shares`,
+  // DELETE /servers/{name}/shares/{id} (authenticated, owner-only).
+  revoke: (server: string, id: string) =>
+    `/servers/${encodeURIComponent(server)}/shares/${encodeURIComponent(id)}`,
+  // GET /shares/{token} (public, no auth, rate-limited).
+  resolve: (token: string) => `/shares/${encodeURIComponent(token)}`,
+  // POST /shares/{token}/start (public, no auth, rate-limited, only if canStart).
+  start: (token: string) => `/shares/${encodeURIComponent(token)}/start`,
 };

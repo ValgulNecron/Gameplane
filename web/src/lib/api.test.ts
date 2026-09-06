@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, APIError, Captures, type CaptureStartBody } from "./api";
+import { api, APIError, Captures, Shares, type CaptureStartBody } from "./api";
 import { HttpResponse } from "msw";
 
 // Mock the cluster module to control getCurrentCluster
@@ -589,5 +589,249 @@ describe("Captures.download()", () => {
     await Captures.download("alpha", "cap@special/id");
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("/servers/alpha:capture-file?id=cap%40special%2Fid");
+  });
+});
+
+describe("Shares.create()", () => {
+  it("POSTs to :shares with create body, returns ShareLink with token", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(200, {
+        id: "link-123",
+        createdAt: "2026-09-07T10:00:00Z",
+        expiresAt: "2026-09-14T10:00:00Z",
+        canStart: true,
+        token: "tok_abc123xyz",
+      })
+    );
+    const body = { expiresIn: "7d", canStart: true };
+    const result = await Shares.create("my-server", body);
+    expect(result).toMatchObject({
+      id: "link-123",
+      token: "tok_abc123xyz",
+      canStart: true,
+    });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/my-server:shares");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(JSON.stringify(body));
+  });
+
+  it("POSTs to :shares with namespace", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(200, {
+        id: "link-456",
+        createdAt: "2026-09-07T10:00:00Z",
+        expiresAt: "2026-09-08T10:00:00Z",
+        canStart: false,
+        token: "tok_def456",
+      })
+    );
+    const body = { expiresIn: "24h", canStart: false };
+    await Shares.create("my-server", body, "game-ns");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/my-server:shares?namespace=game-ns");
+  });
+
+  it("URL-encodes the server name", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(200, {
+        id: "link-789",
+        createdAt: "2026-09-07T10:00:00Z",
+        expiresAt: "2026-09-21T10:00:00Z",
+        canStart: true,
+        token: "tok_ghi789",
+      })
+    );
+    const body = { canStart: true };
+    await Shares.create("server@special/name", body);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/server%40special%2Fname:shares");
+  });
+});
+
+describe("Shares.list()", () => {
+  it("GETs from :shares without namespace, returns array of ShareLinks", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(200, [
+        {
+          id: "link-1",
+          createdAt: "2026-09-01T10:00:00Z",
+          expiresAt: "2026-09-08T10:00:00Z",
+          canStart: true,
+        },
+        {
+          id: "link-2",
+          createdAt: "2026-09-02T10:00:00Z",
+          expiresAt: "2026-09-09T10:00:00Z",
+          canStart: false,
+        },
+      ])
+    );
+    const result = await Shares.list("my-server");
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe("link-1");
+    expect(result[0].token).toBeUndefined(); // list never includes token
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/my-server:shares");
+    expect(init.method).toBe("GET");
+  });
+
+  it("GETs from :shares with namespace", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, []));
+    await Shares.list("my-server", "game-ns");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/my-server:shares?namespace=game-ns");
+  });
+
+  it("URL-encodes the server name", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, []));
+    await Shares.list("server@special");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/server%40special:shares");
+  });
+});
+
+describe("Shares.revoke()", () => {
+  it("DELETEs /servers/{name}/shares/{id} without namespace", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await Shares.revoke("my-server", "link-123");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/my-server/shares/link-123");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("DELETEs with namespace", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await Shares.revoke("my-server", "link-456", "game-ns");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/my-server/shares/link-456?namespace=game-ns");
+  });
+
+  it("URL-encodes server name and link ID", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await Shares.revoke("server@special", "link/with/slash");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers/server%40special/shares/link%2Fwith%2Fslash");
+  });
+});
+
+describe("Shares.resolve()", () => {
+  it("GETs /shares/{token}, returns ShareLinkPublic with address and players", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(200, {
+        serverName: "survival",
+        status: "Running",
+        address: { host: "mc.example.com", port: 25565 },
+        playersOnline: 5,
+      })
+    );
+    const result = await Shares.resolve("tok_abc123");
+    expect(result).toMatchObject({
+      serverName: "survival",
+      status: "Running",
+      address: { host: "mc.example.com", port: 25565 },
+      playersOnline: 5,
+    });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/shares/tok_abc123");
+    expect(init.method).toBe("GET");
+  });
+
+  it("handles public resolve without address or players", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(200, {
+        serverName: "private-server",
+        status: "Asleep",
+      })
+    );
+    const result = await Shares.resolve("tok_def456");
+    expect(result).toMatchObject({
+      serverName: "private-server",
+      status: "Asleep",
+    });
+    expect(result.address).toBeUndefined();
+    expect(result.playersOnline).toBeUndefined();
+  });
+
+  it("maps 404 (invalid token) to neutral response per FR-005", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response(JSON.stringify({ error: "not found" }), { status: 404 })
+    );
+    const result = await Shares.resolve("tok_invalid");
+    expect(result).toMatchObject({
+      serverName: "",
+      status: "Unknown",
+    });
+  });
+
+  it("maps 429 (rate-limited) to neutral response per FR-005", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response("rate limited", { status: 429 })
+    );
+    const result = await Shares.resolve("tok_ratelimit");
+    expect(result).toMatchObject({
+      serverName: "",
+      status: "Unknown",
+    });
+  });
+
+  it("URL-encodes the token", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonRes(200, {
+        serverName: "test",
+        status: "Running",
+      })
+    );
+    await Shares.resolve("tok@special/slash");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/shares/tok%40special%2Fslash");
+  });
+
+  it("throws other non-404/429 errors", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response("server error", { status: 500 })
+    );
+    await expect(Shares.resolve("tok_error")).rejects.toBeInstanceOf(APIError);
+  });
+});
+
+describe("Shares.start()", () => {
+  it("POSTs /shares/{token}/start, returns void on 202 Accepted", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 202 }));
+    const result = await Shares.start("tok_abc123");
+    expect(result).toBeUndefined();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/shares/tok_abc123/start");
+    expect(init.method).toBe("POST");
+  });
+
+  it("maps 404 (invalid/expired/no-permission) to void per FR-005", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response(JSON.stringify({ error: "not found" }), { status: 404 })
+    );
+    const result = await Shares.start("tok_invalid");
+    expect(result).toBeUndefined();
+  });
+
+  it("maps 429 (rate-limited) to void per FR-005", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response("rate limited", { status: 429 })
+    );
+    const result = await Shares.start("tok_ratelimit");
+    expect(result).toBeUndefined();
+  });
+
+  it("URL-encodes the token", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 202 }));
+    await Shares.start("tok@special");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/shares/tok%40special/start");
+  });
+
+  it("throws other non-404/429 errors", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response("server error", { status: 500 })
+    );
+    await expect(Shares.start("tok_error")).rejects.toBeInstanceOf(APIError);
   });
 });

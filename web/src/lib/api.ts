@@ -5,7 +5,14 @@
 //   - cluster query param threading for multi-cluster support
 
 import { getCurrentCluster } from "./cluster";
-import type { CaptureStatus, NetworkCapture, NetworkCaptureList } from "@/types";
+import type {
+  CaptureStatus,
+  NetworkCapture,
+  NetworkCaptureList,
+  ShareLink,
+  ShareLinkCreateRequest,
+  ShareLinkPublic,
+} from "@/types";
 
 const CSRF_COOKIE = "gameplane_csrf";
 const CSRF_HEADER = "X-Gameplane-CSRF";
@@ -89,7 +96,13 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
     throw new APIError(res.status, text);
   }
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  // Some 2xx responses (e.g. 202 Accepted from fire-and-forget actions) carry
+  // no body at all — res.json() throws on an empty string, which would look
+  // like a request failure to callers. Treat an empty body as success with
+  // no payload instead of attempting to parse it.
+  const text = await res.text();
+  if (text === "") return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 // ---------------------------------------------------------------------
@@ -190,4 +203,70 @@ export const Config = {
       `/admin/config/auth/role-mappings/${encodeURIComponent(role)}`,
       { method: "DELETE" },
     ),
+};
+
+// Share link management. Authenticated operations (create, list, revoke) require
+// an active session and server ownership; public operations (resolve, start) are
+// rate-limited but require no auth. All operations map rate-limit and invalid-link
+// errors to neutral responses per FR-005 (privacy: no error detail).
+export const Shares = {
+  // POST /servers/{name}:shares (authenticated, owner-only).
+  // Creates a new share link with optional expiry and start permission.
+  create: (server: string, body: ShareLinkCreateRequest, ns?: string) =>
+    api<ShareLink>(withNS(`/servers/${encodeURIComponent(server)}:shares`, ns), {
+      method: "POST",
+      body,
+    }),
+
+  // GET /servers/{name}:shares (authenticated, owner-only).
+  // Lists all share links for a server. The list never includes raw tokens.
+  list: (server: string, ns?: string) =>
+    api<ShareLink[]>(withNS(`/servers/${encodeURIComponent(server)}:shares`, ns)),
+
+  // DELETE /servers/{name}/shares/{id} (authenticated, owner-only).
+  // Revokes a share link, rendering its token invalid immediately.
+  revoke: (server: string, id: string, ns?: string) =>
+    api<void>(
+      withNS(`/servers/${encodeURIComponent(server)}/shares/${encodeURIComponent(id)}`, ns),
+      { method: "DELETE" }
+    ),
+
+  // GET /shares/{token} (public, no auth, rate-limited).
+  // Resolves a share link token to its public view: server name, status, address,
+  // player count (if exposed). Returns the same response for invalid, expired, and
+  // revoked tokens — callers cannot distinguish (FR-005 privacy rule). Rate-limit
+  // errors (429) are also mapped to the same neutral response.
+  resolve: async (token: string): Promise<ShareLinkPublic> => {
+    try {
+      return await api<ShareLinkPublic>(`/shares/${encodeURIComponent(token)}`);
+    } catch (err) {
+      if (err instanceof APIError && (err.status === 404 || err.status === 429)) {
+        // Map 404 (invalid/expired/revoked) and 429 (rate-limited) to a neutral response.
+        // This prevents callers from distinguishing between missing and rate-limited states.
+        return {
+          serverName: "",
+          status: "Unknown",
+        };
+      }
+      throw err;
+    }
+  },
+
+  // POST /shares/{token}/start (public, no auth, rate-limited, only if canStart=true).
+  // Wakes a sleeping server if the link permits it. Returns 202 Accepted on success.
+  // Returns the same response for invalid/expired/revoked/no-permission states (FR-005).
+  // Rate-limit errors (429) are also mapped to neutral.
+  start: async (token: string): Promise<void> => {
+    try {
+      return await api<void>(`/shares/${encodeURIComponent(token)}/start`, {
+        method: "POST",
+      });
+    } catch (err) {
+      if (err instanceof APIError && (err.status === 404 || err.status === 429)) {
+        // Map 404 and 429 to void (no error thrown). Callers see success either way.
+        return;
+      }
+      throw err;
+    }
+  },
 };
