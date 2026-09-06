@@ -233,7 +233,7 @@ func cloneHandler(reg *kube.Registry) http.HandlerFunc {
 		if cl == "" {
 			cl = scope.DefaultCluster
 		}
-		if err := validateAndProtectGameServer(req.Context(), k, cl, ns, body.NewName, clone, nil, req); err != nil {
+		if err := validateAndProtectGameServer(req.Context(), k, cl, ns, body.NewName, clone, nil); err != nil {
 			httperr.WriteCode(w, req, http.StatusForbidden, err)
 			return
 		}

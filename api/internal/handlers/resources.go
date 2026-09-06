@@ -191,7 +191,7 @@ func createHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.Han
 				if cl == "" {
 					cl = scope.DefaultCluster
 				}
-				if err := validateAndProtectGameServer(req.Context(), k, cl, ns, obj.GetName(), obj, nil, req); err != nil {
+				if err := validateAndProtectGameServer(req.Context(), k, cl, ns, obj.GetName(), obj, nil); err != nil {
 					httperr.WriteCode(w, req, http.StatusForbidden, err)
 					return
 				}
@@ -268,7 +268,7 @@ func updateHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.Han
 			if cl == "" {
 				cl = scope.DefaultCluster
 			}
-			if err := validateAndProtectGameServer(req.Context(), k, cl, ns, name, obj, live, req); err != nil {
+			if err := validateAndProtectGameServer(req.Context(), k, cl, ns, name, obj, live); err != nil {
 				httperr.WriteCode(w, req, http.StatusForbidden, err)
 				return
 			}
@@ -426,7 +426,6 @@ func validateAndProtectGameServer(
 	cl, ns, name string,
 	desired *unstructured.Unstructured,
 	live *unstructured.Unstructured,
-	req *http.Request,
 ) error {
 	u := auth.UserFromContext(ctx)
 	isAdmin := false
