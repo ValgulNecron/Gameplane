@@ -47,7 +47,7 @@ describe("BackupDetailDrawer", () => {
       <BackupDetailDrawer name="alpha-1" onClose={onClose} onRestore={() => {}} />,
     );
     await screen.findByText(/Backup details/i);
-    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await userEvent.click(screen.getByRole("button", { name: /Close backup details/i }));
     expect(onClose).toHaveBeenCalled();
   });
 

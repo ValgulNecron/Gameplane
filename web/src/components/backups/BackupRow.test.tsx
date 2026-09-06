@@ -2,14 +2,23 @@ import type React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Table } from "@heroui/react";
 import { BackupRow } from "./BackupRow";
 import { makeBackup } from "@/test/factories";
 
 function tableWrap(children: React.ReactNode) {
   return (
-    <table>
-      <tbody>{children}</tbody>
-    </table>
+    <Table aria-label="Backups">
+      <Table.Header>
+        <Table.Column key="name">Name</Table.Column>
+        <Table.Column key="server">Server</Table.Column>
+        <Table.Column key="phase">Phase</Table.Column>
+        <Table.Column key="size">Size</Table.Column>
+        <Table.Column key="completed">Completed</Table.Column>
+        <Table.Column key="actions" align="end" />
+      </Table.Header>
+      <Table.Body>{children}</Table.Body>
+    </Table>
   );
 }
 

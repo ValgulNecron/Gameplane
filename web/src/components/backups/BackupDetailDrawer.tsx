@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Button } from "@/components/ui/button";
+import { Drawer, Button } from "@heroui/react";
 import { Backups } from "@/lib/endpoints";
 import { formatRelative } from "@/lib/utils";
 import type { Backup } from "@/types";
-import { PhaseBadge } from "@/components/ui/badge";
+import { PhaseChip } from "@/components/hero/PhaseChip";
 import { ErrorBanner } from "./ErrorBanner";
 
 interface Props {
@@ -35,28 +34,37 @@ export function BackupDetailDrawer({ name, onClose, onRestore }: Props) {
     backup?.status?.phase === "Succeeded" && Boolean(backup.status.snapshotID);
 
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-        <Dialog.Content
-          className="fixed right-0 top-0 z-50 flex h-full w-[440px] max-w-full flex-col border-l border-border bg-card text-fg shadow-2xl"
-        >
-          <header className="flex items-start justify-between border-b border-border p-5">
+    <Drawer
+      isOpen={open}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <Drawer.Backdrop />
+      <Drawer.Content placement="right" className="w-[440px]">
+        <Drawer.Dialog className="flex flex-col h-full">
+          <Drawer.Header className="flex items-start justify-between border-b border-border p-5">
             <div className="space-y-1">
-              <Dialog.Title className="text-base font-semibold">Backup details</Dialog.Title>
-              <Dialog.Description asChild>
-                <div className="font-mono text-xs text-muted">{name}</div>
-              </Dialog.Description>
+              <h2 className="text-base font-semibold">Backup details</h2>
+              <div className="font-mono text-xs text-muted">{name}</div>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
-          </header>
+            <Button
+              isIconOnly
+              variant="ghost"
+              size="sm"
+              onPress={onClose}
+              aria-label="Close backup details"
+            >
+              ✕
+            </Button>
+          </Drawer.Header>
 
-          <div className="flex-1 space-y-4 overflow-y-auto p-5 text-sm">
+          <Drawer.Body className="flex-1 space-y-4 overflow-y-auto p-5 text-sm">
             {error && <ErrorBanner err={error} />}
             {backup && (
               <>
                 <Field label="Phase">
-                  <PhaseBadge phase={backup.status?.phase} />
+                  <PhaseChip phase={backup.status?.phase} />
                 </Field>
                 <Field label="Server">{backup.spec.serverRef.name}</Field>
                 <Field label="Snapshot ID">
@@ -82,28 +90,29 @@ export function BackupDetailDrawer({ name, onClose, onRestore }: Props) {
               </>
             )}
             {remove.error && <ErrorBanner err={remove.error} />}
-          </div>
+          </Drawer.Body>
 
-          <footer className="flex items-center justify-end gap-2 border-t border-border p-4">
+          <Drawer.Footer className="flex items-center justify-end gap-2 border-t border-border p-4">
             <Button
               variant="danger"
               size="sm"
-              disabled={!backup || remove.isPending}
-              onClick={() => remove.mutate()}
+              isDisabled={!backup || remove.isPending}
+              onPress={() => remove.mutate()}
             >
               {remove.isPending ? "Deleting…" : "Delete"}
             </Button>
             <Button
+              variant="primary"
               size="sm"
-              disabled={!restorable}
-              onClick={() => backup && onRestore(backup)}
+              isDisabled={!restorable}
+              onPress={() => backup && onRestore(backup)}
             >
               Restore
             </Button>
-          </footer>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </Drawer.Footer>
+        </Drawer.Dialog>
+      </Drawer.Content>
+    </Drawer>
   );
 }
 

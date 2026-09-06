@@ -1,10 +1,15 @@
+import { Alert } from "@heroui/react";
+import { AlertCircle } from "lucide-react";
 import { APIError } from "@/lib/api";
 
 export function ErrorBanner({ err }: { err: unknown }) {
   const msg = err instanceof APIError ? err.body || err.message : String(err);
   return (
-    <div className="rounded-md border border-danger/60 bg-danger/10 p-2 text-xs text-danger">
-      {msg}
-    </div>
+    <Alert status="error" className="text-xs">
+      <div className="flex gap-2">
+        <AlertCircle className="h-4 w-4 flex-shrink-0" />
+        <span>{msg}</span>
+      </div>
+    </Alert>
   );
 }

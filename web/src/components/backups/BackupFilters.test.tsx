@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BackupFilters } from "./BackupFilters";
 import { makeServer } from "@/test/factories";
@@ -16,8 +16,9 @@ const baseProps = {
 };
 
 describe("BackupFilters", () => {
-  it("renders all server options plus an All-servers row", () => {
+  it("renders all server options plus an All-servers row", async () => {
     render(<BackupFilters {...baseProps} />);
+    await userEvent.click(screen.getAllByRole("combobox")[0]);
     expect(screen.getByRole("option", { name: "All servers" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "alpha" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "beta" })).toBeInTheDocument();
@@ -30,19 +31,23 @@ describe("BackupFilters", () => {
     expect(onSearchChange).toHaveBeenCalledWith("x");
   });
 
-  it("emits onServerChange when server dropdown changes", () => {
+  it("emits onServerChange when server dropdown changes", async () => {
     const onServerChange = vi.fn();
     render(<BackupFilters {...baseProps} onServerChange={onServerChange} />);
-    const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[0], { target: { value: "alpha" } });
+    const comboboxes = screen.getAllByRole("combobox");
+    await userEvent.click(comboboxes[0]);
+    const alphaOption = screen.getByRole("option", { name: "alpha" });
+    await userEvent.click(alphaOption);
     expect(onServerChange).toHaveBeenCalledWith("alpha");
   });
 
-  it("emits onPhaseChange when phase dropdown changes", () => {
+  it("emits onPhaseChange when phase dropdown changes", async () => {
     const onPhaseChange = vi.fn();
     render(<BackupFilters {...baseProps} onPhaseChange={onPhaseChange} />);
-    const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[1], { target: { value: "Succeeded" } });
+    const comboboxes = screen.getAllByRole("combobox");
+    await userEvent.click(comboboxes[1]);
+    const succeededOption = screen.getByRole("option", { name: "Succeeded" });
+    await userEvent.click(succeededOption);
     expect(onPhaseChange).toHaveBeenCalledWith("Succeeded");
   });
 
