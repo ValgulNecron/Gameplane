@@ -14,6 +14,7 @@ import (
 
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // wipeRequestedAnnotation matches the operator's
@@ -227,6 +228,15 @@ func cloneHandler(reg *kube.Registry) http.HandlerFunc {
 		clone.SetManagedFields(nil)
 		clone.SetCreationTimestamp(metav1.Time{})
 		stampOwner(clone, req)
+
+		cl := req.URL.Query().Get("cluster")
+		if cl == "" {
+			cl = scope.DefaultCluster
+		}
+		if err := validateAndProtectGameServer(req.Context(), k, cl, ns, body.NewName, clone, nil, req); err != nil {
+			httperr.WriteCode(w, req, http.StatusForbidden, err)
+			return
+		}
 
 		created, err := k.Dynamic.Resource(kube.GVRs["servers"]).
 			Namespace(ns).

@@ -244,6 +244,24 @@ func TestMiddleware_OwnershipFallback_Owner(t *testing.T) {
 			t.Errorf("owner should be allowed on :wipe-data, got %d called=%v", rr.Code, called)
 		}
 	})
+
+	t.Run("owner without servers:write denied on generic PUT", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), "PUT", "/servers/alpha", nil)
+		user := &auth.User{ID: 1, Username: "alice", Role: "viewer"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("owner without servers:write should be denied on generic PUT, got %d", rr.Code)
+		}
+	})
 }
 
 func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
@@ -316,6 +334,24 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 
 		if rr.Code != http.StatusForbidden {
 			t.Errorf("collaborator should be denied on :wipe-data, got %d", rr.Code)
+		}
+	})
+
+	t.Run("collaborator denied on generic PUT", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), "PUT", "/servers/alpha", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("collaborator should be denied on generic PUT, got %d", rr.Code)
 		}
 	})
 

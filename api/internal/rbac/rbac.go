@@ -112,6 +112,14 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 					(r.perm == "servers:read" || r.perm == "servers:write" || r.perm == "servers:console") {
 					name, verb, ok := parseServerPath(req.URL.Path)
 					if ok {
+						// Generic server mutations without a verb (e.g. PUT /servers/{name})
+						// are denied on ownership/collaborator fallback. Full-object server updates
+						// require explicit servers:write permission. Only GET (read) and DELETE
+						// (owner-only deletion) are permitted when verb is empty.
+						if verb == "" && req.Method != http.MethodGet && req.Method != http.MethodHead && req.Method != http.MethodDelete {
+							http.Error(w, "forbidden", http.StatusForbidden)
+							return
+						}
 						obj, err := fetch.GetServer(req.Context(), cl, ns, name)
 						if err == nil && obj != nil {
 							role := ownershipRole(obj, u.ID)
