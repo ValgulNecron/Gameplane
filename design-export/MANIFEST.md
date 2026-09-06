@@ -357,3 +357,285 @@ Slice 1 (Shell + login, P1 priority per spec.md) delivers User Story 1: authenti
 - **Verification:** Each id appears exactly once in this section (grep count = 1 per id). No `$c:` variable references remain in any exported JSON file (grep -l '"$c:' returns empty).
 - **Light-mode visual inspection:** Correct theme rendering (`#FFFFFF` background, `#DB2777` pink accent) across all five frames.
 
+## Incremental export 2026-09-05 — Slice 5 design wave (Feature 014)
+## Incremental export 2026-09-05 — Slice 2a design wave (Feature 014)
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 2a (Servers + core tabs) design wave completed. Three dialog compositions were re-created with re-generated node IDs during the design wave: Clone Server, Transfer Ownership, and Wipe World dialogs.
+
+**Compositions (3):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `Jpl8j` | Gameplane/Dialog/Clone Server | AlertDialog composition for cloning a server; re-created 2026-09-05 as Jpl8j. Re-skinned on HeroUI AlertDialog definitions with confirmation flow. |
+| `NVN2r` | Gameplane/Dialog/Transfer Ownership | AlertDialog composition for transferring server ownership; re-created 2026-09-05 as NVN2r. Re-skinned on HeroUI AlertDialog definitions with role-selection controls. |
+| `FhrUm` | Gameplane/Dialog/Wipe World | AlertDialog (danger) composition for wiping server data; re-created 2026-09-05 as FhrUm. Destructive action confirmation with data-loss warning. |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` for each of the 3 objects via the Pencil `execute` tool. All 3 JSON files pass `python3 json.load()` validation with zero `"..."` structural elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/<id>.png`. All 3 PNG files present and valid.
+- **File inventory:** All 3 design ids have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-05.
+- **Verification:** All 3 ids verified on disk with valid JSON parsing and PNG screenshots. No truncation markers in any JSON file.
+
+**Context:**
+
+Slice 2a (Servers + core tabs, P2 priority per spec.md) delivers User Story 2: the server list (with phase chip filtering), server detail shell with tab navigation, and core server management tabs (Overview, Events, Console, Logs, Files, Players). The three dialog compositions (Clone, Transfer, Wipe World) were re-created with new node IDs during this design wave and are exported here. All screens and dialogs re-skinned on HeroUI component definitions and theme tokens while preserving original functionality.
+
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 5 (Server Detail — Settings · Share links screens and dialog compositions) design wave completed. Ten objects re-exported with HeroUI primitives and re-skinned on HeroUI component definitions; original content preserved.
+
+**Screens (5):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `xCJlu` | Screen/Server Detail — Settings · Share links | Re-skinned on HeroUI primitives with original content preserved. Displays share link creation interface with configured links and expiry/permission controls. |
+| `dQV9N` | Screen/Server Detail — Settings · Share links (Empty) | Empty state variant showing no share links created yet. Re-skinned on HeroUI primitives with original content preserved. |
+| `C2LQE4` | Screen/Share Link — Up | Share link view state (server online). Re-skinned on HeroUI primitives with original content preserved. |
+| `q31B6w` | Screen/Share Link — Asleep (can start) | Share link view state for asleep server with start capability. Re-skinned on HeroUI primitives with original content preserved. |
+| `qFLfB` | Screen/Share Link — Asleep view only | Share link view state for asleep server without start capability. Re-skinned on HeroUI primitives with original content preserved. |
+
+**Compositions (5):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `atqRh` | Gameplane/Dialog/Create Share Link | Modal dialog component for creating share links with expiry and permission options. Re-skinned on HeroUI primitives with original content preserved. |
+| `VM7ro` | Gameplane/Dialog/Share Link Created | Confirmation dialog showing created share link details. Re-skinned on HeroUI primitives with original content preserved. |
+| `S7SCDc` | Gameplane/Dialog/Revoke Share Link | Confirmation dialog for revoking a share link. Re-skinned on HeroUI primitives with original content preserved. |
+| `EcoGD` | Screen/Share Link — Invalid or expired | Error state showing invalid or expired share link. Re-skinned on HeroUI primitives with original content preserved. |
+| `epZO2` | Screen/Share Link — Invalid or expired (content variant) | Additional error state variant for invalid/expired share link display. Re-skinned on HeroUI primitives with original content preserved. |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` for each of the 10 objects via the Pencil `execute` tool. All 10 JSON files pass `python3 json.load()` validation with zero `"..."` structural elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/<id>.png`. All 10 PNG files present and valid.
+- **File inventory:** All 10 design ids have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-05 (git status confirms all 10 ids' json+png as modified).
+- **Verification:** All 10 ids verified on disk with valid JSON parsing and PNG screenshots. No truncation markers in any JSON file. Share link configurations and dialog copy preserved from previous exports.
+
+**Context:**
+
+Slice 5 (Server Detail — Settings · Share links, P2 priority per spec.md) delivers share-link management UI — creating, viewing, and revoking temporary access links for sharing server access with external users. All screens and components re-skinned on HeroUI definitions while preserving original functionality and content. Ten objects total (5 screens + 5 compositions/dialogs) complete the share-link feature surface for the HeroUI rebuild.
+
+## Incremental export 2026-09-05 — Slice 2b design wave (Feature 014)
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 2b re-exports completed. Twenty-six objects (screens, components, and dialogs previously exported in earlier waves) were re-skinned on HeroUI primitives with original content and functionality fully preserved. Each object was fetched at `depth: ≥12, includePathGeometry: true` and re-exported with HeroUI semantic tokens replacing legacy lunaris `$c:--*` variables and design-system hex values.
+
+**Objects re-exported (26 — re-skinned on HeroUI primitives, original content preserved):**
+
+| ID | Screen/Component Name | Type | Export notes |
+|---|---|---|---|
+| `sZtDi` | Screen/Server Detail — Mods | Screen | Re-skinned on HeroUI primitives; mods browser interface with filtering and sorting. Original layout and functionality preserved. JSON: 2,973 bytes; PNG: 320 KB. |
+| `GayoL` | Screen/Server Detail — Mods — Browse | Screen | Re-skinned on HeroUI primitives; mods catalog view. JSON: 5,329 bytes; PNG: 468 KB. |
+| `KhYNc` | Screen/Server Detail — Mods by ID | Screen | Re-skinned on HeroUI primitives; mod details view. JSON: 26,201 bytes; PNG: 410 KB. |
+| `Ss0Yr` | Screen/Server Detail — Mods — Manage | Screen | Re-skinned on HeroUI primitives; active mods management interface. Original content preserved. |
+| `V1VhGE` | Screen/Server Detail — Mods — Install mod (upload) | Screen | Re-skinned on HeroUI primitives; file upload form for mod installation. JSON: 32.5 KB; PNG: 115 KB. |
+| `tY6RD` | Screen/Server Detail — Modpacks | Screen | Re-skinned on HeroUI primitives; modpack selection and management. JSON: 13.7 KB; PNG: 427 KB. |
+| `pssCT` | Screen/Server Detail — Backups | Screen | Re-skinned on HeroUI primitives; backup list and management UI. JSON: 13.9 KB; PNG: 326 KB. |
+| `Bbnga` | Screen/Server Detail — Capture (Not enabled) | Screen | Re-skinned on HeroUI primitives; capture tab disabled state. Original content preserved. |
+| `dBILX` | Screen/Server Detail — Capture (Empty) | Screen | Re-skinned on HeroUI primitives; empty captures list state. Original content preserved. |
+| `xvlB6` | Screen/Server Detail — Capture (Running) | Screen | Re-skinned on HeroUI primitives; live capture progress display. Original content preserved. |
+| `O08uaD` | Screen/Server Detail — Capture — Start capture | Screen | Re-skinned on HeroUI primitives; capture start modal dialog. Original form fields and validation preserved. |
+| `b4eaUf` | Screen/Server Detail — Capture — Start capture (Invalid filter) | Screen | Re-skinned on HeroUI primitives; capture start modal with validation error state. Original error messaging preserved. |
+| `hLB9Z` | Screen/Server Detail — Capture (List) | Screen | Re-skinned on HeroUI primitives; completed captures table with download/delete actions. Original content preserved. |
+| `swxkJ` | Screen/Server Detail — Capture (Completed) | Screen | Re-skinned on HeroUI primitives; single capture detail view. Original content preserved. |
+| `E0ypH` | Screen/Server Detail — Capture (Failed) | Screen | Re-skinned on HeroUI primitives; capture failure state with error details. Original content preserved. |
+| `J5pjJ3` | Screen/Server Detail — Settings · Networking | Screen | Re-skinned on HeroUI primitives; network configuration form with address-pool controls (spec 002). Original layout and address-assignment status treatments preserved. |
+| `ugDSa` | Screen/Server Detail — Settings · Performance | Screen | Re-skinned on HeroUI primitives; performance tuning settings form. Original content preserved. |
+| `i1bLR` | Screen/Server Detail — Settings · Restart policy | Screen | Re-skinned on HeroUI primitives; restart schedule and behavior settings. Original content preserved. |
+| `KaRFX` | Screen/Server Detail — Settings · Scheduled Backups | Screen | Re-skinned on HeroUI primitives; backup schedule management form. Original content preserved. |
+| `RodrS` | Screen/Server Detail — Settings · Network Capture | Screen | Re-skinned on HeroUI primitives; network capture settings form with enable toggle and retention controls. Original content preserved. |
+| `Y5cmvI` | Screen/Server Detail — Settings · Placement | Screen | Re-skinned on HeroUI primitives; pod placement and affinity settings. Original content preserved. |
+| `VfB0Y` | Screen/Server Detail — Settings · Resource Limits | Screen | Re-skinned on HeroUI primitives; CPU and memory limit configuration. Original content preserved. |
+| `i8wib` | Screen/Server Detail — Settings · Disaster Recovery | Screen | Re-skinned on HeroUI primitives; disaster recovery settings and controls. Original content preserved. |
+| `f0s9zG` | Gameplane/Capture Warning Banner | Component | Re-skinned on HeroUI primitives; reusable warning banner for capture-related alerts. Original icon + title + body structure preserved. Used on capture screens. |
+| `KrREo` | Gameplane/Dialog/Capture Details | Component | Re-skinned on HeroUI primitives; modal composition for viewing detailed capture information. Original form structure preserved. |
+| `BX0XM` | Screen/Server Detail — Overview (Alt variant) | Screen | Re-skinned on HeroUI primitives; alternate overview layout variant. Originally had truncation issues (fixed in prior export pass), re-exported with HeroUI primitives. |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` for each of the 26 objects via the Pencil `execute` tool. All 26 JSON files pass `python3 json.load()` validation with zero `"..."` structural elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/<id>.png`. All 26 PNG files present and valid.
+- **File inventory:** All 26 design ids have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-05. Total JSON files: 26; total PNG files: 26. Combined size: ~3.4 MB JSON + ~7.8 MB PNG.
+- **Verification:** Each id appears exactly once in this section (grep count = 1 per id). All JSON files verified to parse successfully. No truncation markers in any JSON file. HeroUI semantic tokens confirmed throughout (no legacy `$c:--*` variables, no design-system hex values). PNG screenshots visually verified for correct HeroUI theme rendering (pink accent `#DB2777` light / `#FF4FA3` dark, proper color scheme application).
+- **Content preservation:** Original screen layouts, form fields, validation states, and component hierarchies preserved verbatim — re-skinning affects token references and theme application only, not structure or UX.
+
+**Context:**
+
+Slice 2b (Server Detail — Mods, Backups, Capture, Settings sub-pages, P2 priority per spec.md) re-export wave completed. Twenty-six objects previously exported in earlier design waves (specs 002/003, capture feature 003, and intermediate slice waves) were re-skinned on HeroUI component definitions and theme tokens as part of the HeroUI Web Rebuild effort (feature 014). All original content, functionality, and UX flows are preserved; only the visual primitive layer (colors, typography, spacing tokens) changed to HeroUI definitions. This wave consolidates the HeroUI migration of the Server Detail sub-feature tree, preparing for the TypeScript component implementation phase (Tasks T019+, code wave).
+
+## Incremental export 2026-09-05 — Slice 3 design wave (Feature 014)
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 3 (Onboarding flow: Create Server steps 1–5, Modules Catalog, Backups index/schedules/restores) design wave completed. Twelve objects re-exported with HeroUI primitives and re-skinned on HeroUI component definitions; original content and structure preserved.
+
+**Screens (9):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `nNL3E` | Screen/Create Server — Step 2 Version | Re-skinned on HeroUI primitives; game version selection step in onboarding flow. JSON: 51,384 bytes, valid, no truncation. PNG: 430 KB at 2880×1800, RGBA 8-bit. All validation checks passed: valid JSON, no literal `$c:` refs, no `ref:c` patterns, file sizes plausible. |
+| `vUqMl` | Screen/Create Server — Step 3 Configure | Re-skinned on HeroUI primitives; game configuration step. JSON: 640 bytes, valid. PNG: 809 KB at 2880×3640, RGBA. All checks passed: JSON parses correctly, no truncation markers, PNG > 8KB. |
+| `f1Vga` | Screen/Create Server — Step 4 Network | Re-skinned on HeroUI primitives; networking and port configuration step. JSON: 63,837 bytes, valid, no truncation. PNG: 616 KB, 2×scale. Exported with full depth 14 hierarchy. |
+| `UMJli` | Screen/Create Server — Step 5 Review | Re-skinned on HeroUI primitives; summary and confirmation step before creation. JSON: 59.5 KB, valid. PNG: 401 KB at 2880×1800. All checks passed: JSON loads OK, no truncation/ellipsis, no `$c:` or `ref:c:` issues, file sizes plausible. |
+| `kK8Ji` | Screen/Modules Catalog | Re-skinned on HeroUI primitives; browseable game modules library. JSON: 19,712 bytes, valid, no truncation. PNG: 911 KB at 2880×2300px. All validation checks passed: JSON parses, no truncation markers, no raw `$c:` refs, no unresolved `c:` component refs. |
+| `DPrYX` | Screen/Backups — Index | Re-skinned on HeroUI primitives; backup list and management interface. JSON: 11,021 bytes, valid. PNG: 295 KB at 2880×1800, RGBA 8-bit, 2×scale. All checks passed: no truncation/c-refs. |
+| `fK8Bi` | Screen/Backups — Schedules | Re-skinned on HeroUI primitives; scheduled backup configuration. JSON structure exported, 2,622 bytes. PNG: 444 KB at 2×scale. Proper frame hierarchy, HeroUI component references (sidebar `kKFX9`, top bar `gu5WY`, page header `xCDF7`), tab navigation, and schedule management UI present. All validation checks passed. |
+| `tTSdi` | Screen/Backups — Restores | Re-skinned on HeroUI primitives; restore operations list and management. JSON: 20.8 KB, properly formatted with 2-space indent, trailing newline. PNG: 326 KB at 2×scale. All validations passed: JSON structure valid, no truncation markers, no `$c:` variables, no `ref:c:` patterns, no empty children on visible frames. Dark-themed screen with app sidebar, top bar, tabs (Backups/Schedules/Restores), filters, and table showing restore operations. |
+| `W8idqY` | Screen/Create Server — Step 1 (name and template) | Re-skinned on HeroUI primitives; initial server name and template selection. JSON: 2,537 bytes, valid. PNG: 434 KB at 2880×1800, RGBA. JSON validated: no truncation, no invalid refs, trailing newline present. PNG valid 2880×1800 RGBA. All checks passed. |
+
+**Components/Dialogs (3):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `zhLZN` | Gameplane/Dialog/Restore Backup — Detail Drawer | Re-skinned on HeroUI primitives; modal drawer for detailed backup and restore information. JSON: 9,257 bytes, valid. PNG: 125 KB at 1008×1648 (2×scale). All validation checks passed: no ellipsis truncation markers, no unresolved `$c:` variables, no `c:` refs. |
+| `E9EEv0` | Gameplane/Dialog/Restore Backup | Re-skinned on HeroUI primitives; restore action confirmation dialog. JSON: 2,302 bytes, valid, no truncation/unresolved refs. PNG: 94 KB. All validation checks passed. |
+| `DMnEi` | Gameplane/Backup List Item | Re-skinned on HeroUI primitives; reusable backup list item component with status, size, and action controls. JSON: 3,384 bytes, valid. PNG: 111 KB. Validated: JSON parses correctly, no truncation markers, all structural refs resolved. |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` for each of the 12 objects via the Pencil `execute` tool. All 12 JSON files pass `python3 json.load()` validation with zero `"..."` structural elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2×scale to `design-export/screenshots/<id>.png`. All 12 PNG files present and valid.
+- **File inventory:** All 12 design ids have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-05. Combined size: ~273 KB JSON + ~5.3 MB PNG.
+- **Verification:** Each id appears exactly once in this section (verified per-id on disk). All JSON files verified to parse successfully. No truncation markers in any JSON file. HeroUI semantic tokens confirmed throughout (no legacy `$c:--*` variables). PNG screenshots visually verified for correct HeroUI theme rendering (pink accent `#DB2777` light / `#FF4FA3` dark).
+- **Content preservation:** Original screen layouts, form fields, multi-step flow structure, and component hierarchies preserved verbatim — re-skinning affects token references and theme application only, not structure or UX.
+
+**Context:**
+
+Slice 3 (Onboarding flow + Modules + Backups, P1 priority per spec.md) delivers User Story 3: the complete server creation wizard (Steps 1–5 covering name/template, version selection, configuration, networking, and review), the modules library browser, and comprehensive backup management (index, schedules, restores, detail drawer). All 12 objects re-skinned on HeroUI component definitions and theme tokens while preserving original functionality. This wave completes the foundational onboarding and operational management surfaces for the HeroUI rebuild, preparing for the code implementation phase (Tasks T019+).
+
+## Incremental export 2026-09-06 — Slice 4 design wave (Feature 014)
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 4 (Admin settings, Users & RBAC, Audit Log, Cluster Settings, and supporting components) design wave completed. Thirty-one objects re-exported with HeroUI primitives and re-skinned on HeroUI component definitions; original content and structure preserved.
+
+**Screens (20):**
+
+| ID | Name | Type |
+|---|---|---|
+| `WZdnw` | Screen/Admin Settings | frame |
+| `uMiwd` | Screen/Admin Settings — Authentication | frame |
+| `nNGDX` | Screen/Admin Settings — Authentication (No OIDC mappings) | frame |
+| `QgW58` | Screen/Admin Settings — Authentication (Save rejected) | frame |
+| `zqzr4` | Screen/Admin Settings — Authentication (Admin mapping warning) | frame |
+| `RC3Kf` | Screen/Admin Settings — Backup destinations | frame |
+| `g5mEpx` | Screen/Admin Settings — Module sources | frame |
+| `Wj0V4` | Screen/Admin Settings — Mod registries | frame |
+| `n6Xlo` | Screen/Admin Settings — Notifications | frame |
+| `uoxQW` | Screen/Admin Settings — Telemetry | frame |
+| `M2sA4u` | Screen/Admin Settings — Updates | frame |
+| `zM0VF` | Screen/Admin Settings — About | frame |
+| `bYDHC` | Screen/Users & RBAC | frame |
+| `e9lV4` | Screen/Users & RBAC — Roles | frame |
+| `TBvTC` | Screen/Users & RBAC — Service accounts | frame |
+| `Dpb9f` | Screen/Users & RBAC — Identity providers | frame |
+| `DxKOh` | Screen/Audit Log | frame |
+| `Bq2Yg` | Screen/Admin — System Logs | frame |
+| `j9W8A` | Screen/Cluster Settings | frame |
+| `dxdEi` | Screen/Cluster Settings — Default storage class | frame |
+
+**Modals/Dialogs (4):**
+
+| ID | Name | Type |
+|---|---|---|
+| `NLDDv` | Gameplane/Dialog/Invite User | ref |
+| `t3IY3u` | Gameplane/Dialog/Edit User | ref |
+| `MaoHP` | Gameplane/Dialog/Reset Password | ref |
+| `Kp48V` | Gameplane/Dialog/Confirm Admin Mapping | ref |
+
+**Atomic Components (7):**
+
+| ID | Name | Type |
+|---|---|---|
+| `CqaSq` | Gameplane/Role Editor Modal | frame |
+| `uw0dB` | Gameplane/Removable Group Chip/Secondary | frame |
+| `XL5ZU` | Gameplane/Removable Group Chip/Orange | frame |
+| `vStkb` | Gameplane/Removable Group Chip/Violet | frame |
+| `R65Xyx` | Gameplane/Provenance Badge/Overridden | frame |
+| `Rwnu3` | Gameplane/Provenance Badge/From Helm | frame |
+| `BV5ei` | Gameplane/Provenance Badge/Not configured | frame |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` for each of the 31 objects via the Pencil `execute` tool. All 31 JSON files present in `design-export/json/`.
+- **Screenshots:** `export_nodes` PNG export at 2×scale to `design-export/screenshots/<id>.png`. All 31 PNG files present and valid.
+- **File inventory:** All 31 design ids have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-06.
+- **Verification:** File presence verified for all 31 ids (20 screens + 4 dialogs + 7 atomic components). Metadata (name, type) extracted from JSON files successfully.
+
+**Context:**
+
+Slice 4 (Admin settings, Users & RBAC, Audit, Cluster Settings, and supporting modal/component library) design wave completes the platform administration and access control surfaces for the HeroUI rebuild. All 31 objects re-skinned on HeroUI component definitions and theme tokens while preserving original functionality and layout. This wave rounds out the full dashboard surface area, preparing for the code implementation phase (Tasks T020+).
+
+
+## Incremental export 2026-09-06 — Slice 2a design wave (Feature 014)
+
+Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 2a (Server list and Server Detail sub-pages: Overview + state variants, Events, Console, Logs, Files, Players) design wave completed. Nineteen objects re-exported with HeroUI primitives and re-skinned on HeroUI component definitions; original content and structure preserved.
+
+**Screens (12):**
+
+| ID | Name | Type |
+|---|---|---|
+| `F9pUrx` | Screen/Servers | frame |
+| `EZFW0` | Screen/Server Detail — Overview | frame |
+| `Hy9r0` | Screen/Server Detail — Overview (Idle armed) | frame |
+| `IzuY2` | Screen/Server Detail — Overview (Never sleeps) | frame |
+| `TE2jI` | Screen/Server Detail — Overview (Asleep) | frame |
+| `o4LH8W` | Screen/Server Detail — Overview (PVC Provisioning Failed) | frame |
+| `P08Uw` | Screen/Server Detail — Events | frame |
+| `Xn5ns` | Screen/Server Detail — Console | frame |
+| `kPmoo` | Screen/Server Detail — Logs | frame |
+| `FtdkI` | Screen/Server Detail — Logs (Failed) | frame |
+| `Burtr` | Screen/Server Detail — Files | frame |
+| `dPP50` | Screen/Server Detail — Players | frame |
+
+**Components (2):**
+
+| ID | Name | Type |
+|---|---|---|
+| `S4k0x` | Gameplane/Server Detail Header | frame |
+| `I9kvlZ` | Gameplane/Server Detail Tabs | frame |
+
+**Dialogs (5):**
+
+| ID | Name | Type |
+|---|---|---|
+| `Jpl8j` | Gameplane/Dialog/Clone Server | ref |
+| `NVN2r` | Gameplane/Dialog/Transfer Ownership | ref |
+| `FhrUm` | Gameplane/Dialog/Wipe World | ref |
+| `I9W8z` | Gameplane/Dialog/New Folder | ref |
+| `JLaGB` | Gameplane/Dialog/New File | ref |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` for each of the 19 objects via the Pencil `execute` tool. All 19 JSON files pass `python3 json.load()` validation with zero `"..."` structural elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2×scale to `design-export/screenshots/<id>.png`. All 19 PNG files present and valid.
+- **File inventory:** All 19 design ids have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-06. Combined size includes full Server Detail hierarchy with 5 Overview state variants, 7 detail tabs/sections, organizational components, and dialog system.
+- **Verification:** Each id appears exactly once across all categories (12 screens + 2 components + 5 dialogs = 19 total, verified per-id on disk). All JSON files verified to parse successfully. HeroUI semantic tokens confirmed throughout. PNG screenshots visually verified for correct HeroUI theme rendering.
+- **Content preservation:** Original screen layouts, state management, tab navigation, multi-step flows, and component hierarchies preserved verbatim — re-skinning affects token references and theme application only, not structure or UX.
+
+**Context:**
+
+Slice 2a (Server list + comprehensive Server Detail hierarchy with all operational sub-pages and state variants, P1 priority per spec.md) delivers the foundational server management surface for the HeroUI rebuild. All 19 objects re-skinned on HeroUI component definitions and theme tokens while preserving original functionality and state-driven UI variants. This wave expands the Server Detail view with Events, Console, Logs (including failure states), Files, and Players tabs, plus server-level dialogs for common actions (Clone, Transfer Ownership, Wipe World, file operations). Together with Slice 2b (Mods, Backups, Capture, Settings sub-pages), this completes the Server Detail feature tree, preparing for the code implementation phase (Tasks T019+).
+
+## Incremental export 2026-09-06 — Warning callout styling update (Feature 014)
+
+Component `Llzos` (Alert/Warning callout frame) and related instances on screens `uMiwd` and `zqzr4` re-exported after styling update. The callout component was updated with enhanced warning styling: soft warning background fill, warning foreground stroke, megaphone icon (replacing triangle-alert), and soft-foreground body text color.
+
+**Component (1):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `Llzos` | Alert/Warning (callout frame) | Updated styling: `fill: "$warning/soft"`, `stroke: "$warning/soft-foreground"`, `strokeWidth: 1`, `cornerRadius: 8`. Icon changed to megaphone with `fill: "$warning/soft-foreground"`. Body text (JmFhb) updated: `fill: "$warning/soft-foreground"`. Re-exported 2026-09-06. |
+
+**Screens (2):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `uMiwd` | Screen/Admin Settings — Authentication | Re-exported 2026-09-06 after component update. Contains instance `nejzQ` (HelmAdminMappingWarning ref) with descendant override for "Helm-configured admin mapping" text, now rendering with updated warning callout styling. |
+| `zqzr4` | Screen/Admin Settings — Authentication (Admin mapping warning) | Re-exported 2026-09-06 after component update. Contains instance `sCA8t` (HelmAdminMappingWarning ref) with descendant override for "Helm-configured admin mapping" text, now rendering with updated warning callout styling. |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: 30, includePathGeometry: true})` for the component and screens via the Pencil `execute` tool. All 3 JSON files pass `python3 json.load()` validation with zero `"..."` structural elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/<id>.png`. All 3 PNG files present and valid.
+- **File inventory:** All 3 design ids have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-06.
+- **Verification:** `Llzos.json` verified to contain updated properties (fill, stroke, icon, text color); `uMiwd.json` and `zqzr4.json` verified to contain instances of the updated component. All files parse successfully with zero truncation markers. Screenshots visually confirmed warning styling applied correctly.
+
+**Context:**
+
+The Alert/Warning callout component (`Llzos`) used to display Helm-configured admin mapping warnings on the Admin Settings Authentication screens now uses soft warning styling (pink/orange background and foreground colors) with a megaphone icon to better differentiate it as a Helm-seeded configuration callout. The same component instance is referenced by both authentication screens via the HelmAdminMappingWarning ref pattern.
