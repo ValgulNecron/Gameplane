@@ -16,6 +16,7 @@ import (
 // single GameServer's status and connection address, optionally with start capability.
 type ShareLink struct {
 	ID         string     // unique identifier
+	Cluster    string     // cluster identifier
 	Namespace  string     // Kubernetes namespace
 	ServerName string     // GameServer name
 	CreatedBy  int64      // user ID who created it
@@ -41,7 +42,10 @@ const MaxShareLinkExpiryDays = 90
 // CreateShareLink mints a new share link and returns the raw token, which is
 // never stored and never recoverable afterwards. Expiry is mandatory and must
 // be in the future, and must not exceed MaxShareLinkExpiryDays.
-func (s *Store) CreateShareLink(ctx context.Context, ns, serverName string, createdBy int64, canStart bool, expiresAt time.Time) (rawToken string, link ShareLink, err error) {
+func (s *Store) CreateShareLink(ctx context.Context, cluster, ns, serverName string, createdBy int64, canStart bool, expiresAt time.Time) (rawToken string, link ShareLink, err error) {
+	if cluster == "" {
+		cluster = "local"
+	}
 	// Validate expiry.
 	now := time.Now()
 	if expiresAt.IsZero() {
@@ -73,9 +77,9 @@ func (s *Store) CreateShareLink(ctx context.Context, ns, serverName string, crea
 	// datetime('now') — see the migration's header comment for why.
 	createdAt := now.UTC()
 	_, err = s.DB.ExecContext(ctx,
-		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, ns, serverName, createdBy, canStartInt, tokenHash, expiresAt.Format(time.RFC3339), createdAt.Format(time.RFC3339))
+		`INSERT INTO share_links(id, cluster, namespace, server_name, created_by, can_start, token_hash, expires_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, cluster, ns, serverName, createdBy, canStartInt, tokenHash, expiresAt.Format(time.RFC3339), createdAt.Format(time.RFC3339))
 	if err != nil {
 		return "", ShareLink{}, fmt.Errorf("insert share link: %w", err)
 	}
@@ -83,6 +87,7 @@ func (s *Store) CreateShareLink(ctx context.Context, ns, serverName string, crea
 	// Return the raw token (never persisted) and the link metadata.
 	link = ShareLink{
 		ID:         id,
+		Cluster:    cluster,
 		Namespace:  ns,
 		ServerName: serverName,
 		CreatedBy:  createdBy,
@@ -110,10 +115,11 @@ func (s *Store) LookupShareLink(ctx context.Context, rawToken string) (ShareLink
 	var createdAtStr string
 
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT id, namespace, server_name, created_by, can_start, expires_at, revoked_at, created_at, last_used
+		`SELECT id, cluster, namespace, server_name, created_by, can_start, expires_at, revoked_at, created_at, last_used
 		 FROM share_links WHERE token_hash = ?`,
 		tokenHash).Scan(
 		&link.ID,
+		&link.Cluster,
 		&link.Namespace,
 		&link.ServerName,
 		&link.CreatedBy,
@@ -178,14 +184,17 @@ func (s *Store) LookupShareLink(ctx context.Context, rawToken string) (ShareLink
 	return link, nil
 }
 
-// ListShareLinks returns all share links for a given server (namespace, server_name),
+// ListShareLinks returns all share links for a given server (cluster, namespace, server_name),
 // active and revoked alike. Results are ordered by created_at descending.
-func (s *Store) ListShareLinks(ctx context.Context, ns, serverName string) ([]ShareLink, error) {
+func (s *Store) ListShareLinks(ctx context.Context, cluster, ns, serverName string) ([]ShareLink, error) {
+	if cluster == "" {
+		cluster = "local"
+	}
 	rows, err := s.DB.QueryContext(ctx,
-		`SELECT id, namespace, server_name, created_by, can_start, expires_at, revoked_at, created_at, last_used
-		 FROM share_links WHERE namespace = ? AND server_name = ?
+		`SELECT id, cluster, namespace, server_name, created_by, can_start, expires_at, revoked_at, created_at, last_used
+		 FROM share_links WHERE cluster = ? AND namespace = ? AND server_name = ?
 		 ORDER BY created_at DESC`,
-		ns, serverName)
+		cluster, ns, serverName)
 	if err != nil {
 		return nil, fmt.Errorf("list share links: %w", err)
 	}
@@ -204,6 +213,7 @@ func (s *Store) ListShareLinks(ctx context.Context, ns, serverName string) ([]Sh
 
 		if err := rows.Scan(
 			&link.ID,
+			&link.Cluster,
 			&link.Namespace,
 			&link.ServerName,
 			&link.CreatedBy,
@@ -261,12 +271,20 @@ func (s *Store) ListShareLinks(ctx context.Context, ns, serverName string) ([]Sh
 }
 
 // RevokeShareLink marks a share link as revoked by setting revoked_at to the
-// current timestamp. Revocation is auditable (never a delete).
-func (s *Store) RevokeShareLink(ctx context.Context, id string) error {
+// current timestamp. Revocation is scoped to cluster when provided and auditable (never a delete).
+func (s *Store) RevokeShareLink(ctx context.Context, cluster, id string) error {
 	revokedAt := time.Now().UTC().Format(time.RFC3339)
-	res, err := s.DB.ExecContext(ctx,
-		`UPDATE share_links SET revoked_at = ? WHERE id = ?`,
-		revokedAt, id)
+	var res sql.Result
+	var err error
+	if cluster != "" {
+		res, err = s.DB.ExecContext(ctx,
+			`UPDATE share_links SET revoked_at = ? WHERE id = ? AND cluster = ?`,
+			revokedAt, id, cluster)
+	} else {
+		res, err = s.DB.ExecContext(ctx,
+			`UPDATE share_links SET revoked_at = ? WHERE id = ?`,
+			revokedAt, id)
+	}
 	if err != nil {
 		return fmt.Errorf("revoke share link: %w", err)
 	}
