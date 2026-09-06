@@ -303,7 +303,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                     className="mt-1"
                   />
                   <Description className="mt-1 text-xs">
-                    Comma-separated module names (registries can't be enumerated).
+                    Comma-separated module names (registries can&apos;t be enumerated).
                   </Description>
                 </div>
 
@@ -540,7 +540,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   className="mt-1"
                 />
                 <Description className="mt-1 text-xs">
-                  Relative to the operator's module mount (Helm: operator.localModules). Empty scans the mount root.
+                  Relative to the operator&apos;s module mount (Helm: operator.localModules). Empty scans the mount root.
                 </Description>
               </div>
             )}

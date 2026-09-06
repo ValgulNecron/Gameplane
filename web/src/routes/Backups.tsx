@@ -35,8 +35,8 @@ import { BackupFilters } from "@/components/backups/BackupFilters";
 import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
 import type { Backup } from "@/types";
 
-type Tab = "backups" | "schedules" | "restores";
-const TABS: { id: Tab; label: string }[] = [
+type TabKey = "backups" | "schedules" | "restores";
+const TABS: { id: TabKey; label: string }[] = [
   { id: "backups", label: "Backups" },
   { id: "schedules", label: "Schedules" },
   { id: "restores", label: "Restores" },
@@ -45,13 +45,13 @@ const TABS: { id: Tab; label: string }[] = [
 const BACKUP_PHASES = ["Pending", "Running", "Succeeded", "Failed"];
 const RESTORE_PHASES = ["Pending", "Suspending", "Running", "Resuming", "Succeeded", "Failed"];
 
-function readTab(): Tab {
+function readTab(): TabKey {
   const v = new URLSearchParams(window.location.search).get("tab");
   return v === "schedules" || v === "restores" ? v : "backups";
 }
 
 export function BackupsPage() {
-  const [tab, setTab] = useState<Tab>(() => readTab());
+  const [tab, setTab] = useState<TabKey>(() => readTab());
   const [backupNow, setBackupNow] = useState(false);
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -72,7 +72,7 @@ export function BackupsPage() {
         }
       />
       {backupNow && <BackupNowDialog onClose={() => setBackupNow(false)} />}
-      <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key as Tab)}>
+      <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key as TabKey)}>
         <Tabs.List>
           {TABS.map((t) => (
             <Tab key={t.id} id={t.id}>

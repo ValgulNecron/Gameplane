@@ -122,7 +122,7 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                   />
                   {nameTaken && (
                     <p role="alert" className="mt-2 text-xs text-danger">
-                      A server named "{target}" already exists — choose a new name.
+                      A server named &quot;{target}&quot; already exists — choose a new name.
                     </p>
                   )}
                 </div>
