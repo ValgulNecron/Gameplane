@@ -1,11 +1,26 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
+import {
+  Modal,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalHeading,
+  ModalBody,
+  ModalFooter,
+  Button,
+  ListBox,
+  ListBoxItem,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@heroui/react";
+import { ChevronDown } from "lucide-react";
 import { Servers, Users } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
 import { OWNER_ANNOTATION } from "@/lib/annotations";
+import { cn } from "@/lib/utils";
 
 interface Props {
   name: string;
@@ -22,6 +37,7 @@ interface Props {
 export function TransferServerDialog({ name, ns, open, onOpenChange, onTransferred }: Props) {
   const qc = useQueryClient();
   const [userId, setUserId] = useState("");
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const { data: server } = useQuery({
     queryKey: ["server", name, ns],
     queryFn: () => Servers.get(name, ns),
@@ -43,48 +59,85 @@ export function TransferServerDialog({ name, ns, open, onOpenChange, onTransferr
     },
   });
 
+  const selectedUser = users.find((u) => String(u.id) === userId);
+
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[440px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">Transfer {name}</Dialog.Title>
-          <Dialog.Description asChild>
-            <div className="pt-1 text-sm text-muted">
-              Current owner: {currentOwner || "unassigned"}.
-            </div>
-          </Dialog.Description>
-          <div className="space-y-3 pt-4">
-            {usersError ? (
-              <div className="text-xs text-danger">
-                You need permission to list users to pick a recipient.
+    <Modal isOpen={open} onOpenChange={onOpenChange}>
+      <ModalBackdrop isDismissable={!transfer.isPending} isKeyboardDismissDisabled={transfer.isPending} />
+      <ModalContainer>
+        <ModalDialog>
+          <ModalHeader>
+            <ModalHeading>Transfer {name}</ModalHeading>
+          </ModalHeader>
+
+          <ModalBody>
+            <div className="space-y-4">
+              <div className="text-sm text-muted">
+                Current owner: {currentOwner || "unassigned"}.
               </div>
-            ) : (
-              <Select
-                value={userId}
-                onValueChange={setUserId}
-                options={[
-                  { value: "", label: "Select a user…" },
-                  ...users.map((u) => ({ value: String(u.id), label: u.username })),
-                ]}
-              />
-            )}
-            {transfer.isError && (
-              <div className="text-xs text-danger">
-                {errorText(transfer.error, "transfer failed")}
-              </div>
-            )}
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button disabled={!userId || transfer.isPending} onClick={() => transfer.mutate()}>
-                {transfer.isPending ? "Transferring…" : "Transfer"}
-              </Button>
+
+              {usersError ? (
+                <div className="text-xs text-danger">
+                  You need permission to list users to pick a recipient.
+                </div>
+              ) : (
+                <Popover isOpen={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
+                      "hover:bg-surface transition-colors cursor-pointer",
+                    )}
+                  >
+                    <span className={selectedUser ? "text-fg" : "text-muted"}>
+                      {selectedUser?.username || "Select a user…"}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted shrink-0" />
+                  </PopoverTrigger>
+                  <PopoverContent className="min-w-[200px]">
+                    <ListBox
+                      aria-label="Transfer to"
+                      onSelectionChange={(selected) => {
+                        setUserId(String(selected));
+                        setPopoverOpen(false);
+                      }}
+                    >
+                      {users.map((u) => (
+                        <ListBoxItem key={u.id} id={String(u.id)}>
+                          {u.username}
+                        </ListBoxItem>
+                      ))}
+                    </ListBox>
+                  </PopoverContent>
+                </Popover>
+              )}
+
+              {transfer.isError && (
+                <div className="text-xs text-danger">
+                  {errorText(transfer.error, "transfer failed")}
+                </div>
+              )}
             </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </ModalBody>
+
+          <ModalFooter className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={transfer.isPending}
+              onPress={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              isDisabled={!userId || transfer.isPending}
+              onPress={() => transfer.mutate()}
+            >
+              {transfer.isPending ? "Transferring…" : "Transfer"}
+            </Button>
+          </ModalFooter>
+        </ModalDialog>
+      </ModalContainer>
+    </Modal>
   );
 }

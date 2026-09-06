@@ -105,7 +105,7 @@ describe("ServerSleepCard", () => {
       },
     });
     render(<ServerSleepCard gs={gs} />);
-    expect(screen.getByText("Empty since")).toBeInTheDocument();
+    expect(screen.getByText(/Empty since/)).toBeInTheDocument();
     expect(screen.getByText("Empty, sleeping in 5m30s")).toBeInTheDocument();
   });
 

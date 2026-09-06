@@ -1,9 +1,8 @@
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Input, Button } from "@heroui/react";
 import { X } from "lucide-react";
 import type { PortOverride } from "@/types";
 
-// Row editor for GameServer.spec.networking.portOverrides — shared between
+// T083: Row editor for GameServer.spec.networking.portOverrides — shared between
 // the server Settings → Networking tab and the Create Server wizard.
 export function PortOverridesEditor({
   values,
@@ -64,16 +63,16 @@ export function PortOverridesEditor({
           <Button
             variant="ghost"
             size="sm"
-            className="justify-self-start sm:h-8 sm:w-8 sm:justify-self-auto sm:p-0"
+            isIconOnly
+            className="justify-self-start sm:justify-self-auto"
             title="Remove"
-            onClick={() => remove(idx)}
+            onPress={() => remove(idx)}
           >
-            <X className="h-3 w-3" />
-            <span className="sm:hidden">Remove override</span>
+            <X className="h-4 w-4" />
           </Button>
         </div>
       ))}
-      <Button size="sm" variant="outline" onClick={add}>
+      <Button size="sm" variant="secondary" onPress={add}>
         Add override
       </Button>
     </div>

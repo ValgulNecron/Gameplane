@@ -99,7 +99,7 @@ describe("ServerActionsCard", () => {
     await waitFor(() => expect(open).not.toBeDisabled());
     fireEvent.click(open);
 
-    const input = await screen.findByRole("textbox");
+    const input = await screen.findByRole("textbox", { name: /message/i });
     fireEvent.change(input, { target: { value: "hello world" } });
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
 
@@ -360,10 +360,19 @@ describe("ServerActionsCard", () => {
     const openBtn = await screen.findByRole("button", { name: /Set mode/i });
     await waitFor(() => expect(openBtn).not.toBeDisabled());
     fireEvent.click(openBtn);
-    const select = screen.getByRole("combobox");
-    expect(select).toHaveValue("creative"); // First enum value is default
-    fireEvent.change(select, { target: { value: "survival" } });
-    await waitFor(() => expect(select).toHaveValue("survival"));
+    // HeroUI's compound Select renders its trigger as a plain button
+    // (react-aria's useSelect wires it up via useMenuTrigger({type:
+    // "listbox"}), which leaves the trigger's role as "button" with
+    // aria-haspopup="listbox" — it never becomes role="combobox"). The
+    // field's <Label htmlFor> points at the trigger's id, so the trigger's
+    // accessible name is the label text ("mode"), letting it still be
+    // found by label the way the other param fields are.
+    const trigger = screen.getByRole("button", { name: /mode/i });
+    expect(trigger).toHaveTextContent("creative"); // First enum value is default
+    fireEvent.click(trigger);
+    const survivalOption = await screen.findByRole("option", { name: "survival" });
+    fireEvent.click(survivalOption);
+    await waitFor(() => expect(trigger).toHaveTextContent("survival"));
   });
 
   it("validates int parameters", async () => {
@@ -459,7 +468,8 @@ describe("ServerActionsCard", () => {
     await waitFor(() => expect(openBtn).not.toBeDisabled());
     fireEvent.click(openBtn);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // HeroUI Modal closes, so check that the dialog title is gone
+    await waitFor(() => expect(screen.queryByText("Test")).not.toBeInTheDocument());
     expect(runs).toHaveLength(0);
   });
 
