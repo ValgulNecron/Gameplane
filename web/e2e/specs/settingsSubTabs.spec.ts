@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { LoginPage } from "../pages/LoginPage";
+import { ServerDetailPage } from "../pages/ServerDetailPage";
 
 // Settings sub-tab navigation under ServerDetail. Walks every sub-tab
 // (General → Networking → Resources → Environment → Lifecycle → Access
@@ -53,11 +54,12 @@ test.describe("server settings sub-tabs", () => {
       if (msg.type() === "error") errors.push(msg.text());
     });
 
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await tabNav.getByRole("button", { name: /^Settings$/ }).click();
+    const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
+    await tabNav.getByRole("tab", { name: /^Settings$/i }).click();
 
     const subTabs = [
       "General",
