@@ -428,7 +428,7 @@ func validateAndProtectGameServer(
 	live *unstructured.Unstructured,
 	req *http.Request,
 ) error {
-	u := auth.UserFromContext(req.Context())
+	u := auth.UserFromContext(ctx)
 	isAdmin := false
 	canManageCaptures := false
 	if u != nil {
@@ -571,7 +571,9 @@ func isServerOwnedSecret(ctx context.Context, k *kube.Client, ns, serverName str
 		if err == nil && sec != nil {
 			for _, ref := range sec.GetOwnerReferences() {
 				if ref.Kind == "GameServer" && ref.Name == serverName {
-					if gsUID != "" && ref.UID != "" && ref.UID != gsUID {
+					// A create or clone has no live UID yet. An owner reference that
+					// names a specific GameServer UID must not be accepted on a name match alone.
+					if ref.UID != "" && ref.UID != gsUID {
 						continue
 					}
 					return true
@@ -593,7 +595,9 @@ func isServerOwnedConfigMap(ctx context.Context, k *kube.Client, ns, serverName 
 		if err == nil && cm != nil {
 			for _, ref := range cm.GetOwnerReferences() {
 				if ref.Kind == "GameServer" && ref.Name == serverName {
-					if gsUID != "" && ref.UID != "" && ref.UID != gsUID {
+					// A create or clone has no live UID yet. An owner reference that
+					// names a specific GameServer UID must not be accepted on a name match alone.
+					if ref.UID != "" && ref.UID != gsUID {
 						continue
 					}
 					return true

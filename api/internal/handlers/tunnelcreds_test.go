@@ -741,4 +741,3 @@ func TestTunnelCreds_Delete_UnownedSecretForbidden(t *testing.T) {
 		t.Fatal("foreign secret was deleted! Must be preserved.")
 	}
 }
-

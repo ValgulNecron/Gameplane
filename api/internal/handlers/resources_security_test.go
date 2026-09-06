@@ -517,4 +517,3 @@ func TestResources_Security_TunnelCredentialsSecretProtected(t *testing.T) {
 		t.Fatalf("admin PUT with unowned tunnel secret: got %d %s, want 200", rr.Code, rr.Body)
 	}
 }
-

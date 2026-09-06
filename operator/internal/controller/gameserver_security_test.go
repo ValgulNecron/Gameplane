@@ -89,12 +89,58 @@ func TestValidateServerEnvSecrets(t *testing.T) {
 		},
 	}
 
+	// 6. An unowned ConfigMap
+	unownedConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster-shared-config",
+			Namespace: "games",
+		},
+		Data: map[string]string{"key": "cluster-val"},
+	}
+
+	// 7. A server-owned ConfigMap
+	ownedConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "alpha-config",
+			Namespace: "games",
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "gameplane.local/v1alpha1",
+					Kind:       "GameServer",
+					Name:       "alpha",
+					UID:        "alpha-uid",
+				},
+			},
+		},
+		Data: map[string]string{"motd": "welcome"},
+	}
+
+	// 8. A ConfigMap with mismatched UID
+	mismatchedUIDConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "alpha-stale-config",
+			Namespace: "games",
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "gameplane.local/v1alpha1",
+					Kind:       "GameServer",
+					Name:       "alpha",
+					UID:        "stale-uid",
+				},
+			},
+		},
+		Data: map[string]string{"motd": "stale"},
+	}
+
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(
 		unownedSecret,
 		foreignSameNamedSecret,
 		labeledSecret,
 		mismatchedUIDSecret,
 		ownedSecret,
+		unownedConfigMap,
+		ownedConfigMap,
+		mismatchedUIDConfigMap,
 	).Build()
 	r := &GameServerReconciler{Client: cl}
 
@@ -221,6 +267,66 @@ func TestValidateServerEnvSecrets(t *testing.T) {
 			t.Fatalf("unexpected error for literal env vars: %v", err)
 		}
 	})
+
+	t.Run("unowned configmap reference is refused", func(t *testing.T) {
+		gsCopy := gs.DeepCopy()
+		gsCopy.Spec.Env = []corev1.EnvVar{
+			{
+				Name: "ATTACK_CM",
+				ValueFrom: &corev1.EnvVarSource{
+					ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "cluster-shared-config"},
+						Key:                  "key",
+					},
+				},
+			},
+		}
+
+		err := r.validateServerEnvSources(ctx, gsCopy)
+		if err == nil {
+			t.Fatal("expected error for unowned configmap reference, got nil")
+		}
+	})
+
+	t.Run("configmap with mismatched UID is refused", func(t *testing.T) {
+		gsCopy := gs.DeepCopy()
+		gsCopy.Spec.Env = []corev1.EnvVar{
+			{
+				Name: "ATTACK_CM",
+				ValueFrom: &corev1.EnvVarSource{
+					ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "alpha-stale-config"},
+						Key:                  "motd",
+					},
+				},
+			},
+		}
+
+		err := r.validateServerEnvSources(ctx, gsCopy)
+		if err == nil {
+			t.Fatal("expected error for configmap with mismatched UID, got nil")
+		}
+	})
+
+	t.Run("server-owned configmap with matching UID is permitted", func(t *testing.T) {
+		gsCopy := gs.DeepCopy()
+		gsCopy.Spec.Env = []corev1.EnvVar{
+			{
+				Name: "SERVER_MOTD",
+				ValueFrom: &corev1.EnvVarSource{
+					ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "alpha-config"},
+						Key:                  "motd",
+					},
+				},
+			},
+		}
+
+		err := r.validateServerEnvSources(ctx, gsCopy)
+		if err != nil {
+			t.Fatalf("unexpected error for server-owned configmap: %v", err)
+		}
+	})
 }
 
 func TestReconcileTunnel_CredentialsSecretOwnership(t *testing.T) {
@@ -295,4 +401,3 @@ func TestReconcileTunnel_CredentialsSecretOwnership(t *testing.T) {
 		t.Fatalf("unexpected error mounting owned tunnel credentials secret: %v", err)
 	}
 }
-

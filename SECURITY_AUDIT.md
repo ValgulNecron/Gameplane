@@ -47,7 +47,7 @@ Share creation originally stored only the namespace and server name in the datab
 
 **Remediation:**
 - In `api/internal/handlers/resources.go`, `validateAndProtectGameServer` enforces that any Secret or ConfigMap referenced in `spec.env` must have a controller `OwnerReference` matching the `GameServer`'s name and UID. Suffixes or labels alone are rejected.
-- In `operator/internal/controller/gameserver_controller.go`, `validateServerEnvSecrets` validates all `spec.env` `SecretKeyRef` targets against the cluster before StatefulSet reconciliation, preventing unowned secret mounts even if bypassed via direct CR creation.
+- In `operator/internal/controller/gameserver_controller.go`, `validateServerEnvSources` validates all `spec.env` `SecretKeyRef` and `ConfigMapKeyRef` targets against the cluster before StatefulSet reconciliation, preventing unowned secret or configmap mounts even if bypassed via direct CR creation.
 - Added unit tests in `api/internal/handlers/resources_security_test.go` and `operator/internal/controller/gameserver_security_test.go`.
 
 **Status:** Fixed
@@ -64,7 +64,7 @@ When the optional `gameplane-audit-syslog-bridge` is enabled without `api.audit.
 - `charts/gameplane/templates/audit-syslog-bridge.yaml`
 
 **Remediation:**
-- Added a dedicated Ingress `NetworkPolicy` to `charts/gameplane/templates/audit-syslog-bridge.yaml` that admits TCP port 8514 ingress exclusively from pods matching `app.kubernetes.io/name: gameplane-api`.
+- Added a dedicated Ingress `NetworkPolicy` to `charts/gameplane/templates/audit-syslog-bridge.yaml` that admits TCP port 8514 ingress exclusively from pods matching `app.kubernetes.io/name: gameplane-api` (requires `networkPolicies.enabled=true` in Helm values or equivalent cluster CNI policies).
 - Maintained existing token authentication requirement via `AUTH_HEADER` when configured.
 
 **Status:** Fixed
@@ -120,7 +120,7 @@ The optional anonymous usage telemetry receiver (`charts/gameplane/templates/tel
 - `charts/gameplane/templates/telemetry-receiver.yaml`
 
 **Remediation:**
-- Added a dedicated Ingress `NetworkPolicy` to `charts/gameplane/templates/telemetry-receiver.yaml` restricting TCP port 8080 ingress to pods matching `app.kubernetes.io/name: gameplane-api`.
+- Added a dedicated Ingress `NetworkPolicy` to `charts/gameplane/templates/telemetry-receiver.yaml` restricting TCP port 8080 ingress to pods matching `app.kubernetes.io/name: gameplane-api` (requires `networkPolicies.enabled=true` in Helm values or equivalent cluster CNI policies).
 
 **Status:** Fixed
 

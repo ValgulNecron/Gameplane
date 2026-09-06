@@ -415,7 +415,7 @@ func isServerOwnedSecretObject(sec *corev1.Secret, serverName string, gsUID type
 	}
 	for _, ref := range sec.OwnerReferences {
 		if ref.Kind == "GameServer" && ref.Name == serverName {
-			if gsUID != "" && ref.UID != "" && ref.UID != gsUID {
+			if ref.UID != "" && ref.UID != gsUID {
 				continue
 			}
 			return true
@@ -423,4 +423,3 @@ func isServerOwnedSecretObject(sec *corev1.Secret, serverName string, gsUID type
 	}
 	return false
 }
-

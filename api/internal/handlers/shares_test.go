@@ -650,4 +650,3 @@ func TestShareClusterScoping(t *testing.T) {
 		t.Fatalf("revoke with correct cluster failed: %v", err)
 	}
 }
-

@@ -585,4 +585,3 @@ func TestShareLinks_ClusterScoping(t *testing.T) {
 		t.Fatalf("revoke linkB with cluster-b failed: %v", err)
 	}
 }
-

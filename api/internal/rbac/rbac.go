@@ -110,13 +110,14 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 				// Try owner/collaborator fallback for namespaced server permissions.
 				if Namespaced(r.perm) && fetch != nil &&
 					(r.perm == "servers:read" || r.perm == "servers:write" || r.perm == "servers:console") {
-					name, verb, ok := parseServerPath(req.URL.Path)
+					name, verb, isExact, ok := parseServerPath(req.URL.Path)
 					if ok {
-						// Generic server mutations without a verb (e.g. PUT /servers/{name})
+						// Generic server mutations on the exact server object (e.g. PUT /servers/{name})
 						// are denied on ownership/collaborator fallback. Full-object server updates
 						// require explicit servers:write permission. Only GET (read) and DELETE
-						// (owner-only deletion) are permitted when verb is empty.
-						if verb == "" && req.Method != http.MethodGet && req.Method != http.MethodHead && req.Method != http.MethodDelete {
+						// (owner-only deletion) are permitted on the exact server path.
+						// Sub-resource writes (files, players, mods) continue through ownership fallback.
+						if isExact && req.Method != http.MethodGet && req.Method != http.MethodHead && req.Method != http.MethodDelete {
 							http.Error(w, "forbidden", http.StatusForbidden)
 							return
 						}
@@ -124,9 +125,9 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 						if err == nil && obj != nil {
 							role := ownershipRole(obj, u.ID)
 							if role != roleNone {
-								// Owner-only operations: :transfer, :collaborators, :wipe-data, or DELETE with no verb.
+								// Owner-only operations: :transfer, :collaborators, :wipe-data, or DELETE on exact server object.
 								isOwnerOnly := verb == "transfer" || verb == "collaborators" || verb == "wipe-data" ||
-									(req.Method == "DELETE" && verb == "")
+									(req.Method == "DELETE" && isExact)
 
 								// Grant to owner, or to collaborator if not owner-only.
 								if role == roleOwner || !isOwnerOnly {
@@ -283,41 +284,42 @@ func match(method, path string) (rule, bool) {
 // /servers/{name}, /servers/{name}:verb, /servers/{name}/..., or
 // /ws/servers/{name}/... Empty name ⇒ false (list endpoints have no name).
 func serverNameFromPath(path string) (string, bool) {
-	name, _, ok := parseServerPath(path)
+	name, _, _, ok := parseServerPath(path)
 	return name, ok
 }
 
-// parseServerPath extracts the server name and verb from a path like
-// /servers/{name}, /servers/{name}:verb, /servers/{name}/..., or
-// /ws/servers/{name}/...
-// Returns (name, verb, ok) where verb is "" if no verb is present.
-// Returns ok=false if the path has unexpected trailing segments after a verb
-// (e.g., /servers/a:transfer/extra is invalid).
-func parseServerPath(path string) (string, string, bool) {
+// parseServerPath extracts the server name, verb, and whether the path targets
+// the exact server object from a path like /servers/{name}, /servers/{name}:verb,
+// /servers/{name}/..., or /ws/servers/{name}/...
+// Returns (name, verb, isExact, ok) where:
+//   - verb is "" if no verb is present
+//   - isExact is true when the path is exactly /servers/{name} or /ws/servers/{name}
+//   - ok is false if the path has unexpected trailing segments after a verb
+func parseServerPath(path string) (string, string, bool, bool) {
 	// Normalize to remove leading /
 	trimmed := strings.TrimPrefix(path, "/")
 	// Handle /ws/servers/... → servers/...
 	trimmed = strings.TrimPrefix(trimmed, "ws/")
 	// Must start with servers/
 	if !strings.HasPrefix(trimmed, "servers/") {
-		return "", "", false
+		return "", "", false, false
 	}
 	rest := strings.TrimPrefix(trimmed, "servers/")
 	// Empty rest means /servers (list endpoint)
 	if rest == "" {
-		return "", "", false
+		return "", "", false, false
 	}
 
 	// Find the end of the server name (before / or :)
 	nameEndIdx := strings.IndexAny(rest, "/:")
 	if nameEndIdx < 0 {
-		// No / or :, the rest is the name
-		return rest, "", true
+		// No / or :, the rest is the name (exact server object path)
+		return rest, "", true, true
 	}
 
 	name := rest[:nameEndIdx]
 	if name == "" {
-		return "", "", false
+		return "", "", false, false
 	}
 
 	// Check what follows the name
@@ -329,15 +331,15 @@ func parseServerPath(path string) (string, string, bool) {
 			// No trailing /, the rest is the verb
 			verb := rest[verbStart:]
 			if verb == "" {
-				return "", "", false
+				return "", "", false, false
 			}
-			return name, verb, true
+			return name, verb, false, true
 		}
 		// Trailing / after verb means trailing segments after verb (invalid, fail closed)
-		return "", "", false
+		return "", "", false, false
 	}
-	// rest[nameEndIdx] == '/', trailing segments without verb (OK, like /servers/a/files)
-	return name, "", true
+	// rest[nameEndIdx] == '/', trailing segments without verb (sub-resource path, e.g. /servers/a/files)
+	return name, "", false, true
 }
 
 // ownershipRole returns the ownership role of a user in the server:

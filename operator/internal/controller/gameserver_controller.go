@@ -1353,10 +1353,11 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 ) error {
 	image := resolveImage(gs, tmpl, ver)
 
-	// Validate gs.Spec.Env secret references: any SecretKeyRef must target
-	// a server-owned Secret. Referencing secrets belonging to other subsystems
-	// (destinations, auth, other servers) is refused to prevent secret exfiltration.
-	if err := r.validateServerEnvSecrets(ctx, gs); err != nil {
+	// Validate gs.Spec.Env secret and configmap references: any SecretKeyRef
+	// or ConfigMapKeyRef must target a server-owned resource. Referencing
+	// resources belonging to other subsystems (destinations, auth, other servers)
+	// is refused to prevent data exfiltration.
+	if err := r.validateServerEnvSources(ctx, gs); err != nil {
 		return err
 	}
 
@@ -1982,13 +1983,16 @@ func gameContainerSecurityContext(tmpl *gameplanev1alpha1.GameTemplate) *corev1.
 	}
 }
 
-// validateServerEnvSecrets ensures any SecretKeyRef in gs.Spec.Env targets
-// an existing Secret owned by gs via a controller OwnerReference matching
-// gs.Name and gs.UID. Referencing unowned Secrets (such as restic credentials,
-// auth provider secrets, or other servers' secrets) is refused.
-func (r *GameServerReconciler) validateServerEnvSecrets(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
+// validateServerEnvSources ensures any SecretKeyRef or ConfigMapKeyRef in gs.Spec.Env targets
+// an existing Secret or ConfigMap owned by gs via a controller OwnerReference matching
+// gs.Name and gs.UID. Referencing unowned Secrets or ConfigMaps (such as restic credentials,
+// auth provider secrets, or other servers' secrets/configmaps) is refused.
+func (r *GameServerReconciler) validateServerEnvSources(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
 	for _, ev := range gs.Spec.Env {
-		if ev.ValueFrom != nil && ev.ValueFrom.SecretKeyRef != nil {
+		if ev.ValueFrom == nil {
+			continue
+		}
+		if ev.ValueFrom.SecretKeyRef != nil {
 			secName := ev.ValueFrom.SecretKeyRef.Name
 			var sec corev1.Secret
 			if err := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: secName}, &sec); err != nil {
@@ -1999,8 +2003,24 @@ func (r *GameServerReconciler) validateServerEnvSecrets(ctx context.Context, gs 
 					secName, gs.Namespace, gs.Name)
 			}
 		}
+		if ev.ValueFrom.ConfigMapKeyRef != nil {
+			cmName := ev.ValueFrom.ConfigMapKeyRef.Name
+			var cm corev1.ConfigMap
+			if err := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: cmName}, &cm); err != nil {
+				return fmt.Errorf("configmap reference %q in spec.env: %w", cmName, err)
+			}
+			if !isServerOwnedConfigMap(&cm, gs) {
+				return fmt.Errorf("configmap reference %q in spec.env is not owned by GameServer %s/%s",
+					cmName, gs.Namespace, gs.Name)
+			}
+		}
 	}
 	return nil
+}
+
+// validateServerEnvSecrets is retained for backward compatibility and delegates to validateServerEnvSources.
+func (r *GameServerReconciler) validateServerEnvSecrets(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
+	return r.validateServerEnvSources(ctx, gs)
 }
 
 // isServerOwnedSecret reports whether the given Secret belongs to gs by checking
@@ -2012,7 +2032,31 @@ func isServerOwnedSecret(sec *corev1.Secret, gs *gameplanev1alpha1.GameServer) b
 	}
 	for _, ref := range sec.OwnerReferences {
 		if ref.Kind == "GameServer" && ref.Name == gs.Name {
-			if gs.UID != "" && ref.UID != "" && ref.UID != gs.UID {
+			if gs.UID != "" && ref.UID != gs.UID {
+				continue
+			}
+			if gs.UID == "" && ref.UID != "" {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// isServerOwnedConfigMap reports whether the given ConfigMap belongs to gs by checking
+// for an OwnerReference matching the GameServer's Kind, Name, and UID.
+// Canonical name suffixes and user-settable labels are NOT treated as proof of ownership.
+func isServerOwnedConfigMap(cm *corev1.ConfigMap, gs *gameplanev1alpha1.GameServer) bool {
+	if cm == nil || gs == nil || gs.Name == "" {
+		return false
+	}
+	for _, ref := range cm.OwnerReferences {
+		if ref.Kind == "GameServer" && ref.Name == gs.Name {
+			if gs.UID != "" && ref.UID != gs.UID {
+				continue
+			}
+			if gs.UID == "" && ref.UID != "" {
 				continue
 			}
 			return true
