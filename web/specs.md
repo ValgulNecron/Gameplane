@@ -165,6 +165,144 @@ These are used only by Servers, ServerDetail, Modules, Cluster, Users, AdminSett
 
 2. **Dashboard.tsx narrowed scope (decision #6):** Task T041's literal wording ("displaying app-loading state and empty dashboard frame") narrows this slice's work to loading + empty states only. Full stat/table dashboard content is deferred; a `// TODO(slice-2+)` comment marks where it would be added. Flagged in PR description since this is a visible reduction from today's 470-line Dashboard.tsx.
 
+## T066–T088 — Slice 2a: Servers List and ServerDetail Screens
+
+**Scope:** Slice 2a (tasks T066–T088, `specs/014-heroui-web-rebuild/tasks.md`) rebuilds two core screens — the Servers list page and the ServerDetail (full server view with tabbed interface) — on HeroUI components. This is the primary user-facing surface after login, showing all game server instances and their live status. The slice composes existing hero/ atoms from slice 0 with new HeroUI form/table/dialog components.
+
+### Screens and Routes
+
+1. **Servers Page** (`web/src/routes/Servers.tsx`, 651 lines)
+   - List all GameServers in a responsive table (desktop ≥768px) or stacked cards (mobile <768px)
+   - Renders server phase, game icon, player count, resource usage, and uptime via StatCard compositions
+   - Filter by phase (Running/Stopped/Pending/Failed), game template, and namespace via FilterPopover
+   - Inline lifecycle buttons (play/stop/restart) using HeroUI Button variants
+   - Server count summary via StatCard at the top; search box using HeroUI Input
+   - Action menu (clone, transfer, wipe, delete) via ServerActionsMenu composition (uses DropdownMenu)
+
+2. **ServerDetail Page** (`web/src/routes/ServerDetail.tsx`, 289 lines)
+   - Full server view with header showing phase chip, uptime, player count, and action buttons
+   - Tabbed interface (HeroUI Tabs) routing to nine sub-views: Overview, Events, Console, Logs, Files, Mods, Modpacks, Players, Backups, Capture, Settings
+   - Phase chip from hero/PhaseChip; game icon from hero/GameIcon
+   - Lifecycle action buttons (start/stop/restart) gated by phase state
+
+### Design-Imported Compositions
+
+**Slice 2a uses the following hero/ atom compositions from slice 0** (line numbers below are the `import` line in each file, verified by grep against the current tree):
+
+- **StatCard** — metric display (players online, server uptime, resource usage gauges) in Servers list summary and Overview tab (`web/src/routes/tabs/Overview.tsx` line 7, `web/src/routes/Servers.tsx` line 23)
+- **PhaseChip** — server phase badge (Running/Stopped/Pending/Failed) in Servers list rows and ServerDetail header (`web/src/routes/Servers.tsx` line 24, `web/src/routes/ServerDetail.tsx` line 16)
+- **FilterPopover** — filter controls in Servers list (phase, template, namespace) (`web/src/routes/Servers.tsx` line 25)
+- **GameIcon** — cached game-specific icon in Servers list rows and ServerDetail header (`web/src/routes/Servers.tsx` line 26, `web/src/routes/ServerDetail.tsx` line 17)
+- **DropdownMenu** (`DropdownMenu`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuSeparator`, `DropdownMenuTrigger`) — context menu (clone/transfer/wipe/delete) via ServerActionsMenu (`web/src/components/server/ServerActionsMenu.tsx` lines 12–17)
+- **ConfirmDialog** — used in **DeleteServerDialog.tsx** (`web/src/components/server/DeleteServerDialog.tsx` line 2) and the file-delete confirmation in Files (`web/src/routes/tabs/Files.tsx` line 35). CloneServerDialog, TransferServerDialog and WipeServerDialog do **not** use hero/ConfirmDialog — they build their own dialogs directly from HeroUI `Modal`/`AlertDialog` primitives (see Server Component Helpers below).
+- **ErrorBanner** — form/request error display in Files and Players tabs (`web/src/routes/tabs/Files.tsx` line 36, `web/src/routes/tabs/Players.tsx` line 16)
+- **ErrorCard** — error state display in Console tab ("No console available") (`web/src/routes/tabs/Console.tsx` line 5)
+- **LoadingCard** — skeleton placeholder in Console tab while data loads (`web/src/routes/tabs/Console.tsx` line 4)
+- **Sparkline** — mini inline CPU/memory/disk charts in Overview tab (`web/src/routes/tabs/Overview.tsx` line 8)
+
+**HeroUI Components imported directly** (component-name lists below are taken verbatim from each file's `@heroui/react` import, not restated from memory):
+
+- **Button** — from `@heroui/react`, imported in Servers.tsx (line 22), ServerDetail.tsx (line 4), Events.tsx (line 3), Logs.tsx (line 4), Players.tsx (line 14), ServerActionsMenu.tsx (line 9), and the dialog/card files below
+- **Card, CardHeader, CardTitle, CardContent, CardFooter, Alert** — from `@heroui/react`, imported together in Overview tab (`web/src/routes/tabs/Overview.tsx` line 6)
+- **Input** — from `@heroui/react` (search box in Servers list, player filter in Players tab, file/folder name fields in Files) (`web/src/routes/Servers.tsx` line 22, `web/src/routes/tabs/Players.tsx` line 14, `web/src/routes/tabs/Logs.tsx` line 4, `web/src/routes/tabs/Files.tsx` line 17)
+- **Chip, Tabs, Tab, Table** — from `@heroui/react` (`web/src/routes/Servers.tsx` line 22: `Button, Card, Input, Chip, Tabs, Tab, Table`; `web/src/routes/ServerDetail.tsx` line 4: `Button, Tabs, Tab`)
+- **Modal, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter** — from `@heroui/react` (file create/folder dialogs in Files tab, `web/src/routes/tabs/Files.tsx` lines 9–19; also used, with `ModalHeading`/`Label`/`Description`/`FieldError` added, in `CloneServerDialog.tsx` lines 4–17, `TransferServerDialog.tsx` lines 3–16 with `ListBox`/`ListBoxItem`/`Popover`/`PopoverTrigger`/`PopoverContent` instead of form fields, and `ServerActionsCard.tsx` lines 20–39)
+- **AlertDialog, AlertDialogBackdrop, AlertDialogContainer, AlertDialogDialog, AlertDialogHeader, AlertDialogHeading, AlertDialogBody, AlertDialogFooter, AlertDialogIcon, Checkbox** — from `@heroui/react` (`WipeServerDialog.tsx` lines 3–14)
+- **Alert** — from `@heroui/react`, also imported in `ServerSleepCard.tsx` (line 2) for the idle-state summary
+
+### Tab Components (Slice 2a)
+
+Six of the nine ServerDetail tabs are rebuilt in this slice:
+
+1. **Overview** (`web/src/routes/tabs/Overview.tsx`, 411 lines)
+   - Composes `ServerStatusCard`, `ServerSleepCard`, `ServerActionsCard`, `EventList` (imports at lines 9–12) for status, sleep state, lifecycle actions, and recent pod events
+   - Live metrics: CPU %, memory %, disk % via StatCard + Sparkline (`Sparkline` used at line 332)
+   - Uses HeroUI Card/CardHeader/CardTitle/CardContent/CardFooter/Alert (line 6); hero/ StatCard, Sparkline (lines 7–8)
+
+2. **Events** (`web/src/routes/tabs/Events.tsx`, 86 lines)
+   - Kubernetes events (image pull, scheduling, crash-loops, agent startup) rendered via `EventList` (`web/src/components/server/EventList.tsx`, imported line 6)
+   - Filter state (all/info/warnings) via HeroUI Button
+   - Uses HeroUI Button, Card (line 3)
+
+3. **Console** (`web/src/routes/tabs/Console.tsx`, 157 lines)
+   - Interactive RCON/PTY terminal (xterm.js, lazy-loaded, NOT rebuilt — uses existing engine)
+   - LoadingCard during template resolution (line 28); ErrorCard if no console available (line 35)
+   - Uses hero/ LoadingCard, ErrorCard only (lines 4–5); console I/O engine unchanged
+
+4. **Logs** (`web/src/routes/tabs/Logs.tsx`, 299 lines)
+   - Pod stdout or configured game log file stream (WebSocket, NOT rebuilt — uses existing engine)
+   - Search/filter input via HeroUI Input; download button
+   - Virtualized log viewer (TanStack Virtual, NOT rebuilt)
+   - Uses HeroUI Button, Input only (line 4); log streaming engine unchanged
+
+5. **Files** (`web/src/routes/tabs/Files.tsx`, 602 lines)
+   - File browser and editor (Monaco, lazy-loaded, NOT rebuilt)
+   - Create folder/file dialogs via HeroUI Modal/ModalBackdrop/ModalContainer/ModalDialog/ModalHeader/ModalBody/ModalFooter (lines 9–19)
+   - Delete confirmation via hero/ ConfirmDialog (line 35, used at line 408)
+   - Error display via hero/ ErrorBanner (line 36, used at line 261)
+   - Monaco editor unchanged
+
+6. **Players** (`web/src/routes/tabs/Players.tsx`, 386 lines)
+   - Online player snapshot, ban list, whitelist management
+   - Player count summary via hero/ StatCard (line 15)
+   - Kick/ban/unban actions with reason input via HeroUI Input (line 14)
+   - Error display via hero/ ErrorBanner (line 16, used at line 131)
+
+**Three tabs remain un-rebuilt (used only from legacy primitives or not yet touched):**
+
+- **Mods** — unchanged from slice 0 (not in scope)
+- **Modpacks** — unchanged from slice 0 (not in scope)
+- **Backups** — unchanged from slice 0 (not in scope)
+- **Settings** — unchanged from slice 0 (not in scope)
+
+### Console and Logs Engines
+
+Console input/output and Logs streaming use existing bidirectional WebSocket (console) and read-only WebSocket/SSE (logs) plumbing via `web/src/lib/ws.ts` and `web/src/lib/sse.ts`. These engines are **not rebuilt** in any slice; only the loading/error UI wrapper changes (LoadingCard, ErrorCard in slice 2a). The consumer-facing API (`openWS()`, `openEventStream()`) remains unchanged.
+
+### Server Component Helpers
+
+**Slice 2a adds/updates helper components in `web/src/components/server/`** (line counts are the file's current total, since internal structure shifts with every edit and precision there is not load-bearing):
+
+- **ServerActionsMenu.tsx** (116 lines) — Dropdown menu context menu (clone/transfer/wipe/delete) using hero/ DropdownMenu (import lines 12–17, usage lines 48–86); wires the four dialogs below
+- **CloneServerDialog.tsx** (138 lines) — Clone form (name, description, template selector) built directly from HeroUI `Modal`/`ModalBackdrop`/`ModalContainer`/`ModalDialog`/`ModalHeader`/`ModalHeading`/`ModalBody`/`ModalFooter`/`Button`/`Input`/`Label`/`Description`/`FieldError` (import lines 4–17) — not hero/ConfirmDialog
+- **TransferServerDialog.tsx** (143 lines) — Transfer form (destination picker) from the HeroUI `Modal` family plus `ListBox`/`ListBoxItem`/`Popover`/`PopoverTrigger`/`PopoverContent` (import lines 3–16) — not hero/ConfirmDialog
+- **WipeServerDialog.tsx** (123 lines) — Wipe-world confirmation from the HeroUI `AlertDialog` family plus `Checkbox` (import lines 3–14) — not hero/ConfirmDialog
+- **DeleteServerDialog.tsx** (52 lines) — Delete server confirmation via hero/ ConfirmDialog (line 2)
+- **ServerStatusCard.tsx** (73 lines) — Status summary card in Overview tab, built on HeroUI Card (line 3)
+- **ServerActionsCard.tsx** (487 lines) — Lifecycle action card in Overview tab; HeroUI Button/Card/CardHeader/CardContent/Modal family/Input/Label/Select/ListBox/ListBoxItem/Checkbox/Description/FieldError (import lines 20–39)
+- **ServerSleepCard.tsx** (170 lines) — Server sleep/idle state summary; HeroUI Card/Alert (line 2) plus a `Chip` re-exported from hero/PhaseChip (line 6)
+- **EventList.tsx** (43 lines) — Kubernetes event list renderer, used from both Events.tsx (line 6) and Overview.tsx (line 12)
+- **PortOverridesEditor.tsx** (80 lines) — Port configuration helper; HeroUI Input/Button (line 1) (Settings tab, deferred)
+
+### Design Import Rule (FR-012)
+
+Every file in slice 2a follows the import rule:
+
+- ✅ Imports **only** from `@heroui/react` and `@/components/hero/` (no `@radix-ui/*`, no `@/components/ui/*`)
+- ✅ No mixed families within a single file
+- ✅ Verified by grep: `grep -rE '@/components/ui/|@radix-ui' web/src/routes/{Servers,ServerDetail}.tsx web/src/routes/tabs/{Overview,Events,Console,Logs,Files,Players}.tsx web/src/components/server/ 2>/dev/null` returns **zero results**
+
+**Mechanics:** Lint and review enforce the rule; any rebuilt file importing from forbidden sources fails CI.
+
+### Test Count Rule (FR-010)
+
+Each rewritten test file maintains or exceeds the original test count:
+
+- `Servers.test.tsx`: ported filter state, search, lifecycle action, and phase-counting cases
+- `ServerDetail.test.tsx`: ported tab switching and lifecycle action cases
+- `Overview.test.tsx`: ported metric display and event summary cases
+- `Events.test.tsx`: ported event filter and list cases
+- `Console.test.tsx`: ported loading/error state cases
+- `Logs.test.tsx`: ported log filtering and line rendering cases
+- `Players.test.tsx`: ported player action and list cases
+- `Files.test.tsx`: ported file browser and editor dialog cases
+
+Selectors updated to query by role (`getByRole("button", { name: /clone/i })`, `getByRole("table")`, `getByRole("tablist")`) since HeroUI markup changes internal DOM structure. No `data-testid` added unless HeroUI components genuinely lack accessible role/name.
+
+### Deviation Notes
+
+CloneServerDialog, TransferServerDialog and WipeServerDialog do not route through hero/ConfirmDialog the way DeleteServerDialog and the Files delete confirmation do — each builds its own dialog directly from HeroUI `Modal`/`AlertDialog` primitives, since their forms need bespoke fields (name/description/template picker, destination picker, wipe checkbox) that hero/ConfirmDialog's fixed layout does not support. This is a real, verified divergence from the atom-reuse framing above, not a workaround pending cleanup — no forbidden-import (`@/components/ui/`, `@radix-ui`) is involved, per the Design Import Rule grep above.
+
 ## Directory & Package Layout
 
 ```
