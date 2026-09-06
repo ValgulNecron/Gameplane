@@ -1,11 +1,7 @@
-/// <reference types="node" />
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 // @ts-expect-error jsdom lacks type definitions in this project
 import { JSDOM } from "jsdom";
-
-const html = readFileSync(path.resolve(process.cwd(), "index.html"), "utf8");
+import html from "../../index.html?raw";
 const bootScript = /<script id="theme-boot">([\s\S]*?)<\/script>/.exec(html)?.[1];
 if (!bootScript) throw new Error("theme boot script not found in index.html");
 
