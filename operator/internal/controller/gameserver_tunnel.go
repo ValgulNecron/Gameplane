@@ -9,6 +9,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -312,12 +313,20 @@ func (r *GameServerReconciler) reconcileTunnel(
 		var volumes []corev1.Volume
 		var volumeMounts []corev1.VolumeMount
 
-		if tunnel.CredentialsSecretRef != nil {
+		if tunnel.CredentialsSecretRef != nil && tunnel.CredentialsSecretRef.Name != "" {
+			secName := tunnel.CredentialsSecretRef.Name
+			var sec corev1.Secret
+			if err := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: secName}, &sec); err != nil {
+				return fmt.Errorf("tunnel credentials secret %q: %w", secName, err)
+			}
+			if !isServerOwnedSecret(&sec, gs) {
+				return fmt.Errorf("tunnel credentials secret %q is not owned by GameServer %s/%s", secName, gs.Namespace, gs.Name)
+			}
 			volumes = append(volumes, corev1.Volume{
 				Name: tunnelAuthVolume,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName: tunnel.CredentialsSecretRef.Name,
+						SecretName: secName,
 						Optional:   boolPtr(true),
 					},
 				},

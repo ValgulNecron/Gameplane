@@ -1353,6 +1353,13 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 ) error {
 	image := resolveImage(gs, tmpl, ver)
 
+	// Validate gs.Spec.Env secret references: any SecretKeyRef must target
+	// a server-owned Secret. Referencing secrets belonging to other subsystems
+	// (destinations, auth, other servers) is refused to prevent secret exfiltration.
+	if err := r.validateServerEnvSecrets(ctx, gs); err != nil {
+		return err
+	}
+
 	ss := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Name: gs.Name, Namespace: gs.Namespace},
 	}
@@ -1973,6 +1980,45 @@ func gameContainerSecurityContext(tmpl *gameplanev1alpha1.GameTemplate) *corev1.
 		RunAsUser:  sec.RunAsUser,
 		RunAsGroup: sec.RunAsGroup,
 	}
+}
+
+// validateServerEnvSecrets ensures any SecretKeyRef in gs.Spec.Env targets
+// an existing Secret owned by gs via a controller OwnerReference matching
+// gs.Name and gs.UID. Referencing unowned Secrets (such as restic credentials,
+// auth provider secrets, or other servers' secrets) is refused.
+func (r *GameServerReconciler) validateServerEnvSecrets(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
+	for _, ev := range gs.Spec.Env {
+		if ev.ValueFrom != nil && ev.ValueFrom.SecretKeyRef != nil {
+			secName := ev.ValueFrom.SecretKeyRef.Name
+			var sec corev1.Secret
+			if err := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: secName}, &sec); err != nil {
+				return fmt.Errorf("secret reference %q in spec.env: %w", secName, err)
+			}
+			if !isServerOwnedSecret(&sec, gs) {
+				return fmt.Errorf("secret reference %q in spec.env is not owned by GameServer %s/%s",
+					secName, gs.Namespace, gs.Name)
+			}
+		}
+	}
+	return nil
+}
+
+// isServerOwnedSecret reports whether the given Secret belongs to gs by checking
+// for an OwnerReference matching the GameServer's Kind, Name, and UID.
+// Canonical name suffixes and user-settable labels are NOT treated as proof of ownership.
+func isServerOwnedSecret(sec *corev1.Secret, gs *gameplanev1alpha1.GameServer) bool {
+	if sec == nil || gs == nil || gs.Name == "" {
+		return false
+	}
+	for _, ref := range sec.OwnerReferences {
+		if ref.Kind == "GameServer" && ref.Name == gs.Name {
+			if gs.UID != "" && ref.UID != "" && ref.UID != gs.UID {
+				continue
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // gamePodSecurityContext returns the pod-level SecurityContext carrying
