@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button, Tabs, Tab } from "@heroui/react";
 import {
   AlertTriangle,
   Loader2,
@@ -12,10 +13,9 @@ import {
 } from "lucide-react";
 import { Servers, Templates, type LifecycleVerb } from "@/lib/endpoints";
 import { resolveConsoleMode, serverHasMods, serverHasModpacks } from "@/lib/capabilities";
-import { PhaseBadge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { GameIcon } from "@/components/ui/game-icon";
-import { capitalize, cn, formatUptime } from "@/lib/utils";
+import { PhaseChip } from "@/components/hero/PhaseChip";
+import { GameIcon } from "@/components/hero/GameIcon";
+import { capitalize, formatUptime } from "@/lib/utils";
 import { ServerActionsMenu } from "@/components/server/ServerActionsMenu";
 import { CaptureWidget } from "@/components/CaptureWidget";
 
@@ -167,8 +167,8 @@ export function ServerDetailPage() {
             />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="truncate font-mono text-2xl font-semibold text-fg">{name}</h1>
-                <PhaseBadge phase={phase} asleep={asleep} />
+                <h1 className="truncate font-mono text-2xl font-semibold text-foreground">{name}</h1>
+                <PhaseChip phase={phase} asleep={asleep} />
               </div>
               {provisioning && progressMessage && (
                 <div className="pt-1 flex items-center gap-1.5 text-xs text-warning">
@@ -195,35 +195,30 @@ export function ServerDetailPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              onClick={() => act.mutate("restart")}
-              disabled={!running || act.isPending}
+              onPress={() => act.mutate("restart")}
+              isDisabled={!running || act.isPending}
             >
               <RotateCw className="h-4 w-4" /> Restart
             </Button>
             <Button
               variant="outline"
-              onClick={() => act.mutate("stop")}
-              // An asleep server is phase Suspended, not Running, but :stop
-              // is still a real action on it — it patches spec.suspend=true,
-              // which the operator honors immediately and records as
-              // "stopped by user", distinct from an automatic sleep a wake
-              // window would otherwise resurrect.
-              disabled={(!running && !asleep) || act.isPending}
+              onPress={() => act.mutate("stop")}
+              isDisabled={(!running && !asleep) || act.isPending}
             >
               <Square className="h-4 w-4" /> Stop
             </Button>
             {asleep && (
-              <Button onClick={() => act.mutate("wake")} disabled={act.isPending}>
+              <Button variant="primary" onPress={() => act.mutate("wake")} isDisabled={act.isPending}>
                 <Sunrise className="h-4 w-4" /> Wake
               </Button>
             )}
             {canStart && (
-              <Button variant="outline" onClick={() => act.mutate("start")} disabled={act.isPending}>
+              <Button variant="outline" onPress={() => act.mutate("start")} isDisabled={act.isPending}>
                 <Play className="h-4 w-4" /> Start
               </Button>
             )}
             {consoleAvailable && (
-              <Button onClick={() => setTab("console")}>
+              <Button onPress={() => setTab("console")}>
                 <Terminal className="h-4 w-4" /> Open console
               </Button>
             )}
@@ -236,21 +231,17 @@ export function ServerDetailPage() {
           </div>
         </div>
 
-        <nav className="-mb-px flex overflow-x-auto scrollbar-thin">
-          {visibleTabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                "whitespace-nowrap border-b-2 px-4 py-3 text-sm transition-colors",
-                tab === t.key
-                  ? "border-primary text-fg"
-                  : "border-transparent text-muted hover:text-fg",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
+        <nav>
+          <Tabs
+            selectedKey={tab}
+            onSelectionChange={(k) => setTab(k as TabKey)}
+            aria-label="Server detail tabs"
+            className="w-full"
+          >
+            {visibleTabs.map((t) => (
+              <Tab key={t.key} title={t.label} />
+            ))}
+          </Tabs>
         </nav>
       </header>
 
