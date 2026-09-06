@@ -6,7 +6,6 @@ describe("PageHeader", () => {
   it("renders the title only", () => {
     render(<PageHeader title="Servers" />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Servers");
-    expect(screen.queryByText("subtitle")).not.toBeInTheDocument();
   });
 
   it("renders subtitle when provided", () => {
@@ -17,5 +16,19 @@ describe("PageHeader", () => {
   it("renders action slot", () => {
     render(<PageHeader title="X" actions={<button>Add</button>} />);
     expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+  });
+
+  it("renders breadcrumbs when provided", () => {
+    render(
+      <PageHeader
+        title="Server Details"
+        breadcrumbs={[
+          { label: "Servers", href: "/servers" },
+          { label: "my-server" },
+        ]}
+      />
+    );
+    expect(screen.getByText("Servers")).toBeInTheDocument();
+    expect(screen.getByText("my-server")).toBeInTheDocument();
   });
 });

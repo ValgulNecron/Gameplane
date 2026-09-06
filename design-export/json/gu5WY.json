@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "gu5WY",
-  "x": 910,
-  "y": 25209,
+  "x": -16881,
+  "y": 25039,
   "name": "Gameplane/Top Bar",
   "theme": {},
   "reusable": true,
@@ -24,45 +24,40 @@
   "children": [
     {
       "type": "frame",
-      "id": "d1OsI7",
+      "id": "VzGni",
       "name": "Breadcrumbs",
       "gap": 8,
       "alignItems": "center",
       "children": [
         {
-          "id": "DIEpd",
-          "type": "ref",
-          "ref": "c:nW26m",
+          "type": "text",
+          "id": "SDwEA",
           "name": "crumbRoot",
-          "descendants": {
-            "c:bT3Mm": {
-              "content": "gameplane",
-              "fill": "$muted"
-            }
-          }
+          "fill": "$muted",
+          "content": "gameplane",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
         },
         {
-          "id": "P56WM",
-          "type": "ref",
-          "ref": "c:axCNF",
+          "type": "icon",
+          "id": "aI9Ix",
           "name": "crumbSep",
-          "descendants": {
-            "c:FQHQ9": {
-              "stroke": "$muted"
-            }
-          }
+          "width": 14,
+          "height": 14,
+          "icon": "chevron-right",
+          "library": "lucide",
+          "fill": "$muted"
         },
         {
-          "id": "GqBm6",
-          "type": "ref",
-          "ref": "c:mErlM",
+          "type": "text",
+          "id": "Gl7AY",
           "name": "crumbPage",
-          "descendants": {
-            "c:bT3Mm": {
-              "content": "Dashboard",
-              "fill": "$foreground/foreground"
-            }
-          }
+          "fill": "$foreground/foreground",
+          "content": "Dashboard",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "500"
         }
       ]
     },
@@ -70,6 +65,7 @@
       "type": "frame",
       "id": "g6DqF",
       "name": "Actions",
+      "height": "fill_container",
       "gap": 12,
       "alignItems": "center",
       "children": [
@@ -103,7 +99,7 @@
               "name": "clusterName",
               "fill": "$foreground/foreground",
               "content": "local",
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 13,
               "fontWeight": "500"
             },
@@ -121,40 +117,59 @@
           ]
         },
         {
-          "id": "X3vYiN",
+          "id": "wv5eH",
           "type": "ref",
-          "ref": "c:T5yK2",
+          "ref": "Um9IB",
           "name": "Search",
-          "width": 280,
-          "height": 36,
-          "cornerRadius": 6,
-          "padding": [
-            0,
-            12
-          ],
-          "fill": "$field/background",
-          "stroke": "$border/border",
-          "strokeWidth": 1,
-          "strokeAlignment": "inner",
+          "height": 40,
+          "gap": 0,
+          "width": 300,
+          "layout": "horizontal",
+          "alignItems": "center",
           "descendants": {
-            "c:OBu7v": {
-              "stroke": "$field/placeholder"
+            "oYXAU": {
+              "content": "",
+              "opacity": 0,
+              "height": 0,
+              "enabled": false
             },
-            "c:ZYNyM": {
-              "stroke": "$field/placeholder"
+            "I3Cns": {
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "cornerRadius": 9999,
+              "height": 40,
+              "width": "fill_container",
+              "fill": "$field/background",
+              "effect": [],
+              "padding": [
+                0,
+                14
+              ],
+              "alignItems": "center"
             },
-            "c:shPTz": {
-              "content": "Search servers\u2026",
+            "kbnKe": {
+              "width": "fill_container",
+              "alignItems": "center",
+              "gap": 8
+            },
+            "KDnSC": {
+              "width": 16,
+              "height": 16,
+              "fill": "$muted"
+            },
+            "lz6sn": {
+              "content": "Search servers…",
               "fill": "$field/placeholder"
             },
-            "c:KvNZ4": {
-              "stroke": "$foreground/foreground"
+            "Cu8Yj": {
+              "enabled": false
             }
           }
         },
         {
           "type": "frame",
-          "id": "inh4V",
+          "id": "T8mUEj",
           "name": "Bell Wrap",
           "width": 40,
           "height": 40,
@@ -162,9 +177,10 @@
           "children": [
             {
               "type": "frame",
-              "id": "Sdet8",
+              "id": "Ntcn5",
               "x": 0,
               "y": 0,
+              "name": "Sdet8",
               "width": 36,
               "height": 36,
               "fill": "#00000000",
@@ -173,7 +189,7 @@
               "children": [
                 {
                   "type": "icon",
-                  "id": "R7dRZF",
+                  "id": "z3ZleP",
                   "x": 8,
                   "y": 8,
                   "width": 20,
@@ -186,7 +202,7 @@
             },
             {
               "type": "ellipse",
-              "id": "va5Jb",
+              "id": "HrWm8",
               "x": 29,
               "y": 1,
               "name": "UnreadDot",
@@ -199,15 +215,15 @@
           ]
         },
         {
-          "id": "r6uHth",
+          "id": "TUlxU",
           "type": "ref",
-          "ref": "c:90SQo",
+          "ref": "p3URd",
           "name": "Avatar",
           "width": 32,
           "height": 32,
           "fill": "$accent/soft",
           "descendants": {
-            "c:xr4rB": {
+            "Rki8z": {
               "content": "AD",
               "fill": "$accent/accent",
               "fontSize": 12

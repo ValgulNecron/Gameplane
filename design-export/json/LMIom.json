@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "LMIom",
-  "x": 600,
-  "y": 26846,
+  "x": -17003,
+  "y": 26108,
   "name": "Gameplane/Button/Ghost",
   "theme": {},
   "reusable": true,
@@ -17,15 +17,40 @@
   "alignItems": "center",
   "children": [
     {
+      "type": "frame",
       "id": "vWtyO",
-      "type": "ref",
-      "ref": "jsrtu",
       "name": "Button",
-      "descendants": {
-        "ezEy1": {
-          "content": "Button"
+      "height": 36,
+      "cornerRadius": "$radius/3xl",
+      "gap": "$spacing/2",
+      "padding": [
+        8,
+        "$spacing/4"
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "vWtyO/bevQZ",
+          "name": "i8",
+          "width": 16,
+          "height": 16,
+          "icon": "plus",
+          "library": "lucide",
+          "fill": "$foreground/foreground"
+        },
+        {
+          "type": "text",
+          "id": "vWtyO/ezEy1",
+          "name": "Label",
+          "fill": "$foreground/foreground",
+          "content": "Button",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "500"
         }
-      }
+      ]
     }
   ]
 }

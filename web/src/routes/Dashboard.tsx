@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { Button, Card } from "@heroui/react";
 import {
   Activity,
   Archive,
@@ -19,12 +20,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { StatCard } from "@/components/ui/stat";
-import { PhaseBadge } from "@/components/ui/badge";
-import { Meter } from "@/components/ui/meter";
-import { GameIcon } from "@/components/ui/game-icon";
+import { StatCard } from "@/components/hero/StatCard";
+import { Meter } from "@/components/hero/Meter";
+import { PhaseChip } from "@/components/hero/PhaseChip";
+import { GameIcon } from "@/components/hero/GameIcon";
+import { LoadingCard } from "@/components/hero/LoadingCard";
 import { PageHeader } from "@/components/PageHeader";
 import {
   cn,
@@ -47,31 +47,32 @@ import type {
 } from "@/types";
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { data: me } = useMe();
   const canAudit = can(me, "audit:read");
   const canCluster = can(me, "servers:write");
 
-  const { data: serversData } = useQuery({
+  const { data: serversData, isLoading: serversLoading } = useQuery({
     queryKey: ["servers"],
     queryFn: () => Servers.list(),
     refetchInterval: 5_000,
   });
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["cluster-stats"],
     queryFn: () => Cluster.stats().catch(() => ({}) as ClusterStats),
     staleTime: 30_000,
   });
-  const { data: clusterView } = useQuery({
+  const { data: clusterView, isLoading: clusterLoading } = useQuery({
     queryKey: ["cluster"],
     queryFn: () => Cluster.view().catch(() => ({}) as ClusterView),
     staleTime: 30_000,
   });
-  const { data: backupsData } = useQuery({
+  const { data: backupsData, isLoading: backupsLoading } = useQuery({
     queryKey: ["backups"],
     queryFn: () => Backups.list().catch(() => ({ items: [] as Backup[] })),
     staleTime: 30_000,
   });
-  const { data: audit } = useQuery({
+  const { data: audit, isLoading: auditLoading } = useQuery({
     queryKey: ["audit", "dashboard"],
     queryFn: () => Audit.page(8, 0),
     enabled: canAudit,
@@ -97,74 +98,93 @@ export function DashboardPage() {
     ? ((stats.usedStorageBytes ?? 0) / stats.totalStorageBytes) * 100
     : 0;
 
+  const isLoading =
+    serversLoading || statsLoading || clusterLoading || backupsLoading || (canAudit && auditLoading);
+
   return (
     <div className="space-y-6 p-6">
       <PageHeader
         title="Dashboard"
         subtitle="At-a-glance health of your Gameplane cluster."
         actions={
-          <Button asChild>
-            <Link to="/servers/new"><Plus className="h-4 w-4" /> Create server</Link>
+          <Button
+            variant="primary"
+            className="rounded-full"
+            onPress={() => void navigate({ to: "/servers/new" })}
+          >
+            <Plus className="h-4 w-4" /> Create server
           </Button>
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          label="Running"
-          icon={<Activity className="h-4 w-4" />}
-          value={counts.running}
-          sub={`of ${groups.total} total`}
-          accent="success"
-        />
-        <StatCard
-          label="Players online"
-          icon={<UsersIcon className="h-4 w-4" />}
-          value={counts.players}
-          sub={`peak ${counts.playersMax}`}
-          accent="primary"
-        />
-        <StatCard
-          label="vCPUs"
-          icon={<Cpu className="h-4 w-4" />}
-          value={vcpus > 0 ? vcpus : "—"}
-          sub="cluster cores"
-          accent="warning"
-        />
-        <StatCard
-          label="Storage provisioned"
-          icon={<HardDrive className="h-4 w-4" />}
-          value={storage.valueText}
-          sub={storage.subText ?? "—"}
-          accent={storage.overcommitted ? "warning" : "violet"}
-        />
-        <StatCard
-          label="Nodes ready"
-          icon={<ServerIcon className="h-4 w-4" />}
-          value={nodesTotal > 0 ? `${nodesReady}/${nodesTotal}` : "—"}
-          sub={nodesTotal === 0 ? "no node data" : nodesReady === nodesTotal ? "all healthy" : "needs attention"}
-          accent="warning"
-        />
-      </div>
+      {isLoading ? (
+        <LoadingCard message="Loading dashboard…" />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <StatCard
+              label="Running"
+              icon={<Activity className="h-4 w-4" />}
+              value={counts.running}
+              sub={`of ${groups.total} total`}
+              accent="success"
+            />
+            <StatCard
+              label="Players online"
+              icon={<UsersIcon className="h-4 w-4" />}
+              value={counts.players}
+              sub={`peak ${counts.playersMax}`}
+              accent="primary"
+            />
+            <StatCard
+              label="vCPUs"
+              icon={<Cpu className="h-4 w-4" />}
+              value={vcpus > 0 ? vcpus : "—"}
+              sub="cluster cores"
+              accent="warning"
+            />
+            <StatCard
+              label="Storage provisioned"
+              icon={<HardDrive className="h-4 w-4" />}
+              value={storage.valueText}
+              sub={storage.subText ?? "—"}
+              accent={storage.overcommitted ? "warning" : "violet"}
+            />
+            <StatCard
+              label="Nodes ready"
+              icon={<ServerIcon className="h-4 w-4" />}
+              value={nodesTotal > 0 ? `${nodesReady}/${nodesTotal}` : "—"}
+              sub={
+                nodesTotal === 0
+                  ? "no node data"
+                  : nodesReady === nodesTotal
+                    ? "all healthy"
+                    : "needs attention"
+              }
+              accent="warning"
+            />
+          </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <FleetStatusCard groups={groups} />
-        <ClusterResourcesCard
-          cpu={cpu}
-          mem={mem}
-          storage={storage}
-          storagePct={storagePct}
-          nodes={nodes}
-          nodesReady={nodesReady}
-          nodesTotal={nodesTotal}
-          canViewCluster={canCluster}
-        />
-      </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FleetStatusCard groups={groups} />
+            <ClusterResourcesCard
+              cpu={cpu}
+              mem={mem}
+              storage={storage}
+              storagePct={storagePct}
+              nodes={nodes}
+              nodesReady={nodesReady}
+              nodesTotal={nodesTotal}
+              canViewCluster={canCluster}
+            />
+          </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {canAudit && <RecentActivityCard events={audit ?? []} />}
-        <RecentBackupsCard backups={recentBackups} />
-      </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {canAudit && <RecentActivityCard events={audit ?? []} />}
+            <RecentBackupsCard backups={recentBackups} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -181,7 +201,7 @@ function FleetStatusCard({ groups }: { groups: PhaseGroups }) {
   return (
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-fg">Fleet status</h3>
+        <h3 className="text-sm font-semibold text-foreground">Fleet status</h3>
         <span className="text-xs text-muted">{groups.total} servers</span>
       </div>
 
@@ -228,12 +248,12 @@ function AttentionRow({ gs }: { gs: GameServer }) {
     >
       <GameIcon game={gs.spec.templateRef.name} size="sm" />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-mono text-sm text-fg group-hover:text-primary">
+        <div className="truncate font-mono text-sm text-foreground group-hover:text-primary">
           {gs.metadata.name}
         </div>
         <div className="truncate text-[11px] text-muted">{reason}</div>
       </div>
-      <PhaseBadge phase={phase} asleep={gs.status?.idle?.asleep === true} />
+      <PhaseChip phase={phase} asleep={gs.status?.idle?.asleep === true} />
     </Link>
   );
 }
@@ -268,7 +288,7 @@ function ClusterResourcesCard({
   return (
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-fg">Cluster resources</h3>
+        <h3 className="text-sm font-semibold text-foreground">Cluster resources</h3>
         {canViewCluster ? (
           <Link to="/cluster" className="text-xs text-primary hover:underline">
             View cluster
@@ -294,7 +314,9 @@ function ClusterResourcesCard({
       {nodes.length > 0 && (
         <div className="space-y-2 border-t border-border pt-4">
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted">Nodes</div>
-          {nodes.slice(0, 4).map((n) => <NodeRow key={n.name} node={n} />)}
+          {nodes.slice(0, 4).map((n) => (
+            <NodeRow key={n.name} node={n} />
+          ))}
         </div>
       )}
     </Card>
@@ -308,11 +330,13 @@ function NodeRow({ node }: { node: ClusterNode }) {
   const meta = [
     node.pods?.used !== undefined ? `${node.pods.used} pods` : null,
     cpuKnown && node.cpu?.capacity ? `cpu ${Math.round(cpuPct)}%` : null,
-  ].filter(Boolean).join(" · ");
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className={cn("h-2 w-2 shrink-0 rounded-full", ready ? "bg-success" : "bg-danger")} />
-      <span className="flex-1 truncate font-mono text-fg">{node.name}</span>
+      <span className="flex-1 truncate font-mono text-foreground">{node.name}</span>
       <span className="shrink-0 text-muted">{meta || "—"}</span>
     </div>
   );
@@ -322,7 +346,7 @@ function RecentActivityCard({ events }: { events: AuditEvent[] }) {
   return (
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-fg">Recent activity</h3>
+        <h3 className="text-sm font-semibold text-foreground">Recent activity</h3>
         <Link to="/admin/audit" className="text-xs text-primary hover:underline">
           View all
         </Link>
@@ -331,7 +355,9 @@ function RecentActivityCard({ events }: { events: AuditEvent[] }) {
         <div className="py-6 text-center text-sm text-muted">No recent activity.</div>
       ) : (
         <div className="space-y-3">
-          {events.map((e) => <ActivityRow key={e.id} event={e} />)}
+          {events.map((e) => (
+            <ActivityRow key={e.id} event={e} />
+          ))}
         </div>
       )}
     </Card>
@@ -346,7 +372,7 @@ function ActivityRow({ event }: { event: AuditEvent }) {
         <Icon className={cn("h-3.5 w-3.5", accent)} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-fg">{describeAudit(event)}</div>
+        <div className="truncate text-sm text-foreground">{describeAudit(event)}</div>
         <div className="truncate font-mono text-[11px] text-muted">
           {event.method} {event.path}
         </div>
@@ -360,7 +386,7 @@ function RecentBackupsCard({ backups }: { backups: Backup[] }) {
   return (
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-fg">Recent backups</h3>
+        <h3 className="text-sm font-semibold text-foreground">Recent backups</h3>
         <Link to="/backups" className="text-xs text-primary hover:underline">
           View all
         </Link>
@@ -369,7 +395,9 @@ function RecentBackupsCard({ backups }: { backups: Backup[] }) {
         <div className="py-6 text-center text-sm text-muted">No backups yet.</div>
       ) : (
         <div className="space-y-3">
-          {backups.map((b) => <BackupRow key={b.metadata.name} backup={b} />)}
+          {backups.map((b) => (
+            <BackupRow key={b.metadata.name} backup={b} />
+          ))}
         </div>
       )}
     </Card>
@@ -382,13 +410,13 @@ function BackupRow({ backup }: { backup: Backup }) {
     <div className="flex items-center gap-3">
       <GameIcon game={backup.spec.serverRef.name} size="sm" />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-mono text-sm text-fg">{backup.spec.serverRef.name}</div>
+        <div className="truncate font-mono text-sm text-foreground">{backup.spec.serverRef.name}</div>
         <div className="truncate text-[11px] text-muted">{formatRelative(when)}</div>
       </div>
       {backup.status?.size && (
-        <span className="shrink-0 font-mono text-xs text-fg">{backup.status.size}</span>
+        <span className="shrink-0 font-mono text-xs text-foreground">{backup.status.size}</span>
       )}
-      <PhaseBadge phase={backup.status?.phase} />
+      <PhaseChip phase={backup.status?.phase} />
     </div>
   );
 }

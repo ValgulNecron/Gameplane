@@ -24,15 +24,19 @@ export function PageHeader({
       {breadcrumbs && breadcrumbs.length > 0 && (
         <div className="flex">
           <Breadcrumbs separator={<ChevronRight className="h-4 w-4 text-muted" />}>
-            {breadcrumbs.map((crumb, idx) => (
-              <Breadcrumbs.Item
-                key={idx}
-                href={crumb.href}
-                className="text-sm text-foreground hover:text-accent data-[current]:text-muted data-[current]:hover:text-muted"
-              >
-                {crumb.label}
-              </Breadcrumbs.Item>
-            ))}
+            {breadcrumbs.map((crumb, idx, arr) => {
+              const isLast = idx === arr.length - 1;
+              return (
+                <Breadcrumbs.Item
+                  key={idx}
+                  href={crumb.href && !isLast ? crumb.href : undefined}
+                  aria-current={isLast ? "page" : undefined}
+                  className="text-sm text-muted hover:text-foreground data-[current]:text-foreground data-[current]:hover:text-foreground"
+                >
+                  {crumb.label}
+                </Breadcrumbs.Item>
+              );
+            })}
           </Breadcrumbs>
         </div>
       )}

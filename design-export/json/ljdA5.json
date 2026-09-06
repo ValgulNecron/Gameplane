@@ -1,9 +1,9 @@
 {
   "type": "frame",
   "id": "ljdA5",
-  "x": 4920,
+  "x": 6560,
   "y": 4500,
-  "name": "Screen/Login \u2014 SSO only",
+  "name": "Screen/Login — SSO only",
   "theme": {
     "c:Mode": "Dark",
     "semantic": "dark"
@@ -26,7 +26,7 @@
       "children": [
         {
           "type": "frame",
-          "id": "WlvQA",
+          "id": "B24gS",
           "name": "loginCard",
           "width": 420,
           "fill": "$surface/surface",
@@ -40,7 +40,7 @@
           "children": [
             {
               "type": "frame",
-              "id": "xItum",
+              "id": "fnizm",
               "name": "loginLogo",
               "width": "fill_container",
               "gap": 10,
@@ -48,7 +48,7 @@
               "children": [
                 {
                   "type": "frame",
-                  "id": "d9HDW",
+                  "id": "gDPwp",
                   "name": "logoK",
                   "width": 36,
                   "height": 36,
@@ -59,7 +59,7 @@
                   "children": [
                     {
                       "type": "icon",
-                      "id": "yPbv3",
+                      "id": "FZ26X",
                       "name": "shield",
                       "width": 20,
                       "height": 20,
@@ -71,25 +71,25 @@
                 },
                 {
                   "type": "frame",
-                  "id": "M5KT8H",
+                  "id": "YCrTN",
                   "name": "logoCol",
                   "layout": "vertical",
                   "children": [
                     {
                       "type": "text",
-                      "id": "wQTvj",
+                      "id": "F4eh5",
                       "fill": "$foreground/foreground",
                       "content": "gameplane",
-                      "fontFamily": "$c:--font-primary",
+                      "fontFamily": "$typography/font-mono",
                       "fontSize": 20,
                       "fontWeight": "600"
                     },
                     {
                       "type": "text",
-                      "id": "Dwr7I",
+                      "id": "XLibN",
                       "fill": "$muted",
                       "content": "game server control panel",
-                      "fontFamily": "$c:--font-secondary",
+                      "fontFamily": "$typography/font-sans",
                       "fontSize": 12,
                       "fontWeight": "normal"
                     }
@@ -99,7 +99,7 @@
             },
             {
               "type": "frame",
-              "id": "yU1NN",
+              "id": "z18vz",
               "name": "loginTitle",
               "width": "fill_container",
               "layout": "vertical",
@@ -107,19 +107,19 @@
               "children": [
                 {
                   "type": "text",
-                  "id": "T8pm5",
+                  "id": "Me10c",
                   "fill": "$foreground/foreground",
                   "content": "Sign in",
-                  "fontFamily": "$c:--font-primary",
+                  "fontFamily": "$typography/font-mono",
                   "fontSize": 22,
                   "fontWeight": "600"
                 },
                 {
                   "type": "text",
-                  "id": "kohLt",
+                  "id": "q3Yi5",
                   "fill": "$muted",
                   "content": "Welcome to Gameplane",
-                  "fontFamily": "$c:--font-secondary",
+                  "fontFamily": "$typography/font-sans",
                   "fontSize": 13,
                   "fontWeight": "normal"
                 }
@@ -127,287 +127,90 @@
             },
             {
               "type": "frame",
-              "id": "dNonB",
-              "x": 40,
-              "y": 182,
-              "name": "lf1",
-              "enabled": false,
-              "width": "fill_container(340)",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "N619Z4",
-                  "fill": "$foreground/foreground",
-                  "content": "Email or username",
-                  "fontFamily": "$c:--font-primary",
-                  "fontSize": 12,
-                  "fontWeight": "500"
-                },
-                {
-                  "type": "frame",
-                  "id": "eCE99",
-                  "name": "lf1in",
-                  "width": "fill_container",
-                  "height": 44,
-                  "fill": "$background/background",
-                  "cornerRadius": 6,
-                  "stroke": "$border/border",
-                  "strokeWidth": 1,
-                  "strokeAlignment": "inner",
-                  "padding": [
-                    10,
-                    14
-                  ],
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "lFzEY",
-                      "fill": "$foreground/foreground",
-                      "content": "valgul",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 14,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "XMjAj",
-              "x": 40,
-              "y": 272,
-              "name": "lf2",
-              "enabled": false,
-              "width": "fill_container(340)",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "rxslr",
-                  "name": "lf2lbl",
-                  "width": "fill_container",
-                  "justifyContent": "space_between",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "BqWmO",
-                      "fill": "$foreground/foreground",
-                      "content": "Password",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 12,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
-                      "id": "w0v2z",
-                      "fill": "$accent/accent",
-                      "content": "Forgot?",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "OlCu5",
-                  "name": "lf2in",
-                  "width": "fill_container",
-                  "height": 44,
-                  "fill": "$background/background",
-                  "cornerRadius": 6,
-                  "stroke": "$border/border",
-                  "strokeWidth": 1,
-                  "strokeAlignment": "inner",
-                  "padding": [
-                    10,
-                    14
-                  ],
-                  "justifyContent": "space_between",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "cMpb0",
-                      "fill": "$foreground/foreground",
-                      "content": "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 14,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "type": "icon",
-                      "id": "WLVt3",
-                      "width": 16,
-                      "height": 16,
-                      "icon": "eye-off",
-                      "library": "lucide",
-                      "weight": 400,
-                      "fill": "$muted"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "cc30S",
-              "x": 40,
-              "y": 362,
-              "name": "loginBtn",
-              "enabled": false,
-              "width": "fill_container(340)",
-              "height": 44,
-              "fill": "$accent/accent",
-              "cornerRadius": 999,
-              "gap": 6,
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "VqgNv",
-                  "fill": "#FFFFFF",
-                  "content": "Sign in \u2192",
-                  "fontFamily": "$c:--font-primary",
-                  "fontSize": 14,
-                  "fontWeight": "500"
-                },
-                {
-                  "type": "icon",
-                  "id": "qrwdi",
-                  "x": 194.5,
-                  "y": 14,
-                  "enabled": false,
-                  "width": 16,
-                  "height": 16,
-                  "icon": "arrow_forward",
-                  "library": "Material Symbols Sharp",
-                  "weight": 400,
-                  "fill": "#FFFFFF"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "ll24e",
-              "x": 40,
-              "y": 430,
-              "name": "loginDivider",
-              "enabled": false,
-              "width": "fill_container(340)",
-              "gap": 12,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "rectangle",
-                  "id": "sEdUy",
-                  "fill": "$border/border",
-                  "width": "fill_container",
-                  "height": 1
-                },
-                {
-                  "type": "text",
-                  "id": "XVoad",
-                  "fill": "$muted",
-                  "content": "or",
-                  "fontFamily": "$c:--font-primary",
-                  "fontSize": 11,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "rectangle",
-                  "id": "miPz5",
-                  "fill": "$border/border",
-                  "width": "fill_container",
-                  "height": 1
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "yByu4",
+              "id": "HYXcs",
               "name": "oidc",
-              "width": "fill_container",
-              "height": 44,
-              "cornerRadius": 999,
-              "stroke": "$border/border",
+              "height": 40,
+              "cornerRadius": "$radius/3xl",
+              "stroke": "$border-2",
               "strokeWidth": 1,
               "strokeAlignment": "inner",
-              "gap": 10,
+              "gap": "$spacing/2",
+              "padding": [
+                8,
+                "$spacing/5"
+              ],
               "justifyContent": "center",
               "alignItems": "center",
               "children": [
                 {
                   "type": "icon",
-                  "id": "ZoUon",
-                  "width": 16,
-                  "height": 16,
+                  "id": "HYXcs/IruuA",
+                  "name": "i6",
+                  "width": 18,
+                  "height": 18,
                   "icon": "key-round",
                   "library": "lucide",
-                  "weight": 400,
                   "fill": "$foreground/foreground"
                 },
                 {
                   "type": "text",
-                  "id": "hFrMH",
+                  "id": "HYXcs/QNiQq",
+                  "name": "Label",
                   "fill": "$foreground/foreground",
                   "content": "Continue with Keycloak",
-                  "fontFamily": "$c:--font-primary",
-                  "fontSize": 14,
+                  "fontFamily": "$typography/font-mono",
+                  "fontSize": 16,
                   "fontWeight": "500"
                 }
               ]
             },
             {
               "type": "text",
-              "id": "MV91y",
+              "id": "n2Q7d",
               "fill": "$muted",
               "textGrowth": "fixed-width",
               "width": "fill_container",
               "content": "AGPL-3.0 licensed",
               "textAlign": "center",
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 11,
               "fontWeight": "normal"
             },
             {
               "type": "frame",
-              "id": "KDPgL",
-              "name": "google",
-              "width": "fill_container",
-              "height": 44,
-              "cornerRadius": 999,
-              "stroke": "$border/border",
+              "id": "p9uFf",
+              "name": "Button/Outline/LG",
+              "height": 40,
+              "cornerRadius": "$radius/3xl",
+              "stroke": "$border-2",
               "strokeWidth": 1,
               "strokeAlignment": "inner",
-              "gap": 10,
+              "gap": "$spacing/2",
+              "padding": [
+                8,
+                "$spacing/5"
+              ],
               "justifyContent": "center",
               "alignItems": "center",
               "children": [
                 {
                   "type": "icon",
-                  "id": "A8Elr",
-                  "width": 16,
-                  "height": 16,
+                  "id": "p9uFf/IruuA",
+                  "name": "i6",
+                  "width": 18,
+                  "height": 18,
                   "icon": "key-round",
                   "library": "lucide",
-                  "weight": 400,
                   "fill": "$foreground/foreground"
                 },
                 {
                   "type": "text",
-                  "id": "qwTVJ",
+                  "id": "p9uFf/QNiQq",
+                  "name": "Label",
                   "fill": "$foreground/foreground",
                   "content": "Continue with Google",
-                  "fontFamily": "$c:--font-primary",
-                  "fontSize": 14,
+                  "fontFamily": "$typography/font-mono",
+                  "fontSize": 16,
                   "fontWeight": "500"
                 }
               ]
@@ -455,7 +258,7 @@
               "id": "L9foxP",
               "fill": "$muted",
               "content": "AGPL-3.0",
-              "fontFamily": "$c:--font-primary",
+              "fontFamily": "$typography/font-mono",
               "fontSize": 12,
               "fontWeight": "normal"
             }
@@ -469,7 +272,7 @@
           "width": "fill_container",
           "content": "Kubernetes-native\ngame server hosting.",
           "lineHeight": 1.05,
-          "fontFamily": "$c:--font-primary",
+          "fontFamily": "$typography/font-mono",
           "fontSize": 44,
           "fontWeight": "700"
         },
@@ -479,9 +282,9 @@
           "fill": "$muted",
           "textGrowth": "fixed-width",
           "width": "fill_container",
-          "content": "An open-source alternative to proprietary game panels \u2014 CRDs, Operators, and StatefulSets all the way down.",
+          "content": "An open-source alternative to proprietary game panels — CRDs, Operators, and StatefulSets all the way down.",
           "lineHeight": 1.5,
-          "fontFamily": "$c:--font-secondary",
+          "fontFamily": "$typography/font-sans",
           "fontSize": 15,
           "fontWeight": "normal"
         },
@@ -530,7 +333,7 @@
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
                   "content": "Deploy any game. Minecraft, Valheim, Factorio, Palworld, ARK, CS2, Terraria, and more.",
-                  "fontFamily": "$c:--font-primary",
+                  "fontFamily": "$typography/font-mono",
                   "fontSize": 13,
                   "fontWeight": "normal"
                 }
@@ -573,7 +376,7 @@
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
                   "content": "Scale from single-node k3s to multi-node bare metal or cloud.",
-                  "fontFamily": "$c:--font-primary",
+                  "fontFamily": "$typography/font-mono",
                   "fontSize": 13,
                   "fontWeight": "normal"
                 }
@@ -616,7 +419,7 @@
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
                   "content": "Backups, auto-restart, rolling upgrades, RBAC. Production-grade defaults.",
-                  "fontFamily": "$c:--font-primary",
+                  "fontFamily": "$typography/font-mono",
                   "fontSize": 13,
                   "fontWeight": "normal"
                 }
@@ -659,7 +462,7 @@
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
                   "content": "GitOps-friendly. `kubectl get gameservers` just works.",
-                  "fontFamily": "$c:--font-primary",
+                  "fontFamily": "$typography/font-mono",
                   "fontSize": 13,
                   "fontWeight": "normal"
                 }

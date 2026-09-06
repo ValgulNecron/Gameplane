@@ -1,31 +1,45 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { screen, waitFor, within } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeServer, makeBackup, makeAudit, makeClusterView, makeClusterStats, makeUser } from "@/test/factories";
+import {
+  makeServer,
+  makeBackup,
+  makeAudit,
+  makeClusterView,
+  makeClusterStats,
+  makeUser,
+} from "@/test/factories";
 
 // TanStack Router's Link needs a router context the test doesn't supply.
 // Replace it with a plain anchor — the attention/feed links keep the same
 // DOM contract for what we assert.
+const mockNavigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
     <a href={to} {...rest}>
       {children}
     </a>
   ),
+  useNavigate: () => mockNavigate,
 }));
 
 import { DashboardPage } from "./Dashboard";
 
 describe("DashboardPage", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+  });
   it("renders the overview shell: KPIs and section cards", async () => {
     renderWithQuery(<DashboardPage />);
     await screen.findByText("Dashboard");
     // KPI tiles ("Storage" also appears as a cluster-resources meter label,
-    // so assert at least one match rather than a unique one).
-    expect(screen.getByText("Running")).toBeInTheDocument();
+    // so assert at least one match rather than a unique one). Queries settle
+    // asynchronously behind the loading gate, so wait for the first one.
+    expect(await screen.findByText("Running")).toBeInTheDocument();
     expect(screen.getByText("Players online")).toBeInTheDocument();
     expect(screen.getAllByText("Storage").length).toBeGreaterThan(0);
     expect(screen.getByText("Nodes ready")).toBeInTheDocument();
@@ -35,6 +49,12 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Recent backups")).toBeInTheDocument();
     // Admin (default /users/me) has audit:read → activity card shown.
     expect(await screen.findByText("Recent activity")).toBeInTheDocument();
+  });
+
+  it("shows a loading state while queries are pending", () => {
+    server.use(http.get("/servers", async () => { await delay("infinite"); }));
+    renderWithQuery(<DashboardPage />);
+    expect(screen.getByText("Loading dashboard…")).toBeInTheDocument();
   });
 
   it("surfaces servers needing attention and links to their detail", async () => {
@@ -230,9 +250,7 @@ describe("DashboardPage", () => {
   });
 
   it("hides recent activity from users without audit:read", async () => {
-    server.use(
-      http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))),
-    );
+    server.use(http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))));
     const { client } = renderWithQuery(<DashboardPage />);
     // Wait until the viewer identity has actually loaded before asserting
     // the audit-gated card is absent (otherwise we'd pass during loading).
@@ -244,9 +262,7 @@ describe("DashboardPage", () => {
   });
 
   it("shows the View cluster link to users with servers:write permission", async () => {
-    server.use(
-      http.get("/users/me", () => HttpResponse.json(makeUser({ role: "operator" }))),
-    );
+    server.use(http.get("/users/me", () => HttpResponse.json(makeUser({ role: "operator" }))));
     const { client } = renderWithQuery(<DashboardPage />);
     await waitFor(() => expect(client.getQueryData(["me"])).toBeTruthy());
     await screen.findByText("Cluster resources");
@@ -255,24 +271,18 @@ describe("DashboardPage", () => {
   });
 
   it("renders vcpus as — when no node data is available", async () => {
-    server.use(
-      http.get("/cluster", () => HttpResponse.json({})),
-    );
+    server.use(http.get("/cluster", () => HttpResponse.json({})));
     renderWithQuery(<DashboardPage />);
     const label = await screen.findByText("vCPUs");
     // Several stat cards fall back to the same "—" placeholder when their
     // data is missing, so scope the assertion to the vCPUs card itself.
-    const card = label.closest("div.rounded-lg");
+    const card = label.closest("div.card");
     expect(card).not.toBeNull();
     expect(within(card as HTMLElement).getByText("—")).toBeInTheDocument();
   });
 
   it("renders nodes section only when nodes exist", async () => {
-    server.use(
-      http.get("/cluster", () =>
-        HttpResponse.json(makeClusterView({ nodes: [] })),
-      ),
-    );
+    server.use(http.get("/cluster", () => HttpResponse.json(makeClusterView({ nodes: [] }))));
     renderWithQuery(<DashboardPage />);
     await screen.findByText("Cluster resources");
     expect(screen.queryByText("Nodes")).not.toBeInTheDocument();
@@ -315,7 +325,7 @@ describe("DashboardPage", () => {
     // since a node with no cpu.capacity keeps the cluster-wide vcpus sum
     // at zero.
     const label = screen.getByText("vCPUs");
-    const card = label.closest("div.rounded-lg");
+    const card = label.closest("div.card");
     expect(card).not.toBeNull();
     expect(within(card as HTMLElement).getByText("—")).toBeInTheDocument();
   });
@@ -398,5 +408,27 @@ describe("DashboardPage", () => {
     );
     renderWithQuery(<DashboardPage />);
     expect(await screen.findByText(/bob created/)).toBeInTheDocument();
+  });
+
+  it("renders the Create server call to action linking to /servers/new", async () => {
+    renderWithQuery(<DashboardPage />);
+    const cta = await screen.findByRole("button", { name: /create server/i });
+    expect(cta).toBeInTheDocument();
+    await userEvent.click(cta);
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/servers/new" });
+  });
+
+  it("operator can access the dashboard", async () => {
+    server.use(http.get("/users/me", () => HttpResponse.json(makeUser({ role: "operator" }))));
+    const { client } = renderWithQuery(<DashboardPage />);
+    await waitFor(() => expect(client.getQueryData(["me"])).toBeTruthy());
+    expect(await screen.findByText("Dashboard")).toBeInTheDocument();
+  });
+
+  it("viewer can access the dashboard", async () => {
+    server.use(http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))));
+    const { client } = renderWithQuery(<DashboardPage />);
+    await waitFor(() => expect(client.getQueryData(["me"])).toBeTruthy());
+    expect(await screen.findByText("Dashboard")).toBeInTheDocument();
   });
 });

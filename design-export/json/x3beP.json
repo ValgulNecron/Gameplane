@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "x3beP",
-  "x": 640,
-  "y": 28161,
+  "x": -16135,
+  "y": 25462,
   "name": "Gameplane/Modal",
   "theme": {},
   "reusable": true,
@@ -16,7 +16,10 @@
     "type": "shadow",
     "shadowType": "outer",
     "color": "#00000080",
-    "offset": {"x": 0, "y": 12},
+    "offset": {
+      "x": 0,
+      "y": 12
+    },
     "blur": 32,
     "spread": -8
   },
@@ -38,7 +41,12 @@
       "id": "ABbjS",
       "name": "mDescWrap",
       "width": "fill_container",
-      "padding": [4, 0, 0, 0],
+      "padding": [
+        4,
+        0,
+        0,
+        0
+      ],
       "children": [
         {
           "type": "text",
@@ -63,7 +71,12 @@
       "width": "fill_container",
       "layout": "vertical",
       "gap": 16,
-      "padding": [16, 0, 0, 0],
+      "padding": [
+        16,
+        0,
+        0,
+        0
+      ],
       "children": [
         {
           "type": "frame",
@@ -92,7 +105,10 @@
               "stroke": "$border/border",
               "strokeWidth": 1,
               "strokeAlignment": "inner",
-              "padding": [0, 12],
+              "padding": [
+                0,
+                12
+              ],
               "justifyContent": "space_between",
               "alignItems": "center",
               "children": [
@@ -126,7 +142,12 @@
       "name": "mFooter",
       "width": "fill_container",
       "gap": 8,
-      "padding": [20, 0, 0, 0],
+      "padding": [
+        20,
+        0,
+        0,
+        0
+      ],
       "justifyContent": "end",
       "alignItems": "center",
       "children": [
@@ -136,7 +157,10 @@
           "name": "btnCancel",
           "height": 32,
           "cornerRadius": 6,
-          "padding": [0, 12],
+          "padding": [
+            0,
+            12
+          ],
           "justifyContent": "center",
           "alignItems": "center",
           "children": [
@@ -158,7 +182,10 @@
           "height": 32,
           "fill": "$accent/accent",
           "cornerRadius": 6,
-          "padding": [0, 12],
+          "padding": [
+            0,
+            12
+          ],
           "justifyContent": "center",
           "alignItems": "center",
           "children": [

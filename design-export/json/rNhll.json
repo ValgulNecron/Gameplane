@@ -1,34 +1,62 @@
 {
-    "type": "frame",
-    "id": "rNhll",
-    "x": 300,
-    "y": 26846,
-    "name": "Gameplane/Button/Outline",
-    "theme": {},
-    "reusable": true,
-    "height": 36,
-    "cornerRadius": "$radius/3xl",
-    "stroke": "$border/border",
-    "strokeWidth": 1,
-    "strokeAlignment": "inner",
-    "gap": "$spacing/2",
-    "padding": [
+  "type": "frame",
+  "id": "rNhll",
+  "x": -17185,
+  "y": 26203,
+  "name": "Gameplane/Button/Outline",
+  "theme": {},
+  "reusable": true,
+  "height": 36,
+  "cornerRadius": "$radius/3xl",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "gap": "$spacing/2",
+  "padding": [
+    8,
+    "$spacing/4"
+  ],
+  "justifyContent": "center",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "frame",
+      "id": "Q57b2",
+      "name": "Button",
+      "height": 36,
+      "cornerRadius": "$radius/3xl",
+      "stroke": "$border-2",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "gap": "$spacing/2",
+      "padding": [
         8,
         "$spacing/4"
-    ],
-    "justifyContent": "center",
-    "alignItems": "center",
-    "children": [
+      ],
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
         {
-            "id": "Q57b2",
-            "type": "ref",
-            "ref": "i6gfu",
-            "name": "Button",
-            "descendants": {
-                "GqVun": {
-                    "content": "Button"
-                }
-            }
+          "type": "icon",
+          "id": "Q57b2/FCYQ9",
+          "name": "i5",
+          "width": 16,
+          "height": 16,
+          "icon": "plus",
+          "library": "lucide",
+          "fill": "$foreground/foreground"
+        },
+        {
+          "type": "text",
+          "id": "Q57b2/GqVun",
+          "name": "Label",
+          "fill": "$foreground/foreground",
+          "content": "Button",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "500"
         }
-    ]
+      ]
+    }
+  ]
 }

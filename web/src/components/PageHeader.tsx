@@ -1,21 +1,25 @@
 import type { ReactNode } from "react";
+import { PageHeader as HeroPageHeader, type BreadcrumbItem } from "@/components/hero/PageHeader";
+
+export { type BreadcrumbItem };
 
 export function PageHeader({
   title,
   subtitle,
   actions,
+  breadcrumbs,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
+  breadcrumbs?: BreadcrumbItem[];
 }) {
   return (
-    <div className="flex items-start justify-between gap-6 pb-2">
-      <div className="min-w-0">
-        <h1 className="truncate text-2xl font-semibold text-fg">{title}</h1>
-        {subtitle && <p className="pt-1 text-sm text-muted">{subtitle}</p>}
-      </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
-    </div>
+    <HeroPageHeader
+      title={title}
+      description={subtitle}
+      actions={actions}
+      breadcrumbs={breadcrumbs}
+    />
   );
 }

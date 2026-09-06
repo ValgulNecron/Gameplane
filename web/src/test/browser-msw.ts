@@ -8,15 +8,23 @@
 //
 // When localStorage.getItem("gameplane-e2e-dataset") === "screenshots",
 // uses an enriched handler set with diverse test data for demo/screenshot runs.
+// When it is "sso-only", overrides /auth/providers to report no local-login
+// provider, so Login.tsx renders its SSO-only branch.
 
 import { setupWorker } from "msw/browser";
-import { handlers, buildScreenshotHandlers } from "./handlers";
+import { handlers, buildScreenshotHandlers, buildSsoOnlyHandlers } from "./handlers";
 
 function getHandlerSet(): Parameters<typeof setupWorker>[0][] {
   // Wrap in try/catch in case localStorage is unavailable (e.g., sandboxed iframe)
   try {
-    if (typeof window !== "undefined" && window.localStorage.getItem("gameplane-e2e-dataset") === "screenshots") {
-      return buildScreenshotHandlers();
+    if (typeof window !== "undefined") {
+      const dataset = window.localStorage.getItem("gameplane-e2e-dataset");
+      if (dataset === "screenshots") {
+        return buildScreenshotHandlers();
+      }
+      if (dataset === "sso-only") {
+        return buildSsoOnlyHandlers();
+      }
     }
   } catch {
     // localStorage unavailable; fall through to default

@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "Lmaf1",
-  "x": 480,
-  "y": 27182,
+  "x": -16485,
+  "y": 25728,
   "name": "Gameplane/Search Input",
   "theme": {},
   "reusable": true,
@@ -45,7 +45,7 @@
       "id": "EJMtX",
       "name": "searchPlaceholder",
       "fill": "$field/placeholder",
-      "content": "Search\u2026",
+      "content": "Search…",
       "fontFamily": "$typography/font-sans",
       "fontSize": 14,
       "fontWeight": "normal"
