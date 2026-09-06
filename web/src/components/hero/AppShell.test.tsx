@@ -72,7 +72,7 @@ describe("AppShell", () => {
     // TopBar container should have fixed height h-16 (border handled by TopBar's header)
     const topBarWrapper = container.querySelector(".h-16");
     expect(topBarWrapper).toBeInTheDocument();
-    expect(topBarWrapper).toHaveClass("flex-shrink-0");
+    expect(topBarWrapper).toHaveClass("shrink-0");
 
     // Main content should be scrollable
     const main = container.querySelector("main");
@@ -94,7 +94,7 @@ describe("AppShell", () => {
     const topBarWrapper = container.querySelector("div.h-16");
     expect(topBarWrapper).toBeInTheDocument();
     expect(topBarWrapper).toHaveClass("h-16");
-    expect(topBarWrapper).toHaveClass("flex-shrink-0");
+    expect(topBarWrapper).toHaveClass("shrink-0");
   });
 
   it("renders children inside main content area", () => {

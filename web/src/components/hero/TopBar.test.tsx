@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
@@ -14,6 +14,7 @@ vi.mock("@/lib/endpoints", () => ({
 
 // Mock location.assign
 const mockLocationAssign = vi.fn();
+const originalLocation = Object.getOwnPropertyDescriptor(window, "location");
 Object.defineProperty(window, "location", {
   value: { assign: mockLocationAssign },
   writable: true,
@@ -29,6 +30,16 @@ const mockUser: User = {
 };
 
 describe("TopBar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterAll(() => {
+    if (originalLocation) {
+      Object.defineProperty(window, "location", originalLocation);
+    }
+  });
+
   it("renders all four slots", () => {
     renderWithQuery(
       <TopBar
@@ -115,7 +126,7 @@ describe("TopBar", () => {
   });
 
   it("renders avatar fallback with accent background color", () => {
-    const { container } = renderWithQuery(
+    renderWithQuery(
       <TopBar
         breadcrumbs={<div>Breadcrumbs</div>}
         clusterSelector={<div>Cluster</div>}
@@ -126,8 +137,8 @@ describe("TopBar", () => {
       />
     );
 
-    // Find the avatar fallback element (typically a span with initials)
-    const avatarFallback = container.querySelector("[class*='bg-accent']");
+    // Find the avatar fallback element by its content (initials "AD" from "Alice Developer")
+    const avatarFallback = screen.getByText("AD");
     expect(avatarFallback).toBeInTheDocument();
     expect(avatarFallback).toHaveClass("bg-accent");
     expect(avatarFallback).toHaveClass("text-accent-foreground");
@@ -251,19 +262,17 @@ describe("TopBar", () => {
     expect(header).toHaveClass("flex", "justify-between");
 
     // Left side should contain breadcrumbs
-    const leftDiv = header?.querySelector(".gap-2");
-    if (leftDiv instanceof HTMLElement) {
-      expect(within(leftDiv).getByTestId("breadcrumbs-slot")).toBeInTheDocument();
-    }
+    const leftDiv = header?.querySelector<HTMLElement>(".gap-2");
+    expect(leftDiv).not.toBeNull();
+    expect(within(leftDiv!).getByTestId("breadcrumbs-slot")).toBeInTheDocument();
 
     // Right side should contain cluster, search, notifications, and avatar
-    const rightDiv = header?.querySelector(".flex.shrink-0");
-    if (rightDiv instanceof HTMLElement) {
-      expect(within(rightDiv).getByTestId("cluster-slot")).toBeInTheDocument();
-      expect(within(rightDiv).getByTestId("search-slot")).toBeInTheDocument();
-      expect(within(rightDiv).getByTestId("notifications-slot")).toBeInTheDocument();
-      expect(within(rightDiv).getByRole("button", { name: /user menu/i })).toBeInTheDocument();
-    }
+    const rightDiv = header?.querySelector<HTMLElement>(".flex.shrink-0");
+    expect(rightDiv).not.toBeNull();
+    expect(within(rightDiv!).getByTestId("cluster-slot")).toBeInTheDocument();
+    expect(within(rightDiv!).getByTestId("search-slot")).toBeInTheDocument();
+    expect(within(rightDiv!).getByTestId("notifications-slot")).toBeInTheDocument();
+    expect(within(rightDiv!).getByRole("button", { name: /user menu/i })).toBeInTheDocument();
   });
 
   it("renders user name from displayName when available", async () => {

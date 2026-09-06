@@ -1,22 +1,10 @@
-import { test, expect, type Page } from "@playwright/test";
-import { LoginPage } from "../pages/LoginPage";
+import { test, expect } from "@playwright/test";
+import { loginIfNeeded } from "../pages/LoginPage";
 
 // Shell E2E: covers the top-level navigation, breadcrumbs, cluster selector,
 // and sidebar (desktop fixed + mobile drawer variants).
 // These tests verify that the application shell components render correctly
 // and that navigation, cluster switching, and UI interactions work as expected.
-
-async function loginIfNeeded(page: Page): Promise<void> {
-  if (new URL(page.url()).pathname.startsWith("/login")) {
-    const login = new LoginPage(page);
-    const username =
-      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
-    const password =
-      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
-    await login.login(username, password);
-    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
-  }
-}
 
 test.describe("shell", () => {
   // Live mode pre-authenticates every test via a single shared session
@@ -123,9 +111,9 @@ test.describe("shell", () => {
       const nav = page.getByRole("navigation", { name: /primary/i });
       await expect(nav).toBeVisible();
 
-      // The "Servers" link should have the active styling
+      // The "Servers" link should be marked as the current page via aria-current
       const serversLink = page.getByRole("link", { name: /servers/i }).first();
-      await expect(serversLink).toHaveClass(/bg-primary/);
+      await expect(serversLink).toHaveAttribute('aria-current', 'page');
     });
 
     test("sidebar shows cluster name in header", async ({ page }) => {
@@ -134,9 +122,8 @@ test.describe("shell", () => {
 
       // The sidebar header should display the current cluster name (or "—" if not set)
       // This is a basic check that the sidebar renders the cluster info
-      const nav = page.getByRole("navigation", { name: /primary/i });
-      const sidebarSection = nav.locator("..").first();
-      const text = await sidebarSection.innerText();
+      const sidebar = page.locator('aside[aria-label="Sidebar"]');
+      const text = await sidebar.innerText();
       // Should contain "gameplane" and either a cluster name or "—"
       expect(text).toContain("gameplane");
     });
@@ -149,8 +136,9 @@ test.describe("shell", () => {
       await expect(nav).toBeVisible();
 
       // Check for user info (role should be visible in footer)
-      // and the logout button
-      const logoutButton = nav.locator("..").getByRole("button", { name: /sign out/i });
+      // and the logout button via the sidebar footer landmark
+      const sidebarFooter = page.locator('[aria-label="Sidebar footer"]');
+      const logoutButton = sidebarFooter.getByRole("button", { name: /sign out/i });
       await expect(logoutButton).toBeVisible();
     });
   });

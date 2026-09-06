@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { screen, waitFor, within } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import {
@@ -29,6 +30,9 @@ vi.mock("@tanstack/react-router", () => ({
 import { DashboardPage } from "./Dashboard";
 
 describe("DashboardPage", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+  });
   it("renders the overview shell: KPIs and section cards", async () => {
     renderWithQuery(<DashboardPage />);
     await screen.findByText("Dashboard");
@@ -48,7 +52,7 @@ describe("DashboardPage", () => {
   });
 
   it("shows a loading state while queries are pending", () => {
-    server.use(http.get("/servers", () => new Promise(() => {}))); // never resolves
+    server.use(http.get("/servers", async () => { await delay("infinite"); }));
     renderWithQuery(<DashboardPage />);
     expect(screen.getByText("Loading dashboard…")).toBeInTheDocument();
   });
@@ -410,6 +414,8 @@ describe("DashboardPage", () => {
     renderWithQuery(<DashboardPage />);
     const cta = await screen.findByRole("button", { name: /create server/i });
     expect(cta).toBeInTheDocument();
+    await userEvent.click(cta);
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/servers/new" });
   });
 
   it("operator can access the dashboard", async () => {

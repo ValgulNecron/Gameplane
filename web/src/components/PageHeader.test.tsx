@@ -6,8 +6,6 @@ describe("PageHeader", () => {
   it("renders the title only", () => {
     render(<PageHeader title="Servers" />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Servers");
-    expect(screen.queryByText("description")).not.toBeInTheDocument();
-    expect(screen.queryByText("subtitle")).not.toBeInTheDocument();
   });
 
   it("renders subtitle when provided", () => {

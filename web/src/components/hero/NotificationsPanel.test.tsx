@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 
@@ -71,10 +71,12 @@ describe("NotificationsPanel", () => {
 
     // Simulate an SSE event
     expect(sseCallback).not.toBeNull();
-    sseCallback!({
-      kind: "servers",
-      eventType: "ADDED",
-      object: { metadata: { name: "test-server" } },
+    await act(() => {
+      sseCallback!({
+        kind: "servers",
+        eventType: "ADDED",
+        object: { metadata: { name: "test-server" } },
+      });
     });
 
     const bell = screen.getByRole("button", { name: /notifications/i });
@@ -91,15 +93,19 @@ describe("NotificationsPanel", () => {
 
     // Simulate multiple SSE events
     expect(sseCallback).not.toBeNull();
-    sseCallback!({
-      kind: "servers",
-      eventType: "ADDED",
-      object: { metadata: { name: "server-1" } },
+    await act(() => {
+      sseCallback!({
+        kind: "servers",
+        eventType: "ADDED",
+        object: { metadata: { name: "server-1" } },
+      });
     });
-    sseCallback!({
-      kind: "backups",
-      eventType: "MODIFIED",
-      object: { metadata: { name: "backup-1" } },
+    await act(() => {
+      sseCallback!({
+        kind: "backups",
+        eventType: "MODIFIED",
+        object: { metadata: { name: "backup-1" } },
+      });
     });
 
     // Badge should show 2 unread
@@ -112,10 +118,12 @@ describe("NotificationsPanel", () => {
     expect(sseCallback).not.toBeNull();
     // Simulate 11 events
     for (let i = 1; i <= 11; i++) {
-      sseCallback!({
-        kind: "servers",
-        eventType: "ADDED",
-        object: { metadata: { name: `server-${i}` } },
+      await act(() => {
+        sseCallback!({
+          kind: "servers",
+          eventType: "ADDED",
+          object: { metadata: { name: `server-${i}` } },
+        });
       });
     }
 
@@ -125,10 +133,12 @@ describe("NotificationsPanel", () => {
   it("resets unread count to 0 when panel is opened", async () => {
     renderWithQuery(<NotificationsPanel />);
 
-    sseCallback!({
-      kind: "servers",
-      eventType: "ADDED",
-      object: { metadata: { name: "server-1" } },
+    await act(() => {
+      sseCallback!({
+        kind: "servers",
+        eventType: "ADDED",
+        object: { metadata: { name: "server-1" } },
+      });
     });
 
     // Badge shows 1
@@ -152,10 +162,12 @@ describe("NotificationsPanel", () => {
 
     // Simulate 60 events
     for (let i = 1; i <= 60; i++) {
-      sseCallback!({
-        kind: "servers",
-        eventType: "ADDED",
-        object: { metadata: { name: `server-${i}` } },
+      await act(() => {
+        sseCallback!({
+          kind: "servers",
+          eventType: "ADDED",
+          object: { metadata: { name: `server-${i}` } },
+        });
       });
     }
 
@@ -173,10 +185,12 @@ describe("NotificationsPanel", () => {
   it("removes trailing 's' from kind in notice text", async () => {
     renderWithQuery(<NotificationsPanel />);
 
-    sseCallback!({
-      kind: "servers",
-      eventType: "MODIFIED",
-      object: { metadata: { name: "my-server" } },
+    await act(() => {
+      sseCallback!({
+        kind: "servers",
+        eventType: "MODIFIED",
+        object: { metadata: { name: "my-server" } },
+      });
     });
 
     const bell = screen.getByRole("button", { name: /notifications/i });

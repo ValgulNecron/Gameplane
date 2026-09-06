@@ -54,10 +54,13 @@ test.describe("live: login and shell", () => {
 
     // Check for SSO section. If no providers are available, the section won't
     // render, so we just assert it may or may not exist (graceful).
-    const ssoButtons = page.getByRole("button", { name: /sign in with/i });
+    const ssoButtons = page.getByRole("button", { name: /continue with/i });
     const count = await ssoButtons.count();
-    // Either SSO is disabled (count === 0) or enabled (count >= 1) — both valid.
-    expect([0, 1, 2]).toContain(count);
+    if (count > 0) {
+      await expect(ssoButtons.first()).toBeVisible();
+    } else {
+      await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
+    }
   });
 
   test("sidebar navigation renders all main screens for admin", async ({ page }) => {
@@ -125,17 +128,16 @@ test.describe("live: login and shell", () => {
     // Cycle through modes and check class on <html>
     const modes = ["light", "dark", "system"];
     for (const _mode of modes) {
-      // Click the toggle (if visible)
-      if (await themeToggle.isVisible()) {
-        await themeToggle.click();
-        // Give a moment for the class to update
-        await page.waitForTimeout(100);
+      // Assert toggle is visible before clicking
+      await expect(themeToggle).toBeVisible();
+      await themeToggle.click();
+      // Give a moment for the class to update
+      await page.waitForTimeout(100);
 
-        // Check the resolved theme class (light or dark; system resolves to one of those)
-        const htmlElement = page.locator("html");
-        const classes = await htmlElement.evaluate((el: HTMLElement) => el.className);
-        expect(["light", "dark"]).toContain(classes.split(" ").find((c: string) => c === "light" || c === "dark"));
-      }
+      // Check the resolved theme class (light or dark; system resolves to one of those)
+      const htmlElement = page.locator("html");
+      const classes = await htmlElement.evaluate((el: HTMLElement) => el.className);
+      expect(["light", "dark"]).toContain(classes.split(" ").find((c: string) => c === "light" || c === "dark"));
     }
   });
 
@@ -148,13 +150,9 @@ test.describe("live: login and shell", () => {
     await page.goto("/");
 
     // At 390px, sidebar should be in drawer mode (hidden by default).
-    // The drawer's nav carries its own accessible name ("Mobile
-    // navigation", distinct from the fixed sidebar's "Primary") so this
-    // assertion targets the drawer's landmark specifically, rather than a
-    // raw `nav[aria-label]` selector that (unlike getByRole) does not
-    // account for the fixed sidebar also being present, off-screen, in
-    // the DOM.
-    const sidebar = page.getByRole("navigation", { name: "Mobile navigation" });
+    // The drawer carries role=dialog; we assert on its visibility, not the
+    // underlying nav element (which has "Mobile navigation" as its accessible
+    // name and is present in the DOM but hidden by CSS transform).
     const drawer = page.locator("[role='dialog']"); // Drawer uses role=dialog
 
     // Drawer should be hidden or off-screen initially
@@ -169,25 +167,20 @@ test.describe("live: login and shell", () => {
 
     // Find and click the hamburger menu (mobile only)
     const hamburger = page.getByRole("button", { name: /open navigation/i });
-    if (await hamburger.isVisible()) {
-      await hamburger.click();
+    await expect(hamburger).toBeVisible();
+    await hamburger.click();
 
-      // Drawer should now be visible. 2s was tuned against the mock dev
-      // server; the real cluster round trip (session/permission checks
-      // that gate the drawer's nav content) needs more room live.
-      await expect(drawer).toBeVisible({ timeout: 10_000 });
-      await expect(sidebar).toBeVisible();
+    // Drawer should now be visible. 2s was tuned against the mock dev
+    // server; the real cluster round trip (session/permission checks
+    // that gate the drawer's nav content) needs more room live.
+    await expect(drawer).toBeVisible({ timeout: 10_000 });
 
-      // Click a nav link in the drawer
-      const serversLink = page.getByRole("link", { name: /servers/i }).first();
-      await serversLink.click();
+    // Verify the mobile navigation landmark is rendered inside the drawer
+    const sidebar = page.getByRole("navigation", { name: "Mobile navigation" });
+    await expect(sidebar).toBeVisible();
 
-      // After navigation, drawer should close
-      // (either immediately or with a brief delay)
-      await page.waitForTimeout(200);
-      const isClosed = !(await drawer.isVisible().catch(() => false));
-      expect(isClosed || !(await drawer.isVisible().catch(() => false))).toBe(true);
-    }
+    await page.getByRole("link", { name: /servers/i }).first().click();
+    await expect(drawer).toBeHidden({ timeout: 2_000 });
 
     // Restore viewport
     await page.setViewportSize({ width: 1280, height: 720 });

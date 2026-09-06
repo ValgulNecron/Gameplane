@@ -1,5 +1,4 @@
-import type { APIRequestContext, APIResponse, Page } from "@playwright/test";
-import { LoginPage } from "../../pages/LoginPage";
+import type { APIRequestContext, APIResponse } from "@playwright/test";
 
 // Shared helpers for the live-mode data-screen specs. These talk to the
 // REAL Gameplane API (through vite's proxy onto the kubectl port-forward
@@ -11,23 +10,7 @@ import { LoginPage } from "../../pages/LoginPage";
 // therefore creates the real objects it asserts on and deletes them again,
 // which keeps it deterministic and independent of Go-suite test ordering.
 
-// loginIfNeeded handles both run modes:
-//   - mock: /users/me always returns a user, so visiting / stays in-app.
-//   - live: /users/me returns 401, AppLayout redirects to /login, we sign in.
-// (Kept here so the live specs don't each re-declare it.)
-export async function loginIfNeeded(page: Page): Promise<void> {
-  await page.goto("/");
-  await page.waitForLoadState("domcontentloaded");
-  if (new URL(page.url()).pathname.startsWith("/login")) {
-    const login = new LoginPage(page);
-    const username =
-      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
-    const password =
-      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
-    await login.login(username, password);
-    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
-  }
-}
+export { loginIfNeeded } from "../../pages/LoginPage";
 
 // seedHeaders builds the headers a seed mutation needs:
 //

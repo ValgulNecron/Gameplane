@@ -1,29 +1,24 @@
 /// <reference types="node" />
+import { readFileSync } from "node:fs";
 import { describe, it, expect, vi } from "vitest";
 // @ts-expect-error jsdom lacks type definitions in this project
 import { JSDOM } from "jsdom";
 
+const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+const bootScript = /<script id="theme-boot">([\s\S]*?)<\/script>/.exec(html)?.[1];
+if (!bootScript) throw new Error("theme boot script not found in index.html");
+
 describe("theme boot script", () => {
   function runBootScript(dom: JSDOM, setupFn?: (window: Window) => void) {
-    const { window } = dom;
     if (setupFn) {
-      setupFn(window);
+      setupFn(dom.window as unknown as Window);
     }
-    // Execute the boot script logic directly in the window context
-    // This mirrors what the inline script does in index.html
-    try {
-      const KEY = "gameplane-theme";
-      const saved = window.localStorage.getItem(KEY);
-      const mode = saved || "system";
-      const resolved = mode === "system"
-        ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
-        : mode;
-      window.document.documentElement.classList.remove("dark", "light");
-      window.document.documentElement.classList.add(resolved);
-      window.document.documentElement.dataset.theme = resolved;
-    } catch {
-      // localStorage unavailable — keep the dark default already in markup
-    }
+    // Execute the script in the window realm by creating a real <script> element.
+    // This is necessary because dom.window.eval() evaluates in the Node scope, not
+    // the window scope, so localStorage and document would be undefined.
+    const script = dom.window.document.createElement("script");
+    script.textContent = bootScript;
+    dom.window.document.head.appendChild(script);
   }
 
   describe("applies stored preference", () => {
@@ -34,7 +29,7 @@ describe("theme boot script", () => {
          <head></head>
          <body></body>
          </html>`,
-        { url: "http://localhost" },
+        { url: "http://localhost", runScripts: "dangerously" },
       );
 
       const { window } = dom;
@@ -53,7 +48,7 @@ describe("theme boot script", () => {
          <head></head>
          <body></body>
          </html>`,
-        { url: "http://localhost" },
+        { url: "http://localhost", runScripts: "dangerously" },
       );
 
       const { window } = dom;
@@ -74,7 +69,7 @@ describe("theme boot script", () => {
          <head></head>
          <body></body>
          </html>`,
-        { url: "http://localhost" },
+        { url: "http://localhost", runScripts: "dangerously" },
       );
 
       // No stored preference → defaults to "system"
@@ -105,7 +100,7 @@ describe("theme boot script", () => {
          <head></head>
          <body></body>
          </html>`,
-        { url: "http://localhost" },
+        { url: "http://localhost", runScripts: "dangerously" },
       );
 
       // No stored preference → defaults to "system"
@@ -136,7 +131,7 @@ describe("theme boot script", () => {
          <head></head>
          <body></body>
          </html>`,
-        { url: "http://localhost" },
+        { url: "http://localhost", runScripts: "dangerously" },
       );
 
       // No stored preference
@@ -160,7 +155,7 @@ describe("theme boot script", () => {
          <head></head>
          <body></body>
          </html>`,
-        { url: "http://localhost" },
+        { url: "http://localhost", runScripts: "dangerously" },
       );
 
       // Make localStorage throw
@@ -187,7 +182,7 @@ describe("theme boot script", () => {
          <head></head>
          <body></body>
          </html>`,
-        { url: "http://localhost" },
+        { url: "http://localhost", runScripts: "dangerously" },
       );
 
       const { window } = dom;
@@ -204,7 +199,7 @@ describe("theme boot script", () => {
          <head></head>
          <body></body>
          </html>`,
-        { url: "http://localhost" },
+        { url: "http://localhost", runScripts: "dangerously" },
       );
 
       const { window } = dom;

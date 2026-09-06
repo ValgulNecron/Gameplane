@@ -53,7 +53,6 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
 
     // Capture the default login state
     await capture(page, "N1GkB");
-    expect(true).toBe(true);
   });
 
   test("jmoi3: Login — Invalid Credentials", async ({ page }) => {
@@ -74,15 +73,17 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
     // Verify error message is present and generic
     const errorText = (await page.getByRole("alert").textContent())?.toLowerCase() ?? "";
     expect(errorText).toMatch(/invalid credentials|network error/);
-    expect(true).toBe(true);
   });
 
   test("ljdA5: Login — SSO Only", async ({ page }) => {
-    // Mock-mode MSW reads this flag (src/test/browser-msw.ts) and swaps in
-    // buildSsoOnlyHandlers(), which reports no local-login provider so
-    // Login.tsx renders its SSO-only branch (no username/password form).
-    await page.addInitScript(() => {
-      localStorage.setItem("gameplane-e2e-dataset", "sso-only");
+    // Route /auth/providers to return a real SSO provider so Login.tsx renders
+    // the SSO-only branch (no username/password form, only provider buttons).
+    await page.route("**/auth/providers", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ providers: [{ name: "corp", kind: "oidc", label: "Acme SSO" }] }),
+      });
     });
 
     await page.goto("/login");
@@ -92,16 +93,14 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
     // domcontentloaded fires before React mounts and MSW resolves the
     // providers fetch, so screenshotting immediately after it races the
     // paint and captures a blank/black frame.
-    const ssoButton = page.getByRole("button", { name: /continue with/i });
-    await expect(ssoButton).toBeVisible();
+    await expect(page.getByRole("button", { name: /continue with acme sso/i })).toBeVisible();
 
     // The local login form must not render in this state.
-    await expect(page.getByRole("textbox", { name: /username/i })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: /email or username/i })).toHaveCount(0);
     await expect(page.locator('input[name="password"]')).toHaveCount(0);
 
     // Capture the SSO-only scenario.
     await capture(page, "ljdA5");
-    expect(true).toBe(true);
   });
 });
 
@@ -158,8 +157,6 @@ test.describe("Slice 1: Shell + App (Desktop — 1440x900) @screenshots", () => 
 
     // Capture the app loading state
     await capture(page, "N13Xud");
-
-    expect(true).toBe(true);
   });
 
   test("j24cXg: Dashboard — Admin View", async ({ page }) => {
@@ -178,24 +175,15 @@ test.describe("Slice 1: Shell + App (Desktop — 1440x900) @screenshots", () => 
 
     // Capture the full dashboard view
     await capture(page, "j24cXg");
-    expect(true).toBe(true);
   });
 });
 
 test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
   // Mobile viewport for all tests in this describe block.
-  // reducedMotion: "reduce" plus the addStyleTag below (SeizD) belt-and-braces
-  // the drawer's enter transition — HeroUI's Drawer marks its dialog visible
-  // (and the close button focusable) the instant it mounts, well before the
-  // 250ms translate transition that slides it in from off-screen finishes.
-  // Without forcing the animation away, a screenshot taken right after the
-  // visibility assertions below captures the dialog mid-slide (observed at
-  // x≈-170px in a diagnostic run) instead of seated at x=0.
   test.use({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     colorScheme: "dark",
-    reducedMotion: "reduce",
   });
 
   test("tooKB: Servers — Mobile", async ({ page }) => {
@@ -215,7 +203,6 @@ test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
 
     // Capture the mobile servers view
     await capture(page, "tooKB");
-    expect(true).toBe(true);
   });
 
   test("SeizD: Navigation Drawer — Mobile", async ({ page }) => {
@@ -224,16 +211,15 @@ test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
     // User menu and navigation items are visible in the drawer
     // Backdrop overlay is visible behind the drawer
 
-    await page.goto("/servers");
-    await page.waitForLoadState("networkidle");
-
-    // Belt-and-braces on top of test.use({ reducedMotion: "reduce" }) above:
-    // force every transition/animation off directly, so the drawer's
-    // enter translate is a no-op regardless of how HeroUI's own
-    // prefers-reduced-motion media query is wired.
+    // Disable animations and transitions so the drawer's enter translate is a no-op
+    // and we capture it at rest rather than mid-slide.
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.addStyleTag({
       content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
     });
+
+    await page.goto("/servers");
+    await page.waitForLoadState("networkidle");
 
     // Click the hamburger menu to open the drawer
     const hamburger = page.getByRole("button", { name: /open navigation/i });
@@ -260,6 +246,5 @@ test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
 
     // Capture the mobile drawer state
     await capture(page, "SeizD");
-    expect(true).toBe(true);
   });
 });

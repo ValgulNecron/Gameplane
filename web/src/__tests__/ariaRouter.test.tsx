@@ -5,10 +5,15 @@ import userEvent from "@testing-library/user-event";
 import { render } from "@testing-library/react";
 import { RouterProvider as AriaRouterProvider } from "react-aria-components";
 import { Link as HeroLink } from "@heroui/react";
+import { createAriaNavigate, createAriaUseHref } from "@/lib/ariaRouter";
 
 describe("aria router integration", () => {
   it("HeroUI Link works with aria router provider", async () => {
     const navigateMock = vi.fn();
+    const mockRouter = {
+      navigate: navigateMock,
+      buildLocation: (options: { to: string }) => ({ href: options.to }),
+    };
 
     const TestComponent = (): ReactElement => (
       <div>
@@ -20,10 +25,8 @@ describe("aria router integration", () => {
 
     render(
       <AriaRouterProvider
-        navigate={(to: string) => {
-          navigateMock(to);
-        }}
-        useHref={(to: string) => to}
+        navigate={createAriaNavigate(mockRouter)}
+        useHref={createAriaUseHref(mockRouter)}
       >
         <TestComponent />
       </AriaRouterProvider>,
@@ -36,12 +39,15 @@ describe("aria router integration", () => {
 
     // Verify navigate was called with the target href
     expect(navigateMock).toHaveBeenCalled();
-    expect(navigateMock.mock.calls[0][0]).toBe("/target");
+    expect(navigateMock.mock.calls[0][0]).toEqual({ to: "/target", replace: undefined });
   });
 
   it("useHref builds href correctly for breadcrumbs and links", async () => {
-    const useHrefMock = vi.fn((to: string) => `/app${to}`);
     const navigateMock = vi.fn();
+    const mockRouter = {
+      navigate: navigateMock,
+      buildLocation: (options: { to: string }) => ({ href: `/app${options.to}` }),
+    };
 
     const TestComponent = (): ReactElement => (
       <div>
@@ -56,10 +62,8 @@ describe("aria router integration", () => {
 
     render(
       <AriaRouterProvider
-        navigate={(to: string) => {
-          navigateMock(to);
-        }}
-        useHref={useHrefMock}
+        navigate={createAriaNavigate(mockRouter)}
+        useHref={createAriaUseHref(mockRouter)}
       >
         <TestComponent />
       </AriaRouterProvider>,
@@ -73,14 +77,18 @@ describe("aria router integration", () => {
     expect(link2).toHaveAttribute("href", "/app/path2");
 
     await userEvent.click(link1);
-    expect(navigateMock.mock.calls[0][0]).toBe("/path1");
+    expect(navigateMock.mock.calls[0][0]).toEqual({ to: "/path1", replace: undefined });
 
     await userEvent.click(link2);
-    expect(navigateMock.mock.calls[1][0]).toBe("/path2");
+    expect(navigateMock.mock.calls[1][0]).toEqual({ to: "/path2", replace: undefined });
   });
 
   it("breadcrumb items navigate via aria router provider", async () => {
     const navigateMock = vi.fn();
+    const mockRouter = {
+      navigate: navigateMock,
+      buildLocation: (options: { to: string }) => ({ href: options.to }),
+    };
 
     const Breadcrumbs = (): ReactElement => (
       <nav aria-label="Breadcrumb">
@@ -95,10 +103,8 @@ describe("aria router integration", () => {
 
     render(
       <AriaRouterProvider
-        navigate={(to: string) => {
-          navigateMock(to);
-        }}
-        useHref={(to: string) => to}
+        navigate={createAriaNavigate(mockRouter)}
+        useHref={createAriaUseHref(mockRouter)}
       >
         <Breadcrumbs />
       </AriaRouterProvider>,
@@ -108,9 +114,9 @@ describe("aria router integration", () => {
     const serversLink = screen.getByTestId("servers-link");
 
     await userEvent.click(homeLink);
-    expect(navigateMock.mock.calls[0][0]).toBe("/");
+    expect(navigateMock.mock.calls[0][0]).toEqual({ to: "/", replace: undefined });
 
     await userEvent.click(serversLink);
-    expect(navigateMock.mock.calls[1][0]).toBe("/servers");
+    expect(navigateMock.mock.calls[1][0]).toEqual({ to: "/servers", replace: undefined });
   });
 });

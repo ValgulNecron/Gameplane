@@ -40,8 +40,8 @@ describe("ClusterSelector", () => {
     // Check for the button trigger with the cluster name (may be "local" or "Local" depending on timing)
     const button = await screen.findByRole("button", { name: /select cluster/i });
     expect(button).toBeInTheDocument();
-    // The button should show the current cluster, either the fallback "local" or the displayName "Local"
-    expect(button).toHaveTextContent(/[Ll]ocal/);
+    // The button should show the resolved displayName "Local"
+    await waitFor(() => expect(button).toHaveTextContent("Local"));
   });
 
   it("keeps the dropdown menu closed until the trigger is pressed", async () => {

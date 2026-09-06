@@ -191,18 +191,23 @@ describe("GlobalSearch", () => {
       expect(screen.getByTestId("search-result-mc-survival")).toBeInTheDocument();
     });
 
-    // Arrow down to move selection
+    // Arrow down to move selection from -1 → 0 (mc-survival) → 1 (mc-creative)
     await userEvent.keyboard("{ArrowDown}{ArrowDown}");
 
-    // Enter should navigate to a server
+    // Verify mc-creative is highlighted via aria-selected
+    const mcCreativeOption = screen.getByTestId("search-result-mc-creative");
+    await waitFor(() => {
+      expect(mcCreativeOption).toHaveAttribute("aria-selected", "true");
+    });
+
+    // Enter should navigate to mc-creative
     await userEvent.keyboard("{Enter}");
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalled();
-      // Should navigate to one of the servers
-      const call = navigateMock.mock.calls[0][0];
-      expect(call.to).toBe("/servers/$name");
-      expect(["mc-survival", "mc-creative"]).toContain(call.params.name);
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: "/servers/$name",
+        params: { name: "mc-creative" },
+      });
     });
   });
 

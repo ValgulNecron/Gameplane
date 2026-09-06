@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,6 +16,10 @@ vi.mock("@tanstack/react-router", () => ({
   ),
   useLocation: () => mockLocation,
 }));
+
+beforeEach(() => {
+  mockLocation.pathname = "/";
+});
 
 const mockUser: User = {
   id: 1,
