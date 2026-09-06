@@ -588,11 +588,6 @@ func buildPlayitPortsConfig(tmpl *gameplanev1alpha1.GameTemplate) string {
 	return result
 }
 
-// boolPtr returns a pointer to a bool.
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 // Tunnel image defaults.
 const (
 	DefaultTunnelFrpImage       = "ghcr.io/valgulnecron/gameplane/tunnel-frp:dev"
