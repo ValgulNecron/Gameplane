@@ -44,6 +44,8 @@ test.describe("live: data screens render real backend data", () => {
   });
 
   test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.waitForLoadState("domcontentloaded");
     await loginIfNeeded(page);
   });
 

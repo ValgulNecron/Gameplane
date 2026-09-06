@@ -122,7 +122,7 @@ test.describe("shell", () => {
 
       // The sidebar header should display the current cluster name (or "—" if not set)
       // This is a basic check that the sidebar renders the cluster info
-      const sidebar = page.locator('aside[aria-label="Sidebar"]');
+      const sidebar = page.getByRole("complementary", { name: "Sidebar" });
       const text = await sidebar.innerText();
       // Should contain "gameplane" and either a cluster name or "—"
       expect(text).toContain("gameplane");
@@ -136,9 +136,9 @@ test.describe("shell", () => {
       await expect(nav).toBeVisible();
 
       // Check for user info (role should be visible in footer)
-      // and the logout button via the sidebar footer landmark
-      const sidebarFooter = page.locator('[aria-label="Sidebar footer"]');
-      const logoutButton = sidebarFooter.getByRole("button", { name: /sign out/i });
+      // and the logout button within the sidebar
+      const sidebar = page.getByRole("complementary", { name: "Sidebar" });
+      const logoutButton = sidebar.getByRole("button", { name: /sign out/i });
       await expect(logoutButton).toBeVisible();
     });
   });

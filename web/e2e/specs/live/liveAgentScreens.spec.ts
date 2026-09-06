@@ -37,6 +37,8 @@ test.describe("live: agent-backed screens render real pod data", () => {
   });
 
   test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.waitForLoadState("domcontentloaded");
     await loginIfNeeded(page);
   });
 

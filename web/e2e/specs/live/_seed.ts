@@ -10,6 +10,8 @@ import type { APIRequestContext, APIResponse } from "@playwright/test";
 // therefore creates the real objects it asserts on and deletes them again,
 // which keeps it deterministic and independent of Go-suite test ordering.
 
+// Re-export loginIfNeeded for live specs. The live specs own the navigation step:
+// each must navigate and settle the page before calling loginIfNeeded.
 export { loginIfNeeded } from "../../pages/LoginPage";
 
 // seedHeaders builds the headers a seed mutation needs:

@@ -65,8 +65,9 @@ test.describe("live: login and shell", () => {
 
   test("sidebar navigation renders all main screens for admin", async ({ page }) => {
     // Admin has access to all nav items: Servers, Modules, Backups, Cluster, Users, Audit log, System logs, Settings
-    await loginIfNeeded(page);
     await page.goto("/");
+    await page.waitForLoadState("domcontentloaded");
+    await loginIfNeeded(page);
 
     // Verify we're logged in (sidebar renders). getByRole (unlike a raw
     // CSS attribute locator) reads the accessibility tree, so a
@@ -86,8 +87,9 @@ test.describe("live: login and shell", () => {
   });
 
   test("navigating through sidebar updates URL and renders pages", async ({ page }) => {
-    await loginIfNeeded(page);
     await page.goto("/");
+    await page.waitForLoadState("domcontentloaded");
+    await loginIfNeeded(page);
 
     const navigationTests = [
       { name: "Servers", path: "/servers" },
@@ -118,36 +120,50 @@ test.describe("live: login and shell", () => {
   });
 
   test("appearance toggle cycles through light/dark/system", async ({ page }) => {
-    await loginIfNeeded(page);
     await page.goto("/");
+    await page.waitForLoadState("domcontentloaded");
+    await loginIfNeeded(page);
 
     // Find the appearance toggle in sidebar footer
-    // The toggle cycles: light → dark → system → light
-    const themeToggle = page.locator("button", { has: page.getByText(/light|dark|system/i) }).first();
+    const appearanceGroup = page.getByRole("group", { name: /appearance/i });
+    await expect(appearanceGroup).toBeVisible();
 
-    // Cycle through modes and check class on <html>
+    // Cycle through each mode button and verify theme changed
     const modes = ["light", "dark", "system"];
-    for (const _mode of modes) {
-      // Assert toggle is visible before clicking
-      await expect(themeToggle).toBeVisible();
-      await themeToggle.click();
-      // Give a moment for the class to update
+    for (const mode of modes) {
+      // Click the button for this specific mode
+      const modeButton = appearanceGroup.getByRole("button", { name: new RegExp(`^${mode}$`, "i") });
+      await expect(modeButton).toBeVisible();
+      await modeButton.click();
+      // Give a moment for the theme to apply
       await page.waitForTimeout(100);
 
-      // Check the resolved theme class (light or dark; system resolves to one of those)
+      // Verify the resolved theme on <html>:
+      // - "system" resolves to either "light" or "dark" based on OS preference
+      // - "light" and "dark" resolve to themselves
       const htmlElement = page.locator("html");
-      const classes = await htmlElement.evaluate((el: HTMLElement) => el.className);
-      expect(["light", "dark"]).toContain(classes.split(" ").find((c: string) => c === "light" || c === "dark"));
+      const resolvedTheme = await htmlElement.evaluate((el: HTMLElement) => {
+        const classes = el.className;
+        return classes.includes("dark") ? "dark" : "light";
+      });
+      // After clicking, verify the resolved theme matches the expected mode
+      if (mode === "system") {
+        // System mode resolves to either light or dark based on OS preference
+        expect(["light", "dark"]).toContain(resolvedTheme);
+      } else {
+        // Light and dark modes resolve to themselves
+        expect(resolvedTheme).toBe(mode);
+      }
     }
   });
 
   test("mobile drawer opens at 390px and closes on nav click", async ({ page }) => {
-    await loginIfNeeded(page);
-
     // Set viewport to narrow (390px)
     await page.setViewportSize({ width: 390, height: 812 });
 
     await page.goto("/");
+    await page.waitForLoadState("domcontentloaded");
+    await loginIfNeeded(page);
 
     // At 390px, sidebar should be in drawer mode (hidden by default).
     // The drawer carries role=dialog; we assert on its visibility, not the
@@ -179,7 +195,7 @@ test.describe("live: login and shell", () => {
     const sidebar = page.getByRole("navigation", { name: "Mobile navigation" });
     await expect(sidebar).toBeVisible();
 
-    await page.getByRole("link", { name: /servers/i }).first().click();
+    await drawer.getByRole("link", { name: /servers/i }).first().click();
     await expect(drawer).toBeHidden({ timeout: 2_000 });
 
     // Restore viewport

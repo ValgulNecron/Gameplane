@@ -214,12 +214,12 @@ test.describe("Slice 1: Shell + App (Mobile — 390x844) @screenshots", () => {
     // Disable animations and transitions so the drawer's enter translate is a no-op
     // and we capture it at rest rather than mid-slide.
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.addStyleTag({
-      content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
-    });
 
     await page.goto("/servers");
     await page.waitForLoadState("networkidle");
+    await page.addStyleTag({
+      content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+    });
 
     // Click the hamburger menu to open the drawer
     const hamburger = page.getByRole("button", { name: /open navigation/i });

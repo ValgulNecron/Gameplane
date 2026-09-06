@@ -1,10 +1,17 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 // loginIfNeeded handles both run modes:
 //   - mock: /users/me always returns a user, so visiting / stays in-app.
 //   - live: /users/me returns 401, AppLayout redirects to /login, we sign in.
 // Used by both shell and live specs to reduce duplication while preserving
 // credential fallbacks and waitForURL guards.
+//
+// PRECONDITION: The caller must navigate to a page and wait for it to settle
+// (page.waitForLoadState("domcontentloaded")) before calling this helper.
+// The helper inspects the current URL and only logs in if already on /login;
+// it does not navigate itself. Callers that need to navigate to a specific
+// route must do so first (e.g., page.goto("/servers")), or those that need
+// a default route must navigate to "/" (e.g., page.goto("/")).
 export async function loginIfNeeded(page: Page): Promise<void> {
   if (new URL(page.url()).pathname.startsWith("/login")) {
     const login = new LoginPage(page);
@@ -22,10 +29,10 @@ export async function loginIfNeeded(page: Page): Promise<void> {
 // placeholder doesn't break ten tests).
 export class LoginPage {
   readonly page: Page;
-  readonly username;
-  readonly password;
-  readonly submit;
-  readonly error;
+  readonly username: Locator;
+  readonly password: Locator;
+  readonly submit: Locator;
+  readonly error: Locator;
 
   constructor(page: Page) {
     this.page = page;
