@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { Button, Input } from "@heroui/react";
 import { Download, Eraser, Maximize2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { WSStatus } from "@/lib/ws";
 import type { ConsoleHandle } from "./useConsoleTerminal";
@@ -22,7 +22,7 @@ const STATUS_LABEL: Record<WSStatus, string> = {
   closed: "offline",
 };
 
-// ConsoleShell is the M8 chrome from design.pen frame IH0A9: a header
+// ConsoleShell is the M8 chrome from design.pen frame Xn5ns: a header
 // toolbar (connection indicator + Clear/Download/Fullscreen) bracketing the
 // xterm host, and a dedicated command-input bar. All behavior comes from the
 // useConsoleTerminal handle; this component is presentation + local input.
@@ -36,15 +36,33 @@ export function ConsoleShell({ handle }: { handle: ConsoleHandle }) {
           <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[status])} aria-hidden />
           {STATUS_LABEL[status]}
         </span>
-        <div className="ml-auto flex flex-wrap gap-1">
-          <Button variant="outline" size="sm" onClick={clear}>
-            <Eraser className="h-3 w-3" /> Clear
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button
+            isIconOnly
+            variant="light"
+            size="sm"
+            onClick={clear}
+            aria-label="Clear terminal"
+          >
+            <Eraser className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={download}>
-            <Download className="h-3 w-3" /> Download
+          <Button
+            isIconOnly
+            variant="light"
+            size="sm"
+            onClick={download}
+            aria-label="Download terminal buffer"
+          >
+            <Download className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={toggleFullscreen}>
-            <Maximize2 className="h-3 w-3" /> Fullscreen
+          <Button
+            isIconOnly
+            variant="light"
+            size="sm"
+            onClick={toggleFullscreen}
+            aria-label="Toggle fullscreen"
+          >
+            <Maximize2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -61,14 +79,18 @@ export function ConsoleShell({ handle }: { handle: ConsoleHandle }) {
           setCmd("");
         }}
       >
-        <input
+        <Input
+          placeholder="Type a command…"
           value={cmd}
           onChange={(e) => setCmd(e.target.value)}
-          placeholder="Type a command…"
-          aria-label="Console command"
-          className="h-8 flex-1 rounded border border-border bg-surface px-2 font-mono text-xs"
+          className="flex-1 font-mono text-xs"
         />
-        <Button variant="outline" size="sm" type="submit">
+        <Button
+          type="submit"
+          size="sm"
+          color="primary"
+          isDisabled={!cmd.trim()}
+        >
           Send
         </Button>
       </form>

@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Button, Card } from "@heroui/react";
 import type { GameServer } from "@/types";
 import { Servers } from "@/lib/endpoints";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { EventList } from "@/components/server/EventList";
 import { mapServerEvent, type NormalizedServerEvent } from "@/lib/events";
-import { cn } from "@/lib/utils";
 
 type FilterType = "all" | "info" | "warnings";
 
@@ -41,10 +40,10 @@ export function EventsTab({
 
   return (
     <div className="space-y-6 p-6">
-      <Card>
-        <CardHeader>
+      <Card className="border border-border bg-surface">
+        <Card.Header className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <CardTitle>Events</CardTitle>
+            <h2 className="text-base font-semibold text-foreground">Events</h2>
             <div className="flex gap-1">
               {["all", "info", "warnings"].map((f) => {
                 const filterValue = f as FilterType;
@@ -55,24 +54,21 @@ export function EventsTab({
                       ? "Info"
                       : "Warnings";
                 return (
-                  <button
+                  <Button
                     key={filterValue}
+                    size="sm"
+                    variant={filter === filterValue ? "primary" : "ghost"}
                     onClick={() => setFilter(filterValue)}
-                    className={cn(
-                      "rounded px-3 py-1.5 text-xs font-medium transition-colors",
-                      filter === filterValue
-                        ? "bg-primary text-primary-fg"
-                        : "bg-surface text-muted hover:text-fg",
-                    )}
+                    className="h-7 px-3 text-xs font-medium"
                   >
                     {label}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="px-0">
+        </Card.Header>
+        <Card.Content className="px-0 py-0">
           <EventList
             events={filteredEvents}
             emptyMessage={
@@ -83,7 +79,7 @@ export function EventsTab({
                   : "No warnings or errors."
             }
           />
-        </CardContent>
+        </Card.Content>
       </Card>
     </div>
   );

@@ -78,9 +78,9 @@ describe("LogsTab", () => {
       "[Server thread/INFO]: ok\n[Server thread/WARN]: hmm\n[Server thread/ERROR]: boom",
     );
     await waitFor(() => expect(screen.getByText(/3 lines/)).toBeInTheDocument());
-    // The Error pill advertises its count and filters to just that level.
-    const errorPill = screen.getByRole("button", { name: /Error 1/ });
-    await userEvent.click(errorPill);
+    // The Error chip advertises its count and filters to just that level.
+    const errorChip = screen.getByRole("button", { name: /Error 1/ });
+    await userEvent.click(errorChip);
     await waitFor(() => expect(screen.getByText(/1 lines/)).toBeInTheDocument());
   });
 

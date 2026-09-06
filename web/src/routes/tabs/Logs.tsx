@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, Download, Loader2 } from "lucide-react";
+import { Button, Input } from "@heroui/react";
 
-import { Button } from "@/components/ui/button";
 import { Logs } from "@/lib/endpoints";
 import { openWS } from "@/lib/ws";
 import { capitalize, cn } from "@/lib/utils";
@@ -148,25 +148,25 @@ export function LogsTab({
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         {logPath ? (
-          <div className="flex rounded border border-border text-xs">
-            <button
-              type="button"
-              onClick={() => setSource("pod")}
-              aria-pressed={effectiveSource === "pod"}
-              className={`h-8 rounded-l px-2 ${effectiveSource === "pod" ? "bg-surface font-medium" : "text-muted"}`}
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant={effectiveSource === "pod" ? "primary" : "outline"}
+              onPress={() => setSource("pod")}
               title="Follow the pod's setup + game container output (install/startup)"
+              className={cn(effectiveSource === "pod" && "font-medium")}
             >
               Container output
-            </button>
-            <button
-              type="button"
-              onClick={() => setSource("file")}
-              aria-pressed={effectiveSource === "file"}
-              className={`h-8 rounded-r border-l border-border px-2 ${effectiveSource === "file" ? "bg-surface font-medium" : "text-muted"}`}
+            </Button>
+            <Button
+              size="sm"
+              variant={effectiveSource === "file" ? "primary" : "outline"}
+              onPress={() => setSource("file")}
               title="Tail the configured game log file via the agent"
+              className={cn(effectiveSource === "file" && "font-medium")}
             >
               Game log
-            </button>
+            </Button>
           </div>
         ) : (
           <span
@@ -176,65 +176,78 @@ export function LogsTab({
             Container output
           </span>
         )}
-        <input
+        <Input
           placeholder="filter…"
-          className="h-8 w-full rounded border border-border bg-surface px-2 font-mono text-xs sm:w-64"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
+          className="w-full sm:w-64 font-mono text-xs"
         />
         <div className="flex gap-1">
           {(["all", ...LEVELS] as const).map((lv) => (
-            <button
+            <Button
               key={lv}
-              type="button"
-              onClick={() => setLevel(lv)}
-              aria-pressed={level === lv}
+              size="sm"
+              variant={level === lv ? "primary" : "outline"}
+              onPress={() => setLevel(lv)}
               className={cn(
-                "rounded px-2 py-1 text-[11px] font-medium",
-                level === lv ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
+                "text-xs font-medium",
               )}
             >
               {lv === "all" ? "All" : `${lv[0]}${lv.slice(1).toLowerCase()}`}
               {lv !== "all" && ` ${counts[lv]}`}
-            </button>
+            </Button>
           ))}
         </div>
         <span className="text-xs text-muted">{filtered.length.toLocaleString()} lines</span>
         <div className="ml-auto">
           <Button
-            variant="outline"
             size="sm"
-            onClick={() => {
+            variant="outline"
+            onPress={() => {
               window.location.href = Logs.downloadURL(name);
             }}
+            startContent={<Download className="h-4 w-4" />}
           >
-            <Download className="h-3 w-3" /> Download
+            Download
           </Button>
         </div>
       </div>
       <div ref={scrollerRef} className="flex-1 overflow-auto bg-[#0b0b0d] font-mono text-xs">
         {noOutput ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+          <div className="flex h-full flex-col items-center justify-center gap-4 px-6 py-8 text-center">
             {failed ? (
               <>
-                <AlertTriangle className="h-8 w-8 text-danger" />
-                <div className="text-sm font-medium text-fg">
-                  {progressMessage ? capitalize(progressMessage) : "The server failed to start."}
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-danger/10">
+                  <AlertTriangle className="h-6 w-6 text-danger" />
                 </div>
-                <div className="max-w-md text-xs text-muted">
-                  No container output was captured. Check the Overview events for image-pull
-                  or scheduling errors.
+                <div>
+                  <div className="text-sm font-medium text-foreground">
+                    {progressMessage ? capitalize(progressMessage) : "The server failed to start."}
+                  </div>
+                  <div className="mt-1 max-w-md text-xs text-muted">
+                    No container output was captured. Check the Overview events for image-pull
+                    or scheduling errors.
+                  </div>
                 </div>
               </>
             ) : fileUnavailable ? (
               <>
-                <AlertTriangle className="h-8 w-8 text-warning" />
-                <div className="text-sm font-medium text-fg">Game log unavailable</div>
-                <div className="max-w-md text-xs text-muted">
-                  Couldn&apos;t reach the agent to tail the game log file. Container output is
-                  still available.
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10">
+                  <AlertTriangle className="h-6 w-6 text-warning" />
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setSource("pod")}>
+                <div>
+                  <div className="text-sm font-medium text-foreground">Game log unavailable</div>
+                  <div className="mt-1 max-w-md text-xs text-muted">
+                    Couldn&apos;t reach the agent to tail the game log file. Container output is
+                    still available.
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onPress={() => setSource("pod")}
+                  className="mt-2"
+                >
                   Use container output
                 </Button>
               </>
@@ -243,12 +256,14 @@ export function LogsTab({
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 {provisioning ? (
                   <>
-                    <div className="text-sm font-medium text-fg">
-                      {progressMessage ? capitalize(progressMessage) : "Starting the server…"}
-                    </div>
-                    <div className="max-w-md text-xs text-muted">
-                      Downloading game files and starting up. The first start can take a few
-                      minutes — install output appears here as it streams from the container.
+                    <div>
+                      <div className="text-sm font-medium text-foreground">
+                        {progressMessage ? capitalize(progressMessage) : "Starting the server…"}
+                      </div>
+                      <div className="mt-1 max-w-md text-xs text-muted">
+                        Downloading game files and starting up. The first start can take a few
+                        minutes — install output appears here as it streams from the container.
+                      </div>
                     </div>
                   </>
                 ) : (
