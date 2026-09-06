@@ -321,23 +321,22 @@ func (r *GameServerReconciler) reconcileTunnel(
 				if !isServerOwnedSecret(&sec, gs) {
 					return fmt.Errorf("tunnel credentials secret %q is not owned by GameServer %s/%s", secName, gs.Namespace, gs.Name)
 				}
+				volumes = append(volumes, corev1.Volume{
+					Name: tunnelAuthVolume,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: secName,
+						},
+					},
+				})
+				volumeMounts = append(volumeMounts, corev1.VolumeMount{
+					Name:      tunnelAuthVolume,
+					MountPath: tunnelAuthMountDir,
+					ReadOnly:  true,
+				})
 			} else if !apierrors.IsNotFound(err) {
 				return fmt.Errorf("tunnel credentials secret %q: %w", secName, err)
 			}
-			volumes = append(volumes, corev1.Volume{
-				Name: tunnelAuthVolume,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: secName,
-						Optional:   boolPtr(true),
-					},
-				},
-			})
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      tunnelAuthVolume,
-				MountPath: tunnelAuthMountDir,
-				ReadOnly:  true,
-			})
 		}
 
 		dep.Spec.Template.Spec.Volumes = volumes

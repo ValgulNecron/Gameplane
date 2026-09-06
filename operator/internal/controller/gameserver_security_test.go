@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -399,5 +400,38 @@ func TestReconcileTunnel_CredentialsSecretOwnership(t *testing.T) {
 	err = r.reconcileTunnel(ctx, gsOwned, tmpl, true)
 	if err != nil {
 		t.Fatalf("unexpected error mounting owned tunnel credentials secret: %v", err)
+	}
+
+	// 3. Absent secret allows deployment creation but does NOT configure tunnel-auth volume
+	gsAbsent := gs.DeepCopy()
+	gsAbsent.Spec.Networking.Tunnel.CredentialsSecretRef.Name = "alpha-absent-secret"
+	err = r.reconcileTunnel(ctx, gsAbsent, tmpl, true)
+	if err != nil {
+		t.Fatalf("unexpected error reconciling with absent secret: %v", err)
+	}
+	var dep appsv1.Deployment
+	if err := r.Get(ctx, types.NamespacedName{Namespace: gsAbsent.Namespace, Name: "alpha-tunnel"}, &dep); err != nil {
+		t.Fatalf("expected deployment alpha-tunnel to exist: %v", err)
+	}
+	for _, vol := range dep.Spec.Template.Spec.Volumes {
+		if vol.Name == tunnelAuthVolume {
+			t.Fatalf("expected no %s volume when secret is absent, got one", tunnelAuthVolume)
+		}
+	}
+
+	// 4. If the absent secret is later created without ownership, subsequent reconciliation fails
+	unownedLaterSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "alpha-absent-secret",
+			Namespace: "games",
+		},
+		Data: map[string][]byte{"token": []byte("attacker-token")},
+	}
+	if err := r.Create(ctx, unownedLaterSecret); err != nil {
+		t.Fatalf("failed to create unowned secret: %v", err)
+	}
+	err = r.reconcileTunnel(ctx, gsAbsent, tmpl, true)
+	if err == nil {
+		t.Fatal("expected error reconciling after unowned secret is created, got nil")
 	}
 }

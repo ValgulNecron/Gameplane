@@ -493,50 +493,48 @@ func validateAndProtectGameServer(
 	}
 
 	// 4. Validate spec.env for unowned secret/configmap references
-	if !isAdmin {
-		envSlice, hasEnv, _ := unstructured.NestedSlice(desired.Object, "spec", "env")
-		if hasEnv {
-			for _, item := range envSlice {
-				itemMap, ok := item.(map[string]any)
-				if !ok {
-					continue
-				}
-				valFromRaw, ok := itemMap["valueFrom"]
-				if !ok || valFromRaw == nil {
-					continue
-				}
-				valFrom, ok := valFromRaw.(map[string]any)
-				if !ok {
-					continue
-				}
-				if secRefRaw, ok := valFrom["secretKeyRef"]; ok && secRefRaw != nil {
-					if secRef, ok := secRefRaw.(map[string]any); ok {
-						secName, _ := secRef["name"].(string)
-						if secName == "" {
-							return errors.New("secretKeyRef name must not be empty")
-						}
-						var gsUID types.UID
-						if live != nil {
-							gsUID = live.GetUID()
-						}
-						if !isServerOwnedSecret(ctx, k, ns, name, gsUID, secName) {
-							return fmt.Errorf("secret reference %q in env is not permitted: not a server-owned secret", secName)
-						}
+	envSlice, hasEnv, _ := unstructured.NestedSlice(desired.Object, "spec", "env")
+	if hasEnv {
+		for _, item := range envSlice {
+			itemMap, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			valFromRaw, ok := itemMap["valueFrom"]
+			if !ok || valFromRaw == nil {
+				continue
+			}
+			valFrom, ok := valFromRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if secRefRaw, ok := valFrom["secretKeyRef"]; ok && secRefRaw != nil {
+				if secRef, ok := secRefRaw.(map[string]any); ok {
+					secName, _ := secRef["name"].(string)
+					if secName == "" {
+						return errors.New("secretKeyRef name must not be empty")
+					}
+					var gsUID types.UID
+					if live != nil {
+						gsUID = live.GetUID()
+					}
+					if !isServerOwnedSecret(ctx, k, ns, name, gsUID, secName) {
+						return fmt.Errorf("secret reference %q in env is not permitted: not a server-owned secret", secName)
 					}
 				}
-				if cmRefRaw, ok := valFrom["configMapKeyRef"]; ok && cmRefRaw != nil {
-					if cmRef, ok := cmRefRaw.(map[string]any); ok {
-						cmName, _ := cmRef["name"].(string)
-						if cmName == "" {
-							return errors.New("configMapKeyRef name must not be empty")
-						}
-						var gsUID types.UID
-						if live != nil {
-							gsUID = live.GetUID()
-						}
-						if !isServerOwnedConfigMap(ctx, k, ns, name, gsUID, cmName) {
-							return fmt.Errorf("configMap reference %q in env is not permitted: not a server-owned configMap", cmName)
-						}
+			}
+			if cmRefRaw, ok := valFrom["configMapKeyRef"]; ok && cmRefRaw != nil {
+				if cmRef, ok := cmRefRaw.(map[string]any); ok {
+					cmName, _ := cmRef["name"].(string)
+					if cmName == "" {
+						return errors.New("configMapKeyRef name must not be empty")
+					}
+					var gsUID types.UID
+					if live != nil {
+						gsUID = live.GetUID()
+					}
+					if !isServerOwnedConfigMap(ctx, k, ns, name, gsUID, cmName) {
+						return fmt.Errorf("configMap reference %q in env is not permitted: not a server-owned configMap", cmName)
 					}
 				}
 			}
@@ -544,22 +542,25 @@ func validateAndProtectGameServer(
 	}
 
 	// 5. Validate spec.networking.tunnel.credentialsSecretRef for unowned secret references
-	if !isAdmin {
-		tunnelSecName, hasTunnelSec, _ := unstructured.NestedString(desired.Object, "spec", "networking", "tunnel", "credentialsSecretRef", "name")
-		if hasTunnelSec && tunnelSecName != "" {
-			var gsUID types.UID
-			if live != nil {
-				gsUID = live.GetUID()
-			}
-			if !isServerOwnedSecret(ctx, k, ns, name, gsUID, tunnelSecName) {
-				return fmt.Errorf("tunnel credentials secret reference %q is not permitted: not a server-owned secret", tunnelSecName)
-			}
+	tunnelSecName, hasTunnelSec, _ := unstructured.NestedString(desired.Object, "spec", "networking", "tunnel", "credentialsSecretRef", "name")
+	if hasTunnelSec && tunnelSecName != "" {
+		var gsUID types.UID
+		if live != nil {
+			gsUID = live.GetUID()
+		}
+		if !isServerOwnedSecret(ctx, k, ns, name, gsUID, tunnelSecName) {
+			return fmt.Errorf("tunnel credentials secret reference %q is not permitted: not a server-owned secret", tunnelSecName)
 		}
 	}
 
 	return nil
 }
 
+// isServerOwnedSecret reports whether the given Secret belongs to the named GameServer
+// in the specified namespace by inspecting the Secret's OwnerReferences.
+// An OwnerReference specifying a non-empty UID must match the live GameServer UID;
+// if the GameServer UID is unknown (e.g. during pre-creation validation), an OwnerReference
+// that already specifies a concrete UID cannot match and is rejected.
 func isServerOwnedSecret(ctx context.Context, k *kube.Client, ns, serverName string, gsUID types.UID, secretName string) bool {
 	if secretName == "" || serverName == "" {
 		return false
@@ -584,6 +585,11 @@ func isServerOwnedSecret(ctx context.Context, k *kube.Client, ns, serverName str
 	return false
 }
 
+// isServerOwnedConfigMap reports whether the given ConfigMap belongs to the named GameServer
+// in the specified namespace by inspecting the ConfigMap's OwnerReferences.
+// An OwnerReference specifying a non-empty UID must match the live GameServer UID;
+// if the GameServer UID is unknown (e.g. during pre-creation validation), an OwnerReference
+// that already specifies a concrete UID cannot match and is rejected.
 func isServerOwnedConfigMap(ctx context.Context, k *kube.Client, ns, serverName string, gsUID types.UID, cmName string) bool {
 	if cmName == "" || serverName == "" {
 		return false

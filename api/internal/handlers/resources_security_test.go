@@ -425,10 +425,10 @@ func TestResources_Security_SecretRefExfiltrationBlocked(t *testing.T) {
 		t.Fatalf("operator PUT with literal env: got %d %s, want 200", rr.Code, rr.Body)
 	}
 
-	// 4. Admin can set arbitrary secret reference -> 200 OK
+	// 4. Admin is also refused when setting unowned secret reference -> 403
 	rr = doWithUser(t, r, "PUT", "/servers/alpha", evilBody, testAdminUser())
-	if rr.Code != http.StatusOK {
-		t.Fatalf("admin PUT with arbitrary secret ref: got %d %s, want 200", rr.Code, rr.Body)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("admin PUT with arbitrary secret ref: got %d %s, want 403", rr.Code, rr.Body)
 	}
 }
 
@@ -511,9 +511,9 @@ func TestResources_Security_TunnelCredentialsSecretProtected(t *testing.T) {
 		t.Fatalf("operator PUT with server-owned tunnel secret: got %d %s, want 200", rr.Code, rr.Body)
 	}
 
-	// 3. Admin is permitted to set arbitrary tunnel secret -> 200 OK
+	// 3. Admin is also refused when setting unowned tunnel secret reference -> 403
 	rr = doWithUser(t, r, "PUT", "/servers/alpha", evilBody, testAdminUser())
-	if rr.Code != http.StatusOK {
-		t.Fatalf("admin PUT with unowned tunnel secret: got %d %s, want 200", rr.Code, rr.Body)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("admin PUT with unowned tunnel secret: got %d %s, want 403", rr.Code, rr.Body)
 	}
 }
