@@ -2,10 +2,9 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { GameIcon } from "@/components/ui/game-icon";
-import { ResourceInput } from "@/components/ui/resource-input";
+import { Button, Input, Alert } from "@heroui/react";
+import { GameIcon } from "@/components/hero/GameIcon";
+import { ResourceInput } from "@/components/hero/ResourceInput";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
@@ -408,13 +407,14 @@ export function CreateServerWizard() {
               Step {stepIndex + 1} of {steps.length} · {STEP_TITLES[currentKey]}
             </div>
           </div>
-          <button
-            onClick={() => nav({ to: "/" })}
-            className="rounded p-1 text-muted hover:bg-border hover:text-fg"
+          <Button
+            isIconOnly
+            variant="ghost"
+            onPress={() => nav({ to: "/" })}
             title="Close"
           >
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         <StepBar steps={steps} stepIndex={stepIndex} />
@@ -453,28 +453,30 @@ export function CreateServerWizard() {
               </span>
             )}
             {stepIndex === 0 ? (
-              <Button variant="ghost" onClick={() => nav({ to: "/" })}>
+              <Button variant="ghost" onPress={() => nav({ to: "/" })}>
                 Cancel
               </Button>
             ) : (
               <Button
                 variant="ghost"
-                onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+                onPress={() => setStepIndex((i) => Math.max(0, i - 1))}
               >
                 <ArrowLeft className="h-4 w-4" /> Back
               </Button>
             )}
             {!isLast ? (
               <Button
-                disabled={!stepCheck.ok}
-                onClick={() => setStepIndex((i) => Math.min(steps.length - 1, i + 1))}
+                variant="primary"
+                isDisabled={!stepCheck.ok}
+                onPress={() => setStepIndex((i) => Math.min(steps.length - 1, i + 1))}
               >
                 Continue to {STEP_TITLES[steps[stepIndex + 1]]} <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
               <Button
-                onClick={() => create.mutate()}
-                disabled={create.isPending || !finalCheck.ok}
+                variant="primary"
+                onPress={() => create.mutate()}
+                isDisabled={create.isPending || !finalCheck.ok}
               >
                 {create.isPending ? (
                   <>Creating… <Loader2 className="h-4 w-4 animate-spin" /></>
@@ -492,14 +494,15 @@ export function CreateServerWizard() {
 
 function ErrorAlert({ title, body }: { title: string; body: string }) {
   return (
-    <div
-      role="alert"
-      className="mx-6 mb-4 rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-sm"
-      data-testid="create-error"
-    >
-      <div className="font-medium text-danger">{title}</div>
-      <div className="pt-1 text-xs text-danger/80">{body}</div>
-    </div>
+    <Alert status="danger" className="mx-6 mb-4" data-testid="create-error">
+      <Alert.Indicator>
+        <AlertCircle className="h-5 w-5 shrink-0" />
+      </Alert.Indicator>
+      <Alert.Content>
+        <div className="font-medium">{title}</div>
+        <div className="pt-1 text-xs">{body}</div>
+      </Alert.Content>
+    </Alert>
   );
 }
 
@@ -561,7 +564,6 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
     <div className="space-y-3">
       <div className="flex flex-col gap-2">
         <Input
-          className="min-w-[160px]"
           placeholder="Search…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -569,17 +571,15 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
         />
         <div className="flex flex-wrap gap-1 rounded-md border border-border bg-surface/40 p-1">
           {templateCategories.map((c: string) => (
-            <button
+            <Button
               key={c}
-              onClick={() => setCat(c)}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
-              )}
+              size="sm"
+              variant={activeCat === c ? "primary" : "ghost"}
+              onPress={() => setCat(c)}
               aria-pressed={activeCat === c}
             >
               {c === "all" ? "All" : c}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -669,8 +669,8 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
   const { maxCpu, maxMemGi } = nodeCaps(cluster?.nodes ?? []);
   return (
     <div className="space-y-4">
-      <label className="block space-y-1.5">
-        <span className="text-xs text-muted">Server name</span>
+      <div className="space-y-1.5">
+        <label className="block text-xs text-muted">Server name</label>
         <Input
           value={state.name}
           onChange={(e) => setState({ ...state, name: e.target.value })}
@@ -680,20 +680,20 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
         <span className="text-[11px] text-muted">
           Used as pod name and subdomain. Lowercase, dash-separated.
         </span>
-      </label>
-      <label className="block space-y-1.5">
-        <span className="text-xs text-muted">Description</span>
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-xs text-muted">Description</label>
         <textarea
           className="min-h-[72px] w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-hidden"
           value={state.description}
           onChange={(e) => setState({ ...state, description: e.target.value })}
           placeholder="Hardcore survival realm with curated mods. Invite only."
         />
-      </label>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1.5">
-          <span className="text-xs text-muted">CPU</span>
+        <div className="space-y-1.5">
+          <label className="block text-xs text-muted">CPU</label>
           <ResourceInput
             kind="cpu"
             value={state.cpuLimit}
@@ -703,9 +703,9 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
           {maxCpu > 0 && (
             <span className="text-[11px] text-muted">Max {maxCpu} (largest node)</span>
           )}
-        </label>
-        <label className="block space-y-1.5">
-          <span className="text-xs text-muted">Memory</span>
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-xs text-muted">Memory</label>
           <ResourceInput
             kind="memory"
             value={state.memoryLimit}
@@ -715,35 +715,31 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
           {maxMemGi > 0 && (
             <span className="text-[11px] text-muted">Max {maxMemGi} GiB (largest node)</span>
           )}
-        </label>
+        </div>
       </div>
 
-      <label className="block space-y-1.5">
-        <span className="text-xs text-muted">Persistent storage</span>
+      <div className="space-y-1.5">
+        <label className="block text-xs text-muted">Persistent storage</label>
         <Input
           value={state.storageSize}
           onChange={(e) => setState({ ...state, storageSize: e.target.value })}
           placeholder="50Gi"
         />
         <span className="text-[11px] text-muted">Mounted at /data (RWO PVC).</span>
-      </label>
+      </div>
 
       <div className="space-y-1.5">
-        <span className="text-xs text-muted">Node placement</span>
+        <label className="block text-xs text-muted">Node placement</label>
         <div className="inline-flex gap-1 rounded-md border border-border p-1">
           {(["auto", "pin", "gpu"] as const).map((p) => (
-            <button
+            <Button
               key={p}
-              onClick={() => setState({ ...state, nodePlacement: p })}
-              className={cn(
-                "rounded px-3 py-1.5 text-xs",
-                state.nodePlacement === p
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
+              size="sm"
+              variant={state.nodePlacement === p ? "primary" : "ghost"}
+              onPress={() => setState({ ...state, nodePlacement: p })}
             >
               {p === "auto" ? "Auto (scheduler)" : p === "pin" ? "Pin to node" : "GPU-enabled"}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="text-[11px] text-muted">
@@ -757,15 +753,19 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
         <div className="space-y-3 pt-3">
           <div className="text-xs uppercase tracking-wide text-muted">Template configuration</div>
           {fields.map((f) => (
-            <label key={f.name} className="block space-y-1.5">
-              <span className="text-xs text-muted">{f.displayName ?? f.name}</span>
+            <div key={f.name} className="space-y-1.5">
+              <label className="block text-xs text-muted">{f.displayName ?? f.name}</label>
               {f.type === "enum" ? (
                 <select
                   className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
                   value={state.config[f.name] ?? f.default ?? ""}
                   onChange={(e) => setState({ ...state, config: { ...state.config, [f.name]: e.target.value } })}
                 >
-                  {f.enum?.map((v) => <option key={v} value={v}>{v}</option>)}
+                  {f.enum?.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
                 </select>
               ) : f.type === "bool" ? (
                 <select
@@ -773,7 +773,8 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
                   value={state.config[f.name] ?? f.default ?? "false"}
                   onChange={(e) => setState({ ...state, config: { ...state.config, [f.name]: e.target.value } })}
                 >
-                  <option value="true">true</option><option value="false">false</option>
+                  <option value="true">true</option>
+                  <option value="false">false</option>
                 </select>
               ) : (
                 <Input
@@ -786,7 +787,7 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
                 />
               )}
               {f.description && <span className="text-[11px] text-muted">{f.description}</span>}
-            </label>
+            </div>
           ))}
         </div>
       )}
@@ -798,7 +799,7 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <span className="text-xs text-muted">Expose</span>
+        <label className="block text-xs text-muted">Expose</label>
         <div className="grid gap-2 sm:grid-cols-3">
           {(["ClusterIP", "NodePort", "LoadBalancer"] as const).map((e) => (
             <button
@@ -830,12 +831,12 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
             onChange={(e) => setState({ ...state, tunnelEnabled: e.target.checked })}
             className="h-4 w-4 rounded border border-border bg-surface accent-primary"
           />
-          <span className="text-xs text-muted font-medium">Enable tunnel</span>
+          <span className="text-xs font-medium">Enable tunnel</span>
         </label>
         {state.tunnelEnabled && (
           <div className="rounded-md border border-border bg-surface/40 p-3 space-y-3">
             <div>
-              <span className="block text-xs text-muted mb-2">Tunnel provider</span>
+              <label className="block text-xs mb-2">Tunnel provider</label>
               <div className="grid gap-2 sm:grid-cols-3">
                 {(["frp", "tailscale", "playit"] as const).map((p) => (
                   <button
@@ -855,61 +856,57 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
             </div>
 
             <div className="space-y-3">
-              <div>
-                <label className="block space-y-1.5">
-                  <span className="text-xs text-muted font-medium">Credentials *</span>
-                  <Input
-                    type="password"
-                    value={state.tunnelCredentialsValue}
-                    onChange={(e) => setState({ ...state, tunnelCredentialsValue: e.target.value })}
-                    placeholder={
-                      state.tunnelProvider === "frp"
-                        ? "frp token"
-                        : state.tunnelProvider === "tailscale"
-                          ? "Tailscale auth key"
-                          : "playit secret key"
-                    }
-                    data-testid="tunnel-credentials-input"
-                  />
-                  <span className="text-[11px] text-muted">
-                    {state.tunnelProvider === "frp"
-                      ? "Your frp authentication token"
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium">Credentials *</label>
+                <Input
+                  type="password"
+                  value={state.tunnelCredentialsValue}
+                  onChange={(e) => setState({ ...state, tunnelCredentialsValue: e.target.value })}
+                  placeholder={
+                    state.tunnelProvider === "frp"
+                      ? "frp token"
                       : state.tunnelProvider === "tailscale"
-                        ? "Tailscale OAuth token (usually ts_<id>=<secret>)"
-                        : "Your playit.gg secret key"}
-                  </span>
-                </label>
+                        ? "Tailscale auth key"
+                        : "playit secret key"
+                  }
+                  data-testid="tunnel-credentials-input"
+                />
+                <span className="text-[11px] text-muted">
+                  {state.tunnelProvider === "frp"
+                    ? "Your frp authentication token"
+                    : state.tunnelProvider === "tailscale"
+                      ? "Tailscale OAuth token (usually ts_<id>=<secret>)"
+                      : "Your playit.gg secret key"}
+                </span>
               </div>
 
-              <div className="border-t border-border/50 pt-3">
-                <label className="block space-y-1.5">
-                  <span className="text-xs text-muted">Or use existing Secret (GitOps)</span>
-                  <Input
-                    value={state.tunnelCredentialsSecretName}
-                    onChange={(e) => setState({ ...state, tunnelCredentialsSecretName: e.target.value })}
-                    placeholder="my-tunnel-secret"
-                    data-testid="tunnel-existing-secret"
-                  />
-                  <span className="text-[11px] text-muted">
-                    Name of a pre-existing Kubernetes Secret. Leave empty to create a new one from the credentials above.
-                  </span>
-                </label>
+              <div className="border-t border-border/50 pt-3 space-y-1.5">
+                <label className="block text-xs">Or use existing Secret (GitOps)</label>
+                <Input
+                  value={state.tunnelCredentialsSecretName}
+                  onChange={(e) => setState({ ...state, tunnelCredentialsSecretName: e.target.value })}
+                  placeholder="my-tunnel-secret"
+                  data-testid="tunnel-existing-secret"
+                />
+                <span className="text-[11px] text-muted">
+                  Name of a pre-existing Kubernetes Secret. Leave empty to create a new one from the credentials above.
+                </span>
               </div>
             </div>
 
             {state.tunnelProvider === "frp" && (
               <div className="space-y-3 pt-2 border-t border-border/50">
-                <label className="block space-y-1.5">
-                  <span className="text-xs text-muted">Server address *</span>
+                <div className="space-y-1.5">
+                  <label className="block text-xs">Server address *</label>
                   <Input
                     value={state.frpServerAddr}
                     onChange={(e) => setState({ ...state, frpServerAddr: e.target.value })}
                     placeholder="relay.example.com"
                     data-testid="frp-server-addr"
                   />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs text-muted">Server port</span>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs">Server port</label>
                   <Input
                     type="number"
                     min="1"
@@ -925,9 +922,9 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
                   <span className="text-[11px] text-muted">
                     Default 7000. Must be between 1 and 65535.
                   </span>
-                </label>
+                </div>
                 <div className="space-y-1.5">
-                  <span className="text-xs text-muted">Port mappings *</span>
+                  <label className="block text-xs">Port mappings *</label>
                   <TunnelPortMappingsEditor
                     values={state.frpRemotePortMappings}
                     onChange={(v) => setState({ ...state, frpRemotePortMappings: v })}
@@ -944,17 +941,17 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
                 <p className="text-[11px] text-warning bg-warning/10 rounded px-2 py-1.5">
                   Tailscale access is tailnet-private only and not reachable from the internet.
                 </p>
-                <label className="block space-y-1.5">
-                  <span className="text-xs text-muted">Hostname (optional)</span>
+                <div className="space-y-1.5">
+                  <label className="block text-xs">Hostname (optional)</label>
                   <Input
                     value={state.tailscaleHostname}
                     onChange={(e) => setState({ ...state, tailscaleHostname: e.target.value })}
                     placeholder="my-server"
                     data-testid="tailscale-hostname"
                   />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs text-muted">Tags (optional)</span>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs">Tags (optional)</label>
                   <Input
                     value={state.tailscaleTags}
                     onChange={(e) => setState({ ...state, tailscaleTags: e.target.value })}
@@ -964,39 +961,39 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
                   <span className="text-[11px] text-muted">
                     Comma or space separated.
                   </span>
-                </label>
+                </div>
               </div>
             )}
 
             {state.tunnelProvider === "playit" && (
               <div className="space-y-3 pt-2 border-t border-border/50">
-                <label className="block space-y-1.5">
-                  <span className="text-xs text-muted">Tunnel name (optional)</span>
+                <div className="space-y-1.5">
+                  <label className="block text-xs">Tunnel name (optional)</label>
                   <Input
                     value={state.playitTunnelName}
                     onChange={(e) => setState({ ...state, playitTunnelName: e.target.value })}
                     placeholder="my-game-server"
                     data-testid="playit-tunnel-name"
                   />
-                </label>
+                </div>
               </div>
             )}
           </div>
         )}
       </div>
 
-      <label className="block space-y-1.5">
-        <span className="text-xs text-muted">Hostname (optional)</span>
+      <div className="space-y-1.5">
+        <label className="block text-xs text-muted">Hostname (optional)</label>
         <Input
           value={state.hostname}
           onChange={(e) => setState({ ...state, hostname: e.target.value })}
           placeholder="mc.example.dev"
         />
-      </label>
+      </div>
       {/* A div, not a label: the editor holds several inputs and buttons, and
           a label wrapping multiple interactive elements mis-associates them. */}
       <div className="space-y-1.5">
-        <span className="text-xs text-muted">Port overrides (optional)</span>
+        <label className="block text-xs text-muted">Port overrides (optional)</label>
         <PortOverridesEditor
           values={state.portOverrides}
           onChange={(v) => setState({ ...state, portOverrides: v })}
@@ -1006,8 +1003,8 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
         </span>
       </div>
       {state.expose === "LoadBalancer" && (
-        <label className="block space-y-1.5">
-          <span className="text-xs text-muted">IP allow-list (CIDRs, optional)</span>
+        <div className="space-y-1.5">
+          <label className="block text-xs text-muted">IP allow-list (CIDRs, optional)</label>
           <textarea
             className="block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm"
             rows={3}
@@ -1019,45 +1016,45 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
           <span className="text-[11px] text-muted">
             One CIDR per line. Restricts which clients reach the LoadBalancer; empty allows all.
           </span>
-        </label>
+        </div>
       )}
 
       <div className="space-y-1.5 border-t border-border pt-4">
-        <span className="text-xs text-muted">Load balancer address (optional)</span>
+        <label className="block text-xs text-muted">Load balancer address (optional)</label>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block space-y-1">
-            <span className="text-xs text-muted font-medium">Address pool</span>
+          <div className="space-y-1">
+            <label className="block text-xs font-medium">Address pool</label>
             <Input
               value={state.addressPool}
               onChange={(e) => setState({ ...state, addressPool: e.target.value })}
               placeholder="pool-us-west"
             />
-          </label>
-          <label className="block space-y-1">
-            <span className="text-xs text-muted font-medium">Requested address</span>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-xs font-medium">Requested address</label>
             <Input
               value={state.requestedAddress}
               onChange={(e) => setState({ ...state, requestedAddress: e.target.value })}
               placeholder="203.0.113.50"
             />
-          </label>
+          </div>
         </div>
         <span className="text-[11px] text-muted">
           Name of a load-balancer address pool configured by your cluster admin, plus an optional specific address to request. Applies only when Expose is set to LoadBalancer — ignored otherwise.
         </span>
 
         {(state.addressPool.trim() || state.requestedAddress.trim()) && state.expose !== "LoadBalancer" && (
-          <div className="rounded-md border border-warning/50 bg-warning/10 px-3 py-2.5 flex gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <AlertCircle className="w-4 h-4 text-warning" />
-            </div>
-            <div className="flex-1 text-[13px]">
-              <div className="font-medium text-warning mb-0.5">Address preference ignored</div>
-              <div className="text-warning/80">
+          <Alert status="warning" className="py-2">
+            <Alert.Indicator>
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            </Alert.Indicator>
+            <Alert.Content className="flex-1">
+              <div className="font-medium mb-0.5">Address preference ignored</div>
+              <div className="text-sm">
                 Expose is set to {state.expose}. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer.
               </div>
-            </div>
-          </div>
+            </Alert.Content>
+          </Alert>
         )}
       </div>
     </div>
@@ -1075,8 +1072,8 @@ function TunnelPortMappingsEditor({
     <div className="space-y-2">
       {values.map((item, i) => (
         <div key={i} className="flex gap-2 items-end">
-          <label className="flex-1 space-y-1">
-            <span className="text-[11px] text-muted">Port name</span>
+          <div className="flex-1 space-y-1">
+            <label className="text-[11px] text-muted">Port name</label>
             <Input
               value={item.name}
               onChange={(e) => {
@@ -1087,9 +1084,9 @@ function TunnelPortMappingsEditor({
               placeholder="game-port"
               data-testid={`tunnel-port-name-${i}`}
             />
-          </label>
-          <label className="flex-1 space-y-1">
-            <span className="text-[11px] text-muted">Remote port</span>
+          </div>
+          <div className="flex-1 space-y-1">
+            <label className="text-[11px] text-muted">Remote port</label>
             <Input
               type="number"
               min="1"
@@ -1104,24 +1101,27 @@ function TunnelPortMappingsEditor({
               placeholder="25565"
               data-testid={`tunnel-port-number-${i}`}
             />
-          </label>
-          <button
-            onClick={() => onChange(values.filter((_, idx) => idx !== i))}
-            className="rounded px-2 py-1.5 text-xs text-muted hover:text-danger hover:bg-danger/10"
+          </div>
+          <Button
+            size="sm"
+            variant="danger"
+            isIconOnly
+            onPress={() => onChange(values.filter((_, idx) => idx !== i))}
             title="Delete"
             data-testid={`tunnel-port-delete-${i}`}
           >
-            Delete
-          </button>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       ))}
-      <button
-        onClick={() => onChange([...values, { name: "", remotePort: 0 }])}
-        className="rounded px-3 py-1.5 text-xs bg-primary/10 text-primary hover:bg-primary/20"
+      <Button
+        size="sm"
+        variant="primary"
+        onPress={() => onChange([...values, { name: "", remotePort: 0 }])}
         data-testid="tunnel-port-add"
       >
         Add port mapping
-      </button>
+      </Button>
     </div>
   );
 }
@@ -1204,13 +1204,13 @@ function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) 
         <div key={sec.key}>
           <div className="flex items-center justify-between pb-1">
             <span className="text-xs uppercase tracking-wide text-muted">{sec.title}</span>
-            <button
-              type="button"
-              onClick={() => onEdit(sec.key)}
-              className="text-xs text-primary hover:underline"
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => onEdit(sec.key)}
             >
               Edit
-            </button>
+            </Button>
           </div>
           {sec.rows.map(([k, v]) => (
             <div key={k} className="flex justify-between border-b border-border py-1.5">

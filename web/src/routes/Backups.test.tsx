@@ -51,7 +51,7 @@ describe("BackupsPage", () => {
       ),
     );
     renderWithQuery(<BackupsPage />);
-    const schedTab = screen.getByRole("button", { name: /Schedules/i });
+    const schedTab = screen.getByRole("tab", { name: /Schedules/i });
     await userEvent.click(schedTab);
     await waitFor(() =>
       expect(screen.getByText("alpha-daily")).toBeInTheDocument(),
@@ -78,8 +78,10 @@ describe("BackupsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
 
     const dialog = await screen.findByRole("dialog");
-    await within(dialog).findByRole("option", { name: "alpha" });
-    await userEvent.selectOptions(within(dialog).getByRole("combobox"), "alpha");
+    const combobox = within(dialog).getByRole("combobox");
+    await userEvent.click(combobox);
+    const option = await screen.findByRole("option", { name: "alpha" });
+    await userEvent.click(option);
 
     // Enabled only once the destination auto-selects from the query.
     const run = within(dialog).getByRole("button", { name: /Run snapshot/i });
@@ -96,11 +98,11 @@ describe("BackupsPage", () => {
 
   it("switches to the Restores tab", async () => {
     renderWithQuery(<BackupsPage />);
-    const tab = screen.getByRole("button", { name: /Restores/i });
+    const tab = screen.getByRole("tab", { name: /Restores/i });
     await userEvent.click(tab);
     // Empty restore list — page should still render the panel header
     // without crashing.
-    await waitFor(() => expect(tab.className).toContain("border-primary"));
+    await waitFor(() => expect(tab).toHaveClass("aria-selected:after"));
   });
 
   it("filters backups by server name", async () => {
@@ -130,11 +132,16 @@ describe("BackupsPage", () => {
     );
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-1");
-    // Select beta server filter. BackupFilters' server select defaults to
-    // "All servers" (a filter with no selection means "show everything"),
-    // unlike the "Back up now" dialog's forced-choice "Select a server…".
-    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
-    await userEvent.selectOptions(serverSelect, "beta");
+    // BackupFilters' server select defaults to "All servers" (a filter with
+    // no selection means "show everything"), unlike the "Back up now" dialog's
+    // forced-choice "Select a server…". HeroUI Select renders as a combobox.
+    const serverSelect = screen.getAllByRole("combobox").find((c) =>
+      within(c).queryByText("All servers")
+    );
+    if (!serverSelect) throw new Error("server select not found");
+    await userEvent.click(serverSelect);
+    const betaOption = await screen.findByRole("option", { name: "beta" });
+    await userEvent.click(betaOption);
     // Only beta-1 should be visible
     expect(screen.getByText("beta-1")).toBeInTheDocument();
     expect(screen.queryByText("alpha-1")).not.toBeInTheDocument();
@@ -160,10 +167,15 @@ describe("BackupsPage", () => {
     renderWithQuery(<BackupsPage />);
     await screen.findByText("backup-1");
     // Phase select defaults to "All phases" (same "no selection = show
-    // everything" convention as the server filter, so neither filter
-    // select's display value is the empty string).
-    const phaseSelect = screen.getByDisplayValue("All phases") as HTMLSelectElement;
-    await userEvent.selectOptions(phaseSelect, "Succeeded");
+    // everything" convention as the server filter). HeroUI Select renders
+    // as a combobox.
+    const phaseSelect = screen.getAllByRole("combobox").find((c) =>
+      within(c).queryByText("All phases")
+    );
+    if (!phaseSelect) throw new Error("phase select not found");
+    await userEvent.click(phaseSelect);
+    const succeededOption = await screen.findByRole("option", { name: "Succeeded" });
+    await userEvent.click(succeededOption);
     expect(screen.getByText("backup-1")).toBeInTheDocument();
     expect(screen.queryByText("backup-2")).not.toBeInTheDocument();
   });
@@ -218,8 +230,13 @@ describe("BackupsPage", () => {
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-1");
     // Filter to beta server (which has no backups)
-    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
-    await userEvent.selectOptions(serverSelect, "beta");
+    const serverSelect = screen.getAllByRole("combobox").find((c) =>
+      within(c).queryByText("All servers")
+    );
+    if (!serverSelect) throw new Error("server select not found");
+    await userEvent.click(serverSelect);
+    const betaOption = await screen.findByRole("option", { name: "beta" });
+    await userEvent.click(betaOption);
     expect(screen.getByText(/No backups match the current filters/)).toBeInTheDocument();
   });
 
@@ -232,8 +249,10 @@ describe("BackupsPage", () => {
     renderWithQuery(<BackupsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
     const dialog = await screen.findByRole("dialog");
-    await within(dialog).findByRole("option", { name: "alpha" });
-    await userEvent.selectOptions(within(dialog).getByRole("combobox"), "alpha");
+    const combobox = within(dialog).getByRole("combobox");
+    await userEvent.click(combobox);
+    const option = await screen.findByRole("option", { name: "alpha" });
+    await userEvent.click(option);
     const run = within(dialog).getByRole("button", { name: /Run snapshot/i });
     await waitFor(() => expect(run).toBeEnabled());
     await userEvent.click(run);
@@ -296,13 +315,12 @@ describe("BackupsPage", () => {
       http.put("/schedules/alpha-daily", toggleHandler),
     );
     renderWithQuery(<BackupsPage />);
-    const schedTab = screen.getByRole("button", { name: /Schedules/i });
+    const schedTab = screen.getByRole("tab", { name: /Schedules/i });
     await userEvent.click(schedTab);
     await screen.findByText("alpha-daily");
-    // The schedule-active Switch renders role="switch" (a <button>), not
-    // a native checkbox.
-    const switchBtn = screen.getByRole("switch");
-    await userEvent.click(switchBtn);
+    // HeroUI Switch renders as a checkbox input element
+    const switchCheckbox = screen.getByRole("checkbox", { name: /Schedule active/i });
+    await userEvent.click(switchCheckbox);
     await waitFor(() => expect(toggleHandler).toHaveBeenCalled());
   });
 
@@ -321,7 +339,7 @@ describe("BackupsPage", () => {
       ),
     );
     renderWithQuery(<BackupsPage />);
-    const schedTab = screen.getByRole("button", { name: /Schedules/i });
+    const schedTab = screen.getByRole("tab", { name: /Schedules/i });
     await userEvent.click(schedTab);
     await screen.findByText("alpha-daily");
     const deleteBtn = screen.getByRole("button", { name: /Delete/i });
@@ -363,13 +381,18 @@ describe("BackupsPage", () => {
       ),
     );
     renderWithQuery(<BackupsPage />);
-    const restoresTab = screen.getByRole("button", { name: /Restores/i });
+    const restoresTab = screen.getByRole("tab", { name: /Restores/i });
     await userEvent.click(restoresTab);
     await screen.findByText("restore-1");
     // Filter by alpha server (RestoresTabPanel reuses BackupFilters, so
     // same "All servers" default as the Backups tab's server filter).
-    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
-    await userEvent.selectOptions(serverSelect, "alpha");
+    const serverSelect = screen.getAllByRole("combobox").find((c) =>
+      within(c).queryByText("All servers")
+    );
+    if (!serverSelect) throw new Error("server select not found");
+    await userEvent.click(serverSelect);
+    const alphaOption = await screen.findByRole("option", { name: "alpha" });
+    await userEvent.click(alphaOption);
     expect(screen.getByText("restore-1")).toBeInTheDocument();
     expect(screen.queryByText("restore-2")).not.toBeInTheDocument();
   });
@@ -381,7 +404,7 @@ describe("BackupsPage", () => {
       ),
     );
     renderWithQuery(<BackupsPage />);
-    const restoresTab = screen.getByRole("button", { name: /Restores/i });
+    const restoresTab = screen.getByRole("tab", { name: /Restores/i });
     await userEvent.click(restoresTab);
     expect(await screen.findByText(/No restores have been run/)).toBeInTheDocument();
   });
@@ -404,7 +427,7 @@ describe("BackupsPage", () => {
       ),
     );
     renderWithQuery(<BackupsPage />);
-    const restoresTab = screen.getByRole("button", { name: /Restores/i });
+    const restoresTab = screen.getByRole("tab", { name: /Restores/i });
     await userEvent.click(restoresTab);
     await screen.findByText("search-restore-1");
     const searchInput = screen.getByPlaceholderText(/search/i) as HTMLInputElement;
@@ -426,7 +449,7 @@ describe("BackupsPage", () => {
       http.delete("/schedules/alpha-daily", deleteHandler),
     );
     renderWithQuery(<BackupsPage />);
-    const schedTab = screen.getByRole("button", { name: /Schedules/i });
+    const schedTab = screen.getByRole("tab", { name: /Schedules/i });
     await userEvent.click(schedTab);
     await screen.findByText("alpha-daily");
     const deleteBtn = screen.getByRole("button", { name: /Delete/i });
