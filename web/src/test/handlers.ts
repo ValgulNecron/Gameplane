@@ -1140,6 +1140,55 @@ export function buildScreenshotHandlers() {
           "X-Gameplane-Pod": "gameplane-api-6f9c8d5b7-x2k9p",
         },
       }),
+    // Share links: list, create, revoke, resolve (public), start (public)
+    http.get(/\/servers\/[^/]+:shares$/, () => {
+      // Return mock share links for testing
+      return HttpResponse.json([
+        {
+          id: "share-1",
+          createdAt: "2026-07-28T00:00:00Z",
+          expiresAt: "2026-08-04T00:00:00Z",
+          canStart: true,
+        },
+        {
+          id: "share-2",
+          createdAt: "2026-06-01T00:00:00Z",
+          expiresAt: "2026-06-08T00:00:00Z",
+          canStart: false,
+        },
+      ]);
+    }),
+    http.post(/\/servers\/[^/]+:shares$/, async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        expiresIn?: string;
+        canStart?: boolean;
+      } | null;
+      return HttpResponse.json({
+        id: `share-${Math.random().toString(36).slice(2)}`,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        canStart: body?.canStart ?? false,
+        token: `token_${Math.random().toString(36).slice(2)}`,
+      });
+    }),
+    http.delete("/servers/:name/shares/:id", () =>
+      new HttpResponse(null, { status: 204 }),
+    ),
+    // Public share endpoints (no auth required)
+    http.get("/shares/:token", () => {
+      // Return public share info
+      return HttpResponse.json({
+        serverName: "mc-survival",
+        status: "Running",
+        address: {
+          host: "game.example.com",
+          port: 25565,
+        },
+        playersOnline: 3,
+      });
+    }),
+    http.post("/shares/:token/start", () =>
+      new HttpResponse(null, { status: 202 }),
     ),
 
     // WebSocket: PTY Console (registered before RCON console to match narrower pattern first)
