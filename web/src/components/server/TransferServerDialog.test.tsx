@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -34,7 +35,7 @@ vi.mock("@/lib/endpoints", () => ({
   },
 }));
 
-function renderWithQuery(component: React.ReactNode) {
+function renderWithQuery(component: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -144,12 +145,12 @@ describe("TransferServerDialog", () => {
       await userEvent.click(trigger);
     }
 
-    await waitFor(() => {
-      const bobOption = screen.getAllByRole("option").find((el) => el.textContent === "bob");
-      if (bobOption) {
-        userEvent.click(bobOption);
-      }
+    const bobOption = await waitFor(() => {
+      const option = screen.getAllByRole("option").find((el) => el.textContent === "bob");
+      if (!option) throw new Error("bob option not found");
+      return option;
     });
+    await userEvent.click(bobOption);
 
     // After selection, the trigger text should update
     await waitFor(() => {
@@ -191,12 +192,12 @@ describe("TransferServerDialog", () => {
       await userEvent.click(trigger);
     }
 
-    await waitFor(() => {
-      const bobOption = screen.getAllByRole("option").find((el) => el.textContent === "bob");
-      if (bobOption) {
-        userEvent.click(bobOption);
-      }
+    const bobOption = await waitFor(() => {
+      const option = screen.getAllByRole("option").find((el) => el.textContent === "bob");
+      if (!option) throw new Error("bob option not found");
+      return option;
     });
+    await userEvent.click(bobOption);
 
     await waitFor(() => {
       const btn = screen.getByRole("button", { name: "Transfer" });
@@ -262,12 +263,12 @@ describe("TransferServerDialog", () => {
       await userEvent.click(trigger);
     }
 
-    await waitFor(() => {
-      const bobOption = screen.getAllByRole("option").find((el) => el.textContent === "bob");
-      if (bobOption) {
-        userEvent.click(bobOption);
-      }
+    const bobOption = await waitFor(() => {
+      const option = screen.getAllByRole("option").find((el) => el.textContent === "bob");
+      if (!option) throw new Error("bob option not found");
+      return option;
     });
+    await userEvent.click(bobOption);
 
     const transferBtn = screen.getByRole("button", { name: "Transfer" });
     await userEvent.click(transferBtn);
@@ -302,12 +303,12 @@ describe("TransferServerDialog", () => {
       await userEvent.click(trigger);
     }
 
-    await waitFor(() => {
-      const bobOption = screen.getAllByRole("option").find((el) => el.textContent === "bob");
-      if (bobOption) {
-        userEvent.click(bobOption);
-      }
+    const bobOption = await waitFor(() => {
+      const option = screen.getAllByRole("option").find((el) => el.textContent === "bob");
+      if (!option) throw new Error("bob option not found");
+      return option;
     });
+    await userEvent.click(bobOption);
 
     const transferBtn = screen.getByRole("button", { name: "Transfer" });
     await userEvent.click(transferBtn);
@@ -339,12 +340,12 @@ describe("TransferServerDialog", () => {
       await userEvent.click(trigger);
     }
 
-    await waitFor(() => {
-      const bobOption = screen.getAllByRole("option").find((el) => el.textContent === "bob");
-      if (bobOption) {
-        userEvent.click(bobOption);
-      }
+    const bobOption = await waitFor(() => {
+      const option = screen.getAllByRole("option").find((el) => el.textContent === "bob");
+      if (!option) throw new Error("bob option not found");
+      return option;
     });
+    await userEvent.click(bobOption);
 
     const transferBtn = screen.getByRole("button", { name: "Transfer" });
     await userEvent.click(transferBtn);

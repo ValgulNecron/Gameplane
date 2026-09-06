@@ -110,7 +110,7 @@ export function OverviewTab({
           </Alert.Indicator>
           <Alert.Content className="flex flex-1 flex-col gap-1">
             <Alert.Title className="font-semibold text-sm">
-              Waiting on storage — the server can't provision yet
+              Waiting on storage — the server can&apos;t provision yet
             </Alert.Title>
             <Alert.Description className="text-sm">
               Ready condition: {provisioningFailure.reason} — {provisioningFailure.message}

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -16,7 +17,7 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 });
 
-function renderWithProviders(component: React.ReactNode) {
+function renderWithProviders(component: ReactNode) {
   return render(<QueryClientProvider client={queryClient}>{component}</QueryClientProvider>);
 }
 
