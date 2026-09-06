@@ -840,6 +840,15 @@ The warning is shown regardless of how many groups are being added (single or mu
     - List Backups, Schedules, Restores (three sub-tabs)
     - Manual backup trigger, schedule create/edit/suspend, restore from backup
 
+13. **Share** (`/share/$token`) → `SharePage` (public route, outside AppLayout)
+    - Public, unauthenticated, no sidebar or top bar
+    - Resolves a share link token to its public view (server name, status, address, player count if exposed)
+    - Rate-limited; all errors (404, 429, auth) map to neutral "Link not available" message per FR-005
+    - Five states: loading (spinner), up (server online), asleep-start (sleeping, can start), asleep-viewonly (sleeping, view-only), starting (waking up), invalid (link unavailable)
+    - Respects stored appearance preference (light/dark/system); no theme toggle shown
+    - Uses HeroUI Card, Button, Chip, Spinner; brand header with ShieldCheck icon; address copy button
+    - Built directly from HeroUI primitives; no hero/ atom components
+
 ## ServerDetail Tabs
 
 Visible tab set depends on server template + active version:
@@ -858,7 +867,7 @@ Visible tab set depends on server template + active version:
 
 ## ServerDetail Settings Sub-sections
 
-Settings tab (`SettingsTab`, `web/src/routes/tabs/Settings.tsx`) displays 11 sections in a left sidebar (`SECTIONS` array):
+Settings tab (`SettingsTab`, `web/src/routes/tabs/Settings.tsx`) displays 12 sections in a left sidebar (`SECTIONS` array):
 
 1. **General** — Server name, description
 2. **Version** — Template version selector (triggers container restart)
@@ -871,6 +880,8 @@ Settings tab (`SettingsTab`, `web/src/routes/tabs/Settings.tsx`) displays 11 sec
 9. **Placement** — Node selector labels, pod affinity/anti-affinity rules (lazy-loaded)
 10. **RBAC & access** — Server owner + collaborator list, permission inheritance. The `setCollaborators` mutation runs unconditionally at component render (not gated by an early return), so hook invocation order is consistent. The mutation's namespace is derived from the GameServer's `metadata.namespace` (or `gameplane-games` as fallback); when no server is loaded, the mutation returns early without calling the API. On success, the mutation invalidates the `["server", gs.metadata.name]` query cache, clears input state, and resets errors; on error, it sets a locally-rendered error message and does not clear input, allowing retry.
 11. **Danger zone** — Clone, transfer owner, wipe data (confirm-dialog), delete server
+
+**Share links (deferred, T179):** Pending wiring into `Settings.tsx` (slice 2b). `ShareLinksSection` (`web/src/routes/tabs/settings/ShareLinks.tsx`). Create/list/revoke share links per server; table shows Created, Expires, Can start capability (view-only vs. can-start), Status (Active/Expired/Revoked). Create dialog opens to set expiry (24h/7d/30d/90d) and start permission; success shows Created dialog with full URL and one-time copy prompt (token hashed server-side and unrecoverable after close). Revoke dialog (AlertDialog danger) confirms destruction. Empty state when no links exist. Visible only to users with the API-enforced permission (owner/admin create/revoke, viewers see list read-only if API permits). Uses HeroUI Modal/ModalBackdrop/ModalContainer/ModalDialog/ModalHeader/ModalHeading/ModalBody/ModalFooter, AlertDialog family, Button, Table, Select, ListBox, ListBoxItem, Label, Description, Switch, Chip.
 
 **Capture types (`src/types.ts`, built):** `CaptureConfiguration` (`{ enabled?, retentionSeconds? }`, mirrors `spec.capture` — `retentionSeconds` is bounded by the CRD's authoritative `+kubebuilder:validation:Minimum=1 / Maximum=604800` on `operator/api/v1alpha1/gameserver_types.go`'s `CaptureConfiguration.RetentionSeconds`, omit to use cluster default (86400)), `CaptureStatus` (mirrors `status.capture`: `ready`, `activeCapture`/`lastCaptureTime` typed nullable since the API's `formatOptionalTime` never omits the key), `CapturePhase` (`"Pending" | "Running" | "Completed" | "Failed" | "Expired"`), `NetworkCapture` (one capture record — merges the API's start/stop/list/get response shapes) and `NetworkCaptureList` (the `:captures` list envelope). All are implemented in the tree; the `CaptureWidget` component and `Captures` endpoint namespace are live (see Tabs and API Client sections above).
 
