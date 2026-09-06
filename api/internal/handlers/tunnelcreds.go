@@ -120,7 +120,19 @@ func (h *tunnelCredsHandler) put(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if err != nil {
-		// Secret already exists; patch it instead to preserve extra fields.
+		// Secret already exists; verify ownership before patching to prevent
+		// modifying Secrets not owned by this server.
+		existing, getErr := k.Typed.CoreV1().Secrets(ns).Get(req.Context(), secretName, metav1.GetOptions{})
+		if getErr != nil {
+			httperr.Write(w, req, getErr)
+			return
+		}
+		if !isServerOwnedSecretObject(existing, name, gs.GetUID()) {
+			http.Error(w, "conflict: existing secret is not owned by this server", http.StatusConflict)
+			return
+		}
+
+		// Patch it instead to preserve extra fields.
 		patch := map[string]any{
 			"stringData": body.Values,
 		}
@@ -265,6 +277,22 @@ func (h *tunnelCredsHandler) delete(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Verify that the secret to delete is actually owned by this GameServer.
+	// This prevents an attacker from referencing an arbitrary secret (e.g. backup credentials
+	// or another server's secret) and deleting it via this endpoint.
+	if ok && secretRef != "" {
+		existing, err := k.Typed.CoreV1().Secrets(ns).Get(req.Context(), secretRef, metav1.GetOptions{})
+		if err == nil {
+			if !isServerOwnedSecretObject(existing, name, gs.GetUID()) {
+				http.Error(w, "forbidden: cannot delete secret not owned by this server", http.StatusForbidden)
+				return
+			}
+		} else if !apierrors.IsNotFound(err) {
+			httperr.Write(w, req, err)
+			return
+		}
+	}
+
 	// Patch the GameServer to clear the credentialsSecretRef first, before deleting the Secret.
 	// This ensures the spec stays valid according to the CEL rule.
 	patch, _ := json.Marshal(map[string]any{
@@ -377,4 +405,21 @@ func getNestedBool(obj map[string]any, path ...string) (bool, bool, error) {
 		}
 	}
 	return false, false, nil
+}
+
+// isServerOwnedSecretObject reports whether sec has an OwnerReference matching
+// the GameServer's Kind, Name, and UID. Canonical names or labels are not accepted as proof.
+func isServerOwnedSecretObject(sec *corev1.Secret, serverName string, gsUID types.UID) bool {
+	if sec == nil || serverName == "" {
+		return false
+	}
+	for _, ref := range sec.OwnerReferences {
+		if ref.Kind == "GameServer" && ref.Name == serverName {
+			if ref.UID != "" && ref.UID != gsUID {
+				continue
+			}
+			return true
+		}
+	}
+	return false
 }

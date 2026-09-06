@@ -9,6 +9,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -312,21 +313,30 @@ func (r *GameServerReconciler) reconcileTunnel(
 		var volumes []corev1.Volume
 		var volumeMounts []corev1.VolumeMount
 
-		if tunnel.CredentialsSecretRef != nil {
-			volumes = append(volumes, corev1.Volume{
-				Name: tunnelAuthVolume,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: tunnel.CredentialsSecretRef.Name,
-						Optional:   boolPtr(true),
+		if tunnel.CredentialsSecretRef != nil && tunnel.CredentialsSecretRef.Name != "" {
+			secName := tunnel.CredentialsSecretRef.Name
+			var sec corev1.Secret
+			err := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: secName}, &sec)
+			if err == nil {
+				if !isServerOwnedSecret(&sec, gs) {
+					return fmt.Errorf("tunnel credentials secret %q is not owned by GameServer %s/%s", secName, gs.Namespace, gs.Name)
+				}
+				volumes = append(volumes, corev1.Volume{
+					Name: tunnelAuthVolume,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: secName,
+						},
 					},
-				},
-			})
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      tunnelAuthVolume,
-				MountPath: tunnelAuthMountDir,
-				ReadOnly:  true,
-			})
+				})
+				volumeMounts = append(volumeMounts, corev1.VolumeMount{
+					Name:      tunnelAuthVolume,
+					MountPath: tunnelAuthMountDir,
+					ReadOnly:  true,
+				})
+			} else if !apierrors.IsNotFound(err) {
+				return fmt.Errorf("tunnel credentials secret %q: %w", secName, err)
+			}
 		}
 
 		dep.Spec.Template.Spec.Volumes = volumes
@@ -576,11 +586,6 @@ func buildPlayitPortsConfig(tmpl *gameplanev1alpha1.GameTemplate) string {
 		result += e
 	}
 	return result
-}
-
-// boolPtr returns a pointer to a bool.
-func boolPtr(b bool) *bool {
-	return &b
 }
 
 // Tunnel image defaults.

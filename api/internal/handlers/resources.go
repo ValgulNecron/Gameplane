@@ -5,10 +5,13 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -17,7 +20,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
@@ -181,6 +186,16 @@ func createHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.Han
 				return
 			}
 			obj.SetNamespace(ns)
+			if gvr.Resource == "gameservers" {
+				cl := req.URL.Query().Get("cluster")
+				if cl == "" {
+					cl = scope.DefaultCluster
+				}
+				if err := validateAndProtectGameServer(req.Context(), k, cl, ns, obj.GetName(), obj, nil); err != nil {
+					httperr.WriteCode(w, req, http.StatusForbidden, err)
+					return
+				}
+			}
 			created, err = k.Dynamic.Resource(gvr).Namespace(ns).Create(req.Context(), obj, metav1.CreateOptions{})
 		}
 		if err != nil {
@@ -216,7 +231,7 @@ func updateHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.Han
 			}
 		}
 		// For GameServers, preserve ownership annotations from the live object
-		// so clients can't mutate them via PUT.
+		// so clients can't mutate them via PUT, and validate sensitive spec fields.
 		if gvr.Resource == "gameservers" {
 			ns, ok := resolveNS(w, req)
 			if !ok {
@@ -248,6 +263,14 @@ func updateHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.Han
 					}
 				}
 				obj.SetAnnotations(objAnn)
+			}
+			cl := req.URL.Query().Get("cluster")
+			if cl == "" {
+				cl = scope.DefaultCluster
+			}
+			if err := validateAndProtectGameServer(req.Context(), k, cl, ns, name, obj, live); err != nil {
+				httperr.WriteCode(w, req, http.StatusForbidden, err)
+				return
 			}
 		}
 		var updated *unstructured.Unstructured
@@ -383,4 +406,210 @@ func writeOrErr(w http.ResponseWriter, req *http.Request, v any, err error) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// validateAndProtectGameServer enforces RBAC and security boundaries on
+// GameServer spec fields during create and update mutations:
+//   - spec.capture: Requires captures:manage permission. Non-admins cannot enable,
+//     modify, or configure capture settings.
+//   - spec.serviceAccountName: Requires admin privileges. Non-admins cannot set or override
+//     the ServiceAccount.
+//   - spec.image: Requires admin privileges. Non-admins choose versions from GameTemplate
+//     catalog versions instead of supplying arbitrary container images.
+//   - spec.env: Non-admins cannot reference arbitrary Secrets (such as backup destination
+//     credentials or auth secrets) via valueFrom.secretKeyRef. Secret references are permitted
+//     only to server-owned Secrets (e.g. matching OwnerReference, gameplane.local/server-name
+//     label, or canonical server credential names).
+func validateAndProtectGameServer(
+	ctx context.Context,
+	k *kube.Client,
+	cl, ns, name string,
+	desired *unstructured.Unstructured,
+	live *unstructured.Unstructured,
+) error {
+	u := auth.UserFromContext(ctx)
+	isAdmin := false
+	canManageCaptures := false
+	if u != nil {
+		isAdmin = u.Role == "admin" || u.Can("*", false, cl, ns)
+		canManageCaptures = isAdmin || u.Can("captures:manage", true, cl, ns)
+	}
+
+	// 1. Validate spec.capture
+	captureRaw, hasCapture, _ := unstructured.NestedFieldNoCopy(desired.Object, "spec", "capture")
+	if !canManageCaptures {
+		if live == nil {
+			if hasCapture && captureRaw != nil {
+				return errors.New("configuring capture requires captures:manage permission")
+			}
+		} else {
+			liveCaptureRaw, liveHasCapture, _ := unstructured.NestedFieldNoCopy(live.Object, "spec", "capture")
+			if hasCapture && captureRaw != nil {
+				if !liveHasCapture || !reflect.DeepEqual(captureRaw, liveCaptureRaw) {
+					return errors.New("modifying capture settings requires captures:manage permission")
+				}
+			} else if liveHasCapture && liveCaptureRaw != nil {
+				_ = unstructured.SetNestedField(desired.Object, liveCaptureRaw, "spec", "capture")
+			}
+		}
+	}
+
+	// 2. Validate spec.serviceAccountName
+	sa, hasSA, _ := unstructured.NestedString(desired.Object, "spec", "serviceAccountName")
+	if !isAdmin {
+		if live == nil {
+			if hasSA && sa != "" {
+				return errors.New("spec.serviceAccountName override requires admin privileges")
+			}
+		} else {
+			liveSA, liveHasSA, _ := unstructured.NestedString(live.Object, "spec", "serviceAccountName")
+			if hasSA && sa != "" {
+				if !liveHasSA || sa != liveSA {
+					return errors.New("spec.serviceAccountName override requires admin privileges")
+				}
+			} else if liveHasSA && liveSA != "" {
+				_ = unstructured.SetNestedField(desired.Object, liveSA, "spec", "serviceAccountName")
+			}
+		}
+	}
+
+	// 3. Validate spec.image
+	img, hasImg, _ := unstructured.NestedString(desired.Object, "spec", "image")
+	if !isAdmin {
+		if live == nil {
+			if hasImg && img != "" {
+				return errors.New("spec.image override requires admin privileges")
+			}
+		} else {
+			liveImg, liveHasImg, _ := unstructured.NestedString(live.Object, "spec", "image")
+			if hasImg && img != "" {
+				if !liveHasImg || img != liveImg {
+					return errors.New("spec.image override requires admin privileges")
+				}
+			} else if liveHasImg && liveImg != "" {
+				_ = unstructured.SetNestedField(desired.Object, liveImg, "spec", "image")
+			}
+		}
+	}
+
+	// 4. Validate spec.env for unowned secret/configmap references
+	envSlice, hasEnv, _ := unstructured.NestedSlice(desired.Object, "spec", "env")
+	if hasEnv {
+		for _, item := range envSlice {
+			itemMap, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			valFromRaw, ok := itemMap["valueFrom"]
+			if !ok || valFromRaw == nil {
+				continue
+			}
+			valFrom, ok := valFromRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if secRefRaw, ok := valFrom["secretKeyRef"]; ok && secRefRaw != nil {
+				if secRef, ok := secRefRaw.(map[string]any); ok {
+					secName, _ := secRef["name"].(string)
+					if secName == "" {
+						return errors.New("secretKeyRef name must not be empty")
+					}
+					var gsUID types.UID
+					if live != nil {
+						gsUID = live.GetUID()
+					}
+					if !isServerOwnedSecret(ctx, k, ns, name, gsUID, secName) {
+						return fmt.Errorf("secret reference %q in env is not permitted: not a server-owned secret", secName)
+					}
+				}
+			}
+			if cmRefRaw, ok := valFrom["configMapKeyRef"]; ok && cmRefRaw != nil {
+				if cmRef, ok := cmRefRaw.(map[string]any); ok {
+					cmName, _ := cmRef["name"].(string)
+					if cmName == "" {
+						return errors.New("configMapKeyRef name must not be empty")
+					}
+					var gsUID types.UID
+					if live != nil {
+						gsUID = live.GetUID()
+					}
+					if !isServerOwnedConfigMap(ctx, k, ns, name, gsUID, cmName) {
+						return fmt.Errorf("configMap reference %q in env is not permitted: not a server-owned configMap", cmName)
+					}
+				}
+			}
+		}
+	}
+
+	// 5. Validate spec.networking.tunnel.credentialsSecretRef for unowned secret references
+	tunnelSecName, hasTunnelSec, _ := unstructured.NestedString(desired.Object, "spec", "networking", "tunnel", "credentialsSecretRef", "name")
+	if hasTunnelSec && tunnelSecName != "" {
+		var gsUID types.UID
+		if live != nil {
+			gsUID = live.GetUID()
+		}
+		if !isServerOwnedSecret(ctx, k, ns, name, gsUID, tunnelSecName) {
+			return fmt.Errorf("tunnel credentials secret reference %q is not permitted: not a server-owned secret", tunnelSecName)
+		}
+	}
+
+	return nil
+}
+
+// isServerOwnedSecret reports whether the given Secret belongs to the named GameServer
+// in the specified namespace by inspecting the Secret's OwnerReferences.
+// An OwnerReference specifying a non-empty UID must match the live GameServer UID;
+// if the GameServer UID is unknown (e.g. during pre-creation validation), an OwnerReference
+// that already specifies a concrete UID cannot match and is rejected.
+func isServerOwnedSecret(ctx context.Context, k *kube.Client, ns, serverName string, gsUID types.UID, secretName string) bool {
+	if secretName == "" || serverName == "" {
+		return false
+	}
+	if k != nil && k.Dynamic != nil {
+		gvr := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+		sec, err := k.Dynamic.Resource(gvr).Namespace(ns).Get(ctx, secretName, metav1.GetOptions{})
+		if err == nil && sec != nil {
+			for _, ref := range sec.GetOwnerReferences() {
+				if ref.Kind == "GameServer" && ref.Name == serverName {
+					// A create or clone has no live UID yet. An owner reference that
+					// names a specific GameServer UID must not be accepted on a name match alone.
+					if ref.UID != "" && ref.UID != gsUID {
+						continue
+					}
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// isServerOwnedConfigMap reports whether the given ConfigMap belongs to the named GameServer
+// in the specified namespace by inspecting the ConfigMap's OwnerReferences.
+// An OwnerReference specifying a non-empty UID must match the live GameServer UID;
+// if the GameServer UID is unknown (e.g. during pre-creation validation), an OwnerReference
+// that already specifies a concrete UID cannot match and is rejected.
+func isServerOwnedConfigMap(ctx context.Context, k *kube.Client, ns, serverName string, gsUID types.UID, cmName string) bool {
+	if cmName == "" || serverName == "" {
+		return false
+	}
+	if k != nil && k.Dynamic != nil {
+		gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+		cm, err := k.Dynamic.Resource(gvr).Namespace(ns).Get(ctx, cmName, metav1.GetOptions{})
+		if err == nil && cm != nil {
+			for _, ref := range cm.GetOwnerReferences() {
+				if ref.Kind == "GameServer" && ref.Name == serverName {
+					// A create or clone has no live UID yet. An owner reference that
+					// names a specific GameServer UID must not be accepted on a name match alone.
+					if ref.UID != "" && ref.UID != gsUID {
+						continue
+					}
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
 }

@@ -43,12 +43,15 @@ func TestCreateShareLink_Success(t *testing.T) {
 
 	// Create a link.
 	expiresAt := time.Now().Add(24 * time.Hour)
-	rawToken, link, err := s.CreateShareLink(ctx, "default", "minecraft-server", userID, true, expiresAt)
+	rawToken, link, err := s.CreateShareLink(ctx, "local", "default", "minecraft-server", userID, true, expiresAt)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
 	// Validate the returned link metadata.
+	if link.Cluster != "local" {
+		t.Errorf("cluster=%q, want local", link.Cluster)
+	}
 	if link.Namespace != "default" {
 		t.Errorf("namespace=%q, want default", link.Namespace)
 	}
@@ -84,7 +87,7 @@ func TestCreateShareLink_ExpiryInPast_Rejected(t *testing.T) {
 
 	// Try to create with an expiry in the past.
 	expiresAt := time.Now().Add(-1 * time.Hour)
-	_, _, err := s.CreateShareLink(ctx, "default", "server", userID, false, expiresAt)
+	_, _, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, expiresAt)
 	if err == nil {
 		t.Fatal("expected error for expiry in past, got nil")
 	}
@@ -99,7 +102,7 @@ func TestCreateShareLink_ExpiryZero_Rejected(t *testing.T) {
 	userID := insertTestUser(t, s, "bob2")
 
 	// Try to create with a zero expiry.
-	_, _, err := s.CreateShareLink(ctx, "default", "server", userID, false, time.Time{})
+	_, _, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, time.Time{})
 	if err == nil {
 		t.Fatal("expected error for zero expiry, got nil")
 	}
@@ -115,7 +118,7 @@ func TestCreateShareLink_ExpiryExceedsMaximum_Rejected(t *testing.T) {
 
 	// Try to create with an expiry beyond the maximum.
 	expiresAt := time.Now().AddDate(0, 0, MaxShareLinkExpiryDays+1)
-	_, _, err := s.CreateShareLink(ctx, "default", "server", userID, false, expiresAt)
+	_, _, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, expiresAt)
 	if err == nil {
 		t.Fatal("expected error for expiry exceeding maximum, got nil")
 	}
@@ -131,7 +134,7 @@ func TestCreateShareLink_ExpiryAtMaximumBoundary_Accepted(t *testing.T) {
 
 	// Create with an expiry exactly at the maximum.
 	expiresAt := time.Now().AddDate(0, 0, MaxShareLinkExpiryDays)
-	rawToken, link, err := s.CreateShareLink(ctx, "default", "server", userID, false, expiresAt)
+	rawToken, link, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, expiresAt)
 	if err != nil {
 		t.Fatalf("create at maximum boundary: %v", err)
 	}
@@ -150,7 +153,7 @@ func TestCreateAndLookup_RoundTrip(t *testing.T) {
 
 	// Create a link.
 	expiresAt := time.Now().Add(24 * time.Hour)
-	rawToken, created, err := s.CreateShareLink(ctx, "default", "server", userID, true, expiresAt)
+	rawToken, created, err := s.CreateShareLink(ctx, "local", "default", "server", userID, true, expiresAt)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -186,7 +189,7 @@ func TestLookupShareLink_RawTokenNotStored(t *testing.T) {
 
 	// Create a link.
 	expiresAt := time.Now().Add(24 * time.Hour)
-	rawToken, _, err := s.CreateShareLink(ctx, "default", "server", userID, false, expiresAt)
+	rawToken, _, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, expiresAt)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -265,13 +268,13 @@ func TestLookupShareLink_Revoked_Invalid(t *testing.T) {
 
 	// Create a valid link.
 	expiresAt := time.Now().Add(24 * time.Hour)
-	rawToken, link, err := s.CreateShareLink(ctx, "default", "server", userID, false, expiresAt)
+	rawToken, link, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, expiresAt)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
 	// Revoke it.
-	if err := s.RevokeShareLink(ctx, link.ID); err != nil {
+	if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 
@@ -340,31 +343,31 @@ func TestListShareLinks_Scoped(t *testing.T) {
 	exp := time.Now().Add(24 * time.Hour)
 
 	// Server A in default namespace.
-	_, _, err := s.CreateShareLink(ctx, "default", "server-a", userID, true, exp)
+	_, _, err := s.CreateShareLink(ctx, "local", "default", "server-a", userID, true, exp)
 	if err != nil {
 		t.Fatalf("create 1: %v", err)
 	}
 
 	// Server A in default namespace (another link).
-	_, _, err = s.CreateShareLink(ctx, "default", "server-a", userID, false, exp)
+	_, _, err = s.CreateShareLink(ctx, "local", "default", "server-a", userID, false, exp)
 	if err != nil {
 		t.Fatalf("create 2: %v", err)
 	}
 
 	// Server B in default namespace.
-	_, _, err = s.CreateShareLink(ctx, "default", "server-b", userID, true, exp)
+	_, _, err = s.CreateShareLink(ctx, "local", "default", "server-b", userID, true, exp)
 	if err != nil {
 		t.Fatalf("create 3: %v", err)
 	}
 
 	// Server A in other namespace.
-	_, _, err = s.CreateShareLink(ctx, "other", "server-a", userID, false, exp)
+	_, _, err = s.CreateShareLink(ctx, "local", "other", "server-a", userID, false, exp)
 	if err != nil {
 		t.Fatalf("create 4: %v", err)
 	}
 
 	// List for default/server-a must return exactly 2 links.
-	links, err := s.ListShareLinks(ctx, "default", "server-a")
+	links, err := s.ListShareLinks(ctx, "local", "default", "server-a")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -380,7 +383,7 @@ func TestListShareLinks_Scoped(t *testing.T) {
 	}
 
 	// List for default/server-b must return exactly 1 link.
-	links, err = s.ListShareLinks(ctx, "default", "server-b")
+	links, err = s.ListShareLinks(ctx, "local", "default", "server-b")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -389,7 +392,7 @@ func TestListShareLinks_Scoped(t *testing.T) {
 	}
 
 	// List for nonexistent server must return empty.
-	links, err = s.ListShareLinks(ctx, "default", "nonexistent")
+	links, err = s.ListShareLinks(ctx, "local", "default", "nonexistent")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -405,7 +408,7 @@ func TestTouchShareLink_Updates_LastUsed(t *testing.T) {
 
 	// Create a link.
 	expiresAt := time.Now().Add(24 * time.Hour)
-	_, link, err := s.CreateShareLink(ctx, "default", "server", userID, false, expiresAt)
+	_, link, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, expiresAt)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -454,7 +457,7 @@ func TestLookupShareLink_DoesNotUpdateLastUsed(t *testing.T) {
 
 	// Create a link.
 	expiresAt := time.Now().Add(24 * time.Hour)
-	rawToken, link, err := s.CreateShareLink(ctx, "default", "server", userID, false, expiresAt)
+	rawToken, link, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, expiresAt)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -493,13 +496,13 @@ func TestRevokeShareLink_Success(t *testing.T) {
 
 	// Create a link.
 	expiresAt := time.Now().Add(24 * time.Hour)
-	_, link, err := s.CreateShareLink(ctx, "default", "server", userID, false, expiresAt)
+	_, link, err := s.CreateShareLink(ctx, "local", "default", "server", userID, false, expiresAt)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
 	// Revoke it.
-	if err := s.RevokeShareLink(ctx, link.ID); err != nil {
+	if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 
@@ -530,8 +533,55 @@ func TestRevokeShareLink_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	// Try to revoke a nonexistent link.
-	err := s.RevokeShareLink(ctx, "nonexistent-id")
+	err := s.RevokeShareLink(ctx, "local", "nonexistent-id")
 	if err == nil {
 		t.Fatal("expected error for nonexistent link, got nil")
+	}
+}
+
+func TestShareLinks_ClusterScoping(t *testing.T) {
+	s := newShareLinksStore(t)
+	ctx := context.Background()
+	userID := insertTestUser(t, s, "cluster-user")
+
+	exp := time.Now().Add(24 * time.Hour)
+	// Create link in cluster-a
+	_, linkA, err := s.CreateShareLink(ctx, "cluster-a", "default", "srv-test", userID, true, exp)
+	if err != nil {
+		t.Fatalf("create link A: %v", err)
+	}
+
+	// Create link in cluster-b with same namespace and server name
+	_, linkB, err := s.CreateShareLink(ctx, "cluster-b", "default", "srv-test", userID, false, exp)
+	if err != nil {
+		t.Fatalf("create link B: %v", err)
+	}
+
+	// List in cluster-a must only return linkA
+	listA, err := s.ListShareLinks(ctx, "cluster-a", "default", "srv-test")
+	if err != nil {
+		t.Fatalf("list A: %v", err)
+	}
+	if len(listA) != 1 || listA[0].ID != linkA.ID {
+		t.Fatalf("list A mismatch: expected [%s], got %+v", linkA.ID, listA)
+	}
+
+	// List in cluster-b must only return linkB
+	listB, err := s.ListShareLinks(ctx, "cluster-b", "default", "srv-test")
+	if err != nil {
+		t.Fatalf("list B: %v", err)
+	}
+	if len(listB) != 1 || listB[0].ID != linkB.ID {
+		t.Fatalf("list B mismatch: expected [%s], got %+v", linkB.ID, listB)
+	}
+
+	// Revoke linkB with cluster-a must fail
+	if err := s.RevokeShareLink(ctx, "cluster-a", linkB.ID); err == nil {
+		t.Fatal("expected error revoking cluster-b link with cluster-a, got nil")
+	}
+
+	// Revoke linkB with cluster-b must succeed
+	if err := s.RevokeShareLink(ctx, "cluster-b", linkB.ID); err != nil {
+		t.Fatalf("revoke linkB with cluster-b failed: %v", err)
 	}
 }

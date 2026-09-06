@@ -277,7 +277,7 @@ func TestShareResolveInvalidToken(t *testing.T) {
 
 	// Expired: mint a valid link, then rewrite its expiry into the past
 	// (CreateShareLink itself refuses to mint an already-expired link).
-	expiredToken, expiredLink, err := store.CreateShareLink(ctx, "gameplane-games", "srv-invalid", ownerID, false, time.Now().UTC().Add(time.Hour))
+	expiredToken, expiredLink, err := store.CreateShareLink(ctx, "local", "gameplane-games", "srv-invalid", ownerID, false, time.Now().UTC().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("create expired link: %v", err)
 	}
@@ -287,11 +287,11 @@ func TestShareResolveInvalidToken(t *testing.T) {
 	}
 
 	// Revoked: mint a valid link, then revoke it.
-	revokedToken, revokedLink, err := store.CreateShareLink(ctx, "gameplane-games", "srv-invalid", ownerID, false, time.Now().UTC().Add(time.Hour))
+	revokedToken, revokedLink, err := store.CreateShareLink(ctx, "local", "gameplane-games", "srv-invalid", ownerID, false, time.Now().UTC().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("create link to revoke: %v", err)
 	}
-	if err := store.RevokeShareLink(ctx, revokedLink.ID); err != nil {
+	if err := store.RevokeShareLink(ctx, "local", revokedLink.ID); err != nil {
 		t.Fatalf("revoke link: %v", err)
 	}
 
@@ -336,7 +336,7 @@ func TestShareStartCanStartGate(t *testing.T) {
 	ctx := context.Background()
 
 	// canStart=false must 404, identically to an invalid token.
-	noStartToken, _, err := store.CreateShareLink(ctx, "gameplane-games", "srv-start", ownerID, false, time.Now().UTC().Add(time.Hour))
+	noStartToken, _, err := store.CreateShareLink(ctx, "local", "gameplane-games", "srv-start", ownerID, false, time.Now().UTC().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("create canStart=false link: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestShareStartCanStartGate(t *testing.T) {
 
 	// canStart=true must wake the server: 202 + idle-wake annotation stamped,
 	// and the API must not touch spec.suspend (the operator owns that).
-	startToken, _, err := store.CreateShareLink(ctx, "gameplane-games", "srv-start", ownerID, true, time.Now().UTC().Add(time.Hour))
+	startToken, _, err := store.CreateShareLink(ctx, "local", "gameplane-games", "srv-start", ownerID, true, time.Now().UTC().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("create canStart=true link: %v", err)
 	}
@@ -578,5 +578,75 @@ func TestShareRevokeOwnerOnly(t *testing.T) {
 	}
 	if !bytes.Equal(body, wantShareNotFoundBody) {
 		t.Fatalf("resolve after revoke: body = %q, want %q", body, wantShareNotFoundBody)
+	}
+}
+
+// TestShareClusterScoping verifies that share links are strictly bound to the cluster
+// where they were created. A link created for cluster A cannot resolve against cluster B,
+// and listing/revoking in cluster B does not touch shares belonging to cluster A.
+func TestShareClusterScoping(t *testing.T) {
+	store := newTestStore(t)
+	ownerID := insertShareTestUser(t, store, "owner-cluster")
+	reg := kube.NewRegistry("local")
+
+	localServer := newShareTestServer("srv-scoped", ownerID)
+	remoteServer := newShareTestServer("srv-scoped", ownerID)
+
+	localK := fakeKubeClient(localServer)
+	remoteK := fakeKubeClient(remoteServer)
+
+	reg.Set("local", localK)
+	h := mountSharesRouter(reg, store)
+	ctx := context.Background()
+
+	// Mint a share link bound to "remote-cluster".
+	token, link, err := store.CreateShareLink(ctx, "remote-cluster", "gameplane-games", "srv-scoped", ownerID, true, time.Now().UTC().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("create share link on remote cluster: %v", err)
+	}
+
+	// 1. Resolve when remote-cluster is not in registry -> returns 404.
+	status, _ := shareReq(t, h, "GET", "/shares/"+token, nil, nil, "203.0.113.20:1")
+	if status != http.StatusNotFound {
+		t.Fatalf("resolve unknown cluster: status = %d, want 404", status)
+	}
+
+	// Now register remote-cluster.
+	reg.Set("remote-cluster", remoteK)
+
+	// 2. Resolve now succeeds and resolves to remote-cluster.
+	status, body := shareReq(t, h, "GET", "/shares/"+token, nil, nil, "203.0.113.21:1")
+	if status != http.StatusOK {
+		t.Fatalf("resolve remote cluster: status = %d, want 200; body=%s", status, body)
+	}
+
+	// 3. List on "local" cluster must NOT return the link.
+	localLinks, err := store.ListShareLinks(ctx, "local", "gameplane-games", "srv-scoped")
+	if err != nil {
+		t.Fatalf("list local: %v", err)
+	}
+	if len(localLinks) != 0 {
+		t.Fatalf("expected 0 local links, got %d", len(localLinks))
+	}
+
+	// List on "remote-cluster" must return the link.
+	remoteLinks, err := store.ListShareLinks(ctx, "remote-cluster", "gameplane-games", "srv-scoped")
+	if err != nil {
+		t.Fatalf("list remote: %v", err)
+	}
+	if len(remoteLinks) != 1 {
+		t.Fatalf("expected 1 remote link, got %d", len(remoteLinks))
+	}
+
+	// 4. Revoke on "local" cluster must fail (link belongs to remote-cluster).
+	err = store.RevokeShareLink(ctx, "local", link.ID)
+	if err == nil {
+		t.Fatalf("expected error revoking remote link with local cluster, got nil")
+	}
+
+	// 5. Revoke on "remote-cluster" succeeds.
+	err = store.RevokeShareLink(ctx, "remote-cluster", link.ID)
+	if err != nil {
+		t.Fatalf("revoke with correct cluster failed: %v", err)
 	}
 }

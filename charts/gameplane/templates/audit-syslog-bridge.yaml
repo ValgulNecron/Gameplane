@@ -76,4 +76,26 @@ spec:
   selector: { app.kubernetes.io/name: gameplane-audit-syslog-bridge }
   ports:
     - { name: http, port: 8514, targetPort: http }
+{{- if .Values.networkPolicies.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gameplane-audit-syslog-bridge
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-audit-syslog-bridge
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gameplane-api
+      ports:
+        - protocol: TCP
+          port: 8514
+{{- end }}
 {{- end }}

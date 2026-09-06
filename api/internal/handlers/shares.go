@@ -17,6 +17,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // MountShareLinks wires authenticated share link operations (create, list, revoke).
@@ -109,7 +110,8 @@ func createShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 			expiresAt = maxExpiry
 		}
 
-		rawToken, link, err := store.CreateShareLink(req.Context(), ns, name, u.ID, body.CanStart, expiresAt)
+		cl, _ := scope.ResolveCluster(req, reg)
+		rawToken, link, err := store.CreateShareLink(req.Context(), cl, ns, name, u.ID, body.CanStart, expiresAt)
 		if err != nil {
 			httperr.Write(w, req, err)
 			return
@@ -158,7 +160,8 @@ func listSharesHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 			return
 		}
 
-		links, err := store.ListShareLinks(req.Context(), ns, name)
+		cl, _ := scope.ResolveCluster(req, reg)
+		links, err := store.ListShareLinks(req.Context(), cl, ns, name)
 		if err != nil {
 			httperr.Write(w, req, err)
 			return
@@ -211,7 +214,8 @@ func revokeShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 			return
 		}
 
-		if err := store.RevokeShareLink(req.Context(), id); err != nil {
+		cl, _ := scope.ResolveCluster(req, reg)
+		if err := store.RevokeShareLink(req.Context(), cl, id); err != nil {
 			httperr.Write(w, req, err)
 			return
 		}
@@ -261,12 +265,16 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		// Touch LastUsed and fetch the server.
 		_ = store.TouchShareLink(req.Context(), link.ID)
 
-		// Resolve to the cluster. The share is scoped to a namespace; in
-		// multi-cluster setups, finding the cluster owning that namespace
-		// is a future enhancement. For now, share links are cluster-scoped
-		// and always resolve to the local cluster.
-		k, ok := resolveCluster(w, req, reg)
+		// Resolve to the originating cluster recorded in the share link.
+		targetCluster := link.Cluster
+		if targetCluster == "" {
+			targetCluster = scope.DefaultCluster
+		}
+		k, ok := reg.Get(targetCluster)
 		if !ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -333,9 +341,16 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		// Touch LastUsed.
 		_ = store.TouchShareLink(req.Context(), link.ID)
 
-		// Wake the server (same pattern as wakeHandler).
-		k, ok := resolveCluster(w, req, reg)
+		// Wake the server on the originating cluster recorded in the share link.
+		targetCluster := link.Cluster
+		if targetCluster == "" {
+			targetCluster = scope.DefaultCluster
+		}
+		k, ok := reg.Get(targetCluster)
 		if !ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 

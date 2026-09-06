@@ -489,6 +489,14 @@ func TestTunnelCreds_DeleteRefusedWhenTunnelEnabled(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-server-tunnel-auth",
 			Namespace: "gameplane-games",
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "gameplane.local/v1alpha1",
+					Kind:       "GameServer",
+					Name:       "test-server",
+					UID:        "test-uid-12345",
+				},
+			},
 		},
 		StringData: map[string]string{"token": "my-token"},
 	}
@@ -560,6 +568,14 @@ func TestTunnelCreds_DeleteSucceedsWhenTunnelDisabled(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-server-tunnel-auth",
 			Namespace: "gameplane-games",
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "gameplane.local/v1alpha1",
+					Kind:       "GameServer",
+					Name:       "test-server",
+					UID:        "test-uid-12345",
+				},
+			},
 		},
 		StringData: map[string]string{"token": "my-token"},
 	}
@@ -643,5 +659,85 @@ func TestTunnelCreds_GetMissingSecret(t *testing.T) {
 	}
 	if resp.SecretName != "missing-secret" {
 		t.Fatalf("should still return the referenced secret name; got %q", resp.SecretName)
+	}
+}
+
+func TestTunnelCreds_Put_ExistingUnownedSecretConflict(t *testing.T) {
+	gs := newGameServer("gameplane-games", "test-server")
+	k := fakeKubeClient(gs)
+	router := newTunnelCredsRouter(k)
+
+	// Create an unowned secret with the canonical name
+	unownedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-server-tunnel-auth",
+			Namespace: "gameplane-games",
+			// No OwnerReferences
+		},
+		Data: map[string][]byte{"token": []byte("initial")},
+	}
+	if _, err := k.Typed.CoreV1().Secrets("gameplane-games").Create(context.Background(), unownedSecret, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create unowned secret: %v", err)
+	}
+
+	body := putReq{
+		Provider: "frp",
+		Values:   map[string]string{"token": "new-token"},
+	}
+	status, _ := doTunnelReq(t, router, "PUT", "/servers/test-server:tunnel-credentials", body)
+	if status != http.StatusConflict {
+		t.Fatalf("PUT on unowned secret status = %d, want 409 Conflict", status)
+	}
+}
+
+func TestTunnelCreds_Delete_UnownedSecretForbidden(t *testing.T) {
+	gs := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "gameplane.local/v1alpha1",
+			"kind":       "GameServer",
+			"metadata": map[string]any{
+				"name":      "test-server",
+				"namespace": "gameplane-games",
+				"uid":       "test-uid-12345",
+			},
+			"spec": map[string]any{
+				"template": "minecraft-java",
+				"networking": map[string]any{
+					"expose": "ClusterIP",
+					"tunnel": map[string]any{
+						"enabled": false,
+						"credentialsSecretRef": map[string]any{
+							"name": "foreign-secret",
+						},
+					},
+				},
+			},
+		},
+	}
+	k := fakeKubeClient(gs)
+	router := newTunnelCredsRouter(k)
+
+	// Create a secret NOT owned by test-server (e.g. backup or another server)
+	foreignSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foreign-secret",
+			Namespace: "gameplane-games",
+			// No OwnerReferences to test-server
+		},
+		Data: map[string][]byte{"password": []byte("secret-pass")},
+	}
+	if _, err := k.Typed.CoreV1().Secrets("gameplane-games").Create(context.Background(), foreignSecret, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create foreign secret: %v", err)
+	}
+
+	status, _ := doTunnelReq(t, router, "DELETE", "/servers/test-server:tunnel-credentials", nil)
+	if status != http.StatusForbidden {
+		t.Fatalf("DELETE referencing unowned secret status = %d, want 403 Forbidden", status)
+	}
+
+	// Verify foreign secret was NOT deleted
+	sec, err := k.Typed.CoreV1().Secrets("gameplane-games").Get(context.Background(), "foreign-secret", metav1.GetOptions{})
+	if err != nil || sec == nil {
+		t.Fatal("foreign secret was deleted! Must be preserved.")
 	}
 }

@@ -98,31 +98,32 @@ func TestServerNameFromPath(t *testing.T) {
 
 func TestParseServerPath(t *testing.T) {
 	cases := map[string]struct {
-		path string
-		name string
-		verb string
-		ok   bool
+		path    string
+		name    string
+		verb    string
+		isExact bool
+		ok      bool
 	}{
-		"simple":                            {"/servers/alpha", "alpha", "", true},
-		"with transfer verb":                {"/servers/alpha:transfer", "alpha", "transfer", true},
-		"with collaborators verb":           {"/servers/alpha:collaborators", "alpha", "collaborators", true},
-		"with wipe-data verb":               {"/servers/alpha:wipe-data", "alpha", "wipe-data", true},
-		"with clone verb":                   {"/servers/alpha:clone", "alpha", "clone", true},
-		"with subpath":                      {"/servers/alpha/files", "alpha", "", true},
-		"with subpath and name":             {"/servers/alpha/players", "alpha", "", true},
-		"ws simple":                         {"/ws/servers/alpha", "alpha", "", true},
-		"ws with verb":                      {"/ws/servers/alpha:transfer", "alpha", "transfer", true},
-		"ws with subpath":                   {"/ws/servers/alpha/console", "alpha", "", true},
-		"invalid: verb with trailing slash": {"/servers/alpha:transfer/extra", "", "", false},
-		"invalid: verb with subpath":        {"/servers/alpha:clone/files", "", "", false},
-		"list":                              {"/servers", "", "", false},
-		"empty name":                        {"/servers/", "", "", false},
-		"wrong segment":                     {"/backups/alpha", "", "", false},
+		"simple":                            {"/servers/alpha", "alpha", "", true, true},
+		"with transfer verb":                {"/servers/alpha:transfer", "alpha", "transfer", false, true},
+		"with collaborators verb":           {"/servers/alpha:collaborators", "alpha", "collaborators", false, true},
+		"with wipe-data verb":               {"/servers/alpha:wipe-data", "alpha", "wipe-data", false, true},
+		"with clone verb":                   {"/servers/alpha:clone", "alpha", "clone", false, true},
+		"with subpath":                      {"/servers/alpha/files", "alpha", "", false, true},
+		"with subpath and name":             {"/servers/alpha/players", "alpha", "", false, true},
+		"ws simple":                         {"/ws/servers/alpha", "alpha", "", true, true},
+		"ws with verb":                      {"/ws/servers/alpha:transfer", "alpha", "transfer", false, true},
+		"ws with subpath":                   {"/ws/servers/alpha/console", "alpha", "", false, true},
+		"invalid: verb with trailing slash": {"/servers/alpha:transfer/extra", "", "", false, false},
+		"invalid: verb with subpath":        {"/servers/alpha:clone/files", "", "", false, false},
+		"list":                              {"/servers", "", "", false, false},
+		"empty name":                        {"/servers/", "", "", false, false},
+		"wrong segment":                     {"/backups/alpha", "", "", false, false},
 	}
 	for label, tc := range cases {
-		name, verb, ok := parseServerPath(tc.path)
-		if ok != tc.ok || name != tc.name || verb != tc.verb {
-			t.Errorf("%s: got (%q, %q, %v) want (%q, %q, %v)", label, name, verb, ok, tc.name, tc.verb, tc.ok)
+		name, verb, isExact, ok := parseServerPath(tc.path)
+		if ok != tc.ok || name != tc.name || verb != tc.verb || isExact != tc.isExact {
+			t.Errorf("%s: got (%q, %q, %v, %v) want (%q, %q, %v, %v)", label, name, verb, isExact, ok, tc.name, tc.verb, tc.isExact, tc.ok)
 		}
 	}
 }
@@ -244,6 +245,44 @@ func TestMiddleware_OwnershipFallback_Owner(t *testing.T) {
 			t.Errorf("owner should be allowed on :wipe-data, got %d called=%v", rr.Code, called)
 		}
 	})
+
+	t.Run("owner without servers:write denied on generic PUT", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{}),
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), "PUT", "/servers/alpha", nil)
+		user := &auth.User{ID: 1, Username: "alice", Role: "viewer"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("owner without servers:write should be denied on generic PUT, got %d", rr.Code)
+		}
+	})
+
+	t.Run("owner without servers:write allowed on sub-resource write", func(t *testing.T) {
+		called := false
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(204)
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha/files/write", nil)
+		user := &auth.User{ID: 1, Username: "alice", Role: "viewer"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != 204 || !called {
+			t.Errorf("owner should be allowed on sub-resource write, got %d called=%v", rr.Code, called)
+		}
+	})
 }
 
 func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
@@ -316,6 +355,44 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 
 		if rr.Code != http.StatusForbidden {
 			t.Errorf("collaborator should be denied on :wipe-data, got %d", rr.Code)
+		}
+	})
+
+	t.Run("collaborator denied on generic PUT", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), "PUT", "/servers/alpha", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("collaborator should be denied on generic PUT, got %d", rr.Code)
+		}
+	})
+
+	t.Run("collaborator allowed on sub-resource write", func(t *testing.T) {
+		called := false
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(204)
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha/files/write", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != 204 || !called {
+			t.Errorf("collaborator should be allowed on sub-resource write, got %d called=%v", rr.Code, called)
 		}
 	})
 
