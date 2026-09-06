@@ -137,8 +137,8 @@ describe("TopBar", () => {
       />
     );
 
-    // Find the avatar fallback element by its content (initials "AD" from "Alice Developer")
-    const avatarFallback = screen.getByText("AD");
+    // Find the avatar fallback element by its content (initials "AL" from "Alice Developer" — first 2 chars)
+    const avatarFallback = screen.getByText("AL");
     expect(avatarFallback).toBeInTheDocument();
     expect(avatarFallback).toHaveClass("bg-accent");
     expect(avatarFallback).toHaveClass("text-accent-foreground");

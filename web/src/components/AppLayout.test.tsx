@@ -224,8 +224,10 @@ describe("AppLayout", () => {
     // "operator"/"Alice" also appear a second time in the TopBar's user-menu
     // dropdown item, so scope to the sign-out button's own footer row (the
     // fixed sidebar's profile footer — the only one mounted while the
-    // mobile drawer is closed) to keep the match unique.
-    const signOut = await screen.findByTitle("Sign out");
+    // mobile drawer is closed) to keep the match unique. The HeroUI Drawer
+    // does not mount its content while closed, so only the fixed sidebar's
+    // button is in the DOM.
+    const signOut = (await screen.findAllByRole("button", { name: /sign out/i }))[0];
     const footer = signOut.closest("div")!.parentElement!;
     expect(await within(footer).findByText("operator")).toBeInTheDocument();
     expect(within(footer).getByText("Alice")).toBeInTheDocument();
@@ -238,7 +240,7 @@ describe("AppLayout", () => {
       ),
     );
     renderWithQuery(<AppLayout />);
-    const signOut = await screen.findByTitle("Sign out");
+    const signOut = (await screen.findAllByRole("button", { name: /sign out/i }))[0];
     const footer = signOut.closest("div")!.parentElement!;
     expect(await within(footer).findByText("bob")).toBeInTheDocument();
   });
@@ -394,7 +396,7 @@ describe("AppLayout", () => {
       );
       renderWithQuery(<AppLayout />);
       await waitFor(() => expect(sidebarNav().getByRole("link", { name: /Dashboard/i })).toBeInTheDocument());
-      const logoutBtn = screen.getByTitle("Sign out");
+      const logoutBtn = screen.getAllByRole("button", { name: /sign out/i })[0];
       await userEvent.click(logoutBtn);
       await waitFor(() => {
         expect(window.location.assign).toHaveBeenCalledWith("/login");
