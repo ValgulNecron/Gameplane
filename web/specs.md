@@ -347,7 +347,7 @@ All 11 sections render form controls from HeroUI (TextField, Select, Slider, Swi
 8. **Network capture** (`web/src/routes/tabs/settings/NetworkCapture.tsx`) — Capture enabled toggle, BPF filter input, retention policy via HeroUI Switch/TextField/Select; warning banner via hero/ component
 9. **Placement** (`web/src/routes/tabs/settings/Placement.tsx`) — Node affinity rules, pod-node-selector builder via HeroUI form components
 10. **RBAC & access** (`web/src/routes/tabs/settings/Access.tsx`) — Per-role read/exec/admin permissions toggle matrix via HeroUI Switch grid
-11. **Danger zone** (`web/src/routes/tabs/settings/Danger.tsx`) — Destructive action buttons (Delete server, Wipe world, Transfer to another cluster) wired to confirmation dialogs via HeroUI Button (danger variant) + hero/ ConfirmDialog
+11. **Danger zone** (`web/src/routes/tabs/settings/Danger.tsx`) — Destructive action buttons (Delete server, Wipe world, Transfer ownership to another user) wired to confirmation dialogs via HeroUI Button (danger variant) + hero/ ConfirmDialog
 
 ### New Components (T112–T115)
 
