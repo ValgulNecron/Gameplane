@@ -363,7 +363,7 @@
 ### Documentation & Closeout
 
 - [X] T162 [US4] Update web/specs.md to document the rebuilt admin component layer (replacing old primitives with HeroUI definitions for Admin Settings, Users, Audit, System Logs, and Cluster routes), reflecting the new family per FR-013.
-- [ ] T163 Apply PR labels to the slice 4 (014f-admin) pull request via the REST API per CLAUDE.md rule 14: `gh api -X POST repos/ValgulNecron/Gameplane/issues/<pr-number>/labels -f "labels[]=type: refactor" -f "labels[]=area: web"`; verify with `gh api repos/ValgulNecron/Gameplane/issues/<pr-number>/labels -q '[.[].name]|join(", ")'`.
+- [X] T163 Apply PR labels to the slice 4 (014f-admin) pull request via the REST API per CLAUDE.md rule 14: `gh api -X POST repos/ValgulNecron/Gameplane/issues/<pr-number>/labels -f "labels[]=type: refactor" -f "labels[]=area: web"`; verify with `gh api repos/ValgulNecron/Gameplane/issues/<pr-number>/labels -q '[.[].name]|join(", ")'`.
 
 **Checkpoint**: US4 fully functional, slice PR green on the `web`, `web-e2e-mock` and `e2e-web-live` jobs, screenshot comparison accepted, merged before the next slice is cut
 
