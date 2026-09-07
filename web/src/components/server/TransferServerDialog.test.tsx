@@ -277,11 +277,11 @@ describe("TransferServerDialog", () => {
     });
     await userEvent.click(bobOption);
 
-    const transferBtn = screen.getByRole("button", { name: "Transfer" });
+    const transferBtn = await screen.findByRole("button", { name: "Transfer" });
     await userEvent.click(transferBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/transfer failed/)).toBeInTheDocument();
+      expect(screen.getByText(/Transfer failed/)).toBeInTheDocument();
     });
   });
 
@@ -317,7 +317,7 @@ describe("TransferServerDialog", () => {
     });
     await userEvent.click(bobOption);
 
-    const transferBtn = screen.getByRole("button", { name: "Transfer" });
+    const transferBtn = await screen.findByRole("button", { name: "Transfer" });
     await userEvent.click(transferBtn);
 
     await waitFor(() => {
@@ -354,7 +354,7 @@ describe("TransferServerDialog", () => {
     });
     await userEvent.click(bobOption);
 
-    const transferBtn = screen.getByRole("button", { name: "Transfer" });
+    const transferBtn = await screen.findByRole("button", { name: "Transfer" });
     await userEvent.click(transferBtn);
 
     await waitFor(() => {

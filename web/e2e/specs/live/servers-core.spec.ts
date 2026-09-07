@@ -174,14 +174,14 @@ test.describe("live: servers core (list + detail)", () => {
 
     // The header's own actions menu (not a row menu) hosts the same four
     // dialogs on Server Detail.
-    const openMenuAndDialog = async (itemName: RegExp, dialogHeading: RegExp) => {
+    const openMenuAndDialog = async (itemName: RegExp, dialogHeading: RegExp, role: "dialog" | "alertdialog" = "dialog") => {
       await page.getByRole("button", { name: /server actions/i }).click();
       await page.getByRole("menuitem", { name: itemName }).click();
       // The dropdown's own popover is role="dialog" too and can still be
       // mid-exit-animation (data-exiting) when the modal opens, so a bare
       // getByRole("dialog") is a strict-mode violation — scope by the
       // modal's own accessible name (its heading) to pick the right one.
-      const dialog = page.getByRole("dialog", { name: dialogHeading });
+      const dialog = page.getByRole(role, { name: dialogHeading });
       await expect(dialog).toBeVisible({ timeout: 10_000 });
       await expect(dialog.getByRole("heading", { name: dialogHeading })).toBeVisible();
       await dialog.getByRole("button", { name: /^cancel$/i }).click();
@@ -190,9 +190,9 @@ test.describe("live: servers core (list + detail)", () => {
 
     await openMenuAndDialog(/clone server/i, /^clone server$/i);
     await openMenuAndDialog(/transfer ownership/i, new RegExp(`transfer ${serverName}`, "i"));
-    await openMenuAndDialog(/wipe world data/i, /^wipe world\?$/i);
+    await openMenuAndDialog(/wipe world data/i, /^wipe world\?$/i, "alertdialog");
     // Delete's confirm dialog title is "Delete <name>?" (ConfirmDialog).
-    await openMenuAndDialog(/delete server/i, new RegExp(`delete ${serverName}\\?`, "i"));
+    await openMenuAndDialog(/delete server/i, new RegExp(`delete ${serverName}\\?`, "i"), "alertdialog");
 
     // The server must still exist — every dialog above was cancelled, not
     // confirmed. Reload and confirm the heading still renders.
