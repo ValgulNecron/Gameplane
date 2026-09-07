@@ -48,7 +48,7 @@ describe("UsersPage Invite dialog", () => {
   it("opens on Invite click and disables Create until username set", async () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: /Invite user/i }));
-    expect(await screen.findByRole("heading", { name: /Invite user/i })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
     const submit = screen.getByRole("button", { name: /Create user/i });
     expect(submit).toBeDisabled();
   });
@@ -56,7 +56,7 @@ describe("UsersPage Invite dialog", () => {
   it("validates password length", async () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: /Invite user/i }));
-    await screen.findByRole("heading", { name: /Invite user/i });
+    await screen.findByRole("dialog");
     const usernameInput = screen.getByPlaceholderText("alice") as HTMLInputElement;
     await userEvent.type(usernameInput, "newuser");
     const pwInput = screen.getByPlaceholderText(/At least 12 characters/);
@@ -69,7 +69,7 @@ describe("UsersPage Invite dialog", () => {
     create.mockResolvedValue({ id: 99 });
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: /Invite user/i }));
-    await screen.findByRole("heading", { name: /Invite user/i });
+    await screen.findByRole("dialog");
     const usernameInput = screen.getByPlaceholderText("alice") as HTMLInputElement;
     await userEvent.type(usernameInput, "newuser");
     await userEvent.click(screen.getByRole("button", { name: /Create user/i }));
@@ -81,10 +81,10 @@ describe("UsersPage Invite dialog", () => {
   it("Cancel closes the dialog", async () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: /Invite user/i }));
-    await screen.findByRole("heading", { name: /Invite user/i });
+    await screen.findByRole("dialog");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() =>
-      expect(screen.queryByRole("heading", { name: /Invite user/i })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
   });
 });
