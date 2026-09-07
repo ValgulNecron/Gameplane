@@ -298,7 +298,7 @@ export function ServersPage() {
             <Table.ScrollContainer>
               <Table.Content aria-label="Server list">
                 <Table.Header>
-                  <Table.Column id="name">Name</Table.Column>
+                  <Table.Column id="name" isRowHeader>Name</Table.Column>
                   <Table.Column id="game">Game</Table.Column>
                   <Table.Column id="status">Status</Table.Column>
                   <Table.Column id="cpu">CPU</Table.Column>
