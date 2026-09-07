@@ -488,4 +488,29 @@ describe("SettingsTab", () => {
       expect(screen.getByRole("tab", { name: /^Version$/i })).toBeInTheDocument();
     });
   });
+
+  it("navigates to Share links section between Access and Danger tabs", async () => {
+    stubTemplate();
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
+
+    // Share links tab should exist
+    const shareLinksTab = screen.getByRole("tab", { name: /Share links/i });
+    expect(shareLinksTab).toBeInTheDocument();
+
+    // Click to navigate to Share links section
+    fireEvent.click(shareLinksTab);
+
+    // Section should render
+    await waitFor(() => {
+      expect(screen.getByText(/Let people without a Gameplane account/i)).toBeInTheDocument();
+    });
+
+    // Verify it's between Access and Danger by checking tab order
+    const tabs = screen.getAllByRole("tab");
+    const accessIdx = tabs.findIndex((t) => t.textContent?.includes("RBAC"));
+    const shareLinksIdx = tabs.findIndex((t) => t.textContent?.includes("Share links"));
+    const dangerIdx = tabs.findIndex((t) => t.textContent?.includes("Danger"));
+    expect(accessIdx).toBeLessThan(shareLinksIdx);
+    expect(shareLinksIdx).toBeLessThan(dangerIdx);
+  });
 });

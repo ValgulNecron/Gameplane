@@ -766,6 +766,10 @@ export const ModuleSources = {
     api<ModuleSource>(`/modules/sources/${name}`, { method: "PUT", body: spec }),
   remove: (name: string) =>
     api<void>(`/modules/sources/${name}`, { method: "DELETE" }),
+  upload: (source: string, file: Blob, opts?: { dryRun?: boolean }) =>
+    uploadBundle(source, file, opts),
+  removeUpload: (source: string, module: string) =>
+    api<void>(`/modules/sources/${source}/upload/${module}`, { method: "DELETE" }),
 };
 
 // Share link endpoint paths for authenticated (create, list, revoke) and public

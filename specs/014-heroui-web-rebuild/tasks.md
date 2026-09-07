@@ -403,7 +403,7 @@
 - [X] T176 [US5] Implement Create Share Link dialog inside ShareLinks.tsx as a HeroUI Modal with label Input, expiry Select, allow-start Switch, and Create button; submit via the create mutation; show validation errors; update ShareLinks.test.tsx with dialog open/close and submit tests.
 - [X] T177 [US5] Implement Share Link Created confirmation dialog inside ShareLinks.tsx as HeroUI Modal displaying the full URL with a copy-to-clipboard button and 'won't be shown again' warning; include test for copy action in ShareLinks.test.tsx.
 - [X] T178 [US5] Implement Revoke Share Link dialog inside ShareLinks.tsx as HeroUI AlertDialog/Danger confirming revocation; trigger via table row action; call revoke mutation; update ShareLinks.test.tsx with revoke confirmation and after-delete table refresh test.
-- [ ] T179 [US5] Add ShareLinks section to web/src/routes/tabs/Settings.tsx between Access and Danger sections, rendering the ShareLinks component conditionally on write permission; import ShareLinks from './settings/ShareLinks'; update Settings.test.tsx with ShareLinks section rendering test.
+- [X] T179 [US5] Add ShareLinks section to web/src/routes/tabs/Settings.tsx between Access and Danger sections, rendering the ShareLinks component conditionally on write permission; import ShareLinks from './settings/ShareLinks'; update Settings.test.tsx with ShareLinks section rendering test.
 - [X] T180 [US5] Run tsc --noEmit in web/ directory to verify all ShareLinks types and Settings integration compile without errors.
 
 ### UI: Public share page with five states

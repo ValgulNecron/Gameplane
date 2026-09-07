@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SharePage } from "./Share";
 import { Shares, APIError } from "@/lib/api";
 
+const mockUseParams = vi.fn();
+
 vi.mock("@/lib/api", () => ({
   Shares: {
     resolve: vi.fn(),
@@ -18,8 +20,6 @@ vi.mock("@/lib/api", () => ({
     }
   },
 }));
-
-let mockUseParams = vi.fn();
 
 vi.mock("@tanstack/react-router", async () => {
   const actual = await vi.importActual("@tanstack/react-router");

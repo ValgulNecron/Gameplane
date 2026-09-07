@@ -429,7 +429,7 @@ export function ShareLinksSection({ name, ns }: ShareLinksProps) {
           <Table.Root>
             <Table.Content aria-label="Share links">
               <Table.Header>
-                <Table.Column>Created</Table.Column>
+                <Table.Column isRowHeader>Created</Table.Column>
                 <Table.Column>Expires</Table.Column>
                 <Table.Column>Can start</Table.Column>
                 <Table.Column>Status</Table.Column>

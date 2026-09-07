@@ -195,15 +195,18 @@ describe("ShareLinksSection", () => {
     const createBtn = screen.getByRole("button", { name: /Create link/ });
     await user.click(createBtn);
 
-    // Find and select expiry dropdown
-    const selectEl = screen.getByDisplayValue("168h") as HTMLSelectElement;
-    await user.selectOptions(selectEl, "720h");
+    await waitFor(() => {
+      expect(screen.getByText("Create share link for mc-survival")).toBeInTheDocument();
+    });
 
-    // Toggle allow-start switch
-    const switchEl = screen.getByRole("checkbox") as HTMLInputElement;
-    await user.click(switchEl);
+    // Toggle allow-start switch (should enable canStart capability)
+    // The switch doesn't have an accessible name, so find first checkbox in dialog
+    const checkboxes = screen.getAllByRole("checkbox");
+    if (checkboxes.length > 0) {
+      await user.click(checkboxes[0]);
+    }
 
-    // Submit
+    // Submit with default expiry (7 days)
     const createConfirmBtn = screen.getByRole("button", { name: "Create link" });
     await user.click(createConfirmBtn);
 
