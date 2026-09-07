@@ -753,7 +753,10 @@ describe("CaptureWidget", () => {
       // timeout (asyncUtilTimeout == testTimeout). Exact matching pins the
       // query to the expiry badge, whose whole text is "1h".
       const expiryCell = await screen.findByText("1h");
-      expect(expiryCell.className).toContain("text-warning");
+      // In HeroUI v3, the Chip color is applied at the root span level via Tailwind variants,
+      // not as a plain className on the label. Check the parent element (the Chip root).
+      const chipRoot = expiryCell.closest("span[data-color]");
+      expect(chipRoot).toHaveAttribute("data-color", "warning");
     });
 
     it("displays capture count at the bottom", async () => {
@@ -1613,7 +1616,10 @@ describe("CaptureWidget", () => {
       // Duration cell ("1h 0m" from makeCapture's defaults) and a relative
       // "Completed at" cell, either of which a loose regex could grow into.
       const expiryBadge = await screen.findByText("30m");
-      expect(expiryBadge.className).toContain("text-danger");
+      // In HeroUI v3, the Chip color is applied at the root span level via Tailwind variants,
+      // not as a plain className on the label. Check the parent element (the Chip root).
+      const chipRoot = expiryBadge.closest("span[data-color]");
+      expect(chipRoot).toHaveAttribute("data-color", "danger");
     });
 
     it("displays expiry badge with warning tone when 1-6 hours remaining", async () => {
@@ -1639,7 +1645,10 @@ describe("CaptureWidget", () => {
       // Should show 2h with warning tone; exact match for the same
       // single-element reason as the 30m case above.
       const expiryBadge = await screen.findByText("2h");
-      expect(expiryBadge.className).toContain("text-warning");
+      // In HeroUI v3, the Chip color is applied at the root span level via Tailwind variants,
+      // not as a plain className on the label. Check the parent element (the Chip root).
+      const chipRoot = expiryBadge.closest("span[data-color]");
+      expect(chipRoot).toHaveAttribute("data-color", "warning");
     });
 
     it("displays expiry badge with muted tone when more than 6 hours remaining", async () => {
@@ -1665,7 +1674,11 @@ describe("CaptureWidget", () => {
       // Should show 24h with muted tone; exact match for the same
       // single-element reason as the 30m case above.
       const expiryBadge = await screen.findByText("24h");
-      expect(expiryBadge.className).toContain("text-muted");
+      // In HeroUI v3, the Chip color is applied at the root span level via Tailwind variants,
+      // not as a plain className on the label. Check the parent element (the Chip root).
+      // More than 6 hours remaining uses "default" color (visually muted/neutral).
+      const chipRoot = expiryBadge.closest("span[data-color]");
+      expect(chipRoot).toHaveAttribute("data-color", "default");
     });
 
     it("displays expiry badge with em-dash when expiresAt is missing", async () => {
