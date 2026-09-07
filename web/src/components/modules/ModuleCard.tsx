@@ -282,7 +282,7 @@ function shortDigest(d: string): string {
 
 function StatusPill({ entry }: { entry: CatalogEntry }) {
   let label = "available";
-  let color: "default" | "success" | "primary" | "danger" | "warning" = "default";
+  let color: "default" | "success" | "accent" | "danger" | "warning" = "default";
   if (entry.installed) {
     if (entry.phase === "Ready") {
       label = "installed";
@@ -299,7 +299,7 @@ function StatusPill({ entry }: { entry: CatalogEntry }) {
       // Guarded on the pin genuinely being gone (not a stale status mid-re-pin)
       // and that a newer version is available.
       label = "update";
-      color = "primary";
+      color = "accent";
     } else if (entry.phase === "Failed") {
       label = "failed";
       color = "danger";

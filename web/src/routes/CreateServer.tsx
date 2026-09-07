@@ -411,7 +411,7 @@ export function CreateServerWizard() {
             isIconOnly
             variant="ghost"
             onPress={() => nav({ to: "/" })}
-            title="Close"
+            aria-label="Close"
           >
             <X className="h-5 w-5" />
           </Button>
@@ -1107,7 +1107,7 @@ function TunnelPortMappingsEditor({
             variant="danger"
             isIconOnly
             onPress={() => onChange(values.filter((_, idx) => idx !== i))}
-            title="Delete"
+            aria-label="Delete"
             data-testid={`tunnel-port-delete-${i}`}
           >
             <X className="h-4 w-4" />

@@ -407,9 +407,9 @@ function SchedulesTabPanel() {
                     </Table.Cell>
                     <Table.Cell>
                       <Switch
-                        checked={!s.spec.suspend}
-                        onChange={(e) =>
-                          toggleSuspend.mutate({ name: s.metadata.name, suspend: !e.target.checked })
+                        isSelected={!s.spec.suspend}
+                        onChange={(isSelected) =>
+                          toggleSuspend.mutate({ name: s.metadata.name, suspend: !isSelected })
                         }
                         aria-label="Schedule active"
                       />
