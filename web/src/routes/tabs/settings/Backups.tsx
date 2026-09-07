@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
-  Switch,
   Input,
   Popover,
   PopoverTrigger,
@@ -9,6 +8,7 @@ import {
   ListBox,
   ListBoxItem,
 } from "@heroui/react";
+import { Switch } from "@/components/hero/Switch";
 import { RetentionFields, buildRetention, type RetentionForm } from "@/components/backups/RetentionFields";
 import { useBackupDestinations } from "@/lib/destinations";
 import type { InlineBackupPolicy } from "@/types";

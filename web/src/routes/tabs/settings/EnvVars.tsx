@@ -1,4 +1,4 @@
-import { Input, Button, Chip, FieldError, Table } from "@heroui/react";
+import { Input, Button, Chip, Table } from "@heroui/react";
 import { Lock, Plus, Type, Trash2 } from "lucide-react";
 import type { EnvVar } from "@/types";
 import type { SectionProps } from "./types";
@@ -49,7 +49,7 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
               className="mb-4 max-h-[400px]"
             >
               <Table.Header>
-                <Table.Column key="type" width="80">
+                <Table.Column key="type" width="80" isRowHeader>
                   Type
                 </Table.Column>
                 <Table.Column key="name" width="160">
@@ -91,7 +91,7 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
                       <Table.Cell>
                         <div className="space-y-1">
                           <Input
-                           
+
                             value={v.name}
                             onChange={(e) => update(idx, { ...v, name: e.target.value })}
                             placeholder="VAR_NAME"
@@ -99,14 +99,14 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
                             className="text-xs"
                           />
                           {nameInvalid && (
-                            <FieldError className="text-xs">
+                            <div className="text-xs text-danger">
                               Must match [A-Z_][A-Z0-9_]*
-                            </FieldError>
+                            </div>
                           )}
                           {dup && (
-                            <FieldError className="text-xs">
+                            <div className="text-xs text-danger">
                               Duplicate name
-                            </FieldError>
+                            </div>
                           )}
                         </div>
                       </Table.Cell>

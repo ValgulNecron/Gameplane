@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Switch,
   Input,
   Select,
   ListBox,
@@ -10,6 +9,7 @@ import {
   FieldError,
 } from "@heroui/react";
 import { useMe, can } from "@/lib/auth";
+import { Switch } from "@/components/hero/Switch";
 import type { CaptureConfiguration } from "@/types";
 import type { SectionProps } from "./types";
 

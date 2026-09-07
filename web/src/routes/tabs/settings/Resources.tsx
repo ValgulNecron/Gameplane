@@ -1,10 +1,26 @@
+import { useState } from "react";
 import { Input } from "@heroui/react";
 import type { ResourceRequirements } from "@/types";
 import { isValidQuantity } from "@/lib/validation";
+import { formatCpuQuantity, formatMemQuantity, parseCpuQuantity, parseMemQuantity } from "@/lib/quantity";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
 
+function getCpuDisplayValue(quantity: string): string {
+  const parsed = parseCpuQuantity(quantity);
+  if (!parsed) return quantity;
+  return String(parsed.value);
+}
+
+function getMemoryDisplayValue(quantity: string): string {
+  const parsed = parseMemQuantity(quantity);
+  if (!parsed) return quantity;
+  return String(parsed.value);
+}
+
 export function ResourcesSection({ draft, onChange }: SectionProps) {
+  const [cpuBuffer, setCpuBuffer] = useState<string | null>(null);
+  const [memBuffer, setMemBuffer] = useState<string | null>(null);
   const res = draft.spec.resources ?? {};
 
   const setResources = (next: ResourceRequirements) => {
@@ -33,6 +49,45 @@ export function ResourcesSection({ draft, onChange }: SectionProps) {
 
   const sizeValid = !storage.size || isValidQuantity(storage.size);
 
+  const handleCpuBlur = () => {
+    if (cpuBuffer === null) return;
+    const num = Number(cpuBuffer);
+    if (!Number.isFinite(num)) {
+      setCpuBuffer(null);
+      return;
+    }
+
+    // Parse as cores, clamp to minimum 0.1 (100m), format back to canonical
+    const cores = Math.max(0.1, num);
+    const formatted = formatCpuQuantity({ value: cores, unit: "cores" });
+
+    setCpuBuffer(null);
+    setResources({
+      ...res,
+      requests: { ...res.requests, cpu: formatted },
+      limits: { ...res.limits, cpu: formatted },
+    });
+  };
+
+  const handleMemoryBlur = () => {
+    if (memBuffer === null) return;
+    const num = Number(memBuffer);
+    if (!Number.isFinite(num)) {
+      setMemBuffer(null);
+      return;
+    }
+
+    // Parse as GiB, format back to canonical
+    const formatted = formatMemQuantity({ value: num, unit: "Gi" });
+
+    setMemBuffer(null);
+    setResources({
+      ...res,
+      requests: { ...res.requests, memory: formatted },
+      limits: { ...res.limits, memory: formatted },
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Field
@@ -41,32 +96,22 @@ export function ResourcesSection({ draft, onChange }: SectionProps) {
       >
         <Input
           type="text"
-          value={res.limits?.cpu ?? res.requests?.cpu ?? "2"}
-          onChange={(e) =>
-            setResources({
-              ...res,
-              requests: { ...res.requests, cpu: e.target.value },
-              limits: { ...res.limits, cpu: e.target.value },
-            })
-          }
+          value={cpuBuffer ?? getCpuDisplayValue(res.limits?.cpu ?? res.requests?.cpu ?? "2")}
+          onChange={(e) => setCpuBuffer(e.target.value)}
+          onBlur={handleCpuBlur}
           placeholder="2"
-          aria-label="CPU cores"
+          aria-label="CPU cores value"
         />
       </Field>
 
       <Field label="Memory (GiB)" hint="Sets requests=limits to the same value.">
         <Input
           type="text"
-          value={res.limits?.memory ?? res.requests?.memory ?? "4Gi"}
-          onChange={(e) =>
-            setResources({
-              ...res,
-              requests: { ...res.requests, memory: e.target.value },
-              limits: { ...res.limits, memory: e.target.value },
-            })
-          }
-          placeholder="4Gi"
-          aria-label="Memory (GiB)"
+          value={memBuffer ?? getMemoryDisplayValue(res.limits?.memory ?? res.requests?.memory ?? "4Gi")}
+          onChange={(e) => setMemBuffer(e.target.value)}
+          onBlur={handleMemoryBlur}
+          placeholder="4"
+          aria-label="Memory (GiB) value"
         />
       </Field>
 

@@ -1,4 +1,5 @@
-import { Switch, Input, Button } from "@heroui/react";
+import { Input, Button } from "@heroui/react";
+import { Switch } from "@/components/hero/Switch";
 import type { IdleSpec, Probe, ProbeKind, ProbeSet } from "@/types";
 import { Field } from "./Field";
 import { GRACE_PERIOD_ANNOTATION, type SectionProps } from "./types";
