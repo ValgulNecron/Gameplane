@@ -152,7 +152,7 @@ export function AuditLogPage() {
           <Table.ScrollContainer className="max-h-[70vh]">
             <Table.Content aria-label="Audit log">
               <Table.Header>
-                <Table.Column id="time" className="w-40">Time</Table.Column>
+                <Table.Column id="time" isRowHeader className="w-40">Time</Table.Column>
                 <Table.Column id="actor" className="w-36">Actor</Table.Column>
                 <Table.Column id="action">Action</Table.Column>
                 <Table.Column id="method" className="w-20">Method</Table.Column>
@@ -254,6 +254,8 @@ function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactN
   return (
     <AuditIntegrityBanner
       message={data.message || `Integrity check failed — chain breaks at event #${data.firstBadId}`}
+      onRefetch={() => void query.refetch()}
+      isRefetching={query.isFetching}
     />
   );
 }
