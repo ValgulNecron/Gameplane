@@ -202,11 +202,22 @@ test.describe("live: servers core (list + detail)", () => {
       // animation — actually detaches. Until then it's a full-viewport,
       // pointer-events-opaque div (`data-slot="modal-backdrop"`) sitting
       // over the page, and the next call's click on "Server actions"
-      // retries against it for the rest of the test's timeout. Wait for
-      // every modal backdrop to be gone before handing control back.
-      await expect(page.locator('[data-slot="modal-backdrop"]')).toHaveCount(0, {
-        timeout: 5_000,
-      });
+      // retries against it for the rest of the test's timeout. HeroUI v3's
+      // backdrop animates out (opacity 0) rather than unmounting immediately,
+      // so wait for all backdrops to be either removed from the DOM or
+      // completely invisible (opacity 0).
+      await page.waitForFunction(
+        () => {
+          const backdrops = document.querySelectorAll('[data-slot="modal-backdrop"]');
+          return (
+            backdrops.length === 0 ||
+            Array.from(backdrops).every(
+              (el) => parseFloat(getComputedStyle(el).opacity) === 0,
+            )
+          );
+        },
+        { timeout: 5_000 },
+      );
     };
 
     await openMenuAndDialog(/clone server/i, /^clone server$/i);
