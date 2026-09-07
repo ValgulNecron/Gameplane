@@ -1,11 +1,37 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import * as Dialog from "@radix-ui/react-dialog";
+import {
+  Button,
+  Card,
+  Input,
+  Tabs,
+  Tab,
+  Table,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownSection,
+  DropdownItem,
+  Modal,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalHeading,
+  ModalBody,
+  ModalFooter,
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogContainer,
+  Alert,
+  Label,
+  Description,
+} from "@heroui/react";
 import {
   KeyRound,
   MoreHorizontal,
@@ -15,21 +41,8 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { FieldLabel } from "@/components/ui/field";
-import { TabBar } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
+import { RoleEditorModal } from "@/components/hero/RoleEditorModal";
 import { APIError } from "@/lib/api";
 import { useMe, can } from "@/lib/auth";
 import {
@@ -38,36 +51,25 @@ import {
   type UserCreate,
   type UserUpdate,
 } from "@/lib/endpoints";
-import { cn, formatRelative } from "@/lib/utils";
-import type { ExtendedUser, PermissionGroup, Role, RoleBinding } from "@/types";
+import { formatRelative } from "@/lib/utils";
+import type { ExtendedUser, Role, RoleBinding } from "@/types";
 
 type Tab = "users" | "roles" | "service" | "idp";
 
-const MIN_PASSWORD_LEN = 12; // mirrors api/internal/handlers/users.go
+const MIN_PASSWORD_LEN = 12;
 
-const roleColor: Record<string, string> = {
-  admin: "bg-primary/15 text-primary",
-  operator: "bg-violet/15 text-violet",
-  viewer: "bg-muted/20 text-muted",
-};
-
-function useRolesQuery() {
-  return useQuery({ queryKey: ["roles"], queryFn: () => RolesAPI.list() });
-}
-
-// roleGrantsUserManagement mirrors the server guard: a role can manage
-// users if it holds users:manage or the "*" wildcard.
 function roleGrantsUserManagement(roles: Role[], name: string): boolean {
   const r = roles.find((x) => x.name === name);
   return !!r && (r.permissions.includes("*") || r.permissions.includes("users:manage"));
 }
 
+function useRolesQuery() {
+  return useQuery({ queryKey: ["roles"], queryFn: () => RolesAPI.list() });
+}
+
 export function UsersPage() {
   const qc = useQueryClient();
   const { data: me } = useMe();
-  // Surface a quick jump to the audit log (design parity), but only for
-  // users who can actually read it — the /admin/audit route is gated on
-  // audit:read, so a link for anyone else would dead-end.
   const canAudit = can(me, "audit:read");
   const [tab, setTab] = useState<Tab>("users");
   const [q, setQ] = useState("");
@@ -102,7 +104,6 @@ export function UsersPage() {
     return true;
   });
 
-  // Fire-and-forget; the next render reflects whatever resolves.
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["users"] });
   };
@@ -117,12 +118,12 @@ export function UsersPage() {
             {canAudit && (
               <Link
                 to="/admin/audit"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-fg transition-colors hover:bg-surface"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
               >
                 <ScrollText className="h-4 w-4" /> Audit log
               </Link>
             )}
-            <Button onClick={() => setInviting(true)}>
+            <Button onPress={() => setInviting(true)} variant="primary">
               <Plus className="h-4 w-4" /> Invite user
             </Button>
           </div>
@@ -130,18 +131,30 @@ export function UsersPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <TabBar
-          items={[
-            { key: "users",   label: "Users",              count: counts.users },
-            { key: "roles",   label: "Roles",              count: counts.roles },
-            { key: "service", label: "Service accounts" },
-            { key: "idp",     label: "Identity providers" },
-          ]}
-          value={tab}
-          onChange={setTab}
-        />
+        <Tabs
+          selectedKey={tab}
+          onSelectionChange={(key) => setTab(key as Tab)}
+          variant="secondary"
+        >
+          <Tabs.List>
+            <Tab id="users">
+              <div className="flex items-center gap-2">
+                <span>Users</span>
+                <span className="text-xs text-foreground/60">({counts.users})</span>
+              </div>
+            </Tab>
+            <Tab id="roles">
+              <div className="flex items-center gap-2">
+                <span>Roles</span>
+                <span className="text-xs text-foreground/60">({counts.roles})</span>
+              </div>
+            </Tab>
+            <Tab id="service">Service accounts</Tab>
+            <Tab id="idp">Identity providers</Tab>
+          </Tabs.List>
+        </Tabs>
         <div className="relative ml-auto w-64">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
           <Input
             className="pl-9"
             placeholder={tab === "users" ? "Search users…" : "Search…"}
@@ -153,44 +166,117 @@ export function UsersPage() {
       </div>
 
       {error instanceof APIError && (
-        <Card className="p-3 text-sm text-warning">{error.body || "Failed to load users."}</Card>
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Title>Error loading users</Alert.Title>
+          {error.body && <Alert.Description>{error.body}</Alert.Description>}
+        </Alert>
       )}
 
       {tab === "users" && (
-        <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-                <tr>
-                  <th className="px-4 py-3">User</th>
-                  <th className="px-4 py-3">Role</th>
-                  <th className="px-4 py-3">Provider</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {visible.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-muted">
-                      No entries.
-                    </td>
-                  </tr>
-                )}
+        <Table.Root>
+          <Table.ScrollContainer>
+            <Table.Content aria-label="Users list">
+              <Table.Header>
+                <Table.Column id="user">User</Table.Column>
+                <Table.Column id="role">Role</Table.Column>
+                <Table.Column id="provider">Provider</Table.Column>
+                <Table.Column id="created">Created</Table.Column>
+                <Table.Column id="actions" className="text-right">Actions</Table.Column>
+              </Table.Header>
+              <Table.Body
+                renderEmptyState={() => <span>No entries.</span>}
+              >
                 {visible.map((u) => (
-                  <UserRow
-                    key={u.id}
-                    u={u}
-                    isMe={!!me && me.id === u.id}
-                    onEdit={() => setEditing(u)}
-                    onResetPassword={() => setResetting(u)}
-                    onDelete={() => setDeleting(u)}
-                  />
+              <Table.Row key={u.id}>
+                <Table.Cell>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
+                      {(u.displayName || u.username).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate font-mono text-sm text-foreground">
+                        {u.username}
+                        {me && me.id === u.id && (
+                          <span className="ml-2 rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] text-foreground/70">
+                            you
+                          </span>
+                        )}
+                      </div>
+                      <div className="truncate text-[11px] text-foreground/60">
+                        {u.displayName || u.email || "—"}
+                      </div>
+                      {u.email && u.displayName && u.displayName !== u.email && (
+                        <div className="truncate text-[11px] text-foreground/60">{u.email}</div>
+                      )}
+                    </div>
+                  </div>
+                </Table.Cell>
+                <Table.Cell>
+                  <span className="rounded px-2 py-0.5 text-[10px] font-mono uppercase bg-primary/10 text-primary">
+                    {u.role}
+                  </span>
+                </Table.Cell>
+                <Table.Cell>
+                  <span className="rounded px-2 py-0.5 text-[10px] uppercase text-foreground/60 ring-1 ring-border">
+                    {u.provider === "oidc" ? "OIDC" : u.provider === "pending" ? "Pending" : "Local"}
+                  </span>
+                </Table.Cell>
+                <Table.Cell className="text-foreground/60">{formatRelative(u.createdAt)}</Table.Cell>
+                <Table.Cell>
+                  <Dropdown>
+                    <DropdownTrigger>
+                      <Button
+                        isIconOnly
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Actions for ${u.username}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu aria-label={`Actions for ${u.username}`}>
+                      <DropdownItem
+                        key="edit"
+                        onPress={() => setEditing(u)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Pencil className="h-4 w-4" />
+                          Edit user
+                        </div>
+                      </DropdownItem>
+                      <DropdownItem
+                        key="reset"
+                        isDisabled={u.provider === "oidc"}
+                        onPress={() => setResetting(u)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <KeyRound className="h-4 w-4" />
+                          Reset password
+                        </div>
+                      </DropdownItem>
+                      <DropdownSection>
+                        <DropdownItem
+                          key="delete"
+                          variant="danger"
+                          isDisabled={Boolean(me && me.id === u.id)}
+                          onPress={() => setDeleting(u)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Trash2 className="h-4 w-4" />
+                            Delete user
+                          </div>
+                        </DropdownItem>
+                      </DropdownSection>
+                    </DropdownMenu>
+                  </Dropdown>
+                </Table.Cell>
+              </Table.Row>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table.Root>
       )}
 
       {tab === "roles" && <RolesTab />}
@@ -198,7 +284,7 @@ export function UsersPage() {
       {tab === "idp" && <IdpTab />}
 
       {inviting && (
-        <InviteModal
+        <InviteUserForm
           roles={roles}
           onClose={() => setInviting(false)}
           onCreated={() => {
@@ -208,7 +294,7 @@ export function UsersPage() {
         />
       )}
       {editing && (
-        <EditUserModal
+        <EditUserForm
           user={editing}
           roles={roles}
           isMe={!!me && me.id === editing.id}
@@ -220,7 +306,7 @@ export function UsersPage() {
         />
       )}
       {resetting && (
-        <ResetPasswordModal
+        <ResetPasswordForm
           user={resetting}
           onClose={() => setResetting(null)}
           onDone={() => setResetting(null)}
@@ -241,143 +327,20 @@ export function UsersPage() {
   );
 }
 
-function UserRow({
-  u,
-  isMe,
-  onEdit,
-  onResetPassword,
-  onDelete,
-}: {
-  u: ExtendedUser;
-  isMe: boolean;
-  onEdit: () => void;
-  onResetPassword: () => void;
-  onDelete: () => void;
-}) {
-  const initials = (u.displayName || u.username).slice(0, 2).toUpperCase();
-  return (
-    <tr className="hover:bg-surface/40">
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
-            {initials}
-          </div>
-          <div className="min-w-0">
-            <div className="truncate font-mono text-sm text-fg">
-              {u.username}
-              {isMe && (
-                <span className="ml-2 rounded bg-muted/20 px-1.5 py-0.5 text-[10px] text-muted">
-                  you
-                </span>
-              )}
-            </div>
-            <div className="truncate text-[11px] text-muted">
-              {u.displayName || u.email || "—"}
-            </div>
-            {/* Email subline — skipped when the email is already what the
-                line above shows (no display name set). */}
-            {u.email && u.displayName && u.displayName !== u.email && (
-              <div className="truncate text-[11px] text-muted">{u.email}</div>
-            )}
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <span
-          className={cn(
-            "rounded px-2 py-0.5 text-[10px] font-mono uppercase",
-            roleColor[u.role] ?? "bg-muted/20 text-muted",
-          )}
-        >
-          {u.role}
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <span className="rounded px-2 py-0.5 text-[10px] uppercase text-muted ring-1 ring-border">
-          {u.provider === "oidc" ? "OIDC" : u.provider === "pending" ? "Pending" : "Local"}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-muted">{formatRelative(u.createdAt)}</td>
-      <td className="px-4 py-3 text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="rounded p-1 text-muted hover:bg-border hover:text-fg focus:outline-hidden focus:ring-1 focus:ring-primary"
-              aria-label={`Actions for ${u.username}`}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem
-              icon={<Pencil className="h-4 w-4" />}
-              onSelect={onEdit}
-              label="Edit user"
-            />
-            <DropdownMenuItem
-              icon={<KeyRound className="h-4 w-4" />}
-              onSelect={onResetPassword}
-              label="Reset password"
-              disabled={u.provider === "oidc"}
-              hint={u.provider === "oidc" ? "Account is OIDC-managed" : undefined}
-            />
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              icon={<Trash2 className="h-4 w-4" />}
-              onSelect={onDelete}
-              label="Delete user"
-              destructive
-              disabled={isMe}
-              hint={isMe ? "You can’t delete your own account" : undefined}
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </td>
-    </tr>
-  );
-}
-
-function ModalShell({
-  open,
-  onOpenChange,
-  title,
-  description,
-  children,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  title: string;
-  description?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">{title}</Dialog.Title>
-          {description && (
-            <Dialog.Description asChild>
-              <div className="pt-1 text-sm text-muted">{description}</div>
-            </Dialog.Description>
-          )}
-          <div className="pt-4">{children}</div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
 function ErrorLine({ error }: { error: unknown }) {
   if (!error) return null;
   const text =
     error instanceof APIError
       ? error.body || `Request failed (${error.status})`
       : (error as Error).message;
-  return <div className="pt-2 text-xs text-danger">{text}</div>;
+  return (
+    <p role="alert" className="pt-2 text-xs text-danger">
+      {text}
+    </p>
+  );
 }
 
-function InviteModal({
+function InviteUserForm({
   roles,
   onClose,
   onCreated,
@@ -411,77 +374,132 @@ function InviteModal({
     !form.username || passwordTooShort || create.isPending;
 
   return (
-    <ModalShell
-      open
-      onOpenChange={(v) => !v && onClose()}
-      title="Invite user"
-      description="Create a local account. Leave password blank to send an OIDC invite later."
-    >
-      <div className="space-y-3">
-        <FieldLabel label="Username">
-          <Input
-            autoFocus
-            value={form.username}
-            onChange={(e) => setForm({ ...form, username: e.target.value })}
-            placeholder="alice"
-          />
-        </FieldLabel>
-        <div className="grid grid-cols-2 gap-3">
-          <FieldLabel label="Display name">
-            <Input
-              value={form.displayName ?? ""}
-              onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-              placeholder="Alice Operator"
-            />
-          </FieldLabel>
-          <FieldLabel label="Email">
-            <Input
-              type="email"
-              value={form.email ?? ""}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="alice@example.com"
-            />
-          </FieldLabel>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel label="Initial password">
+    <Modal isOpen onOpenChange={(open) => !open && onClose()}>
+      <ModalBackdrop isDismissable={!create.isPending} isKeyboardDismissDisabled={create.isPending} />
+      <ModalContainer>
+        <ModalDialog>
+          <ModalHeader>
+            <ModalHeading>Invite user</ModalHeading>
+          </ModalHeader>
+
+          <ModalBody className="gap-4">
+            <Description>Create a local account. Leave password blank to send an OIDC invite later.</Description>
+
+            <div>
+              <Label htmlFor="invite-username" className="text-xs">
+                Username
+              </Label>
               <Input
-                type="password"
-                value={form.password ?? ""}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
+                id="invite-username"
+                autoFocus
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                placeholder="alice"
+                className="mt-1"
+                disabled={create.isPending}
               />
-            </FieldLabel>
-            {passwordTooShort && (
-              <div className="pt-1 text-[11px] text-danger">
-                At least {MIN_PASSWORD_LEN} characters.
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="invite-display-name" className="text-xs">
+                  Display name
+                </Label>
+                <Input
+                  id="invite-display-name"
+                  value={form.displayName ?? ""}
+                  onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+                  placeholder="Alice Operator"
+                  className="mt-1"
+                  disabled={create.isPending}
+                />
               </div>
-            )}
-          </div>
-          <FieldLabel label="Role">
-            <Select
-              value={form.role}
-              onValueChange={(v) => setForm({ ...form, role: v })}
-              options={roles.map((r) => ({ value: r.name, label: r.name }))}
-            />
-          </FieldLabel>
-        </div>
-        <ErrorLine error={create.error} />
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} disabled={create.isPending}>
-            Cancel
-          </Button>
-          <Button onClick={() => create.mutate()} disabled={submitDisabled}>
-            {create.isPending ? "Creating…" : "Create user"}
-          </Button>
-        </div>
-      </div>
-    </ModalShell>
+
+              <div>
+                <Label htmlFor="invite-email" className="text-xs">
+                  Email
+                </Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  value={form.email ?? ""}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="alice@example.com"
+                  className="mt-1"
+                  disabled={create.isPending}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="invite-password" className="text-xs">
+                  Initial password
+                </Label>
+                <Input
+                  id="invite-password"
+                  type="password"
+                  value={form.password ?? ""}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
+                  className="mt-1"
+                  disabled={create.isPending}
+                />
+                {passwordTooShort && (
+                  <p className="pt-1 text-[11px] text-danger">
+                    At least {MIN_PASSWORD_LEN} characters.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="invite-role" className="text-xs">
+                  Role
+                </Label>
+                <select
+                  id="invite-role"
+                  className="mt-1 w-full rounded border border-border bg-surface px-3 py-2 text-sm text-foreground"
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  disabled={create.isPending}
+                >
+                  {roles.map((r) => (
+                    <option key={r.name} value={r.name}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <ErrorLine error={create.error} />
+          </ModalBody>
+
+          <ModalFooter className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={onClose}
+              isDisabled={create.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              isDisabled={submitDisabled}
+              onPress={() => create.mutate()}
+            >
+              {create.isPending ? "Creating…" : "Create user"}
+            </Button>
+          </ModalFooter>
+        </ModalDialog>
+      </ModalContainer>
+    </Modal>
   );
 }
 
-function EditUserModal({
+function EditUserForm({
   user,
   roles,
   isMe,
@@ -497,9 +515,6 @@ function EditUserModal({
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [email, setEmail] = useState(user.email ?? "");
   const [role, setRole] = useState<string>(user.role);
-  // Re-sync the form if `user` changes identity while mounted. Adjusted
-  // directly during render (not in an effect), gated on the previously-seen
-  // `user` reference.
   const [resetFor, setResetFor] = useState(user);
   if (user !== resetFor) {
     setResetFor(user);
@@ -521,68 +536,105 @@ function EditUserModal({
     onSuccess: onSaved,
   });
 
-  // Switching your own primary role to one that can't manage users would
-  // lock you out of RBAC; the API rejects it too — surface it here.
   const wouldDemoteSelf =
     isMe && role !== user.role && !roleGrantsUserManagement(roles, role);
   const noChanges = Object.keys(dirty).length === 0;
 
   return (
-    <ModalShell
-      open
-      onOpenChange={(v) => !v && onClose()}
-      title="Edit user"
-      description={user.username}
-    >
-      <div className="space-y-3">
-        <FieldLabel label="Display name">
-          <Input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            autoFocus
-          />
-        </FieldLabel>
-        <FieldLabel label="Email">
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </FieldLabel>
-        <div>
-          <FieldLabel label="Primary role (cluster-wide)">
-            <Select
-              value={role}
-              onValueChange={(v) => setRole(v)}
-              options={roles.map((r) => ({ value: r.name, label: r.name }))}
-            />
-          </FieldLabel>
-          {wouldDemoteSelf && (
-            <div className="pt-1 text-[11px] text-danger">
-              You can’t remove your own ability to manage users.
-            </div>
-          )}
-        </div>
-        <ErrorLine error={save.error} />
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} disabled={save.isPending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => save.mutate()}
-            disabled={save.isPending || noChanges || wouldDemoteSelf}
-          >
-            {save.isPending ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
+    <Modal isOpen onOpenChange={(open) => !open && onClose()}>
+      <ModalBackdrop isDismissable={!save.isPending} isKeyboardDismissDisabled={save.isPending} />
+      <ModalContainer>
+        <ModalDialog>
+          <ModalHeader>
+            <ModalHeading>Edit user</ModalHeading>
+          </ModalHeader>
 
-        <NamespaceGrants userId={user.id} roles={roles} />
-      </div>
-    </ModalShell>
+          <ModalBody className="gap-4">
+            <Description>{user.username}</Description>
+
+            <div>
+              <Label htmlFor="edit-display-name" className="text-xs">
+                Display name
+              </Label>
+              <Input
+                id="edit-display-name"
+                autoFocus
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="mt-1"
+                disabled={save.isPending}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-email" className="text-xs">
+                Email
+              </Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1"
+                disabled={save.isPending}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-role" className="text-xs">
+                Primary role (cluster-wide)
+              </Label>
+              <select
+                id="edit-role"
+                className="mt-1 w-full rounded border border-border bg-surface px-3 py-2 text-sm text-foreground"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                disabled={save.isPending}
+              >
+                {roles.map((r) => (
+                  <option key={r.name} value={r.name}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              {wouldDemoteSelf && (
+                <p className="pt-1 text-[11px] text-danger">
+                  You can't remove your own ability to manage users.
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-divider my-2" />
+            <NamespaceGrants userId={user.id} roles={roles} />
+
+            <ErrorLine error={save.error} />
+          </ModalBody>
+
+          <ModalFooter className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={onClose}
+              isDisabled={save.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              isDisabled={save.isPending || noChanges || wouldDemoteSelf}
+              onPress={() => save.mutate()}
+            >
+              {save.isPending ? "Saving…" : "Save changes"}
+            </Button>
+          </ModalFooter>
+        </ModalDialog>
+      </ModalContainer>
+    </Modal>
   );
 }
 
-function ResetPasswordModal({
+function ResetPasswordForm({
   user,
   onClose,
   onDone,
@@ -600,40 +652,62 @@ function ResetPasswordModal({
   const disabled = pw.length < MIN_PASSWORD_LEN || reset.isPending;
 
   return (
-    <ModalShell
-      open
-      onOpenChange={(v) => !v && onClose()}
-      title={`Reset password for ${user.username}`}
-      description="They will need to sign in again with the new password."
-    >
-      <div className="space-y-3">
-        <div>
-          <FieldLabel label="New password">
-            <Input
-              type="password"
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-              autoFocus
-              placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-            />
-          </FieldLabel>
-          {tooShort && (
-            <div className="pt-1 text-[11px] text-danger">
-              At least {MIN_PASSWORD_LEN} characters.
+    <Modal isOpen onOpenChange={(open) => !open && onClose()}>
+      <ModalBackdrop isDismissable={!reset.isPending} isKeyboardDismissDisabled={reset.isPending} />
+      <ModalContainer>
+        <ModalDialog>
+          <ModalHeader>
+            <ModalHeading>Reset password for {user.username}</ModalHeading>
+          </ModalHeader>
+
+          <ModalBody className="gap-4">
+            <Description>They will need to sign in again with the new password.</Description>
+
+            <div>
+              <Label htmlFor="reset-password" className="text-xs">
+                New password
+              </Label>
+              <Input
+                id="reset-password"
+                type="password"
+                autoFocus
+                value={pw}
+                onChange={(e) => setPw(e.target.value)}
+                placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
+                className="mt-1"
+                disabled={reset.isPending}
+              />
+              {tooShort && (
+                <p className="pt-1 text-[11px] text-danger">
+                  At least {MIN_PASSWORD_LEN} characters.
+                </p>
+              )}
             </div>
-          )}
-        </div>
-        <ErrorLine error={reset.error} />
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} disabled={reset.isPending}>
-            Cancel
-          </Button>
-          <Button onClick={() => reset.mutate()} disabled={disabled}>
-            {reset.isPending ? "Setting…" : "Set new password"}
-          </Button>
-        </div>
-      </div>
-    </ModalShell>
+
+            <ErrorLine error={reset.error} />
+          </ModalBody>
+
+          <ModalFooter className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={onClose}
+              isDisabled={reset.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              isDisabled={disabled}
+              onPress={() => reset.mutate()}
+            >
+              {reset.isPending ? "Resetting…" : "Reset password"}
+            </Button>
+          </ModalFooter>
+        </ModalDialog>
+      </ModalContainer>
+    </Modal>
   );
 }
 
@@ -652,28 +726,50 @@ function DeleteUserDialog({
     mutationFn: () => UsersAPI.remove(user.id),
     onSuccess: onDeleted,
   });
-  const description = isMe ? (
-    <span className="text-danger">You can’t delete your own account.</span>
-  ) : (
-    <>
-      Their sessions will be revoked and they’ll lose access immediately. This
-      cannot be undone.
-      {remove.error && <ErrorLine error={remove.error} />}
-    </>
-  );
+
   return (
-    <ConfirmDialog
-      open
-      onOpenChange={(v) => !v && onClose()}
-      title={`Delete ${user.username}?`}
-      description={description}
-      confirmLabel={isMe ? "Cannot delete" : "Delete user"}
-      destructive
-      busy={remove.isPending}
-      onConfirm={() => {
-        if (!isMe) remove.mutate();
-      }}
-    />
+    <AlertDialog isOpen onOpenChange={(open) => !open && onClose()}>
+      <AlertDialogBackdrop isDismissable={!remove.isPending} isKeyboardDismissDisabled={remove.isPending} />
+      <AlertDialogContainer>
+        <Modal>
+          <ModalDialog role="alertdialog" className="max-w-md">
+            <ModalHeader>
+              <ModalHeading>Delete {user.username}?</ModalHeading>
+            </ModalHeader>
+            <ModalBody>
+              {isMe ? (
+                <p className="text-sm text-danger">You can't delete your own account.</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm">
+                    Their sessions will be revoked and they'll lose access immediately. This cannot be undone.
+                  </p>
+                  <ErrorLine error={remove.error} />
+                </div>
+              )}
+            </ModalBody>
+            <ModalFooter className="flex items-center justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={onClose}
+                isDisabled={remove.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                isDisabled={isMe || remove.isPending}
+                onPress={() => remove.mutate()}
+              >
+                {isMe ? "Cannot delete" : "Delete user"}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </Modal>
+      </AlertDialogContainer>
+    </AlertDialog>
   );
 }
 
@@ -697,7 +793,7 @@ function RolesTab() {
     <div className="space-y-4">
       <div className="flex justify-end">
         {canManage && (
-          <Button onClick={() => setCreating(true)}>
+          <Button onPress={() => setCreating(true)} variant="primary">
             <Plus className="h-4 w-4" /> New role
           </Button>
         )}
@@ -708,23 +804,21 @@ function RolesTab() {
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-sm">{r.name}</span>
               {r.builtin && (
-                <span className="rounded bg-muted/20 px-1.5 py-0.5 text-[10px] uppercase text-muted">
+                <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] uppercase text-foreground/70">
                   built-in
                 </span>
               )}
             </div>
-            <p className="min-h-8 text-xs text-muted">{r.description || "—"}</p>
-            <div className="text-[11px] text-muted">
+            <p className="min-h-8 text-xs text-foreground/60">{r.description || "—"}</p>
+            <div className="text-[11px] text-foreground/60">
               {r.permissions.includes("*")
                 ? "all permissions"
                 : `${r.permissions.length} permission${r.permissions.length === 1 ? "" : "s"}`}
             </div>
             {canManage && (
               <div className="flex gap-2 pt-1">
-                {/* The admin role's wildcard is immutable; everything else
-                    is editable. Only custom roles can be deleted. */}
                 {r.name !== "admin" && (
-                  <Button variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(r)}>
+                  <Button variant="ghost" className="h-7 px-2 text-xs" onPress={() => setEditing(r)}>
                     <Pencil className="h-3.5 w-3.5" /> Edit
                   </Button>
                 )}
@@ -732,7 +826,7 @@ function RolesTab() {
                   <Button
                     variant="ghost"
                     className="h-7 px-2 text-xs text-danger"
-                    onClick={() => setDeleting(r)}
+                    onPress={() => setDeleting(r)}
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Delete
                   </Button>
@@ -745,12 +839,15 @@ function RolesTab() {
 
       {(creating || editing) && (
         <RoleEditorModal
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setCreating(false);
+              setEditing(null);
+            }
+          }}
           role={editing}
           groups={groups}
-          onClose={() => {
-            setCreating(false);
-            setEditing(null);
-          }}
           onSaved={() => {
             refresh();
             setCreating(false);
@@ -772,112 +869,6 @@ function RolesTab() {
   );
 }
 
-function RoleEditorModal({
-  role,
-  groups,
-  onClose,
-  onSaved,
-}: {
-  role: Role | null;
-  groups: PermissionGroup[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const creating = role === null;
-  const [name, setName] = useState(role?.name ?? "");
-  const [description, setDescription] = useState(role?.description ?? "");
-  const [selected, setSelected] = useState<Set<string>>(
-    new Set(role?.permissions ?? []),
-  );
-
-  const toggle = (key: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-  const save = useMutation({
-    mutationFn: () => {
-      const permissions = [...selected];
-      return role
-        ? RolesAPI.update(role.name, { description, permissions })
-        : RolesAPI.create({ name, description, permissions });
-    },
-    onSuccess: onSaved,
-  });
-
-  const nameValid = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/.test(name);
-  const submitDisabled = (creating && !nameValid) || save.isPending;
-
-  return (
-    <ModalShell
-      open
-      onOpenChange={(v) => !v && onClose()}
-      title={role ? `Edit role: ${role.name}` : "New role"}
-      description="Grant a curated set of permissions."
-    >
-      <div className="space-y-3">
-        {creating && (
-          <FieldLabel label="Name">
-            <Input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="support"
-            />
-          </FieldLabel>
-        )}
-        <FieldLabel label="Description">
-          <Input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="What this role is for"
-          />
-        </FieldLabel>
-        <div className="max-h-72 space-y-3 overflow-auto rounded-md border border-border p-3">
-          {groups.map((g) => (
-            <div key={g.resource}>
-              <div className="pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
-                {g.label}
-              </div>
-              <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                {g.permissions.map((p) => (
-                  <label
-                    key={p.key}
-                    className="flex cursor-pointer items-center gap-2 text-xs text-fg"
-                  >
-                    <input
-                      type="checkbox"
-                      className="accent-primary"
-                      checked={selected.has(p.key)}
-                      onChange={() => toggle(p.key)}
-                    />
-                    <span className="font-mono">{p.key}</span>
-                    {p.namespaced && (
-                      <span className="rounded bg-muted/15 px-1 text-[9px] text-muted">ns</span>
-                    )}
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <ErrorLine error={save.error} />
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose} disabled={save.isPending}>
-            Cancel
-          </Button>
-          <Button onClick={() => save.mutate()} disabled={submitDisabled}>
-            {save.isPending ? "Saving…" : creating ? "Create role" : "Save role"}
-          </Button>
-        </div>
-      </div>
-    </ModalShell>
-  );
-}
-
 function DeleteRoleDialog({
   role,
   onClose,
@@ -891,27 +882,49 @@ function DeleteRoleDialog({
     mutationFn: () => RolesAPI.remove(role.name),
     onSuccess: onDeleted,
   });
+
   return (
-    <ConfirmDialog
-      open
-      onOpenChange={(v) => !v && onClose()}
-      title={`Delete role ${role.name}?`}
-      description={
-        <>
-          This can’t be undone. Roles assigned to a user can’t be deleted.
-          {remove.error && <ErrorLine error={remove.error} />}
-        </>
-      }
-      confirmLabel="Delete role"
-      destructive
-      busy={remove.isPending}
-      onConfirm={() => remove.mutate()}
-    />
+    <AlertDialog isOpen onOpenChange={(open) => !open && onClose()}>
+      <AlertDialogBackdrop isDismissable={!remove.isPending} isKeyboardDismissDisabled={remove.isPending} />
+      <AlertDialogContainer>
+        <Modal>
+          <ModalDialog role="alertdialog" className="max-w-md">
+            <ModalHeader>
+              <ModalHeading>Delete role {role.name}?</ModalHeading>
+            </ModalHeader>
+            <ModalBody>
+              <div className="space-y-2">
+                <p className="text-sm">
+                  This can't be undone. Roles assigned to a user can't be deleted.
+                </p>
+                <ErrorLine error={remove.error} />
+              </div>
+            </ModalBody>
+            <ModalFooter className="flex items-center justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={onClose}
+                isDisabled={remove.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                isDisabled={remove.isPending}
+                onPress={() => remove.mutate()}
+              >
+                Delete role
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </Modal>
+      </AlertDialogContainer>
+    </AlertDialog>
   );
 }
 
-// NamespaceGrants edits a user's per-namespace role bindings (the
-// cluster-wide grant is the primary role, edited above).
 function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
   const qc = useQueryClient();
   const [roleName, setRoleName] = useState(roles[0]?.name ?? "");
@@ -938,20 +951,20 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
 
   return (
     <div className="space-y-2 border-t border-border pt-3">
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
         Namespace grants
       </div>
       {scoped.length === 0 && (
-        <div className="text-xs text-muted">No per-namespace grants.</div>
+        <div className="text-xs text-foreground/60">No per-namespace grants.</div>
       )}
       <ul className="space-y-1">
         {scoped.map((b) => (
           <li key={`${b.roleName}/${b.namespace}`} className="flex items-center gap-2 text-xs">
             <span className="font-mono">{b.roleName}</span>
-            <span className="text-muted">in</span>
+            <span className="text-foreground/60">in</span>
             <span className="font-mono">{b.namespace}</span>
             <button
-              className="ml-auto rounded p-1 text-muted hover:text-danger"
+              className="ml-auto rounded p-1 text-foreground/60 hover:text-danger"
               aria-label={`Remove ${b.roleName} in ${b.namespace}`}
               onClick={() => remove.mutate(b)}
             >
@@ -962,11 +975,17 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
       </ul>
       <div className="flex items-end gap-2">
         <div className="w-32">
-          <Select
+          <select
             value={roleName}
-            onValueChange={setRoleName}
-            options={roles.map((r) => ({ value: r.name, label: r.name }))}
-          />
+            onChange={(e) => setRoleName(e.target.value)}
+            className="w-full rounded border border-border bg-surface px-3 py-2 text-sm text-foreground"
+          >
+            {roles.map((r) => (
+              <option key={r.name} value={r.name}>
+                {r.name}
+              </option>
+            ))}
+          </select>
         </div>
         <Input
           className="flex-1"
@@ -977,8 +996,8 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
         />
         <Button
           variant="ghost"
-          disabled={!roleName || !namespace || add.isPending}
-          onClick={() => add.mutate({ roleName, namespace })}
+          isDisabled={!roleName || !namespace || add.isPending}
+          onPress={() => add.mutate({ roleName, namespace })}
         >
           Add
         </Button>
@@ -990,7 +1009,7 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
 
 function IdpTab() {
   return (
-    <Card className="p-6 text-sm text-muted">
+    <Card className="p-6 text-sm text-foreground/60">
       OIDC identity providers configured in Helm values appear here. UI
       configuration is tracked for v1.1.
     </Card>
@@ -999,7 +1018,7 @@ function IdpTab() {
 
 function ServiceAccountsTab() {
   return (
-    <Card className="p-6 text-sm text-muted">
+    <Card className="p-6 text-sm text-foreground/60">
       Service accounts (machine-to-machine API tokens) are tracked for v1.1.
     </Card>
   );

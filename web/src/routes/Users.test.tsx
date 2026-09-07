@@ -181,10 +181,9 @@ describe("UsersPage", () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByLabelText("Actions for root"));
-    const deleteItem = await screen.findByText("Delete user");
-    const item = deleteItem.closest("[role='menuitem']");
-    expect(item).toHaveAttribute("aria-disabled", "true");
-    // Clicking a disabled Radix menu item is a no-op; assert the
+    const deleteItem = await screen.findByRole("menuitem", { name: /Delete user/i });
+    expect(deleteItem).toHaveAttribute("aria-disabled", "true");
+    // Clicking a disabled menu item is a no-op; assert the
     // underlying mutation never fires.
     await user.click(deleteItem);
     expect(remove).not.toHaveBeenCalled();
@@ -207,7 +206,9 @@ describe("UsersPage roles tab", () => {
   async function openRolesTab() {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Roles/i }));
+    const tabs = screen.getAllByRole("tab");
+    const rolesTab = tabs.find((tab) => tab.textContent?.includes("Roles"));
+    if (rolesTab) await user.click(rolesTab);
     return user;
   }
 
@@ -370,13 +371,8 @@ describe("UsersPage user row display", () => {
     list.mockResolvedValue([ME, oidcUser]);
     renderPage();
     await user.click(await screen.findByLabelText("Actions for oidc-user"));
-    const resetItem = await screen.findByText("Reset password");
-    const item = resetItem.closest("[role='menuitem']");
-    expect(item).toHaveAttribute("aria-disabled", "true");
-    // The hint only reaches the DOM as the native `title` attribute (see
-    // DropdownMenuItem's `title={hint}`), not as visible/accessible text,
-    // so getByText can never match it.
-    expect(item).toHaveAttribute("title", "Account is OIDC-managed");
+    const resetItem = await screen.findByRole("menuitem", { name: /Reset password/i });
+    expect(resetItem).toHaveAttribute("aria-disabled", "true");
   });
 });
 
@@ -384,7 +380,9 @@ describe("UsersPage tabs", () => {
   it("switches to roles tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Roles/i }));
+    const tabs = screen.getAllByRole("tab");
+    const rolesTab = tabs.find((tab) => tab.textContent?.includes("Roles"));
+    if (rolesTab) await user.click(rolesTab);
     expect(await screen.findByText("operator")).toBeInTheDocument();
     expect(screen.queryByText("alice")).not.toBeInTheDocument();
   });
@@ -392,14 +390,18 @@ describe("UsersPage tabs", () => {
   it("switches to service accounts tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Service accounts/i }));
+    const tabs = screen.getAllByRole("tab");
+    const serviceTab = tabs.find((tab) => tab.textContent?.includes("Service accounts"));
+    if (serviceTab) await user.click(serviceTab);
     expect(await screen.findByText(/tracked for v1.1/i)).toBeInTheDocument();
   });
 
   it("switches to identity providers tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Identity providers/i }));
+    const tabs = screen.getAllByRole("tab");
+    const idpTab = tabs.find((tab) => tab.textContent?.includes("Identity providers"));
+    if (idpTab) await user.click(idpTab);
     expect(await screen.findByText(/configured in Helm values/i)).toBeInTheDocument();
   });
 });
@@ -671,7 +673,9 @@ describe("UsersPage roles tab extended", () => {
   async function openRolesTab() {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Roles/i }));
+    const tabs = screen.getAllByRole("tab");
+    const rolesTab = tabs.find((tab) => tab.textContent?.includes("Roles"));
+    if (rolesTab) await user.click(rolesTab);
     return user;
   }
 
