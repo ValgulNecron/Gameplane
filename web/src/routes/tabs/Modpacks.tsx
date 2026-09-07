@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Package, PackageCheck } from "lucide-react";
+import { Button, Card, Alert } from "@heroui/react";
 
 import type { GameServer, GameTemplate, RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
 import { useMe, can } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
 import { RegistryBrowser, RegistryIcon, compactNum } from "@/components/registry-browser";
-import { cn } from "@/lib/utils";
 
 type Banner = { kind: "ok" | "err"; text: string };
 
@@ -106,29 +105,30 @@ export function ModpacksTab({
       </header>
 
       {active && (
-        <div className="flex items-center gap-2 rounded border border-border bg-surface/40 px-3 py-2 text-sm">
-          <PackageCheck className="h-4 w-4 text-primary" />
-          <span className="text-muted">Active modpack:</span>
-          <span className="font-mono text-fg">{active}</span>
-        </div>
+        <Alert status="default" className="flex items-start gap-3">
+          <Alert.Indicator>
+            <PackageCheck className="h-4 w-4" />
+          </Alert.Indicator>
+          <Alert.Content className="flex flex-1 flex-col gap-0.5">
+            <Alert.Title className="font-semibold text-sm">Active modpack:</Alert.Title>
+            <Alert.Description className="font-mono text-sm">{active}</Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
 
       {banner && (
-        <div
-          className={cn(
-            "rounded border px-3 py-2 text-sm",
-            banner.kind === "ok"
-              ? "border-border bg-surface/40 text-fg"
-              : "border-danger/40 bg-danger/10 text-danger",
-          )}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <span className="break-all">{banner.text}</span>
-            <button onClick={() => setBanner(null)} className="shrink-0 text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
-          </div>
-        </div>
+        <Alert status={banner.kind === "ok" ? "success" : "danger"} className="flex items-start justify-between gap-3">
+          <Alert.Content className="flex flex-1 flex-col gap-0.5">
+            <Alert.Description className="text-sm">{banner.text}</Alert.Description>
+          </Alert.Content>
+          <button
+            onClick={() => setBanner(null)}
+            className="shrink-0 text-xs text-muted hover:text-fg"
+            aria-label="dismiss"
+          >
+            dismiss
+          </button>
+        </Alert>
       )}
 
       <div className="min-h-0 flex-1">
@@ -137,8 +137,10 @@ export function ModpacksTab({
           type="modpack"
           categories={MODPACK_CATEGORIES}
           renderItem={(p, provider) => (
-            <div className="flex items-center gap-3 rounded border border-border bg-surface/30 p-2.5">
-              <RegistryIcon url={p.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
+            <Card className="flex flex-row items-center gap-3 p-4">
+              <div className="shrink-0">
+                <RegistryIcon url={p.iconUrl} fallback={<Package className="h-9 w-9 rounded p-2 text-muted" />} />
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{p.title}</div>
                 <div className="truncate text-xs text-muted">
@@ -149,13 +151,14 @@ export function ModpacksTab({
               </div>
               <Button
                 size="sm"
-                disabled={!canManage || busy !== null}
-                title={canManage ? undefined : "Requires operator role"}
-                onClick={() => install(p, provider)}
+                variant="primary"
+                isDisabled={!canManage || busy !== null}
+                aria-label={canManage ? "Install modpack" : "Requires operator role"}
+                onPress={() => install(p, provider)}
               >
                 {busy === p.id ? "Installing…" : "Install"}
               </Button>
-            </div>
+            </Card>
           )}
         />
       </div>

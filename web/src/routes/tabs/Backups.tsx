@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, CalendarClock, Clock, HardDrive } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/ui/stat";
-import { Badge } from "@/components/ui/badge";
+import { Button, Chip, Table } from "@heroui/react";
+import { StatCard } from "@/components/hero/StatCard";
+import { PhaseChip } from "@/components/hero/PhaseChip";
 import { Backups, Schedules, Restores } from "@/lib/endpoints";
 import { useBackupDestinations } from "@/lib/destinations";
 import { formatBytes, formatRelative, formatRelativeFuture, parseQuantityToBytes } from "@/lib/utils";
-import { PhaseBadge } from "@/components/ui/badge";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
 import { ScheduleForm } from "@/components/backups/ScheduleForm";
 import { RestoreDialog } from "@/components/backups/RestoreDialog";
@@ -107,12 +106,12 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
 
       <section>
         <div className="flex items-center justify-between pb-3">
-          <h2 className="text-sm text-muted">Schedules</h2>
+          <h2 className="text-sm text-foreground/60">Schedules</h2>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setCreatingSchedule(true)}
-            disabled={creatingSchedule}
+            onPress={() => setCreatingSchedule(true)}
+            isDisabled={creatingSchedule}
           >
             New schedule
           </Button>
@@ -121,7 +120,7 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
           <ScheduleForm serverName={name} onClose={() => setCreatingSchedule(false)} />
         )}
         {serverSchedules.length > 1 && (
-          <div className="mb-3 rounded border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted">
+          <div className="mb-3 rounded border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-foreground/60">
             This server has multiple backup schedules — consider consolidating to avoid duplicate backups.
           </div>
         )}
@@ -136,26 +135,26 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
                 <div className="flex items-center gap-2">
                   <span className="font-mono">{s.spec.schedule}</span>
                   {isAutoManaged && (
-                    <Badge variant="default" className="text-[10px]">
+                    <Chip size="sm" color="default" variant="soft">
                       Managed by server settings
-                    </Badge>
+                    </Chip>
                   )}
                 </div>
-                <span className="text-muted">
+                <span className="text-foreground/60">
                   Next: {formatRelative(s.status?.nextScheduleTime)}
                 </span>
               </div>
             );
           })}
           {serverSchedules.length === 0 && !creatingSchedule && (
-            <p className="text-sm text-muted">No schedules yet.</p>
+            <p className="text-sm text-foreground/60">No schedules yet.</p>
           )}
         </div>
       </section>
 
       {serverRestores.length > 0 && (
         <section>
-          <h2 className="pb-3 text-sm text-muted">Recent restores</h2>
+          <h2 className="pb-3 text-sm text-foreground/60">Recent restores</h2>
           <div className="space-y-1">
             {serverRestores.map((r) => (
               <div
@@ -163,8 +162,8 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
                 className="flex justify-between rounded border border-border bg-surface/30 px-4 py-2 text-sm"
               >
                 <span className="font-mono">{r.spec.backupRef.name}</span>
-                <span className="text-muted">
-                  <PhaseBadge phase={r.status?.phase} />
+                <span className="text-foreground/60">
+                  <PhaseChip phase={r.status?.phase} />
                   {r.status?.completionTime &&
                     ` · ${formatRelative(r.status.completionTime)}`}
                 </span>
@@ -176,62 +175,64 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
 
       <section>
         <div className="flex items-center justify-between pb-3">
-          <h2 className="text-sm text-muted">Backups</h2>
+          <h2 className="text-sm text-foreground/60">Backups</h2>
           <Button
             size="sm"
-            onClick={() => createNow.mutate()}
-            disabled={backupNowDisabled}
-            title={backupNowHint}
+            onPress={() => createNow.mutate()}
+            isDisabled={backupNowDisabled}
+            aria-label={backupNowHint}
           >
             {createNow.isPending ? "Starting…" : "Back up now"}
           </Button>
         </div>
         {createNow.error && <ErrorBanner err={createNow.error} />}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase text-muted">
-              <tr>
-                <th className="py-2">Name</th>
-                <th>Phase</th>
-                <th>Size</th>
-                <th>Completed</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {serverBackups.map((b) => {
-                const restorable =
-                  b.status?.phase === "Succeeded" && Boolean(b.status?.snapshotID);
-                return (
-                  <tr
-                    key={b.metadata.name}
-                    className="cursor-pointer hover:bg-surface/40"
-                    onClick={() => setSelectedBackup(b.metadata.name)}
-                  >
-                    <td className="py-2 font-mono">{b.metadata.name}</td>
-                    <td>
-                      <PhaseBadge phase={b.status?.phase} />
-                    </td>
-                    <td className="font-mono">{b.status?.size ?? "—"}</td>
-                    <td className="font-mono text-muted">
-                      {formatRelative(b.status?.completionTime)}
-                    </td>
-                    <td className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!restorable}
-                        onClick={() => setRestoringBackup(b)}
-                      >
-                        Restore
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table.Root>
+          <Table.ScrollContainer>
+            <Table.Content aria-label="Backups table">
+              <Table.Header>
+                <Table.Column key="name">Name</Table.Column>
+                <Table.Column key="phase">Phase</Table.Column>
+                <Table.Column key="size">Size</Table.Column>
+                <Table.Column key="completed">Completed</Table.Column>
+                <Table.Column key="actions" id="actions" className="text-end">Actions</Table.Column>
+              </Table.Header>
+              <Table.Body>
+                {serverBackups.map((b) => {
+                  const restorable =
+                    b.status?.phase === "Succeeded" && Boolean(b.status?.snapshotID);
+                  return (
+                    <Table.Row
+                      key={b.metadata.name}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedBackup(b.metadata.name)}
+                    >
+                      <Table.Cell className="font-mono">{b.metadata.name}</Table.Cell>
+                      <Table.Cell>
+                        <PhaseChip phase={b.status?.phase} />
+                      </Table.Cell>
+                      <Table.Cell className="font-mono">{b.status?.size ?? "—"}</Table.Cell>
+                      <Table.Cell className="font-mono text-foreground/60">
+                        {formatRelative(b.status?.completionTime)}
+                      </Table.Cell>
+                      <Table.Cell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            isDisabled={!restorable}
+                            onPress={() => setRestoringBackup(b)}
+                          >
+                            Restore
+                          </Button>
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                })}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table.Root>
       </section>
 
       <RestoreDialog
