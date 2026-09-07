@@ -73,12 +73,15 @@ test.describe("live: servers core (list + detail)", () => {
     const gameCheckbox = page.getByRole("checkbox", { name: tmplName });
     const nsCheckbox = page.getByRole("checkbox", { name: "gameplane-games" });
     await expect(gameCheckbox).toBeVisible({ timeout: 10_000 });
-    await gameCheckbox.check();
+    // HeroUI's Checkbox renders its own <label> over the (visually tiny)
+    // native input, which Playwright's actionability check treats as the
+    // input being covered — force through it, same as a real click on the
+    // label does natively (clicking a label toggles its associated input).
+    await gameCheckbox.check({ force: true });
     await expect(nsCheckbox).toBeVisible();
-    await nsCheckbox.check();
-    // FilterPopover's Clear/Apply buttons carry their own aria-labels
-    // ("Clear all filters" / "Apply filters"), distinct from their visible text.
-    await page.getByRole("button", { name: /apply filters/i }).click();
+    await nsCheckbox.check({ force: true });
+    // Apply/Clear's accessible name is just their visible text.
+    await page.getByRole("button", { name: /^apply$/i }).click();
     // Both facets include the seeded server's own template/namespace, so it
     // stays visible with the filter applied.
     await expect(row).toBeVisible({ timeout: 10_000 });
@@ -88,8 +91,8 @@ test.describe("live: servers core (list + detail)", () => {
     // two facets applied the button's accessible name grows a count chip
     // ("Filter 2").
     await page.getByRole("button", { name: /filter/i }).first().click();
-    await page.getByRole("button", { name: /clear all filters/i }).click();
-    await page.getByRole("button", { name: /apply filters/i }).click();
+    await page.getByRole("button", { name: /^clear$/i }).click();
+    await page.getByRole("button", { name: /^apply$/i }).click();
     await expect(row).toBeVisible({ timeout: 10_000 });
   });
 
@@ -174,7 +177,11 @@ test.describe("live: servers core (list + detail)", () => {
     const openMenuAndDialog = async (itemName: RegExp, dialogHeading: RegExp) => {
       await page.getByRole("button", { name: /server actions/i }).click();
       await page.getByRole("menuitem", { name: itemName }).click();
-      const dialog = page.getByRole("dialog");
+      // The dropdown's own popover is role="dialog" too and can still be
+      // mid-exit-animation (data-exiting) when the modal opens, so a bare
+      // getByRole("dialog") is a strict-mode violation — scope by the
+      // modal's own accessible name (its heading) to pick the right one.
+      const dialog = page.getByRole("dialog", { name: dialogHeading });
       await expect(dialog).toBeVisible({ timeout: 10_000 });
       await expect(dialog.getByRole("heading", { name: dialogHeading })).toBeVisible();
       await dialog.getByRole("button", { name: /^cancel$/i }).click();

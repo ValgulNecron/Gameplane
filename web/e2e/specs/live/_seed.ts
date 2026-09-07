@@ -67,6 +67,11 @@ export async function seedTemplate(request: APIRequestContext, name: string): Pr
         image: "busybox:1.36",
         command: ["sh", "-c", "sleep 100000"],
         ports: [{ name: "noop", containerPort: 12345, advertise: true, protocol: "TCP" }],
+        // Without a declared console mode, resolveConsoleMode() (lib/
+        // capabilities.ts) defaults to "none" and ServerDetail hides the
+        // Console tab entirely — servers-core.spec.ts's "all six core tabs
+        // render" test clicks it, so the seed must opt in.
+        consoleMode: "pty",
       },
     },
   });
