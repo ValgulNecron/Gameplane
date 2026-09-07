@@ -22,7 +22,7 @@ export class ServersPage {
     this.searchInput = page.getByRole("textbox", { name: /Search servers/i });
 
     // Filter button
-    this.filterButton = page.getByRole("button", { name: /^filter$/i }).first();
+    this.filterButton = page.getByRole("button", { name: /^filter$/i });
 
     // Create server button
     this.createServerButton = page.getByRole("link", { name: /Create server/i });

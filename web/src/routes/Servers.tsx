@@ -24,7 +24,7 @@ import { PhaseChip } from "@/components/hero/PhaseChip";
 import { FilterPopover } from "@/components/hero/FilterPopover";
 import { GameIcon } from "@/components/hero/GameIcon";
 import { PageHeader } from "@/components/PageHeader";
-import { describeStorageProvisioned, formatBytes } from "@/lib/utils";
+import { describeStorageProvisioned, formatBytes, cn } from "@/lib/utils";
 import { useMediaQuery } from "@/lib/media";
 import type { ClusterStats, ClusterView, GameServer, GameServerPhase } from "@/types";
 import { Cluster, Servers, type LifecycleVerb } from "@/lib/endpoints";
@@ -251,7 +251,7 @@ export function ServersPage() {
             isOpen={isFilterOpen}
             onOpenChange={handleOpenFilterChange}
           >
-            <Button variant="outline" className="relative">
+            <span className={cn(buttonVariants({ variant: "outline" }), "relative")}>
               <Filter className="h-4 w-4" />
               Filter
               {appliedFacetCount > 0 && (
@@ -259,7 +259,7 @@ export function ServersPage() {
                   {appliedFacetCount}
                 </Chip>
               )}
-            </Button>
+            </span>
           </FilterPopover>
         </div>
       </div>
