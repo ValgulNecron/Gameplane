@@ -6,32 +6,52 @@
 // rule 2). Endpoints and error-body shape follow
 // specs/done_003-network-capture-sidecar/contracts/rest-api.md (plain-text
 // httperr bodies, `:verb` route suffixes, capture id as a query param).
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity,
   CircleCheckBig,
-  CirclePlay,
   CircleX,
   Download,
   Eye,
   Inbox,
-  Power,
-  PowerOff,
-  Square,
   Trash2,
-  TriangleAlert,
 } from "lucide-react";
-import * as Dialog from "@radix-ui/react-dialog";
+import {
+  Button,
+  Card,
+  CardContent,
+  Input,
+  Label,
+  Select,
+  ListBox,
+  ListBoxItem,
+  Modal,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Description,
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogContainer,
+  AlertDialogDialog,
+  AlertDialogHeader,
+  AlertDialogHeading,
+  AlertDialogBody,
+  AlertDialogFooter,
+} from "@heroui/react";
 import { APIError, Captures, CaptureStartBody } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Meter } from "@/components/ui/meter";
-import { FieldLabel } from "@/components/ui/field";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ErrorBanner } from "@/components/backups/ErrorBanner";
+import { CaptureWarningBanner } from "@/components/hero/CaptureWarningBanner";
+import { ErrorBanner } from "@/components/hero/ErrorBanner";
+import { Chip } from "@/components/hero/PhaseChip";
 import { formatBytes, formatRelative } from "@/lib/utils";
 import type { GameServer, NetworkCapture } from "@/types";
 
@@ -64,37 +84,28 @@ function durationBetween(startedAt: string, completedAt: string): string {
 // Expiry badges recolor as the retention window closes in, so an admin
 // scanning the table can tell "plenty of time" from "about to be
 // GC'd" at a glance (see design-export/json/m5kOm4.json's per-row colors).
-function expiryTone(secondsLeft: number): string {
-  if (secondsLeft <= 3600) return "bg-danger/20 text-danger";
-  if (secondsLeft <= 21600) return "bg-warning/20 text-warning";
-  return "bg-muted/20 text-muted";
-}
-
-function expiryLabel(expiresAt: string): { text: string; tone: string } {
+function expiryLabel(expiresAt: string): { text: string; color: "default" | "warning" | "danger" } {
   const t = new Date(expiresAt).getTime();
-  if (Number.isNaN(t)) return { text: "—", tone: "bg-muted/20 text-muted" };
+  if (Number.isNaN(t)) return { text: "—", color: "default" };
   const secondsLeft = Math.max(0, Math.floor((t - Date.now()) / 1000));
   const h = Math.floor(secondsLeft / 3600);
   const m = Math.floor((secondsLeft % 3600) / 60);
   const text = h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
-  return { text, tone: expiryTone(secondsLeft) };
+
+  let color: "default" | "warning" | "danger" = "default";
+  if (secondsLeft <= 3600) color = "danger";
+  else if (secondsLeft <= 21600) color = "warning";
+
+  return { text, color };
 }
 
-const phaseTone: Record<string, string> = {
-  Pending: "bg-muted/20 text-muted",
-  Running: "bg-warning/20 text-warning",
-  Completed: "bg-success/20 text-success",
-  Failed: "bg-danger/20 text-danger",
-  Expired: "bg-muted/20 text-muted",
+const phaseColorMap: Record<string, "default" | "success" | "warning" | "danger"> = {
+  Pending: "default",
+  Running: "warning",
+  Completed: "success",
+  Failed: "danger",
+  Expired: "default",
 };
-
-function CapturePhaseBadge({ phase }: { phase: string }) {
-  return (
-    <span className={`inline-flex h-5 items-center rounded px-2 text-xs font-mono ${phaseTone[phase] ?? "bg-muted/20 text-muted"}`}>
-      {phase}
-    </span>
-  );
-}
 
 interface Props {
   name: string;
@@ -168,20 +179,25 @@ export function CaptureWidget({ name, ns, gs }: Props) {
   if (!enabled) {
     return (
       <div className="p-6">
-        <Card className="flex flex-col items-center gap-3 p-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/10">
-            <Activity className="h-7 w-7 text-muted" />
-          </div>
-          <p className="text-sm font-medium text-fg">Capture is not enabled on this server.</p>
-          <p className="max-w-md text-xs text-muted">
-            Network packet capture is an optional feature that records raw game protocol
-            traffic. Enable it to capture packets from joining players for protocol analysis.
-          </p>
-          {enableMut.error && <ErrorBanner err={enableMut.error} />}
-          <Button onClick={() => enableMut.mutate()} disabled={enableMut.isPending}>
-            <Power className="h-4 w-4" />
-            {enableMut.isPending ? "Enabling…" : "Enable Capture"}
-          </Button>
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-default-100">
+              <Inbox className="h-7 w-7 text-default-500" />
+            </div>
+            <p className="text-sm font-medium">Capture is not enabled on this server.</p>
+            <p className="max-w-md text-xs text-default-500">
+              Network packet capture is an optional feature that records raw game protocol
+              traffic. Enable it to capture packets from joining players for protocol analysis.
+            </p>
+            {enableMut.error && <ErrorBanner err={enableMut.error} />}
+            <Button
+              variant="primary"
+              onPress={() => enableMut.mutate()}
+              isDisabled={enableMut.isPending}
+            >
+              {enableMut.isPending ? "Enabling…" : "Enable Capture"}
+            </Button>
+          </CardContent>
         </Card>
       </div>
     );
@@ -194,14 +210,13 @@ export function CaptureWidget({ name, ns, gs }: Props) {
     <div className="space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span
-            className={`inline-flex h-5 items-center rounded px-2 text-xs font-mono ${
-              activeCapture ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
-            }`}
+          <Chip
+            color={activeCapture ? "warning" : "success"}
+            size="sm"
           >
             {activeCapture ? "Capturing…" : "Ready"}
-          </span>
-          <span className="text-xs text-muted">
+          </Chip>
+          <span className="text-xs text-default-500">
             {activeCapture
               ? `Capture started ${formatDuration(elapsedSeconds(activeCapture.startedAt || activeCapture.createdAt))} ago`
               : `Captures will auto-delete after ${retentionHours} hour${retentionHours === 1 ? "" : "s"}`}
@@ -209,12 +224,19 @@ export function CaptureWidget({ name, ns, gs }: Props) {
         </div>
         {!activeCapture && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => disableMut.mutate()} disabled={disableMut.isPending}>
-              <PowerOff className="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={() => disableMut.mutate()}
+              isDisabled={disableMut.isPending}
+            >
               Disable Capture
             </Button>
-            <Button size="sm" onClick={() => setShowStartModal(true)}>
-              <CirclePlay className="h-4 w-4" />
+            <Button
+              variant="primary"
+              size="sm"
+              onPress={() => setShowStartModal(true)}
+            >
               Start Capture
             </Button>
           </div>
@@ -224,184 +246,193 @@ export function CaptureWidget({ name, ns, gs }: Props) {
       {disableMut.error && <ErrorBanner err={disableMut.error} />}
 
       {!bannerDismissed && (
-        <div className="rounded-md border border-warning/40 bg-warning/10 p-4">
-          <div className="flex items-start gap-3">
-            <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
-            <div className="space-y-2 text-sm">
-              <p className="font-medium text-fg">
-                Caution: network packet captures contain real player data
-              </p>
-              <ul className="list-none space-y-1 text-xs text-muted">
-                <li>• Player IP addresses and port numbers</li>
-                <li>• Network timing and game protocol messages</li>
-                <li>• For some games, in-band credentials (passwords, tokens, session keys)</li>
-              </ul>
-              <p className="text-xs text-muted">
-                Captures are not redacted or sanitized. Access is restricted to administrators
-                only. Captures are automatically deleted after the configured retention window
-                (currently {retentionHours} hour{retentionHours === 1 ? "" : "s"}).
-              </p>
-              <button
-                type="button"
-                className="text-xs font-medium text-fg underline"
-                onClick={() => setBannerDismissed(true)}
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
+        <CaptureWarningBanner
+          retentionHours={retentionHours}
+          onDismiss={() => setBannerDismissed(true)}
+        />
       )}
 
       {activeCapture ? (
-        <Card className="space-y-4 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <div className="font-mono text-sm">{activeCapture.captureId}</div>
-              <div className="text-xs text-muted">Filter: {activeCapture.filter || "default"}</div>
+        <Card>
+          <CardContent className="space-y-4 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="font-mono text-sm">{activeCapture.captureId}</div>
+                <div className="text-xs text-default-500">Filter: {activeCapture.filter || "default"}</div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => stopMut.mutate(activeCapture.captureId)}
+                isDisabled={stopMut.isPending}
+              >
+                Stop Capture
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => stopMut.mutate(activeCapture.captureId)}
-              disabled={stopMut.isPending}
-            >
-              <Square className="h-4 w-4" />
-              Stop Capture
-            </Button>
-          </div>
-          {stopMut.error && <ErrorBanner err={stopMut.error} />}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Meter
-              label="Max duration"
-              pct={
-                activeCaptureDetails?.maxDurationSeconds
-                  ? (elapsedSeconds(activeCaptureDetails.startedAt || activeCaptureDetails.createdAt) / activeCaptureDetails.maxDurationSeconds) * 100
-                  : 0
-              }
-              accent="warning"
-              sub={
-                activeCaptureDetails?.maxDurationSeconds
-                  ? `Time remaining: ~${formatDuration(
-                      Math.max(0, activeCaptureDetails.maxDurationSeconds - elapsedSeconds(activeCaptureDetails.startedAt || activeCaptureDetails.createdAt)),
-                    )}`
-                  : undefined
-              }
-            />
-            <Meter
-              label="Max size"
-              pct={activeCaptureDetails?.maxSizeBytes ? (activeCaptureDetails.bytesWritten / activeCaptureDetails.maxSizeBytes) * 100 : 0}
-              accent="violet"
-              sub={
-                activeCaptureDetails?.maxSizeBytes
-                  ? `Space remaining: ~${formatBytes(Math.max(0, activeCaptureDetails.maxSizeBytes - activeCaptureDetails.bytesWritten))}`
-                  : undefined
-              }
-            />
-          </div>
-          <div className="text-xs text-muted">
-            {(activeCaptureDetails?.packetsWritten ?? activeCapture.packetsWritten).toLocaleString()} packets captured
-          </div>
+            {stopMut.error && <ErrorBanner err={stopMut.error} />}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-medium">Max duration</label>
+                <div className="space-y-1">
+                  <div className="h-2 overflow-hidden rounded-full bg-default-200">
+                    <div
+                      className="h-full bg-warning transition-all"
+                      style={{
+                        width: `${
+                          activeCaptureDetails?.maxDurationSeconds
+                            ? (elapsedSeconds(activeCaptureDetails.startedAt || activeCaptureDetails.createdAt) / activeCaptureDetails.maxDurationSeconds) * 100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-default-500">
+                    {activeCaptureDetails?.maxDurationSeconds
+                      ? `Time remaining: ~${formatDuration(
+                          Math.max(0, activeCaptureDetails.maxDurationSeconds - elapsedSeconds(activeCaptureDetails.startedAt || activeCaptureDetails.createdAt)),
+                        )}`
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium">Max size</label>
+                <div className="space-y-1">
+                  <div className="h-2 overflow-hidden rounded-full bg-default-200">
+                    <div
+                      className="h-full bg-violet-500 transition-all"
+                      style={{
+                        width: `${activeCaptureDetails?.maxSizeBytes ? (activeCaptureDetails.bytesWritten / activeCaptureDetails.maxSizeBytes) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-default-500">
+                    {activeCaptureDetails?.maxSizeBytes
+                      ? `Space remaining: ~${formatBytes(Math.max(0, activeCaptureDetails.maxSizeBytes - activeCaptureDetails.bytesWritten))}`
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-default-500">
+              {(activeCaptureDetails?.packetsWritten ?? activeCapture.packetsWritten).toLocaleString()} packets captured
+            </div>
+          </CardContent>
         </Card>
       ) : items.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <Inbox className="h-8 w-8 text-muted" />
-          <p className="text-sm text-muted">No captures yet.</p>
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
+            <Inbox className="h-8 w-8 text-default-500" />
+            <p className="text-sm text-default-500">No captures yet.</p>
+          </CardContent>
         </Card>
       ) : (
-        <section>
-          <h2 className="pb-3 text-sm text-muted">Captures</h2>
+        <section className="space-y-3">
+          <h2 className="text-sm text-default-500 font-medium">Captures</h2>
           {fileMut.error && <ErrorBanner err={fileMut.error} />}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <caption className="sr-only">Completed and failed packet captures for this server</caption>
-              <thead className="text-left text-xs uppercase text-muted">
-                <tr>
-                  <th scope="col" className="py-2">ID</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Size</th>
-                  <th scope="col">Packets</th>
-                  <th scope="col">Duration</th>
-                  <th scope="col">Completed at</th>
-                  <th scope="col">Expires in</th>
-                  <th scope="col">Filter</th>
-                  <th scope="col"><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {completed.map((c) => {
-                  const expiry = c.expiresAt ? expiryLabel(c.expiresAt) : null;
-                  const downloadable = c.phase === "Completed";
-                  return (
-                    <Fragment key={c.captureId}>
-                      <tr>
-                        <td className="py-2 font-mono">{c.captureId}</td>
-                        <td><CapturePhaseBadge phase={c.phase} /></td>
-                        <td className="font-mono">{formatBytes(c.bytesWritten)}</td>
-                        <td className="font-mono">{c.packetsWritten.toLocaleString()}</td>
-                        <td className="font-mono text-muted">{durationBetween(c.startedAt, c.completedAt)}</td>
-                        <td className="font-mono text-muted">{formatRelative(c.completedAt || undefined)}</td>
-                        <td>
-                          {expiry && (
-                            <span className={`inline-flex h-5 items-center rounded px-2 text-xs font-mono ${expiry.tone}`}>
-                              {expiry.text}
-                            </span>
-                          )}
-                        </td>
-                        <td className="font-mono text-muted">{c.filter || "default"}</td>
-                        <td className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Download capture ${c.captureId}`}
-                              disabled={!downloadable || fileMut.isPending}
-                              onClick={() => fileMut.mutate(c.captureId)}
+          <div className="overflow-x-auto rounded-lg border border-default-200">
+            <Table.Root className="w-full">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Completed and failed packet captures for this server">
+                  <TableHeader>
+                    <TableColumn>ID</TableColumn>
+                    <TableColumn>Status</TableColumn>
+                    <TableColumn>Size</TableColumn>
+                    <TableColumn>Packets</TableColumn>
+                    <TableColumn>Duration</TableColumn>
+                    <TableColumn>Completed at</TableColumn>
+                    <TableColumn>Expires in</TableColumn>
+                    <TableColumn>Filter</TableColumn>
+                    <TableColumn>Actions</TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {completed.flatMap((c) => {
+                      const expiry = c.expiresAt ? expiryLabel(c.expiresAt) : null;
+                      const downloadable = c.phase === "Completed";
+                      return [
+                        <TableRow key={c.captureId}>
+                          <TableCell className="font-mono text-sm">{c.captureId}</TableCell>
+                          <TableCell>
+                            <Chip
+                              color={phaseColorMap[c.phase] ?? "default"}
+                              size="sm"
                             >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`View capture ${c.captureId}`}
-                              onClick={() => setExpandedId(expandedId === c.captureId ? null : c.captureId)}
-                              aria-expanded={expandedId === c.captureId}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Delete capture ${c.captureId}`}
-                              className="text-danger"
-                              onClick={() => setDeleteTarget(c)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                      {expandedId === c.captureId && (
-                        <tr>
-                          <td colSpan={9} className="bg-surface/30 px-4 py-3 text-xs text-muted">
-                            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
-                              <dt className="font-medium text-fg">Created</dt>
-                              <dd>{formatRelative(c.createdAt)}</dd>
-                              <dt className="font-medium text-fg">Started</dt>
-                              <dd>{c.startedAt ? formatRelative(c.startedAt) : "—"}</dd>
-                              <dt className="font-medium text-fg">Server</dt>
-                              <dd className="font-mono">{c.serverName}</dd>
-                            </dl>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                              {c.phase}
+                            </Chip>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">{formatBytes(c.bytesWritten)}</TableCell>
+                          <TableCell className="font-mono text-sm">{c.packetsWritten.toLocaleString()}</TableCell>
+                          <TableCell className="font-mono text-sm text-default-500">
+                            {durationBetween(c.startedAt, c.completedAt)}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm text-default-500">
+                            {formatRelative(c.completedAt || undefined)}
+                          </TableCell>
+                          <TableCell>
+                            {expiry && (
+                              <Chip color={expiry.color} size="sm">
+                                {expiry.text}
+                              </Chip>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm text-default-500">{c.filter || "default"}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="ghost"
+                                aria-label={`Download capture ${c.captureId}`}
+                                isDisabled={!downloadable || fileMut.isPending}
+                                onPress={() => fileMut.mutate(c.captureId)}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="ghost"
+                                aria-label={`View capture ${c.captureId}`}
+                                onPress={() => setExpandedId(expandedId === c.captureId ? null : c.captureId)}
+                                aria-expanded={expandedId === c.captureId}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="ghost"
+                                aria-label={`Delete capture ${c.captureId}`}
+                                className="text-danger"
+                                onPress={() => setDeleteTarget(c)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>,
+                        expandedId === c.captureId && (
+                          <TableRow key={`${c.captureId}-detail`}>
+                            <TableCell colSpan={9} className="bg-default-50 px-4 py-3 text-xs text-default-500">
+                              <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+                                <dt className="font-medium">Created</dt>
+                                <dd>{formatRelative(c.createdAt)}</dd>
+                                <dt className="font-medium">Started</dt>
+                                <dd>{c.startedAt ? formatRelative(c.startedAt) : "—"}</dd>
+                                <dt className="font-medium">Server</dt>
+                                <dd className="font-mono">{c.serverName}</dd>
+                              </dl>
+                            </TableCell>
+                          </TableRow>
+                        ),
+                      ];
+                    })}
+                  </TableBody>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table.Root>
           </div>
-          <p className="pt-2 text-xs text-muted">
+          <p className="pt-2 text-xs text-default-500">
             Showing {completed.length} of {captures?.total ?? items.length} capture{(captures?.total ?? items.length) === 1 ? "" : "s"}
           </p>
         </section>
@@ -417,24 +448,43 @@ export function CaptureWidget({ name, ns, gs }: Props) {
         }}
       />
 
-      <ConfirmDialog
-        open={deleteTarget !== null}
+      <AlertDialog
+        isOpen={deleteTarget !== null}
         onOpenChange={(o) => {
           if (!o) setDeleteTarget(null);
         }}
-        title="Delete capture?"
-        description={
-          <>
-            This permanently deletes capture{" "}
-            <span className="font-mono text-fg">{deleteTarget?.captureId}</span> and its
-            recorded packets. This cannot be undone.
-          </>
-        }
-        confirmLabel="Delete capture"
-        destructive
-        busy={deleteMut.isPending}
-        onConfirm={() => deleteTarget && deleteMut.mutate(deleteTarget.captureId)}
-      />
+      >
+        <AlertDialogBackdrop />
+        <AlertDialogContainer>
+          <AlertDialogDialog className="max-w-md">
+            <AlertDialogHeader className="flex flex-col gap-1">
+              <AlertDialogHeading>Delete capture?</AlertDialogHeading>
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              <p className="text-sm">
+                This permanently deletes capture{" "}
+                <span className="font-mono">{deleteTarget?.captureId}</span> and its
+                recorded packets. This cannot be undone.
+              </p>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button
+                variant="ghost"
+                onPress={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                isPending={deleteMut.isPending}
+                onPress={() => deleteTarget && deleteMut.mutate(deleteTarget.captureId)}
+              >
+                {deleteMut.isPending ? "Working…" : "Delete capture"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogDialog>
+        </AlertDialogContainer>
+      </AlertDialog>
     </div>
   );
 }
@@ -487,145 +537,181 @@ function StartCaptureModal({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[520px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">Start Capture</Dialog.Title>
-          <Dialog.Description className="pt-1 text-sm text-muted">
-            Records raw network traffic on this server&rsquo;s advertised ports (or a custom
-            filter) for later download.
-          </Dialog.Description>
+    <Modal isOpen={open} onOpenChange={onClose}>
+      <ModalBackdrop />
+      <ModalContainer>
+        <ModalDialog>
+          <ModalHeader className="flex flex-col gap-1">Start Capture</ModalHeader>
+          <ModalBody>
+            <p className="text-sm text-default-500">
+              Records raw network traffic on this server&rsquo;s advertised ports (or a custom
+              filter) for later download.
+            </p>
 
-          <form
-            className="space-y-4 pt-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              start.mutate();
-            }}
-          >
-            <FieldLabel label="Packet Filter">
-              <div className="flex items-center gap-2">
-                <Input
-                  aria-label="Packet Filter"
-                  value={filter}
-                  onChange={(e) => handleFilterChange(e.target.value)}
-                  placeholder="tcp port 25565"
-                  spellCheck={false}
-                  className={filterError ? "border-danger focus:border-danger focus:ring-danger" : undefined}
-                />
-                {filter &&
-                  (filterError ? (
-                    <CircleX className="h-[18px] w-[18px] shrink-0 text-danger" aria-hidden="true" />
-                  ) : (
-                    <CircleCheckBig className="h-[18px] w-[18px] shrink-0 text-success" aria-hidden="true" />
-                  ))}
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                start.mutate();
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="packet-filter">Packet Filter</Label>
+                <div className="relative">
+                  <Input
+                    id="packet-filter"
+                    aria-label="Packet Filter"
+                    value={filter}
+                    onChange={(e) => handleFilterChange(e.target.value)}
+                    placeholder="tcp port 25565"
+                    spellCheck={false}
+                    aria-invalid={!!filterError}
+                  />
+                  {filter && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {filterError ? (
+                        <CircleX className="h-[18px] w-[18px] shrink-0 text-danger" aria-hidden="true" />
+                      ) : (
+                        <CircleCheckBig className="h-[18px] w-[18px] shrink-0 text-success" aria-hidden="true" />
+                      )}
+                    </div>
+                  )}
+                </div>
+                <Description>
+                  Optional. Use pcap-filter syntax (e.g. &quot;tcp port 8080&quot;, &quot;host
+                  192.168.1.5&quot;). Leave blank to capture only on this server&rsquo;s game
+                  ports.
+                </Description>
+                {filterError && (
+                  <p role="alert" className="text-xs text-danger">
+                    {filterError}
+                  </p>
+                )}
               </div>
-              <p className="text-[11px] text-muted">
-                Optional. Use pcap-filter syntax (e.g. &quot;tcp port 8080&quot;, &quot;host
-                192.168.1.5&quot;). Leave blank to capture only on this server&rsquo;s game
-                ports.
-              </p>
-              {filterError && <p className="text-[11px] text-danger">{filterError}</p>}
-            </FieldLabel>
 
-            <FieldLabel label="Max Duration *">
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={durationUnit === "minutes" ? 60 : 3600}
-                  value={durationValue}
-                  onChange={(e) => setDurationValue(Number(e.target.value))}
-                  className="w-[140px]"
-                  aria-label="Max duration value"
-                  required
-                />
-                <Select
-                  className="w-[140px]"
-                  aria-label="Max duration unit"
-                  value={durationUnit}
-                  onValueChange={(v) => setDurationUnit(v as "seconds" | "minutes")}
-                  options={[
-                    { value: "seconds", label: "seconds" },
-                    { value: "minutes", label: "minutes" },
-                  ]}
-                />
+              <div className="space-y-2">
+                <Label htmlFor="duration-value">Max Duration *</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="duration-value"
+                    type="number"
+                    min={1}
+                    max={durationUnit === "minutes" ? 60 : 3600}
+                    value={String(durationValue)}
+                    onChange={(e) => setDurationValue(Number(e.target.value))}
+                    className="w-[140px]"
+                    aria-label="Max duration value"
+                    required
+                  />
+                  <Select
+                    value={durationUnit}
+                    onChange={(v) => setDurationUnit(String(v) as "seconds" | "minutes")}
+                    className="w-[140px]"
+                  >
+                    <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Max duration unit">
+                      <Select.Value />
+                      <Select.Indicator className="ml-auto h-4 w-4" />
+                    </Select.Trigger>
+                    <Select.Popover className="rounded border border-default-200">
+                      <ListBox>
+                        <ListBoxItem key="seconds" id="seconds">seconds</ListBoxItem>
+                        <ListBoxItem key="minutes" id="minutes">minutes</ListBoxItem>
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+                <Description>
+                  How long the capture runs before auto-stopping. Range 1–3600 seconds.
+                </Description>
               </div>
-              <p className="text-[11px] text-muted">
-                How long the capture runs before auto-stopping. Range 1–3600 seconds.
-              </p>
-            </FieldLabel>
 
-            <FieldLabel label="Max Size *">
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  value={sizeValue}
-                  onChange={(e) => setSizeValue(Number(e.target.value))}
-                  className="w-[140px]"
-                  aria-label="Max size value"
-                  required
-                />
-                <Select
-                  className="w-[140px]"
-                  aria-label="Max size unit"
-                  value={sizeUnit}
-                  onValueChange={(v) => setSizeUnit(v as "MB" | "GB")}
-                  options={[
-                    { value: "MB", label: "MB" },
-                    { value: "GB", label: "GB" },
-                  ]}
-                />
+              <div className="space-y-2">
+                <Label htmlFor="size-value">Max Size *</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="size-value"
+                    type="number"
+                    min={1}
+                    value={String(sizeValue)}
+                    onChange={(e) => setSizeValue(Number(e.target.value))}
+                    className="w-[140px]"
+                    aria-label="Max size value"
+                    required
+                  />
+                  <Select
+                    value={sizeUnit}
+                    onChange={(v) => setSizeUnit(String(v) as "MB" | "GB")}
+                    className="w-[140px]"
+                  >
+                    <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Max size unit">
+                      <Select.Value />
+                      <Select.Indicator className="ml-auto h-4 w-4" />
+                    </Select.Trigger>
+                    <Select.Popover className="rounded border border-default-200">
+                      <ListBox>
+                        <ListBoxItem key="MB" id="MB">MB</ListBoxItem>
+                        <ListBoxItem key="GB" id="GB">GB</ListBoxItem>
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+                <Description>
+                  Maximum file size. Capture stops when reached.
+                </Description>
               </div>
-              <p className="text-[11px] text-muted">
-                Maximum file size. Capture stops when reached.
-              </p>
-            </FieldLabel>
 
-            <FieldLabel label="Retention">
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  value={retentionValue}
-                  onChange={(e) => setRetentionValue(Number(e.target.value))}
-                  className="w-[140px]"
-                  aria-label="Retention value"
-                />
-                <Select
-                  className="w-[140px]"
-                  aria-label="Retention unit"
-                  value={retentionUnit}
-                  onValueChange={(v) => setRetentionUnit(v as "hours" | "days")}
-                  options={[
-                    { value: "hours", label: "hours" },
-                    { value: "days", label: "days" },
-                  ]}
-                />
+              <div className="space-y-2">
+                <Label htmlFor="retention-value">Retention</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="retention-value"
+                    type="number"
+                    min={1}
+                    value={String(retentionValue)}
+                    onChange={(e) => setRetentionValue(Number(e.target.value))}
+                    className="w-[140px]"
+                    aria-label="Retention value"
+                  />
+                  <Select
+                    value={retentionUnit}
+                    onChange={(v) => setRetentionUnit(String(v) as "hours" | "days")}
+                    className="w-[140px]"
+                  >
+                    <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Retention unit">
+                      <Select.Value />
+                      <Select.Indicator className="ml-auto h-4 w-4" />
+                    </Select.Trigger>
+                    <Select.Popover className="rounded border border-default-200">
+                      <ListBox>
+                        <ListBoxItem key="hours" id="hours">hours</ListBoxItem>
+                        <ListBoxItem key="days" id="days">days</ListBoxItem>
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+                <Description>
+                  How long the capture is retained before auto-delete.
+                </Description>
               </div>
-              <p className="text-[11px] text-muted">
-                How long the capture is retained before auto-delete.
-              </p>
-            </FieldLabel>
 
-            {start.error && !filterError && <ErrorBanner err={start.error} />}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="ghost" onClick={onClose} disabled={start.isPending}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={start.isPending || !!filterError || durationValue < 1 || sizeValue < 1}
-              >
-                {start.isPending ? "Starting…" : "Start Capture"}
-              </Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+              {start.error && !filterError && <ErrorBanner err={start.error} />}
+            </form>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" onPress={onClose} isDisabled={start.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              isPending={start.isPending}
+              isDisabled={!!filterError || durationValue < 1 || sizeValue < 1}
+              onPress={() => start.mutate()}
+            >
+              {start.isPending ? "Starting…" : "Start Capture"}
+            </Button>
+          </ModalFooter>
+        </ModalDialog>
+      </ModalContainer>
+    </Modal>
   );
 }

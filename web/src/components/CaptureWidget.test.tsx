@@ -957,10 +957,13 @@ describe("CaptureWidget", () => {
       await userEvent.click(startBtn);
 
       const durationUnit = screen.getByLabelText(/Max duration unit/i);
-      // Assuming the Select component uses a native select or accessible select
-      await userEvent.selectOptions(durationUnit, "minutes");
+      await userEvent.click(durationUnit);
+      const minutesOption = await screen.findByRole("option", { name: /minutes/i });
+      await userEvent.click(minutesOption);
 
-      expect((durationUnit as HTMLSelectElement).value).toBe("minutes");
+      await waitFor(() => {
+        expect(screen.getByText("minutes")).toBeInTheDocument();
+      });
     });
 
     it("allows changing size unit between MB and GB", async () => {
@@ -979,9 +982,13 @@ describe("CaptureWidget", () => {
       await userEvent.click(startBtn);
 
       const sizeUnit = screen.getByLabelText(/Max size unit/i);
-      await userEvent.selectOptions(sizeUnit, "GB");
+      await userEvent.click(sizeUnit);
+      const gbOption = await screen.findByRole("option", { name: /GB/i });
+      await userEvent.click(gbOption);
 
-      expect((sizeUnit as HTMLSelectElement).value).toBe("GB");
+      await waitFor(() => {
+        expect(screen.getByText("GB")).toBeInTheDocument();
+      });
     });
 
     it("allows changing retention unit between hours and days", async () => {
@@ -1000,9 +1007,13 @@ describe("CaptureWidget", () => {
       await userEvent.click(startBtn);
 
       const retentionUnit = screen.getByLabelText(/Retention unit/i);
-      await userEvent.selectOptions(retentionUnit, "days");
+      await userEvent.click(retentionUnit);
+      const daysOption = await screen.findByRole("option", { name: /days/i });
+      await userEvent.click(daysOption);
 
-      expect((retentionUnit as HTMLSelectElement).value).toBe("days");
+      await waitFor(() => {
+        expect(screen.getByText("days")).toBeInTheDocument();
+      });
     });
 
     it("disables Start button when duration value is below 1", async () => {
@@ -1167,7 +1178,9 @@ describe("CaptureWidget", () => {
 
       await userEvent.clear(durationInput);
       await userEvent.type(durationInput, "5");
-      await userEvent.selectOptions(durationUnit, "minutes");
+      await userEvent.click(durationUnit);
+      const minutesOption = await screen.findByRole("option", { name: /minutes/i });
+      await userEvent.click(minutesOption);
 
       const submitBtn = screen.getByRole("button", { name: /Start Capture/ });
       await userEvent.click(submitBtn);
@@ -1205,7 +1218,9 @@ describe("CaptureWidget", () => {
 
       await userEvent.clear(sizeInput);
       await userEvent.type(sizeInput, "1");
-      await userEvent.selectOptions(sizeUnit, "GB");
+      await userEvent.click(sizeUnit);
+      const gbOption = await screen.findByRole("option", { name: /GB/i });
+      await userEvent.click(gbOption);
 
       const submitBtn = screen.getByRole("button", { name: /Start Capture/ });
       await userEvent.click(submitBtn);
@@ -1243,7 +1258,9 @@ describe("CaptureWidget", () => {
 
       await userEvent.clear(retentionInput);
       await userEvent.type(retentionInput, "7");
-      await userEvent.selectOptions(retentionUnit, "days");
+      await userEvent.click(retentionUnit);
+      const daysOption = await screen.findByRole("option", { name: /days/i });
+      await userEvent.click(daysOption);
 
       const submitBtn = screen.getByRole("button", { name: /Start Capture/ });
       await userEvent.click(submitBtn);

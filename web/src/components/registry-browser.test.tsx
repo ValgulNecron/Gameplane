@@ -185,7 +185,7 @@ describe("RegistryBrowser", () => {
       />,
     );
 
-    const sortSelect = screen.getByRole("combobox", { name: /sort/i }) as HTMLSelectElement;
+    const sortSelect = screen.getByRole("combobox", { name: /sort/i });
     expect(sortSelect).not.toBeDisabled();
 
     const input = screen.getByRole("textbox");

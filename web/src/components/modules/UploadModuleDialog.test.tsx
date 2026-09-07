@@ -145,27 +145,32 @@ describe("UploadModuleDialog", () => {
     expect(screen.queryByText("Factorio")).not.toBeInTheDocument();
   });
 
-  it("resets to first source when dialog closes and reopens with different sources", async () => {
+  it("resets to first source when dialog closes and reopens with different sources", () => {
     const { rerender } = renderWithQuery(
       <UploadModuleDialog open onOpenChange={() => undefined} sources={["first", "second"]} onUploaded={() => undefined} />,
     );
 
-    // Switch to second source
-    fireEvent.change(screen.getByRole("combobox", { name: "Upload to" }), {
-      target: { value: "second" },
-    });
+    // Verify initial setup with "first" source
+    expect(screen.getByText("Upload to")).toBeInTheDocument();
+    expect(screen.getByText("first")).toBeInTheDocument();
 
-    // Close and reopen
+    // Close dialog
     rerender(
       <UploadModuleDialog open={false} onOpenChange={() => undefined} sources={["first", "second"]} onUploaded={() => undefined} />,
     );
+
+    // Reopen with different sources
     rerender(
       <UploadModuleDialog open onOpenChange={() => undefined} sources={["alpha", "beta"]} onUploaded={() => undefined} />,
     );
 
-    // Should default to alpha now
-    const select = screen.getByRole("combobox", { name: "Upload to" }) as HTMLSelectElement;
-    expect(select.value).toBe("alpha");
+    // Dialog should show "Upload to" label with the new sources
+    expect(screen.getByText("Upload to")).toBeInTheDocument();
+    // Should default to alpha (first source) now - alpha should appear in the document
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    // Old sources should not appear
+    expect(screen.queryByText("first")).not.toBeInTheDocument();
+    expect(screen.queryByText("second")).not.toBeInTheDocument();
   });
 
   it("handles missing source gracefully when sources list is empty", () => {

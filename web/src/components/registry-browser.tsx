@@ -1,12 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Button, Input, Chip, Select, SelectValue, SelectTrigger, SelectIndicator, SelectPopover, ListBox, ListBoxItem } from "@heroui/react";
 
 import type { RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { errorText } from "@/lib/errors";
 
 const PAGE = 24;
@@ -115,73 +112,75 @@ export function RegistryBrowser({
   return (
     <div className="flex min-h-0 flex-col gap-3">
       {available.length > 1 && (
-        <div className="flex w-fit rounded border border-border text-xs">
-          {available.map((p, i) => (
-            <button
+        <div className="flex gap-2">
+          {available.map((p) => (
+            <Button
               key={p.provider}
-              type="button"
-              onClick={() => setPicked(p.provider)}
-              aria-pressed={p.provider === provider}
-              className={cn(
-                "h-8 px-3",
-                i === 0 && "rounded-l",
-                i === available.length - 1 && "rounded-r",
-                i > 0 && "border-l border-border",
-                p.provider === provider ? "bg-primary font-medium text-primary-foreground" : "text-muted",
-              )}
+              size="sm"
+              variant={p.provider === provider ? "primary" : "outline"}
+              onPress={() => setPicked(p.provider)}
             >
               {providerLabel(p.provider)}
-            </button>
+            </Button>
           ))}
         </div>
       )}
 
       <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <Input
-            autoFocus
-            className="pl-8"
-            placeholder={type === "modpack" ? "Search modpacks…" : "Search mods…"}
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            spellCheck={false}
-          />
-        </div>
-        <select
-          aria-label="Sort"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as RegistrySort)}
-          disabled={!!debounced}
-          title={debounced ? "Sorted by relevance while searching" : undefined}
-          className="h-9 rounded border border-border bg-surface px-2 text-xs disabled:opacity-50"
+        <Input
+          autoFocus
+          className="flex-1"
+          placeholder={type === "modpack" ? "Search modpacks…" : "Search mods…"}
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          spellCheck={false}
+        />
+        <Select
+          selectedKey={sort}
+          onSelectionChange={(key) => setSort(key as RegistrySort)}
+          isDisabled={!!debounced}
+          aria-label={debounced ? "Sort (disabled, sorted by relevance while searching)" : "Sort"}
+          className="max-w-xs"
         >
-          {SORTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              Sort: {s.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger>
+            <SelectValue />
+            <SelectIndicator />
+          </SelectTrigger>
+          <SelectPopover>
+            <ListBox
+              items={SORTS}
+            >
+              {(s) => (
+                <ListBoxItem key={s.value} textValue={`Sort: ${s.label}`}>
+                  Sort: {s.label}
+                </ListBoxItem>
+              )}
+            </ListBox>
+          </SelectPopover>
+        </Select>
       </div>
 
       {showChips && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {[{ value: "", label: "All" }, ...categories].map((c) => {
             const active = category === c.value;
             return (
-              <button
+              <Chip
                 key={c.value || "all"}
-                type="button"
+                size="sm"
+                variant={active ? "primary" : "soft"}
                 onClick={() => setCategory(c.value)}
-                aria-pressed={active}
-                className={
-                  active
-                    ? "rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-medium text-primary-foreground"
-                    : "rounded-full border border-border px-2.5 py-0.5 text-[11px] text-muted hover:text-fg"
-                }
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setCategory(c.value);
+                  }
+                }}
               >
                 {c.label}
-              </button>
+              </Chip>
             );
           })}
         </div>
@@ -206,8 +205,8 @@ export function RegistryBrowser({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => void q.fetchNextPage()}
-                  disabled={q.isFetchingNextPage}
+                  onPress={() => void q.fetchNextPage()}
+                  isDisabled={q.isFetchingNextPage}
                 >
                   {q.isFetchingNextPage ? "Loading…" : "Load more"}
                 </Button>
