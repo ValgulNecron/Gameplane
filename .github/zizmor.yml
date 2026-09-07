@@ -34,3 +34,11 @@ rules:
   # expansions in shell scripts. Blanket fix would require rewriting ~30 run steps.
   template-injection:
     disable: true
+
+  # self-repository: in-repo action references
+  # uses: ./.github/actions/... workspace-relative syntax
+  # Deferred: GitHub introduced '$/' syntax, but actionlint does not yet
+  # support '$/' action references (rhysd/actionlint#711).
+  self-repository:
+    disable: true
+
