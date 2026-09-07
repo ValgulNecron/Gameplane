@@ -395,10 +395,13 @@ function ParamField({
             isSelected={value === "true"}
             onChange={(isSelected) => onChange(isSelected ? "true" : "false")}
           >
-            <Label htmlFor={id} className="text-sm">
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            <Checkbox.Content className="text-sm">
               {label}
               {param.required && <span className="text-danger"> *</span>}
-            </Label>
+            </Checkbox.Content>
           </Checkbox>
         </div>
       ) : (

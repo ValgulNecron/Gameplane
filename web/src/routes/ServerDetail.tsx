@@ -231,19 +231,21 @@ export function ServerDetailPage() {
           </div>
         </div>
 
-        <Tabs
-          selectedKey={tab}
-          onSelectionChange={(key) => setTab(key as TabKey)}
-          className="w-full"
-        >
-          <Tabs.List aria-label="Server detail tabs" className="flex w-full gap-1 overflow-x-auto">
-            {visibleTabs.map((t) => (
-              <Tab key={t.key} id={t.key}>
-                {t.label}
-              </Tab>
-            ))}
-          </Tabs.List>
-        </Tabs>
+        <nav className="scrollbar-thin">
+          <Tabs
+            selectedKey={tab}
+            onSelectionChange={(key) => setTab(key as TabKey)}
+            className="w-full"
+          >
+            <Tabs.List aria-label="Server detail tabs" className="flex w-full gap-1 overflow-x-auto">
+              {visibleTabs.map((t) => (
+                <Tab key={t.key} id={t.key}>
+                  {t.label}
+                </Tab>
+              ))}
+            </Tabs.List>
+          </Tabs>
+        </nav>
       </header>
 
       <div className="flex-1 overflow-auto scrollbar-thin">

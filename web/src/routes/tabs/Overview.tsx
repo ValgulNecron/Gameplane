@@ -197,7 +197,7 @@ export function OverviewTab({
                           <span className="truncate font-mono text-foreground">{primary.host}</span>
                           {primary?.private && (
                             <span className="shrink-0 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-medium text-warning">
-                              Tailnet only
+                              Tailnet only — not public
                             </span>
                           )}
                         </div>
@@ -222,7 +222,7 @@ export function OverviewTab({
                   )}
                   {/* Show cluster address below */}
                   <div className="border-t border-border pt-3">
-                    <div className="text-xs text-muted mb-3">CLUSTER ADDRESS</div>
+                    <div className="text-xs text-muted mb-3 uppercase">Cluster address</div>
                     <EndpointRow label="Host">
                       <span className="truncate font-mono text-foreground">{clusterEndpoint?.host ?? "—"}</span>
                     </EndpointRow>

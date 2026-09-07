@@ -6,7 +6,7 @@ import {
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
-import { Button } from "@heroui/react";
+import { buttonVariants } from "@heroui/styles";
 import type { GameServer } from "@/types";
 import {
   DropdownMenu,
@@ -46,10 +46,11 @@ export function ServerActionsMenu({ gs, onDeleted, onTransferred }: Props) {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Button isIconOnly variant="ghost" aria-label="Server actions">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+        <DropdownMenuTrigger
+          className={buttonVariants({ isIconOnly: true, variant: "ghost" })}
+          aria-label="Server actions"
+        >
+          <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem

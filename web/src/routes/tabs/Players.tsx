@@ -161,7 +161,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     isIconOnly
                     variant="ghost"
                     size="sm"
-                    aria-label={`Kick ${p}`}
+                    aria-label="Kick"
                     onClick={() => {
                       setPending({ player: p, action: "kick" });
                       setReason("");

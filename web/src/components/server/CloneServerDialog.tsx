@@ -11,6 +11,7 @@ import {
   ModalBody,
   ModalFooter,
   Button,
+  TextField,
   Input,
   Label,
   Description,
@@ -87,12 +88,9 @@ export function CloneServerDialog({
               Creates a new server with the same configuration. World data is not copied.
             </Description>
 
-            <div>
-              <Label htmlFor="clone-new-name" className="text-xs">
-                New name
-              </Label>
+            <TextField isInvalid={!valid || clone.isError}>
+              <Label className="text-xs">New name</Label>
               <Input
-                id="clone-new-name"
                 autoFocus
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
@@ -110,7 +108,7 @@ export function CloneServerDialog({
                   {cloneErrorMessage(clone.error, newName)}
                 </FieldError>
               )}
-            </div>
+            </TextField>
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
