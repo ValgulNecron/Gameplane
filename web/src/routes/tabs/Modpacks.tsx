@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, PackageCheck } from "lucide-react";
+import { Package, PackageCheck, X } from "lucide-react";
 import { Button, Card, Alert } from "@heroui/react";
 
 import type { GameServer, GameTemplate, RegistryProject } from "@/types";
@@ -121,13 +121,9 @@ export function ModpacksTab({
           <Alert.Content className="flex flex-1 flex-col gap-0.5">
             <Alert.Description className="text-sm">{banner.text}</Alert.Description>
           </Alert.Content>
-          <button
-            onClick={() => setBanner(null)}
-            className="shrink-0 text-xs text-muted hover:text-fg"
-            aria-label="dismiss"
-          >
-            dismiss
-          </button>
+          <Button variant="ghost" size="sm" onPress={() => setBanner(null)} isIconOnly aria-label="dismiss">
+            <X className="h-3 w-3" />
+          </Button>
         </Alert>
       )}
 
@@ -153,7 +149,7 @@ export function ModpacksTab({
                 size="sm"
                 variant="primary"
                 isDisabled={!canManage || busy !== null}
-                aria-label={canManage ? "Install modpack" : "Requires operator role"}
+                aria-label="Install modpack"
                 onPress={() => install(p, provider)}
               >
                 {busy === p.id ? "Installing…" : "Install"}

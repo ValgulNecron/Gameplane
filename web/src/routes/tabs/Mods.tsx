@@ -236,7 +236,6 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
               size="sm"
               onPress={() => void updates.refetch()}
               isDisabled={updates.isFetching || !mods?.some((m) => m.meta && m.meta.provider !== "upload")}
-              aria-label="Check the registry for newer versions of managed mods"
             >
               <RotateCw className={cn("h-3 w-3", updates.isFetching && "animate-spin")} />{" "}
               {updates.isFetching ? "Checking…" : "Check updates"}
@@ -257,7 +256,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
             size="sm"
             onPress={() => setBrowsing(true)}
             isDisabled={!canManage}
-            aria-label={canManage ? "Install mod" : "Requires operator role"}
+            aria-label="Install mod"
           >
             <Plus className="h-4 w-4" /> Install mod
           </Button>
@@ -275,9 +274,9 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
         >
           <div className="flex items-start justify-between gap-3">
             <span className="font-mono break-all">{banner.text}</span>
-            <button onClick={() => setBanner(null)} className="shrink-0 text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
+            <Button variant="ghost" size="sm" onPress={() => setBanner(null)} isIconOnly aria-label="dismiss">
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       )}
@@ -285,9 +284,9 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
       {isError && !mods && (
         <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           {errMsg(listError)} ·{" "}
-          <button onClick={() => refetch()} className="underline hover:no-underline">
+          <Button variant="ghost" size="sm" className="underline" onPress={() => refetch()} aria-label="retry">
             retry
-          </button>
+          </Button>
         </div>
       )}
 
@@ -347,7 +346,6 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
                       {canManage && (
                         <Button
                           size="sm"
-                          aria-label={`Update to ${update.latestVersionNumber ?? update.latestVersionId}`}
                           onPress={() => install.mutate(upgradeBody(update))}
                           isDisabled={install.isPending || updateAll.isPending}
                         >
@@ -539,13 +537,15 @@ function ModsByIdTab({
     return (
       <div className="flex h-full flex-col gap-4 p-6">
         <header className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setBrowsing(false)}
-            className="flex items-center gap-1 text-xs text-muted hover:text-fg"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onPress={() => setBrowsing(false)}
+            aria-label="Back to selected mods"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Selected mods
-          </button>
+          </Button>
           <h2 className="text-base font-semibold">Browse {providerName ?? "registry"}</h2>
         </header>
         <div className="min-h-0 flex-1">
@@ -606,9 +606,9 @@ function ModsByIdTab({
         >
           <div className="flex items-start justify-between gap-3">
             <span className="font-mono break-all">{banner.text}</span>
-            <button onClick={() => setBanner(null)} className="shrink-0 text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
+            <Button variant="ghost" size="sm" onPress={() => setBanner(null)} isIconOnly aria-label="dismiss">
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       )}
@@ -616,9 +616,9 @@ function ModsByIdTab({
       {isError && !saved && (
         <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           {errMsg(listError)} ·{" "}
-          <button onClick={() => refetch()} className="underline hover:no-underline">
+          <Button variant="ghost" size="sm" className="underline" onPress={() => refetch()} aria-label="retry">
             retry
-          </button>
+          </Button>
         </div>
       )}
 
@@ -837,13 +837,15 @@ function InstallPage({
   return (
     <div className="flex h-full flex-col gap-4 p-6">
       <header className="space-y-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1 text-xs text-muted hover:text-fg"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs"
+          onPress={onBack}
+          aria-label="Back to installed mods"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Installed mods
-        </button>
+        </Button>
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-0.5">
             <h2 className="text-base font-semibold">Install mods</h2>
@@ -864,7 +866,7 @@ function InstallPage({
                   onClick={() => setMode(m.key)}
                   aria-pressed={mode === m.key}
                   className={cn(
-                    "h-8 px-3",
+                    "h-8 px-3 rounded-none border-none bg-transparent cursor-pointer",
                     i === 0 && "rounded-l",
                     i === modes.length - 1 && "rounded-r",
                     i > 0 && "border-l border-border",
@@ -894,9 +896,9 @@ function InstallPage({
         >
           <div className="flex items-start justify-between gap-3">
             <span className="font-mono break-all">{banner.text}</span>
-            <button onClick={onDismiss} className="shrink-0 text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
+            <Button variant="ghost" size="sm" onPress={onDismiss} isIconOnly aria-label="dismiss">
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       )}

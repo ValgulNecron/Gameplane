@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, Suspense, lazy } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Tabs, Tab } from "@heroui/react";
+import { Button, Tabs } from "@heroui/react";
 import {
   AlertTriangle,
   CalendarClock,
@@ -192,9 +192,9 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
         >
           <Tabs.List>
             {sections.map((s) => (
-              <Tab key={s.key} id={s.key}>
+              <Tabs.Tab key={s.key} id={s.key}>
                 {s.label}
-              </Tab>
+              </Tabs.Tab>
             ))}
           </Tabs.List>
         </Tabs>
