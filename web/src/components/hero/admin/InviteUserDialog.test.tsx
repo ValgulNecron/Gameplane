@@ -40,7 +40,7 @@ describe("InviteUserDialog", () => {
         onOpenChange={() => {}}
       />,
     );
-    const usernameInput = screen.getByDisplayValue("") as HTMLInputElement;
+    const usernameInput = screen.getAllByDisplayValue("")[0] as HTMLInputElement;
     const displayNameInput = screen.getAllByDisplayValue("")[1] as HTMLInputElement;
     const emailInput = screen.getAllByDisplayValue("")[2] as HTMLInputElement;
     const passwordInput = screen.getAllByDisplayValue("")[3] as HTMLInputElement;
@@ -238,7 +238,7 @@ describe("InviteUserDialog", () => {
       "Alice Operator",
       "alice@example.com",
       "SecurePass123",
-      "admin",
+      "viewer",
     );
   });
 
@@ -253,7 +253,7 @@ describe("InviteUserDialog", () => {
         onInvite={onInvite}
       />,
     );
-    const usernameInput = screen.getByDisplayValue("") as HTMLInputElement;
+    const usernameInput = screen.getAllByDisplayValue("")[0] as HTMLInputElement;
     await user.type(usernameInput, "oidc-user");
     await user.click(screen.getByRole("button", { name: /Invite user/i }));
     expect(onInvite).toHaveBeenCalledWith("oidc-user", "", "", "");

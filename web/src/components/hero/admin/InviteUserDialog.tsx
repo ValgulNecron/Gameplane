@@ -15,7 +15,6 @@ import {
   Select,
   ListBox,
   ListBoxItem,
-  FieldError,
 } from "@heroui/react";
 
 const MIN_PASSWORD_LEN = 12;
@@ -54,6 +53,7 @@ export interface InviteUserDialogProps {
   disableSubmitUntilValid?: boolean;
   /** Error text from an external (API) failure, shown alongside client validation. */
   apiError?: string;
+  submitLabel?: string;
 }
 
 export function InviteUserDialog({
@@ -65,16 +65,18 @@ export function InviteUserDialog({
   contactFieldsOptional = false,
   disableSubmitUntilValid = false,
   apiError,
+  submitLabel = "Invite user",
 }: InviteUserDialogProps) {
   const hasRoles = !!roles && roles.length > 0;
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState(roles?.[0] ?? "viewer");
+  const [role, setRole] = useState(roles?.includes("viewer") ? "viewer" : (roles?.[0] ?? "viewer"));
   const [error, setError] = useState<string>("");
 
   const passwordTooShort = password.length > 0 && password.length < MIN_PASSWORD_LEN;
+  const liveError = disableSubmitUntilValid && passwordTooShort ? `At least ${MIN_PASSWORD_LEN} characters.` : "";
   const submitDisabled =
     isLoading || (disableSubmitUntilValid && (!username.trim() || passwordTooShort));
 
@@ -118,12 +120,12 @@ export function InviteUserDialog({
     setDisplayName("");
     setEmail("");
     setPassword("");
-    setRole(roles?.[0] ?? "viewer");
+    setRole(roles?.includes("viewer") ? "viewer" : (roles?.[0] ?? "viewer"));
     setError("");
     onOpenChange(false);
   };
 
-  const displayError = error || apiError;
+  const displayError = error || liveError || apiError;
 
   return (
     <Modal isOpen={open} onOpenChange={handleClose}>
@@ -156,77 +158,81 @@ export function InviteUserDialog({
               />
             </div>
 
-            <div>
-              <Label htmlFor="invite-display-name" className="text-xs">
-                Display name
-              </Label>
-              <Input
-                id="invite-display-name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Alice Operator"
-                className="mt-1"
-                disabled={isLoading}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="invite-email" className="text-xs">
-                Email
-              </Label>
-              <Input
-                id="invite-email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="alice@example.com"
-                className="mt-1"
-                type="email"
-                disabled={isLoading}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="invite-password" className="text-xs">
-                Initial password
-              </Label>
-              <Input
-                id="invite-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-                className="mt-1"
-                type="password"
-                disabled={isLoading}
-              />
-            </div>
-
-            {hasRoles && (
-              <div className="space-y-1">
-                <Select value={role} onChange={(v) => setRole(String(v))} isDisabled={isLoading}>
-                  <Label htmlFor="invite-role" className="text-xs">
-                    Role
-                  </Label>
-                  <Select.Trigger
-                    id="invite-role"
-                    className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80"
-                  >
-                    <Select.Value />
-                    <Select.Indicator className="ml-auto h-4 w-4" />
-                  </Select.Trigger>
-                  <Select.Popover className="rounded border border-border">
-                    <ListBox className="p-0" aria-label="Role">
-                      {roles?.map((r) => (
-                        <ListBoxItem key={r} id={r}>
-                          {r}
-                        </ListBoxItem>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="invite-display-name" className="text-xs">
+                  Display name
+                </Label>
+                <Input
+                  id="invite-display-name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Alice Operator"
+                  className="mt-1"
+                  disabled={isLoading}
+                />
               </div>
-            )}
 
-            {displayError && <FieldError className="text-xs">{displayError}</FieldError>}
+              <div>
+                <Label htmlFor="invite-email" className="text-xs">
+                  Email
+                </Label>
+                <Input
+                  id="invite-email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="alice@example.com"
+                  className="mt-1"
+                  type="email"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="invite-password" className="text-xs">
+                  Initial password
+                </Label>
+                <Input
+                  id="invite-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
+                  className="mt-1"
+                  type="password"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {hasRoles && (
+                <div className="space-y-1">
+                  <Select value={role} onChange={(v) => setRole(String(v))} isDisabled={isLoading}>
+                    <Label htmlFor="invite-role" className="text-xs">
+                      Role
+                    </Label>
+                    <Select.Trigger
+                      id="invite-role"
+                      className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80"
+                    >
+                      <Select.Value />
+                      <Select.Indicator className="ml-auto h-4 w-4" />
+                    </Select.Trigger>
+                    <Select.Popover className="rounded border border-border">
+                      <ListBox className="p-0" aria-label="Role">
+                        {roles?.map((r) => (
+                          <ListBoxItem key={r} id={r}>
+                            {r}
+                          </ListBoxItem>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {displayError && (<p className="text-xs text-danger" role="alert">{displayError}</p>)}
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
@@ -239,7 +245,7 @@ export function InviteUserDialog({
               isDisabled={submitDisabled}
               onPress={handleInvite}
             >
-              {isLoading ? "Inviting…" : "Invite user"}
+              {isLoading ? "Inviting…" : submitLabel}
             </Button>
           </ModalFooter>
         </ModalDialog>

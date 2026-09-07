@@ -11,7 +11,7 @@ import {
   Button,
   Input,
   Label,
-  FieldError,
+  Description,
 } from "@heroui/react";
 
 const MIN_PASSWORD_LEN = 12;
@@ -31,6 +31,7 @@ export interface ResetPasswordDialogProps {
   disableSubmitUntilValid?: boolean;
   /** Error text from an external (API) failure, shown alongside client validation. */
   apiError?: string;
+  submitLabel?: string;
 }
 
 export function ResetPasswordDialog({
@@ -41,12 +42,15 @@ export function ResetPasswordDialog({
   isLoading = false,
   disableSubmitUntilValid = false,
   apiError,
+  submitLabel = "Reset password",
 }: ResetPasswordDialogProps) {
   const [password, setPassword] = useState("");
   const [validationError, setValidationError] = useState<string>("");
 
   const submitDisabled =
     isLoading || (disableSubmitUntilValid && password.length < MIN_PASSWORD_LEN);
+
+  const liveError = disableSubmitUntilValid && password.length > 0 && password.length < MIN_PASSWORD_LEN ? `At least ${MIN_PASSWORD_LEN} characters.` : "";
 
   const handleReset = () => {
     setValidationError("");
@@ -67,7 +71,7 @@ export function ResetPasswordDialog({
     onOpenChange(false);
   };
 
-  const displayError = validationError || apiError;
+  const displayError = validationError || liveError || apiError;
 
   return (
     <Modal isOpen={open} onOpenChange={handleClose}>
@@ -79,6 +83,7 @@ export function ResetPasswordDialog({
           </ModalHeader>
 
           <ModalBody className="gap-4">
+            <Description>They will need to sign in again with the new password.</Description>
             <div>
               <Label htmlFor="reset-password" className="text-xs">
                 New password
@@ -94,7 +99,7 @@ export function ResetPasswordDialog({
                 disabled={isLoading}
               />
               {displayError && (
-                <FieldError className="mt-1 text-xs">{displayError}</FieldError>
+                <p className="mt-1 text-xs text-danger" role="alert">{displayError}</p>
               )}
             </div>
           </ModalBody>
@@ -109,7 +114,7 @@ export function ResetPasswordDialog({
               isDisabled={submitDisabled}
               onPress={handleReset}
             >
-              {isLoading ? "Resetting…" : "Reset password"}
+              {isLoading ? "Resetting…" : submitLabel}
             </Button>
           </ModalFooter>
         </ModalDialog>

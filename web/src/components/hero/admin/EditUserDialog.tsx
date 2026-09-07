@@ -16,7 +16,6 @@ import {
   Select,
   ListBox,
   ListBoxItem,
-  FieldError,
   Separator,
 } from "@heroui/react";
 
@@ -44,6 +43,8 @@ export interface EditUserDialogProps {
   extraContent?: ReactNode;
   /** Error text from an external (API) failure, shown alongside client validation. */
   apiError?: string;
+  /** When true, display name and email may be cleared (matching the inline form). */
+  contactFieldsOptional?: boolean;
 }
 
 export function EditUserDialog({
@@ -60,6 +61,7 @@ export function EditUserDialog({
   roleGrantsUserManagement = () => true,
   extraContent,
   apiError,
+  contactFieldsOptional = false,
 }: EditUserDialogProps) {
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [email, setEmail] = useState(initialEmail);
@@ -72,13 +74,15 @@ export function EditUserDialog({
 
   const handleSave = () => {
     setError("");
-    if (!displayName.trim()) {
-      setError("Display name is required");
-      return;
-    }
-    if (!email.trim()) {
-      setError("Email is required");
-      return;
+    if (!contactFieldsOptional) {
+      if (!displayName.trim()) {
+        setError("Display name is required");
+        return;
+      }
+      if (!email.trim()) {
+        setError("Email is required");
+        return;
+      }
     }
     if (!role) {
       setError("Role is required");
@@ -179,7 +183,7 @@ export function EditUserDialog({
               </>
             )}
 
-            {displayError && <FieldError className="text-xs">{displayError}</FieldError>}
+            {displayError && (<p className="text-xs text-danger" role="alert">{displayError}</p>)}
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
