@@ -26,6 +26,7 @@ import {
 import {
   getScreenshotData,
   screenshotConsoleOutput,
+  screenshotSystemLogLines,
 } from "./screenshotData";
 
 export const handlers = [
@@ -555,6 +556,13 @@ export const handlers = [
     }
     return HttpResponse.json(out);
   }),
+  // Audit chain integrity check — AuditLogPage renders the success/failure
+  // banner from this. No dedicated test exercises the failure path against
+  // this default handler (see AuditLog.test.tsx's own fetch mocks); this
+  // exists so the endpoint isn't unhandled when a test lands on /admin/audit.
+  http.get("/admin/audit/verify", () =>
+    HttpResponse.json({ ok: true, checked: 5, message: "audit chain intact" }),
+  ),
   http.get("/admin/config", () => HttpResponse.json(makeConfig())),
   http.put("/admin/config/:section", () => new HttpResponse(null, { status: 204 })),
   http.post("/admin/notifications/sinks/:name/test", () =>
@@ -1107,12 +1115,32 @@ export function buildScreenshotHandlers() {
       // Return screenshot audit events up to limit
       return HttpResponse.json(data.auditEvents.slice(0, limit));
     }),
+    // Audit chain integrity — default "verified" state (DxKOh). The
+    // failure banner state (kIxaJ) is produced per-test via page.route
+    // overriding this route, since it's a one-off variant, not a
+    // dataset-wide fixture.
+    http.get("/admin/audit/verify", () =>
+      HttpResponse.json({ ok: true, checked: data.auditEvents.length, message: "audit chain intact" }),
+    ),
     http.get("/admin/config", () => HttpResponse.json(data.config())),
     http.put("/admin/config/:section", () => new HttpResponse(null, { status: 204 })),
     http.post("/admin/notifications/sinks/:name/test", () =>
       HttpResponse.json({ delivered: true }),
     ),
     http.get("/admin/users", () => HttpResponse.json({ items: data.users })),
+
+    // Admin — System Logs (Bq2Yg, slice 4). AdminLogsPage fetches this
+    // plaintext stream directly (not through lib/api.ts), so it's mocked
+    // as a plain HttpResponse rather than HttpResponse.json.
+    http.get("/admin/system-logs/:component", () =>
+      new HttpResponse(screenshotSystemLogLines.join("\n") + "\n", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain",
+          "X-Gameplane-Pod": "gameplane-api-6f9c8d5b7-x2k9p",
+        },
+      }),
+    ),
 
     // WebSocket: PTY Console (registered before RCON console to match narrower pattern first)
     ws.link(`${wsOrigin}/ws/servers/*/console-pty*`).addEventListener("connection", ({ client }) => {

@@ -702,12 +702,56 @@ export function screenshotConfig(): AllConfig {
     modRegistries: {
       registries: [{ provider: "curseforge" }, { provider: "steam" }],
     },
+    // Auth: local accounts plus a dashboard override on the admin role
+    // mapping — feeds the Role Mapping Overrides Card's "Overridden"
+    // provenance badge (R65Xyx) and orange chip (XL5ZU) on the
+    // Authentication section (uMiwd, slice 4).
+    auth: {
+      providers: [{ name: "local", kind: "local", enabled: true }],
+      helmOverride: { roleMappings: { admin: ["ops-leads"] } },
+    },
+    // installTimeSettings backs two slice-4 screens: the Cluster Settings
+    // storage card (j9W8A — a set storage class) and, via
+    // oidcHelmProvider, the Authentication section's Helm OIDC Provider
+    // Card and per-role provenance badges/chips (uMiwd: admin is
+    // Helm-seeded *and* dashboard-overridden above, so both the
+    // HelmAdminMappingWarning banner and the override chip render;
+    // operator/viewer are Helm-seeded only, feeding the "From Helm"
+    // badge (Rwnu3) and violet/secondary chips (vStkb/uw0dB)). The
+    // "no OIDC mappings yet" (nNGDX) and empty-storage-class (dxdEi)
+    // variants override this per-test via page.route.
+    installTimeSettings: {
+      gameDataStorageClass: "fast-nvme",
+      oidcHelmProvider: {
+        groupsClaim: "groups",
+        defaultRole: "viewer",
+        roleMappings: {
+          admin: ["helm-admins"],
+          operator: ["ops-team"],
+          viewer: ["everyone"],
+        },
+      },
+    },
   });
 }
 
 // ============================================================================
 // Game Server Log Lines (~30 lines, Minecraft-style format)
 // ============================================================================
+
+// screenshotSystemLogLines backs the Admin — System Logs screen (Bq2Yg,
+// slice 4): plaintext control-plane log excerpt, distinct from the
+// per-GameServer lines above, for the /admin/system-logs/:component
+// stream mock (buildScreenshotHandlers()).
+export const screenshotSystemLogLines = [
+  '{"level":"info","ts":"2026-09-06T12:00:01Z","msg":"starting gameplane-api","version":"v0.2.0-beta.8"}',
+  '{"level":"info","ts":"2026-09-06T12:00:02Z","msg":"connected to database","driver":"sqlite"}',
+  '{"level":"info","ts":"2026-09-06T12:00:03Z","msg":"listening","addr":":8080"}',
+  '{"level":"info","ts":"2026-09-06T12:01:15Z","msg":"request","method":"GET","path":"/api/v1/servers","status":200,"duration_ms":4}',
+  '{"level":"info","ts":"2026-09-06T12:01:22Z","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"duration_ms":112}',
+  '{"level":"warn","ts":"2026-09-06T12:03:47Z","msg":"slow query","table":"audit_events","duration_ms":340}',
+  '{"level":"info","ts":"2026-09-06T12:05:00Z","msg":"reconciled gameserver","name":"test-server-01","phase":"Running"}',
+];
 
 export const screenshotLogLines = [
   "[12:00:01] [Server thread/INFO]: Starting minecraft server version 1.21",
