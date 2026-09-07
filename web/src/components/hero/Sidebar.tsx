@@ -173,14 +173,15 @@ export function Sidebar({
   if (variant === "drawer") {
     return (
       <Drawer.Root isOpen={isOpen ?? false} onOpenChange={(open) => { if (!open) onClose?.(); }}>
-        <Drawer.Backdrop />
-        <Drawer.Content placement="left">
-          <Drawer.Dialog className="w-[280px] max-w-[85vw] p-0">
-            <Drawer.Body className="p-0">
-              {sidebarContent}
-            </Drawer.Body>
-          </Drawer.Dialog>
-        </Drawer.Content>
+        <Drawer.Backdrop>
+          <Drawer.Content placement="left">
+            <Drawer.Dialog className="w-[280px] max-w-[85vw] p-0">
+              <Drawer.Body className="p-0">
+                {sidebarContent}
+              </Drawer.Body>
+            </Drawer.Dialog>
+          </Drawer.Content>
+        </Drawer.Backdrop>
       </Drawer.Root>
     );
   }

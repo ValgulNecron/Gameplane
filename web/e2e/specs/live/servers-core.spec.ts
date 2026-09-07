@@ -237,7 +237,7 @@ test.describe("live: servers core (list + detail)", () => {
       // must hold before the next dialog is opened, or a stuck backdrop
       // from this dialog would block the next trigger click.
       await expect(
-        page.locator('[data-slot="modal-backdrop"], [data-slot="alert-dialog-backdrop"]'),
+        page.locator('[data-slot="modal-backdrop"], [data-slot="alert-dialog-backdrop"], [data-slot="drawer-backdrop"]'),
       ).toHaveCount(0);
 
       // The server must still exist — this dialog was cancelled, not
