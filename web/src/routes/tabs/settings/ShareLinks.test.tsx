@@ -68,6 +68,10 @@ describe("ShareLinksSection", () => {
   });
 
   afterEach(() => {
+    // Per-test server.use() overrides (e.g. the empty-state and error-case
+    // handlers below) must not leak into later tests — server.close() alone
+    // doesn't clear them.
+    server.resetHandlers();
     server.close();
   });
 
@@ -106,11 +110,11 @@ describe("ShareLinksSection", () => {
   it("renders table with share links when they exist", async () => {
     render(<ShareLinksSection name="mc-survival" />, { wrapper: Wrapper });
     await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByRole("grid")).toBeInTheDocument();
+      // Table should contain date strings
+      expect(screen.getByText("Jul 28, 2026")).toBeInTheDocument();
+      expect(screen.getByText("Jun 1, 2026")).toBeInTheDocument();
     });
-    // Table should contain date strings
-    expect(screen.getByText("Jul 28, 2026")).toBeInTheDocument();
-    expect(screen.getByText("Jun 1, 2026")).toBeInTheDocument();
   });
 
   it("renders column headers", async () => {
@@ -200,13 +204,18 @@ describe("ShareLinksSection", () => {
     });
 
     // Toggle allow-start switch (should enable canStart capability)
-    // The switch doesn't have an accessible name, so find first checkbox in dialog
-    const checkboxes = screen.getAllByRole("checkbox");
-    if (checkboxes.length > 0) {
-      await user.click(checkboxes[0]);
-    }
+    const allowStartSwitch = screen.getByRole("switch", {
+      name: "Allow starting the server",
+    });
+    await user.click(allowStartSwitch);
 
-    // Submit with default expiry (7 days)
+    // Drive the HeroUI Select: open it and pick the 30-day expiry option
+    const expiryTrigger = screen.getByRole("button", { name: /7 days/ });
+    await user.click(expiryTrigger);
+    const thirtyDaysOption = await screen.findByRole("option", { name: "30 days" });
+    await user.click(thirtyDaysOption);
+
+    // Submit with the selected expiry
     const createConfirmBtn = screen.getByRole("button", { name: "Create link" });
     await user.click(createConfirmBtn);
 
@@ -232,7 +241,9 @@ describe("ShareLinksSection", () => {
     const createConfirmBtn = screen.getByRole("button", { name: "Create link" });
     await user.click(createConfirmBtn);
     await waitFor(() => {
-      expect(screen.getByText(/Failed to create link/)).toBeInTheDocument();
+      // errorText() surfaces the API's JSON {error} body verbatim rather
+      // than the "Failed to create link" fallback when one is present.
+      expect(screen.getByText("Permission denied")).toBeInTheDocument();
     });
   });
 
@@ -306,10 +317,9 @@ describe("ShareLinksSection", () => {
   it("opens revoke dialog when Revoke button is clicked", async () => {
     const user = userEvent.setup();
     render(<ShareLinksSection name="mc-survival" />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
-    });
-    const revokeButtons = screen.getAllByRole("button", { name: "Revoke" });
+    const revokeButtons = await waitFor(() =>
+      screen.getAllByRole("button", { name: "Revoke" }),
+    );
     await user.click(revokeButtons[0]);
     await waitFor(() => {
       expect(screen.getByText("Revoke this share link?")).toBeInTheDocument();
@@ -319,10 +329,9 @@ describe("ShareLinksSection", () => {
   it("shows confirmation message in revoke dialog", async () => {
     const user = userEvent.setup();
     render(<ShareLinksSection name="mc-survival" />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
-    });
-    const revokeButtons = screen.getAllByRole("button", { name: "Revoke" });
+    const revokeButtons = await waitFor(() =>
+      screen.getAllByRole("button", { name: "Revoke" }),
+    );
     await user.click(revokeButtons[0]);
     await waitFor(() => {
       expect(
@@ -334,10 +343,9 @@ describe("ShareLinksSection", () => {
   it("closes revoke dialog on Cancel", async () => {
     const user = userEvent.setup();
     render(<ShareLinksSection name="mc-survival" />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
-    });
-    const revokeButtons = screen.getAllByRole("button", { name: "Revoke" });
+    const revokeButtons = await waitFor(() =>
+      screen.getAllByRole("button", { name: "Revoke" }),
+    );
     await user.click(revokeButtons[0]);
     await waitFor(() => {
       expect(screen.getByText("Revoke this share link?")).toBeInTheDocument();
@@ -352,10 +360,9 @@ describe("ShareLinksSection", () => {
   it("revokes link on confirmation", async () => {
     const user = userEvent.setup();
     render(<ShareLinksSection name="mc-survival" />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
-    });
-    const revokeButtons = screen.getAllByRole("button", { name: "Revoke" });
+    const revokeButtons = await waitFor(() =>
+      screen.getAllByRole("button", { name: "Revoke" }),
+    );
     await user.click(revokeButtons[0]);
     await waitFor(() => {
       expect(screen.getByText("Revoke this share link?")).toBeInTheDocument();
@@ -375,10 +382,9 @@ describe("ShareLinksSection", () => {
       ),
     );
     render(<ShareLinksSection name="mc-survival" />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
-    });
-    const revokeButtons = screen.getAllByRole("button", { name: "Revoke" });
+    const revokeButtons = await waitFor(() =>
+      screen.getAllByRole("button", { name: "Revoke" }),
+    );
     await user.click(revokeButtons[0]);
     await waitFor(() => {
       expect(screen.getByText("Revoke this share link?")).toBeInTheDocument();
@@ -386,7 +392,9 @@ describe("ShareLinksSection", () => {
     const revokeConfirmBtn = screen.getByRole("button", { name: "Revoke link" });
     await user.click(revokeConfirmBtn);
     await waitFor(() => {
-      expect(screen.getByText(/Failed to revoke link/)).toBeInTheDocument();
+      // errorText() surfaces the API's JSON {error} body verbatim rather
+      // than the "Failed to revoke link" fallback when one is present.
+      expect(screen.getByText("Permission denied")).toBeInTheDocument();
     });
   });
 
@@ -398,6 +406,23 @@ describe("ShareLinksSection", () => {
 
   // Status determination tests
   it("shows Active status for non-expired links", async () => {
+    // The fixture links' expiry dates are fixed calendar dates, so they
+    // eventually fall into the past relative to the real clock. Override
+    // with a link that expires relative to "now" so this test keeps
+    // asserting the intended behavior (status derived from expiresAt vs.
+    // the current time) instead of drifting into a stale-fixture failure.
+    server.use(
+      http.get(/\/servers\/[^/]+:shares$/, () =>
+        HttpResponse.json([
+          {
+            id: "active-link",
+            createdAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            canStart: true,
+          },
+        ]),
+      ),
+    );
     render(<ShareLinksSection name="mc-survival" />, { wrapper: Wrapper });
     await waitFor(() => {
       expect(screen.getByText("Active")).toBeInTheDocument();

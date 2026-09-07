@@ -161,7 +161,17 @@ function CreateDialog({
             </div>
 
             <div className="flex items-center gap-3">
-              <Switch isSelected={canStart} onChange={setCanStart} />
+              <Switch
+                isSelected={canStart}
+                onChange={setCanStart}
+                aria-label="Allow starting the server"
+              >
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Content>
+              </Switch>
               <div className="flex-1">
                 <Label className="text-sm">Allow starting the server</Label>
                 <Description className="text-xs text-muted">

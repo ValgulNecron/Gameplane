@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SharePage } from "./Share";
 import { Shares, APIError } from "@/lib/api";
 
-const mockUseParams = vi.fn();
+const mockUseParams = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api", () => ({
   Shares: {
@@ -44,6 +44,10 @@ describe("SharePage", () => {
 
   afterEach(() => {
     vi.clearAllTimers();
+    // Guard against a fake-timer test failing/timing out before it reaches
+    // its own vi.useRealTimers() — without this, real timers stay swapped
+    // out and every later test in the file hangs on waitFor's internal poll.
+    vi.useRealTimers();
   });
 
   describe("Loading state", () => {
@@ -53,7 +57,7 @@ describe("SharePage", () => {
       );
 
       renderWithRouter("test-token");
-      expect(screen.getByRole("progressbar")).toBeInTheDocument();
+      expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
     });
   });
 
@@ -135,7 +139,7 @@ describe("SharePage", () => {
     });
 
     it("T182: copy address button copies address to clipboard", async () => {
-      const mockClipboard = vi.fn();
+      const mockClipboard = vi.fn().mockResolvedValue(undefined);
       Object.defineProperty(navigator, "clipboard", {
         value: { writeText: mockClipboard },
         configurable: true,
@@ -173,7 +177,7 @@ describe("SharePage", () => {
         expect(screen.getByText("mc-survival")).toBeInTheDocument();
         expect(screen.getByText("Asleep")).toBeInTheDocument();
         expect(
-          screen.getByText("This server is asleep to save resources")
+          screen.getByText(/This server is asleep to save resources/)
         ).toBeInTheDocument();
       });
 
@@ -181,7 +185,7 @@ describe("SharePage", () => {
     });
 
     it("shows view-only when user tries to start but polling shows still asleep", async () => {
-      vi.useFakeTimers();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
 
       vi.mocked(Shares.resolve)
         .mockResolvedValueOnce({
@@ -216,7 +220,7 @@ describe("SharePage", () => {
 
       // Polling should show it's still asleep, so transition to view-only
       await waitFor(() => {
-        expect(screen.getByText("This server is asleep right now")).toBeInTheDocument();
+        expect(screen.getByText(/This server is asleep right now/)).toBeInTheDocument();
         expect(
           screen.queryByRole("button", { name: /start server/i })
         ).not.toBeInTheDocument();
@@ -284,7 +288,7 @@ describe("SharePage", () => {
     });
 
     it("T184: polls resolve endpoint every 2 seconds", async () => {
-      vi.useFakeTimers();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
 
       vi.mocked(Shares.resolve).mockResolvedValue({
         serverName: "mc-survival",
@@ -311,7 +315,7 @@ describe("SharePage", () => {
     });
 
     it("T184: transitions to Up when server is Running", async () => {
-      vi.useFakeTimers();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
 
       vi.mocked(Shares.resolve)
         .mockResolvedValueOnce({
@@ -341,7 +345,7 @@ describe("SharePage", () => {
     });
 
     it("T184: cancels polling on unmount", async () => {
-      vi.useFakeTimers();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
       const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
 
       vi.mocked(Shares.resolve).mockResolvedValue({
@@ -430,8 +434,10 @@ describe("SharePage", () => {
       const invalidMsg = screen.getByText(/This link may be invalid/);
       expect(invalidMsg).toBeInTheDocument();
 
-      // Verify no specific error detail is shown
-      expect(screen.queryByText(/404|expired|revoked|valid/i)).not.toBeInTheDocument();
+      // Verify no specific error detail (status code or raw error body) is
+      // shown — only the neutral copy asserted above, which lists all three
+      // possibilities without confirming which one applies.
+      expect(screen.queryByText(/404|Not found/)).not.toBeInTheDocument();
     });
   });
 
