@@ -47,7 +47,7 @@ export function RoleEditorModal({
   if (open !== resetFor.open || role?.name !== resetFor.roleId) {
     setResetFor({ open, roleId: role?.name ?? null });
     if (open) {
-      setName("");
+      setName(role?.name ?? "");
       setDescription(role?.description ?? "");
       setSelectedPerms(new Set(role?.permissions ?? []));
     }
@@ -130,23 +130,19 @@ export function RoleEditorModal({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {group.permissions.map((perm) => (
-                      <label key={perm.key} className="flex items-center gap-2 cursor-pointer">
-                        <Checkbox
-                          isSelected={selectedPerms.has(perm.key)}
-                          onChange={() => togglePermission(perm.key)}
-                          isDisabled={save.isPending}
-                        >
-                          <Checkbox.Control>
-                            <Checkbox.Indicator />
-                          </Checkbox.Control>
-                        </Checkbox>
-                        <span className="font-mono text-sm">{perm.key}</span>
-                        {perm.namespaced && (
-                          <span className="text-xs text-muted bg-muted bg-opacity-25 px-1 py-0.5 rounded">
-                            ns
-                          </span>
-                        )}
-                      </label>
+                      <Checkbox key={perm.key} isSelected={selectedPerms.has(perm.key)} onChange={() => togglePermission(perm.key)} isDisabled={save.isPending}>
+                        <Checkbox.Control>
+                          <Checkbox.Indicator />
+                        </Checkbox.Control>
+                        <Checkbox.Content>
+                          <span className="font-mono text-sm">{perm.key}</span>
+                          {perm.namespaced && (
+                            <span className="text-xs text-muted bg-muted bg-opacity-25 px-1 py-0.5 rounded">
+                              ns
+                            </span>
+                          )}
+                        </Checkbox.Content>
+                      </Checkbox>
                     ))}
                   </div>
                 </div>

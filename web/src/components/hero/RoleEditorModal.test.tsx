@@ -110,8 +110,8 @@ describe("RoleEditorModal", () => {
       />,
       { wrapper: Wrapper },
     );
-    expect(screen.getByText("GAME SERVERS")).toBeInTheDocument();
-    expect(screen.getByText("BACKUPS")).toBeInTheDocument();
+    expect(screen.getByText("Game Servers")).toBeInTheDocument();
+    expect(screen.getByText("Backups")).toBeInTheDocument();
   });
 
   it("displays all permissions for each group", () => {
@@ -186,8 +186,7 @@ describe("RoleEditorModal", () => {
       />,
       { wrapper: Wrapper },
     );
-    const checkboxes = screen.getAllByRole("checkbox");
-    const firstCheckbox = checkboxes[0];
+    const firstCheckbox = screen.getByRole("checkbox", { name: /servers:read/ });
     // Initially should be checked (since it's in mockRole.permissions)
     expect(firstCheckbox).toBeChecked();
     // Uncheck it
