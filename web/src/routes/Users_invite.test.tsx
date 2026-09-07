@@ -53,7 +53,7 @@ describe("UsersPage Invite dialog", () => {
     // (matching the page's trigger button, which stays in the DOM behind
     // the overlay) — scope to the dialog to disambiguate.
     const dialog = screen.getByRole("dialog");
-    const submit = within(dialog).getByRole("button", { name: /Invite user/i });
+    const submit = within(dialog).getByRole("button", { name: "Create user" });
     expect(submit).toBeDisabled();
   });
 
@@ -67,7 +67,8 @@ describe("UsersPage Invite dialog", () => {
     await userEvent.type(pwInput, "short");
     // The dialog preemptively disables the submit button rather than
     // showing an inline message before the user attempts to submit.
-    expect(within(dialog).getByRole("button", { name: /Invite user/i })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Create user" })).toBeDisabled();
+    expect(within(dialog).getByText(/At least 12 characters\./)).toBeInTheDocument();
   });
 
   it("submits a create with the form values", async () => {
@@ -77,7 +78,7 @@ describe("UsersPage Invite dialog", () => {
     const dialog = await screen.findByRole("dialog");
     const usernameInput = within(dialog).getByPlaceholderText("alice") as HTMLInputElement;
     await userEvent.type(usernameInput, "newuser");
-    await userEvent.click(within(dialog).getByRole("button", { name: /Invite user/i }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create user" }));
     await waitFor(() => expect(create).toHaveBeenCalled());
     const args = create.mock.calls[0][0];
     expect(args.username).toBe("newuser");

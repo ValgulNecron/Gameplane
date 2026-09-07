@@ -170,7 +170,7 @@ describe("UsersPage", () => {
 
     const pw = await screen.findByPlaceholderText(/At least 12 characters/i);
     await user.type(pw, "brand-new-password-1");
-    await user.click(screen.getByRole("button", { name: /Reset password/i }));
+    await user.click(screen.getByRole("button", { name: "Set new password" }));
 
     await waitFor(() =>
       expect(resetPassword).toHaveBeenCalledWith(2, "brand-new-password-1"),
@@ -415,7 +415,7 @@ describe("InviteModal", () => {
     await user.type(within(dialog).getByPlaceholderText("alice@example.com"), "new@example.com");
     await user.type(within(dialog).getByPlaceholderText(/At least 12 characters/), "password-1234");
 
-    await user.click(within(dialog).getByRole("button", { name: /Invite user/i }));
+    await user.click(within(dialog).getByRole("button", { name: "Create user" }));
 
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(
@@ -437,7 +437,7 @@ describe("InviteModal", () => {
 
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByPlaceholderText("alice"), "oidc-user");
-    await user.click(within(dialog).getByRole("button", { name: /Invite user/i }));
+    await user.click(within(dialog).getByRole("button", { name: "Create user" }));
 
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(
@@ -458,8 +458,9 @@ describe("InviteModal", () => {
     await user.type(within(dialog).getByPlaceholderText("alice"), "newuser");
     await user.type(within(dialog).getByPlaceholderText(/At least 12 characters/), "short");
 
-    const button = within(dialog).getByRole("button", { name: /Invite user/i });
+    const button = within(dialog).getByRole("button", { name: "Create user" });
     expect(button).toBeDisabled();
+    expect(within(dialog).getByText(/At least 12 characters\./)).toBeInTheDocument();
   });
 
   it("displays error from API", async () => {
@@ -471,7 +472,7 @@ describe("InviteModal", () => {
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByPlaceholderText("alice"), "duplicate");
     await user.type(within(dialog).getByPlaceholderText(/At least 12 characters/), "password-1234");
-    await user.click(within(dialog).getByRole("button", { name: /Invite user/i }));
+    await user.click(within(dialog).getByRole("button", { name: "Create user" }));
 
     expect(await screen.findByText("User already exists")).toBeInTheDocument();
   });
@@ -598,8 +599,9 @@ describe("ResetPasswordModal", () => {
 
     // The dialog preemptively disables the submit button rather than
     // showing an inline message before the user attempts to submit.
-    const button = screen.getByRole("button", { name: /Reset password/i });
+    const button = screen.getByRole("button", { name: "Set new password" });
     expect(button).toBeDisabled();
+    expect(screen.getByText(/At least 12 characters\./)).toBeInTheDocument();
   });
 
   it("displays error from API", async () => {
@@ -611,7 +613,7 @@ describe("ResetPasswordModal", () => {
 
     const pw = await screen.findByPlaceholderText(/At least 12 characters/i);
     await user.type(pw, "brand-new-password-1");
-    await user.click(screen.getByRole("button", { name: /Reset password/i }));
+    await user.click(screen.getByRole("button", { name: "Set new password" }));
 
     expect(await screen.findByText("Cannot reset password")).toBeInTheDocument();
   });

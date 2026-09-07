@@ -321,7 +321,7 @@ describe("AdminSettings sections", () => {
     // informational — no select, no save button.
     expect(await screen.findByText("stable")).toBeInTheDocument();
     expect(screen.getByText(/Informational only/i)).toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("hidden-select-container")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Save changes/i })).not.toBeInTheDocument();
   });
 

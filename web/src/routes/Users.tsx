@@ -55,6 +55,12 @@ import type { ExtendedUser, Role, RoleBinding } from "@/types";
 
 type Tab = "users" | "roles" | "service" | "idp";
 
+const roleColor: Record<string, string> = {
+  admin: "bg-primary/15 text-primary",
+  operator: "bg-violet/15 text-violet",
+  viewer: "bg-muted/20 text-muted",
+};
+
 function apiErrorText(error: unknown): string | undefined {
   if (!error) return undefined;
   return error instanceof APIError
@@ -181,21 +187,10 @@ export function UsersPage() {
             {error instanceof APIError && (
               <Alert status="danger">
                 <Alert.Indicator />
-                <Alert.Title>Error loading users</Alert.Title>
+                <Alert.Title>Failed to load users.</Alert.Title>
                 {error.body && <Alert.Description>{error.body}</Alert.Description>}
               </Alert>
             )}
-
-            <div className="relative mb-4 w-64">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
-              <Input
-                className="pl-9"
-                placeholder="Search users…"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                aria-label="Search users"
-              />
-            </div>
 
             <Table.Root>
               <Table.ScrollContainer>
@@ -236,7 +231,7 @@ export function UsersPage() {
                       </div>
                     </Table.Cell>
                     <Table.Cell>
-                      <span className="rounded px-2 py-0.5 text-[10px] font-mono uppercase bg-primary/10 text-primary">
+                      <span className={`rounded px-2 py-0.5 text-[10px] font-mono uppercase ${roleColor[u.role] ?? "bg-muted/20 text-muted"}`}>
                         {u.role}
                       </span>
                     </Table.Cell>
@@ -340,6 +335,7 @@ export function UsersPage() {
         disableSubmitUntilValid
         isLoading={create.isPending}
         apiError={apiErrorText(create.error)}
+        submitLabel="Create user"
         onInvite={(username, displayName, email, password, role) => {
           create.mutate({
             username,
@@ -352,6 +348,7 @@ export function UsersPage() {
       />
       {editing && (
         <EditUserDialog
+          key={editing.id}
           open
           onOpenChange={(open) => {
             if (!open) {
@@ -368,6 +365,7 @@ export function UsersPage() {
           roleGrantsUserManagement={(r) => roleGrantsUserManagement(roles, r)}
           isLoading={save.isPending}
           apiError={apiErrorText(save.error)}
+          contactFieldsOptional
           extraContent={<NamespaceGrants userId={editing.id} roles={roles} />}
           onSave={(displayName, email, role) => {
             const dirty: UserUpdate = {};
@@ -392,6 +390,7 @@ export function UsersPage() {
           disableSubmitUntilValid
           isLoading={reset.isPending}
           apiError={apiErrorText(reset.error)}
+          submitLabel="Set new password"
           onReset={(password) => reset.mutate({ id: resetting.id, password })}
         />
       )}
