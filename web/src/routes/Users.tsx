@@ -10,7 +10,7 @@ import {
   Card,
   Input,
   Tabs,
-  Tab,
+  Tab as TabComponent,
   Table,
   Dropdown,
   DropdownTrigger,
@@ -54,7 +54,7 @@ import {
 import { formatRelative } from "@/lib/utils";
 import type { ExtendedUser, Role, RoleBinding } from "@/types";
 
-type Tab = "users" | "roles" | "service" | "idp";
+type TabKey = "users" | "roles" | "service" | "idp";
 
 const roleColor: Record<string, string> = {
   admin: "bg-primary/15 text-primary",
@@ -82,7 +82,7 @@ export function UsersPage() {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const canAudit = can(me, "audit:read");
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<TabKey>("users");
   const [q, setQ] = useState("");
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<ExtendedUser | null>(null);
@@ -164,24 +164,24 @@ export function UsersPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Tabs
           selectedKey={tab}
-          onSelectionChange={(key) => setTab(key as Tab)}
+          onSelectionChange={(key) => setTab(key as TabKey)}
           variant="secondary"
         >
           <Tabs.List>
-            <Tab id="users">
+            <TabComponent id="users">
               <div className="flex items-center gap-2">
                 <span>Users</span>
                 <span className="text-xs text-foreground/60">({counts.users})</span>
               </div>
-            </Tab>
-            <Tab id="roles">
+            </TabComponent>
+            <TabComponent id="roles">
               <div className="flex items-center gap-2">
                 <span>Roles</span>
                 <span className="text-xs text-foreground/60">({counts.roles})</span>
               </div>
-            </Tab>
-            <Tab id="service">Service accounts</Tab>
-            <Tab id="idp">Identity providers</Tab>
+            </TabComponent>
+            <TabComponent id="service">Service accounts</TabComponent>
+            <TabComponent id="idp">Identity providers</TabComponent>
           </Tabs.List>
 
           <Tabs.Panel id="users">
@@ -450,11 +450,11 @@ function DeleteUserDialog({
             </ModalHeader>
             <ModalBody>
               {isMe ? (
-                <p className="text-sm text-danger">You can't delete your own account.</p>
+                <p className="text-sm text-danger">You can&apos;t delete your own account.</p>
               ) : (
                 <div className="space-y-2">
                   <p className="text-sm">
-                    Their sessions will be revoked and they'll lose access immediately. This cannot be undone.
+                    Their sessions will be revoked and they&apos;ll lose access immediately. This cannot be undone.
                   </p>
                   <ErrorLine error={remove.error} />
                 </div>
@@ -607,7 +607,7 @@ function DeleteRoleDialog({
             <ModalBody>
               <div className="space-y-2">
                 <p className="text-sm">
-                  This can't be undone. Roles assigned to a user can't be deleted.
+                  This can&apos;t be undone. Roles assigned to a user can&apos;t be deleted.
                 </p>
                 <ErrorLine error={remove.error} />
               </div>

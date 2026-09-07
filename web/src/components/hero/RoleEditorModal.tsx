@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Modal,
@@ -34,18 +34,11 @@ export function RoleEditorModal({
   onSaved,
 }: RoleEditorModalProps) {
   const creating = role === null;
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
-
-  // Reset state when dialog opens/closes
-  useEffect(() => {
-    if (open) {
-      setName(role?.name ?? "");
-      setDescription(role?.description ?? "");
-      setSelectedPerms(new Set(role?.permissions ?? []));
-    }
-  }, [open, role?.name, role?.description, role?.permissions]);
+  const [name, setName] = useState(() => role?.name ?? "");
+  const [description, setDescription] = useState(() => role?.description ?? "");
+  const [selectedPerms, setSelectedPerms] = useState<Set<string>>(
+    () => new Set(role?.permissions ?? []),
+  );
 
   const save = useMutation({
     mutationFn: () => {
@@ -76,7 +69,7 @@ export function RoleEditorModal({
   };
 
   return (
-    <Modal isOpen={open} onOpenChange={onOpenChange}>
+    <Modal isOpen={open} onOpenChange={onOpenChange} key={role?.name ?? "new"}>
       <ModalBackdrop isDismissable={!save.isPending} isKeyboardDismissDisabled={save.isPending} />
       <ModalContainer size="lg">
         <ModalDialog>

@@ -1,3 +1,4 @@
+import React from "react";
 import { Chip } from "@heroui/react";
 import { Edit2, Package, Minus } from "lucide-react";
 

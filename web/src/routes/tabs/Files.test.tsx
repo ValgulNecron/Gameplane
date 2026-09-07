@@ -332,13 +332,11 @@ describe("FilesTab", () => {
     const configEntries = [
       { name: "server-config.yaml", path: "/config/server-config.yaml", size: 512, dir: false },
     ];
-    let callCount = 0;
     fetchMock.mockImplementation(async (url: string) => {
       if (url === "/servers/mc-survival/files/list?path=%2F") {
         return jsonRes(ROOT_ENTRIES);
       }
       if (url === "/servers/mc-survival/files/list?path=%2Fconfig") {
-        callCount++;
         return jsonRes(configEntries);
       }
       throw new Error(`unexpected fetch: ${url}`);
