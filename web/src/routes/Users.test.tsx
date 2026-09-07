@@ -206,9 +206,7 @@ describe("UsersPage roles tab", () => {
   async function openRolesTab() {
     const user = userEvent.setup();
     renderPage();
-    const tabs = screen.getAllByRole("tab");
-    const rolesTab = tabs.find((tab) => tab.textContent?.includes("Roles"));
-    if (rolesTab) await user.click(rolesTab);
+    await user.click(screen.getByRole("tab", { name: /Roles/i }));
     return user;
   }
 
@@ -373,6 +371,7 @@ describe("UsersPage user row display", () => {
     await user.click(await screen.findByLabelText("Actions for oidc-user"));
     const resetItem = await screen.findByRole("menuitem", { name: /Reset password/i });
     expect(resetItem).toHaveAttribute("aria-disabled", "true");
+    expect(resetItem).toHaveAttribute("aria-label", expect.stringContaining("OIDC-managed"));
   });
 });
 
@@ -380,9 +379,7 @@ describe("UsersPage tabs", () => {
   it("switches to roles tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    const tabs = screen.getAllByRole("tab");
-    const rolesTab = tabs.find((tab) => tab.textContent?.includes("Roles"));
-    if (rolesTab) await user.click(rolesTab);
+    await user.click(screen.getByRole("tab", { name: /Roles/i }));
     expect(await screen.findByText("operator")).toBeInTheDocument();
     expect(screen.queryByText("alice")).not.toBeInTheDocument();
   });
@@ -390,18 +387,14 @@ describe("UsersPage tabs", () => {
   it("switches to service accounts tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    const tabs = screen.getAllByRole("tab");
-    const serviceTab = tabs.find((tab) => tab.textContent?.includes("Service accounts"));
-    if (serviceTab) await user.click(serviceTab);
+    await user.click(screen.getByRole("tab", { name: /Service accounts/i }));
     expect(await screen.findByText(/tracked for v1.1/i)).toBeInTheDocument();
   });
 
   it("switches to identity providers tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    const tabs = screen.getAllByRole("tab");
-    const idpTab = tabs.find((tab) => tab.textContent?.includes("Identity providers"));
-    if (idpTab) await user.click(idpTab);
+    await user.click(screen.getByRole("tab", { name: /Identity providers/i }));
     expect(await screen.findByText(/configured in Helm values/i)).toBeInTheDocument();
   });
 });
@@ -673,9 +666,7 @@ describe("UsersPage roles tab extended", () => {
   async function openRolesTab() {
     const user = userEvent.setup();
     renderPage();
-    const tabs = screen.getAllByRole("tab");
-    const rolesTab = tabs.find((tab) => tab.textContent?.includes("Roles"));
-    if (rolesTab) await user.click(rolesTab);
+    await user.click(screen.getByRole("tab", { name: /Roles/i }));
     return user;
   }
 

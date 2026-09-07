@@ -31,6 +31,7 @@ import {
   Alert,
   Label,
   Description,
+  Separator,
 } from "@heroui/react";
 import {
   KeyRound,
@@ -41,7 +42,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader } from "@/components/hero/PageHeader";
 import { RoleEditorModal } from "@/components/hero/RoleEditorModal";
 import { APIError } from "@/lib/api";
 import { useMe, can } from "@/lib/auth";
@@ -112,7 +113,7 @@ export function UsersPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Users & RBAC"
-        subtitle="Manage access to the Gameplane control plane."
+        description="Manage access to the Gameplane control plane."
         actions={
           <div className="flex items-center gap-2">
             {canAudit && (
@@ -152,6 +153,144 @@ export function UsersPage() {
             <Tab id="service">Service accounts</Tab>
             <Tab id="idp">Identity providers</Tab>
           </Tabs.List>
+
+          <Tabs.Panel id="users">
+            {error instanceof APIError && (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Title>Error loading users</Alert.Title>
+                {error.body && <Alert.Description>{error.body}</Alert.Description>}
+              </Alert>
+            )}
+
+            <div className="relative mb-4 w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
+              <Input
+                className="pl-9"
+                placeholder="Search users…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                aria-label="Search users"
+              />
+            </div>
+
+            <Table.Root>
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Users list">
+                  <Table.Header>
+                    <Table.Column id="user">User</Table.Column>
+                    <Table.Column id="role">Role</Table.Column>
+                    <Table.Column id="provider">Provider</Table.Column>
+                    <Table.Column id="created">Created</Table.Column>
+                    <Table.Column id="actions" className="text-right">Actions</Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() => <span>No entries.</span>}
+                  >
+                    {visible.map((u) => (
+                  <Table.Row key={u.id}>
+                    <Table.Cell>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
+                          {(u.displayName || u.username).slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate font-mono text-sm text-foreground">
+                            {u.username}
+                            {me && me.id === u.id && (
+                              <span className="ml-2 rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] text-foreground/70">
+                                you
+                              </span>
+                            )}
+                          </div>
+                          <div className="truncate text-[11px] text-foreground/60">
+                            {u.displayName || u.email || "—"}
+                          </div>
+                          {u.email && u.displayName && u.displayName !== u.email && (
+                            <div className="truncate text-[11px] text-foreground/60">{u.email}</div>
+                          )}
+                        </div>
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="rounded px-2 py-0.5 text-[10px] font-mono uppercase bg-primary/10 text-primary">
+                        {u.role}
+                      </span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="rounded px-2 py-0.5 text-[10px] uppercase text-foreground/60 ring-1 ring-border">
+                        {u.provider === "oidc" ? "OIDC" : u.provider === "pending" ? "Pending" : "Local"}
+                      </span>
+                    </Table.Cell>
+                    <Table.Cell className="text-foreground/60">{formatRelative(u.createdAt)}</Table.Cell>
+                    <Table.Cell>
+                      <Dropdown>
+                        <DropdownTrigger>
+                          <Button
+                            isIconOnly
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Actions for ${u.username}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu aria-label={`Actions for ${u.username}`}>
+                          <DropdownItem
+                            key="edit"
+                            onPress={() => setEditing(u)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Pencil className="h-4 w-4" />
+                              Edit user
+                            </div>
+                          </DropdownItem>
+                          <DropdownItem
+                            key="reset"
+                            isDisabled={u.provider === "oidc"}
+                            onPress={() => setResetting(u)}
+                            aria-label={u.provider === "oidc" ? "Reset password: Account is OIDC-managed" : "Reset password"}
+                          >
+                            <div className="flex items-center gap-2" title={u.provider === "oidc" ? "Account is OIDC-managed" : undefined}>
+                              <KeyRound className="h-4 w-4" />
+                              Reset password
+                            </div>
+                          </DropdownItem>
+                          <DropdownSection>
+                            <DropdownItem
+                              key="delete"
+                              variant="danger"
+                              isDisabled={Boolean(me && me.id === u.id)}
+                              onPress={() => setDeleting(u)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Trash2 className="h-4 w-4" />
+                                Delete user
+                              </div>
+                            </DropdownItem>
+                          </DropdownSection>
+                        </DropdownMenu>
+                      </Dropdown>
+                    </Table.Cell>
+                  </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table.Root>
+          </Tabs.Panel>
+
+          <Tabs.Panel id="roles">
+            <RolesTab />
+          </Tabs.Panel>
+
+          <Tabs.Panel id="service">
+            <ServiceAccountsTab />
+          </Tabs.Panel>
+
+          <Tabs.Panel id="idp">
+            <IdpTab />
+          </Tabs.Panel>
         </Tabs>
         <div className="relative ml-auto w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
@@ -164,124 +303,6 @@ export function UsersPage() {
           />
         </div>
       </div>
-
-      {error instanceof APIError && (
-        <Alert status="danger">
-          <Alert.Indicator />
-          <Alert.Title>Error loading users</Alert.Title>
-          {error.body && <Alert.Description>{error.body}</Alert.Description>}
-        </Alert>
-      )}
-
-      {tab === "users" && (
-        <Table.Root>
-          <Table.ScrollContainer>
-            <Table.Content aria-label="Users list">
-              <Table.Header>
-                <Table.Column id="user">User</Table.Column>
-                <Table.Column id="role">Role</Table.Column>
-                <Table.Column id="provider">Provider</Table.Column>
-                <Table.Column id="created">Created</Table.Column>
-                <Table.Column id="actions" className="text-right">Actions</Table.Column>
-              </Table.Header>
-              <Table.Body
-                renderEmptyState={() => <span>No entries.</span>}
-              >
-                {visible.map((u) => (
-              <Table.Row key={u.id}>
-                <Table.Cell>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
-                      {(u.displayName || u.username).slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate font-mono text-sm text-foreground">
-                        {u.username}
-                        {me && me.id === u.id && (
-                          <span className="ml-2 rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] text-foreground/70">
-                            you
-                          </span>
-                        )}
-                      </div>
-                      <div className="truncate text-[11px] text-foreground/60">
-                        {u.displayName || u.email || "—"}
-                      </div>
-                      {u.email && u.displayName && u.displayName !== u.email && (
-                        <div className="truncate text-[11px] text-foreground/60">{u.email}</div>
-                      )}
-                    </div>
-                  </div>
-                </Table.Cell>
-                <Table.Cell>
-                  <span className="rounded px-2 py-0.5 text-[10px] font-mono uppercase bg-primary/10 text-primary">
-                    {u.role}
-                  </span>
-                </Table.Cell>
-                <Table.Cell>
-                  <span className="rounded px-2 py-0.5 text-[10px] uppercase text-foreground/60 ring-1 ring-border">
-                    {u.provider === "oidc" ? "OIDC" : u.provider === "pending" ? "Pending" : "Local"}
-                  </span>
-                </Table.Cell>
-                <Table.Cell className="text-foreground/60">{formatRelative(u.createdAt)}</Table.Cell>
-                <Table.Cell>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button
-                        isIconOnly
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Actions for ${u.username}`}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu aria-label={`Actions for ${u.username}`}>
-                      <DropdownItem
-                        key="edit"
-                        onPress={() => setEditing(u)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Pencil className="h-4 w-4" />
-                          Edit user
-                        </div>
-                      </DropdownItem>
-                      <DropdownItem
-                        key="reset"
-                        isDisabled={u.provider === "oidc"}
-                        onPress={() => setResetting(u)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <KeyRound className="h-4 w-4" />
-                          Reset password
-                        </div>
-                      </DropdownItem>
-                      <DropdownSection>
-                        <DropdownItem
-                          key="delete"
-                          variant="danger"
-                          isDisabled={Boolean(me && me.id === u.id)}
-                          onPress={() => setDeleting(u)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Trash2 className="h-4 w-4" />
-                            Delete user
-                          </div>
-                        </DropdownItem>
-                      </DropdownSection>
-                    </DropdownMenu>
-                  </Dropdown>
-                </Table.Cell>
-              </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Content>
-          </Table.ScrollContainer>
-        </Table.Root>
-      )}
-
-      {tab === "roles" && <RolesTab />}
-      {tab === "service" && <ServiceAccountsTab />}
-      {tab === "idp" && <IdpTab />}
 
       {inviting && (
         <InviteUserForm
@@ -604,7 +625,7 @@ function EditUserForm({
               )}
             </div>
 
-            <div className="border-t border-divider my-2" />
+            <Separator className="my-2" />
             <NamespaceGrants userId={user.id} roles={roles} />
 
             <ErrorLine error={save.error} />
@@ -950,7 +971,8 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
   });
 
   return (
-    <div className="space-y-2 border-t border-border pt-3">
+    <div className="space-y-2 pt-3">
+      <Separator className="mb-3" />
       <div className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
         Namespace grants
       </div>
