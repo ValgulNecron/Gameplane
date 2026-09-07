@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SharePage } from "./Share";
-import { Shares } from "@/lib/api";
-import { RouterProvider, RootRoute, Route } from "@tanstack/react-router";
+import { Shares, APIError } from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
   Shares: {
@@ -10,30 +9,30 @@ vi.mock("@/lib/api", () => ({
     start: vi.fn(),
   },
   APIError: class APIError extends Error {
-    constructor(public message: string, public status: number) {
-      super(message);
+    status: number;
+    body: string;
+    constructor(status: number, body: string) {
+      super(`${status}: ${body}`);
+      this.status = status;
+      this.body = body;
     }
   },
 }));
 
-// Helper to wrap component in router for useParams
+let mockUseParams = vi.fn();
+
+vi.mock("@tanstack/react-router", async () => {
+  const actual = await vi.importActual("@tanstack/react-router");
+  return {
+    ...actual,
+    useParams: mockUseParams,
+  };
+});
+
+// Helper to render component with a mocked token parameter
 function renderWithRouter(token: string) {
-  const rootRoute = new RootRoute({ component: () => <div /> });
-  const shareRoute = new Route({
-    getParentRoute: () => rootRoute,
-    path: "/share/$token",
-    component: SharePage,
-  });
-
-  const routeTree = rootRoute.addChildren([shareRoute]);
-  const router = new (require("@tanstack/react-router").Router)({
-    routeTree,
-    initialEntries: [`/share/${token}`],
-  });
-
-  return render(
-    <RouterProvider router={router} />
-  );
+  mockUseParams.mockReturnValue({ token });
+  return render(<SharePage />);
 }
 
 describe("SharePage", () => {
@@ -44,7 +43,7 @@ describe("SharePage", () => {
   });
 
   afterEach(() => {
-    vi.clearAllIntervalIDs();
+    vi.clearAllTimers();
   });
 
   describe("Loading state", () => {
@@ -343,7 +342,7 @@ describe("SharePage", () => {
 
     it("T184: cancels polling on unmount", async () => {
       vi.useFakeTimers();
-      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+      const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
 
       vi.mocked(Shares.resolve).mockResolvedValue({
         serverName: "mc-survival",
@@ -372,7 +371,7 @@ describe("SharePage", () => {
   describe("Invalid/expired state (T185)", () => {
     it("T185: maps 404 error to invalid state with neutral copy", async () => {
       vi.mocked(Shares.resolve).mockRejectedValue(
-        new (require("@/lib/api").APIError)("Not found", 404)
+        new APIError(404, "Not found")
       );
 
       renderWithRouter("test-token");
@@ -387,7 +386,7 @@ describe("SharePage", () => {
 
     it("T185: maps 429 rate-limit to invalid state with same message", async () => {
       vi.mocked(Shares.resolve).mockRejectedValue(
-        new (require("@/lib/api").APIError)("Too many requests", 429)
+        new APIError(429, "Too many requests")
       );
 
       renderWithRouter("test-token");
@@ -402,7 +401,7 @@ describe("SharePage", () => {
 
     it("T185: maps auth errors to invalid state with neutral copy", async () => {
       vi.mocked(Shares.resolve).mockRejectedValue(
-        new (require("@/lib/api").APIError)("Unauthorized", 401)
+        new APIError(401, "Unauthorized")
       );
 
       renderWithRouter("test-token");
@@ -413,7 +412,7 @@ describe("SharePage", () => {
     });
 
     it("T185: does not reveal whether link was valid, revoked, or expired", async () => {
-      const { rerender, unmount } = render(
+      render(
         <div>
           <SharePage />
         </div>
@@ -421,7 +420,7 @@ describe("SharePage", () => {
 
       // Test scenario 1: invalid token (404)
       vi.mocked(Shares.resolve).mockRejectedValueOnce(
-        new (require("@/lib/api").APIError)("Not found", 404)
+        new APIError(404, "Not found")
       );
 
       await waitFor(() => {
@@ -473,7 +472,7 @@ describe("SharePage", () => {
       const mockMatchMedia = vi.fn((query) => ({
         matches: query === "(prefers-color-scheme: dark)",
       }));
-      window.matchMedia = mockMatchMedia as any;
+      window.matchMedia = mockMatchMedia as unknown as typeof window.matchMedia;
 
       vi.mocked(Shares.resolve).mockResolvedValue({
         serverName: "test-server",
@@ -615,11 +614,10 @@ describe("SharePage", () => {
       vi.mocked(Shares.resolve).mockResolvedValueOnce({
         serverName: "mc-survival",
         status: "Suspended",
-        canStart: true,
-      } as any);
+      });
 
       vi.mocked(Shares.start).mockRejectedValue(
-        new (require("@/lib/api").APIError)("Rate limited", 429)
+        new APIError(429, "Rate limited")
       );
 
       renderWithRouter("test-token");

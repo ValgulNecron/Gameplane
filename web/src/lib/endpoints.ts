@@ -766,6 +766,7 @@ export const ModuleSources = {
     api<ModuleSource>(`/modules/sources/${name}`, { method: "PUT", body: spec }),
   remove: (name: string) =>
     api<void>(`/modules/sources/${name}`, { method: "DELETE" }),
+};
 
 // Share link endpoint paths for authenticated (create, list, revoke) and public
 // (resolve, start) operations. Paths are returned without automatic cluster param;

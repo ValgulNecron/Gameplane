@@ -197,7 +197,7 @@ describe("ShareLinksSection", () => {
 
     // Find and select expiry dropdown
     const selectEl = screen.getByDisplayValue("168h") as HTMLSelectElement;
-    await user.selectOption(selectEl, "720h");
+    await user.selectOptions(selectEl, "720h");
 
     // Toggle allow-start switch
     const switchEl = screen.getByRole("checkbox") as HTMLInputElement;

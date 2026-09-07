@@ -46,7 +46,6 @@ export function SharePage() {
   const { token } = useParams({ from: "/share/$token" });
   const [state, setState] = useState<State>("loading");
   const [data, setData] = useState<ShareLinkPublic | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const pollingRef = useRef<number | null>(null);
@@ -68,13 +67,11 @@ export function SharePage() {
 
         // Check for neutral/error response (serverName is empty, indicating resolve returned an error)
         if (!result.serverName) {
-          setError("This link is not available");
           setState("invalid");
           return;
         }
 
         setData(result);
-        setError(null);
 
         // Determine state from result
         if (result.status === "Running") {
@@ -89,10 +86,9 @@ export function SharePage() {
           // Any other state treats as invalid
           setState("invalid");
         }
-      } catch (e) {
+      } catch {
         if (!active) return;
         // All errors (404, 429, auth) map to invalid per FR-005
-        setError("This link is not available");
         setState("invalid");
       }
     };
@@ -156,7 +152,6 @@ export function SharePage() {
       setState("starting");
     } catch {
       // On error, show invalid (rate-limited or link expired)
-      setError("This link is not available");
       setState("invalid");
     } finally {
       setIsStarting(false);
@@ -264,7 +259,7 @@ export function SharePage() {
 
           <div className="mb-6">
             <p className="text-sm text-muted">
-              This server is asleep to save resources. Start it and it'll be ready in a
+              This server is asleep to save resources. Start it and it&apos;ll be ready in a
               minute or two.
             </p>
           </div>

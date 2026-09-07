@@ -29,7 +29,7 @@ import {
   Chip,
 } from "@heroui/react";
 import { AlertCircle, Copy, Link2 } from "lucide-react";
-import type { ShareLink, ShareLinkCreateRequest } from "@/types";
+import type { ShareLink } from "@/types";
 import { Shares } from "@/lib/api";
 import { errorText } from "@/lib/errors";
 
@@ -134,7 +134,7 @@ function CreateDialog({
 
           <ModalBody className="gap-4">
             <Description className="text-sm text-muted">
-              Anyone with this link can check the server's status and connection address
+              Anyone with this link can check the server&apos;s status and connection address
               without signing in.
             </Description>
 
@@ -246,7 +246,7 @@ function CreatedDialog({ open, onOpenChange, link }: CreatedDialogProps) {
                 <div className="text-sm text-warning">
                   <strong>You will not see this link again</strong>
                   <p className="mt-1">
-                    Gameplane stores only a one-way hash of the token, so it can't be shown
+                    Gameplane stores only a one-way hash of the token, so it can&apos;t be shown
                     or recovered after you close this dialog. Copy it now.
                   </p>
                 </div>
@@ -328,7 +328,7 @@ function RevokeDialog({
           <AlertDialogBody>
             <div className="space-y-4">
               <Description className="text-sm text-foreground">
-                Anyone using this link will immediately lose access to {serverName}'s status
+                Anyone using this link will immediately lose access to {serverName}&apos;s status
                 page. This action cannot be undone.
               </Description>
               {revoke.isError && (
@@ -396,7 +396,7 @@ export function ShareLinksSection({ name, ns }: ShareLinksProps) {
         <div>
           <h3 className="text-base font-medium">Share links</h3>
           <p className="mt-1 text-sm text-muted">
-            Let people without a Gameplane account check this server's status and connection
+            Let people without a Gameplane account check this server&apos;s status and connection
             address. Only the owner can create or revoke links.
           </p>
         </div>
@@ -411,7 +411,7 @@ export function ShareLinksSection({ name, ns }: ShareLinksProps) {
           <Link2 className="mx-auto h-12 w-12 text-muted" />
           <h4 className="mt-3 font-medium">No share links yet</h4>
           <p className="mt-1 text-sm text-muted">
-            Create a link so a friend without a Gameplane account can check this server's
+            Create a link so a friend without a Gameplane account can check this server&apos;s
             status and connect — without giving them access to the dashboard.
           </p>
           <Button
