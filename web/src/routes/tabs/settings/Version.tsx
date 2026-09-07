@@ -1,7 +1,6 @@
 import { AlertTriangle, Info } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { RadioGroup, Radio, Button, Chip } from "@heroui/react";
 import type { SectionProps } from "./types";
 
 // VersionSection lets an existing server switch to another entry of the
@@ -39,49 +38,35 @@ export function VersionSection({ draft, onChange, template }: SectionProps) {
         </p>
       </div>
 
-      <div role="radiogroup" aria-label="Game version" className="space-y-2">
-        {versions.map((v) => {
-          const active = selectedId === v.id;
-          return (
-            <button
-              key={v.id}
-              role="radio"
-              aria-checked={active}
-              onClick={() => pick(v.id)}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors",
-                active ? "border-primary bg-primary/5" : "border-border hover:bg-surface/60",
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "h-4 w-4 shrink-0 rounded-full border",
-                  active ? "border-[5px] border-primary" : "border-border",
+      <RadioGroup value={selectedId} onChange={pick} aria-label="Game version" className="space-y-2">
+        {versions.map((v) => (
+          <Radio
+            key={v.id}
+            value={v.id}
+            className="flex w-full items-start gap-3 rounded-lg border border-border px-3 py-3 transition-colors hover:bg-surface/60 data-[selected]:border-primary data-[selected]:bg-primary/5"
+          >
+            <Radio.Control className="shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{v.displayName}</span>
+                {v.default && (
+                  <Chip size="sm" variant="soft" color="accent">
+                    Default
+                  </Chip>
                 )}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{v.displayName}</span>
-                  {v.default && (
-                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary">
-                      Default
-                    </span>
-                  )}
-                </span>
-                <span className="block pt-0.5 text-[11px] text-muted">
-                  {[
-                    v.loader ? `loader ${v.loader}` : null,
-                    v.gameVersion ? `game ${v.gameVersion}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || v.id}
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+              </div>
+              <p className="pt-0.5 text-[11px] text-muted">
+                {[
+                  v.loader ? `loader ${v.loader}` : null,
+                  v.gameVersion ? `game ${v.gameVersion}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || v.id}
+              </p>
+            </div>
+          </Radio>
+        ))}
+      </RadioGroup>
 
       {hasLoaderVolumes && (
         <div className="flex items-start gap-2 rounded-lg border border-border bg-surface/40 px-3 py-2.5">
@@ -103,7 +88,7 @@ export function VersionSection({ draft, onChange, template }: SectionProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() =>
+            onPress={() =>
               onChange({ ...draft, spec: { ...draft.spec, image: undefined } })
             }
           >

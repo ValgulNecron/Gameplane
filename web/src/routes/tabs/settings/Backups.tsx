@@ -1,15 +1,25 @@
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Select, type SelectOption } from "@/components/ui/select";
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import {
+  Switch,
+  Input,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  ListBox,
+  ListBoxItem,
+} from "@heroui/react";
 import { RetentionFields, buildRetention, type RetentionForm } from "@/components/backups/RetentionFields";
 import { useBackupDestinations } from "@/lib/destinations";
 import type { InlineBackupPolicy } from "@/types";
+import { cn } from "@/lib/utils";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
 
 export function BackupsSection({ draft, onChange }: SectionProps) {
   const policy = draft.spec.backupPolicy;
   const { data: destinations = [] } = useBackupDestinations();
+  const [destPopoverOpen, setDestPopoverOpen] = useState(false);
 
   const setPolicy = (next: InlineBackupPolicy | undefined) => {
     onChange({
@@ -35,12 +45,8 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
     setPolicyField("retention", built);
   };
 
-  const destinationOptions: SelectOption[] = destinations.map((d) => ({
-    value: d.name,
-    label: d.name,
-  }));
-
   const retentionForm: RetentionForm = policy?.retention ?? {};
+  const selectedDestName = policy?.repoRef.name;
 
   return (
     <div className="space-y-6">
@@ -50,9 +56,9 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
       >
         <div className="flex items-center gap-3 pt-1">
           <Switch
-            checked={!!policy}
-            disabled={!policy && destinations.length === 0}
-            onCheckedChange={(enabled) => {
+            isSelected={!!policy}
+            isDisabled={!policy && destinations.length === 0}
+            onChange={(enabled) => {
               if (enabled) {
                 // Seed with defaults
                 setPolicy({
@@ -86,6 +92,7 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
             hint="When to run backups. Example: '0 */6 * * *' for every 6 hours."
           >
             <Input
+              type="text"
               value={policy.schedule}
               onChange={(e) => setPolicyField("schedule", e.target.value)}
               placeholder="0 */6 * * *"
@@ -94,13 +101,34 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
           </Field>
 
           <Field label="Destination">
-            <Select
-              value={policy.repoRef.name}
-              options={destinationOptions}
-              onValueChange={(name) => {
-                setPolicyField("repoRef", { name, key: "repo" });
-              }}
-            />
+            <Popover isOpen={destPopoverOpen} onOpenChange={setDestPopoverOpen}>
+              <PopoverTrigger
+                className={cn(
+                  "flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
+                  "hover:bg-surface transition-colors cursor-pointer",
+                )}
+              >
+                <span className={selectedDestName ? "text-fg" : "text-muted"}>
+                  {selectedDestName || "Select destination…"}
+                </span>
+                <ChevronDown className="h-4 w-4 text-muted shrink-0" />
+              </PopoverTrigger>
+              <PopoverContent className="min-w-[200px]">
+                <ListBox
+                  aria-label="Backup destination"
+                  onSelectionChange={(selected) => {
+                    setPolicyField("repoRef", { name: String(selected), key: "repo" });
+                    setDestPopoverOpen(false);
+                  }}
+                >
+                  {destinations.map((d) => (
+                    <ListBoxItem key={d.name} id={d.name}>
+                      {d.name}
+                    </ListBoxItem>
+                  ))}
+                </ListBox>
+              </PopoverContent>
+            </Popover>
           </Field>
 
           <div>
@@ -114,8 +142,8 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
           >
             <div className="flex items-center gap-3 pt-1">
               <Switch
-                checked={policy.suspend ?? false}
-                onCheckedChange={(v) => setPolicyField("suspend", v)}
+                isSelected={policy.suspend ?? false}
+                onChange={(v) => setPolicyField("suspend", v)}
                 aria-label="Suspend schedule"
               />
               <span className="text-sm text-muted">

@@ -1,6 +1,5 @@
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Lock, Plus, Type, X } from "lucide-react";
+import { Input, Button, Chip, FieldError, Table } from "@heroui/react";
+import { Lock, Plus, Type, Trash2 } from "lucide-react";
 import type { EnvVar } from "@/types";
 import type { SectionProps } from "./types";
 
@@ -35,104 +34,172 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {env.length === 0 && (
-        <p className="text-sm text-muted">
+        <p className="text-sm text-default-500">
           No environment variables. Click below to add one.
         </p>
       )}
-      {env.map((v, idx) => {
-        const isSecret = !!v.valueFrom?.secretKeyRef;
-        const nameInvalid = v.name !== "" && !ENV_NAME.test(v.name);
-        const dup = v.name !== "" && dupes.has(v.name);
-        return (
-          <div
-            key={idx}
-            className="grid grid-cols-1 items-start gap-2 rounded border border-border bg-surface/30 p-2 sm:grid-cols-[24px_220px_1fr_32px]"
-          >
-            <div className="flex items-center gap-1.5 text-muted sm:block sm:pt-2">
-              {isSecret ? <Lock className="h-3 w-3" /> : <Type className="h-3 w-3" />}
-              <span className="text-xs sm:hidden">{isSecret ? "Secret" : "Literal"}</span>
-            </div>
-            <div>
-              <Input
-                value={v.name}
-                onChange={(e) => update(idx, { ...v, name: e.target.value })}
-                placeholder="VAR_NAME"
-                spellCheck={false}
-                className={nameInvalid || dup ? "border-danger focus:ring-danger" : ""}
-              />
-              {nameInvalid && (
-                <div className="pt-1 text-xs text-danger">
-                  Must match [A-Z_][A-Z0-9_]*
-                </div>
-              )}
-              {dup && (
-                <div className="pt-1 text-xs text-danger">Duplicate name</div>
-              )}
-            </div>
-            {isSecret ? (
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  value={v.valueFrom?.secretKeyRef?.name ?? ""}
-                  onChange={(e) =>
-                    update(idx, {
-                      ...v,
-                      valueFrom: {
-                        secretKeyRef: {
-                          name: e.target.value,
-                          key: v.valueFrom?.secretKeyRef?.key ?? "",
-                        },
-                      },
-                    })
-                  }
-                  placeholder="secret-name"
-                  spellCheck={false}
-                />
-                <Input
-                  value={v.valueFrom?.secretKeyRef?.key ?? ""}
-                  onChange={(e) =>
-                    update(idx, {
-                      ...v,
-                      valueFrom: {
-                        secretKeyRef: {
-                          name: v.valueFrom?.secretKeyRef?.name ?? "",
-                          key: e.target.value,
-                        },
-                      },
-                    })
-                  }
-                  placeholder="key"
-                  spellCheck={false}
-                />
-              </div>
-            ) : (
-              <Input
-                value={v.value ?? ""}
-                onChange={(e) => update(idx, { ...v, value: e.target.value })}
-                placeholder="value"
-                spellCheck={false}
-              />
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-self-start sm:h-8 sm:w-8 sm:justify-self-auto sm:p-0"
-              title="Remove"
-              onClick={() => remove(idx)}
+
+      {env.length > 0 && (
+        <Table.Root>
+          <Table.ScrollContainer>
+            <Table.Content
+              aria-label="Environment variables"
+              className="mb-4 max-h-[400px]"
             >
-              <X className="h-3 w-3" />
-              <span className="sm:hidden">Remove</span>
-            </Button>
-          </div>
-        );
-      })}
+              <Table.Header>
+                <Table.Column key="type" width="80">
+                  Type
+                </Table.Column>
+                <Table.Column key="name" width="160">
+                  Name
+                </Table.Column>
+                <Table.Column key="value" width="100%">
+                  Value
+                </Table.Column>
+                <Table.Column key="actions" id="actions" width="40" className="text-end">
+                  Actions
+                </Table.Column>
+              </Table.Header>
+              <Table.Body>
+                {env.map((v, idx) => {
+                  const isSecret = !!v.valueFrom?.secretKeyRef;
+                  const nameInvalid = v.name !== "" && !ENV_NAME.test(v.name);
+                  const dup = v.name !== "" && dupes.has(v.name);
+                  return (
+                    <Table.Row key={idx}>
+                      <Table.Cell>
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          className="text-xs"
+                        >
+                          {isSecret ? (
+                            <>
+                              <Lock className="h-3 w-3" />
+                              Secret
+                            </>
+                          ) : (
+                            <>
+                              <Type className="h-3 w-3" />
+                              Literal
+                            </>
+                          )}
+                        </Chip>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="space-y-1">
+                          <Input
+                           
+                            value={v.name}
+                            onChange={(e) => update(idx, { ...v, name: e.target.value })}
+                            placeholder="VAR_NAME"
+                            spellCheck={false}
+                            className="text-xs"
+                          />
+                          {nameInvalid && (
+                            <FieldError className="text-xs">
+                              Must match [A-Z_][A-Z0-9_]*
+                            </FieldError>
+                          )}
+                          {dup && (
+                            <FieldError className="text-xs">
+                              Duplicate name
+                            </FieldError>
+                          )}
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        {isSecret ? (
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <Input
+                               
+                                value={v.valueFrom?.secretKeyRef?.name ?? ""}
+                                onChange={(e) =>
+                                  update(idx, {
+                                    ...v,
+                                    valueFrom: {
+                                      secretKeyRef: {
+                                        name: e.target.value,
+                                        key: v.valueFrom?.secretKeyRef?.key ?? "",
+                                      },
+                                    },
+                                  })
+                                }
+                                placeholder="secret-name"
+                                spellCheck={false}
+                                className="text-xs flex-1"
+                              />
+                              <Input
+                               
+                                value={v.valueFrom?.secretKeyRef?.key ?? ""}
+                                onChange={(e) =>
+                                  update(idx, {
+                                    ...v,
+                                    valueFrom: {
+                                      secretKeyRef: {
+                                        name: v.valueFrom?.secretKeyRef?.name ?? "",
+                                        key: e.target.value,
+                                      },
+                                    },
+                                  })
+                                }
+                                placeholder="key"
+                                spellCheck={false}
+                                className="text-xs flex-1"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <Input
+                           
+                            value={v.value ?? ""}
+                            onChange={(e) => update(idx, { ...v, value: e.target.value })}
+                            placeholder="value"
+                            spellCheck={false}
+                            className="text-xs"
+                          />
+                        )}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="ghost"
+                          aria-label="Remove"
+                          onPress={() => remove(idx)}
+                          className="text-danger hover:bg-danger/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                })}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table.Root>
+      )}
+
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={() => add("literal")}>
-          <Plus className="h-3 w-3" /> Add variable
+        <Button
+          size="sm"
+          variant="outline"
+          onPress={() => add("literal")}
+        >
+          <Plus className="h-4 w-4" />
+          Add variable
         </Button>
-        <Button size="sm" variant="outline" onClick={() => add("secret")}>
-          <Lock className="h-3 w-3" /> Add from secret
+        <Button
+          size="sm"
+          variant="outline"
+          onPress={() => add("secret")}
+        >
+          <Lock className="h-4 w-4" />
+          Add from secret
         </Button>
       </div>
     </div>

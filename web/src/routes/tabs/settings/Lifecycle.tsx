@@ -1,8 +1,5 @@
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Switch, Input, Button } from "@heroui/react";
 import type { IdleSpec, Probe, ProbeKind, ProbeSet } from "@/types";
-import { cn } from "@/lib/utils";
 import { Field } from "./Field";
 import { GRACE_PERIOD_ANNOTATION, type SectionProps } from "./types";
 
@@ -180,8 +177,8 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
       >
         <div className="flex items-center gap-3 pt-1">
           <Switch
-            checked={autoRestart}
-            onCheckedChange={(v) => setSuspend(!v)}
+            isSelected={autoRestart}
+            onChange={(v) => setSuspend(!v)}
             aria-label="Auto-restart"
           />
           <span className="text-sm text-muted">
@@ -200,7 +197,8 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
             onChange={(e) => setGrace(e.target.value.replace(/[^0-9]/g, ""))}
             placeholder="120"
             inputMode="numeric"
-            className={graceInvalid ? "border-danger focus:ring-danger" : "max-w-32"}
+            aria-invalid={graceInvalid || undefined}
+            className="max-w-32"
           />
           <span className="text-xs text-muted">seconds</span>
         </div>
@@ -235,8 +233,8 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
                   {override ? (
                     <Button
                       variant="ghost"
-                      className="h-6 px-2 text-[11px]"
-                      onClick={() => resetProbe(kind)}
+                      size="sm"
+                      onPress={() => resetProbe(kind)}
                     >
                       Reset to template
                     </Button>
@@ -246,10 +244,9 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {PROBE_FIELDS.map((f) => (
-                    <label key={String(f.key)} className="text-[11px] text-muted">
-                      {f.label}
+                    <div key={String(f.key)} className="flex flex-col gap-1">
+                      <label className="text-[11px] text-muted">{f.label}</label>
                       <Input
-                        className="mt-0.5"
                         inputMode="numeric"
                         value={String((effective?.[f.key] as number | undefined) ?? "")}
                         onChange={(e) =>
@@ -258,7 +255,7 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
                         placeholder="—"
                         aria-label={`${kind} ${f.label}`}
                       />
-                    </label>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -274,8 +271,8 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
         <div className="space-y-3">
           <div className="flex items-center gap-3 pt-1">
             <Switch
-              checked={draft.spec.idle?.enabled ?? false}
-              onCheckedChange={setIdleEnabled}
+              isSelected={draft.spec.idle?.enabled ?? false}
+              onChange={setIdleEnabled}
               aria-label="Enable idle auto-sleep"
             />
             <span className="text-sm text-muted">
@@ -285,20 +282,20 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
 
           {draft.spec.idle?.enabled && (
             <div className="space-y-3 rounded border border-border p-3">
-              <div>
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-muted">
                   Sleep after
-                  <Input
-                    value={idleMinutesText}
-                    onChange={(e) =>
-                      setIdleAfterMinutes(e.target.value.replace(/[^0-9]/g, ""))
-                    }
-                    placeholder="30"
-                    inputMode="numeric"
-                    aria-label="Idle sleep after"
-                    className={cn("mt-0.5", idleInvalid && "border-danger focus:ring-danger")}
-                  />
                 </label>
+                <Input
+                  value={idleMinutesText}
+                  onChange={(e) =>
+                    setIdleAfterMinutes(e.target.value.replace(/[^0-9]/g, ""))
+                  }
+                  placeholder="30"
+                  inputMode="numeric"
+                  aria-label="Idle sleep after"
+                  aria-invalid={idleInvalid || undefined}
+                />
                 <span className="text-xs text-muted">minutes of zero players (5–1440)</span>
                 {idleInvalid && (
                   <div className="pt-1 text-xs text-danger">
@@ -312,9 +309,9 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
                   <label className="text-xs font-medium text-muted">Wake windows</label>
                   <Button
                     variant="ghost"
-                    className="h-6 px-2 text-[11px]"
-                    onClick={addWakeWindow}
-                    disabled={(draft.spec.idle?.wakeWindows?.length ?? 0) >= 8}
+                    size="sm"
+                    onPress={addWakeWindow}
+                    isDisabled={(draft.spec.idle?.wakeWindows?.length ?? 0) >= 8}
                   >
                     Add wake window
                   </Button>
@@ -330,12 +327,13 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
                             onChange={(e) => setWakeWindow(i, e.target.value)}
                             placeholder="0 9 * * 1-5"
                             aria-label={`Wake window ${i + 1}`}
-                            className={cn("font-mono text-xs", invalid && "border-danger focus:ring-danger")}
+                            aria-invalid={invalid || undefined}
+                            className="font-mono text-xs"
                           />
                           <Button
                             variant="ghost"
-                            className="h-8 px-2 text-[11px]"
-                            onClick={() => removeWakeWindow(i)}
+                            size="sm"
+                            onPress={() => removeWakeWindow(i)}
                           >
                             Remove
                           </Button>

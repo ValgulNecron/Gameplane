@@ -1,6 +1,4 @@
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
+import { Input, TextArea, Button } from "@heroui/react";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { DESCRIPTION_ANNOTATION, type SectionProps } from "./types";
@@ -54,7 +52,7 @@ export function GeneralSection({ draft, onChange }: SectionProps) {
       </Field>
 
       <Field label="Description" hint="Shown in the dashboard server list.">
-        <Textarea
+        <TextArea
           value={description}
           onChange={(e) => setAnnotation(DESCRIPTION_ANNOTATION, e.target.value)}
           maxLength={1024}
@@ -84,11 +82,12 @@ export function GeneralSection({ draft, onChange }: SectionProps) {
               <span className="text-muted">=</span>
               <span className="font-mono text-xs text-fg">{v}</span>
               <Button
+                isIconOnly
                 variant="ghost"
-                size="icon"
-                className="ml-auto h-6 w-6"
-                title="Remove label"
-                onClick={() => {
+                size="sm"
+                className="ml-auto"
+                aria-label="Remove label"
+                onPress={() => {
                   const next = { ...labels };
                   delete next[k];
                   setLabels(next);
@@ -111,7 +110,12 @@ export function GeneralSection({ draft, onChange }: SectionProps) {
               placeholder="value"
               className="flex-1"
             />
-            <Button size="sm" variant="outline" onClick={addLabel} disabled={!labelDraft.key.trim()}>
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={addLabel}
+              isDisabled={!labelDraft.key.trim()}
+            >
               Add
             </Button>
           </div>

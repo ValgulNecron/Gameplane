@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
-import { Field } from "./Field";
+import { Label, Description } from "@heroui/react";
 import type { SectionProps } from "./types";
 
 interface PlacementSectionProps extends SectionProps {
@@ -94,12 +94,18 @@ export function PlacementSection({
 
   return (
     <div className="space-y-6">
-      <Field
-        label="Tolerations"
-        hint="Pod tolerations for Kubernetes node taints. Array of toleration objects (optional)."
-      >
+      <div className="grid grid-cols-1 items-start gap-1.5 sm:grid-cols-[200px_1fr] sm:gap-4">
+        <div className="sm:pt-2">
+          <Label htmlFor="tolerations-editor" className="text-sm">
+            Tolerations
+          </Label>
+          <Description className="pt-1 text-xs">
+            Pod tolerations for Kubernetes node taints. Array of toleration objects (optional).
+          </Description>
+        </div>
         <div className="space-y-2">
           <div
+            id="tolerations-editor"
             className="rounded border border-border bg-surface/50"
             style={{ height: "180px" }}
           >
@@ -116,14 +122,20 @@ export function PlacementSection({
           </div>
           {tolError && <div className="pt-1 text-xs text-danger">{tolError}</div>}
         </div>
-      </Field>
+      </div>
 
-      <Field
-        label="Affinity"
-        hint="Pod affinity/anti-affinity and node affinity constraints. JSON object (optional)."
-      >
+      <div className="grid grid-cols-1 items-start gap-1.5 sm:grid-cols-[200px_1fr] sm:gap-4">
+        <div className="sm:pt-2">
+          <Label htmlFor="affinity-editor" className="text-sm">
+            Affinity
+          </Label>
+          <Description className="pt-1 text-xs">
+            Pod affinity/anti-affinity and node affinity constraints. JSON object (optional).
+          </Description>
+        </div>
         <div className="space-y-2">
           <div
+            id="affinity-editor"
             className="rounded border border-border bg-surface/50"
             style={{ height: "180px" }}
           >
@@ -140,7 +152,7 @@ export function PlacementSection({
           </div>
           {affError && <div className="pt-1 text-xs text-danger">{affError}</div>}
         </div>
-      </Field>
+      </div>
     </div>
   );
 }

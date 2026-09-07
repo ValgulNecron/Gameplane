@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Select, type SelectOption } from "@/components/ui/select";
+import {
+  Switch,
+  Input,
+  Select,
+  ListBox,
+  ListBoxItem,
+  Label,
+  Description,
+  FieldError,
+} from "@heroui/react";
 import { useMe, can } from "@/lib/auth";
 import type { CaptureConfiguration } from "@/types";
-import { Field } from "./Field";
 import type { SectionProps } from "./types";
 
 // Cluster ceiling on the per-server retention override (operator/api/v1alpha1
@@ -24,7 +30,7 @@ const UNIT_SECONDS: Record<RetentionUnit, number> = {
   days: 86400,
 };
 
-const UNIT_OPTIONS: SelectOption[] = [
+const UNIT_OPTIONS = [
   { value: "seconds", label: "seconds" },
   { value: "minutes", label: "minutes" },
   { value: "hours", label: "hours" },
@@ -97,27 +103,33 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
   const disabled = meLoading || !canManage;
 
   return (
-    <div className="space-y-6">
-      <Field
-        label="Enable Capture"
-        hint="Records raw network protocol traffic from a sidecar container for later download and analysis."
-      >
+    <div className="space-y-8">
+      <div className="space-y-4">
+        <div>
+          <Label className="text-base font-semibold">Enable Capture</Label>
+          <Description className="text-sm">
+            Records raw network protocol traffic from a sidecar container for later download and
+            analysis.
+          </Description>
+        </div>
+
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <Switch
-              checked={enabled}
-              disabled={disabled}
-              onCheckedChange={(v) => setCaptureField("enabled", v)}
+              isSelected={enabled}
+              isDisabled={disabled}
+              onChange={(v) => setCaptureField("enabled", v)}
               aria-label="Enable Capture"
             />
-            <span className="text-sm text-muted">{enabled ? "Enabled" : "Disabled"}</span>
+            <span className="text-sm text-default-500">{enabled ? "Enabled" : "Disabled"}</span>
           </div>
-          <p className="text-xs leading-relaxed text-muted">
+
+          <p className="text-xs leading-relaxed text-default-500">
             Turning this off stops any running capture and blocks new ones immediately. The
             capture container itself stays in the pod, idle, until the pod is next recreated —
             Kubernetes has no API to remove an ephemeral container.
           </p>
-          <p className="text-xs leading-relaxed text-muted">
+          <p className="text-xs leading-relaxed text-default-500">
             Network packet capture requires admin access. Captures contain real player data
             (IP addresses, chat, credentials) and are not redacted.
           </p>
@@ -126,17 +138,28 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
               You don&apos;t have permission to change capture settings for this server.
             </p>
           )}
-        </div>
-      </Field>
 
-      <Field
-        label="Retention Window"
-        hint="Captures are automatically deleted after this window. Leave blank to use the cluster default."
-      >
-        <div className="space-y-2">
-          <div className="flex items-center gap-2.5">
+          <div>
+            <a href="/docs/capture" className="text-xs text-primary hover:underline">
+              Learn more
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <Label className="text-base font-semibold">Retention Window</Label>
+          <Description className="text-sm">
+            Captures are automatically deleted after this window. Leave blank to use the cluster
+            default.
+          </Description>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
             <Input
-              className="w-24"
+              type="text"
               inputMode="numeric"
               disabled={disabled}
               value={rawValue}
@@ -146,30 +169,48 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
                 applyRetention(e.target.value, unit);
               }}
               aria-label="Retention window value"
+              className="w-24"
             />
             <Select
-              className="w-36"
-              value={unit}
-              disabled={disabled}
-              options={UNIT_OPTIONS}
-              onValueChange={(v) => {
-                const nextUnit = v as RetentionUnit;
+              selectedKey={unit}
+              isDisabled={disabled}
+              onSelectionChange={(key) => {
+                const nextUnit = String(key) as RetentionUnit;
                 setUnit(nextUnit);
                 applyRetention(rawValue, nextUnit);
               }}
-              aria-label="Retention window unit"
-            />
+              className="w-32"
+            >
+              <Label className="sr-only">Retention window unit</Label>
+              <Select.Trigger
+                aria-label="Retention window unit"
+                className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm"
+              >
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover className="rounded border border-default-200">
+                <ListBox aria-label="Retention window unit">
+                  {UNIT_OPTIONS.map((opt) => (
+                    <ListBoxItem key={opt.value} id={opt.value}>
+                      {opt.label}
+                    </ListBoxItem>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
           </div>
+
           {retentionError ? (
-            <div className="text-xs text-danger">{retentionError}</div>
+            <FieldError className="text-xs">{retentionError}</FieldError>
           ) : (
-            <div className="text-xs text-muted">
+            <p className="text-xs text-default-500">
               Cluster maximum: 7 days ({CLUSTER_MAX_RETENTION_SECONDS.toLocaleString()} seconds)
               — a storage-limitation-informed default, not a legal requirement.
-            </div>
+            </p>
           )}
         </div>
-      </Field>
+      </div>
     </div>
   );
 }

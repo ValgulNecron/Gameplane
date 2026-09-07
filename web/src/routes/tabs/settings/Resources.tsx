@@ -1,5 +1,4 @@
-import { Input } from "@/components/ui/input";
-import { ResourceInput } from "@/components/ui/resource-input";
+import { Input } from "@heroui/react";
 import type { ResourceRequirements } from "@/types";
 import { isValidQuantity } from "@/lib/validation";
 import { Field } from "./Field";
@@ -40,30 +39,34 @@ export function ResourcesSection({ draft, onChange }: SectionProps) {
         label="CPU cores"
         hint="Sets requests=limits to the same value (Guaranteed QoS)."
       >
-        <ResourceInput
-          kind="cpu"
+        <Input
+          type="text"
           value={res.limits?.cpu ?? res.requests?.cpu ?? "2"}
-          onChange={(q) =>
+          onChange={(e) =>
             setResources({
               ...res,
-              requests: { ...res.requests, cpu: q },
-              limits: { ...res.limits, cpu: q },
+              requests: { ...res.requests, cpu: e.target.value },
+              limits: { ...res.limits, cpu: e.target.value },
             })
           }
+          placeholder="2"
+          aria-label="CPU cores"
         />
       </Field>
 
       <Field label="Memory (GiB)" hint="Sets requests=limits to the same value.">
-        <ResourceInput
-          kind="memory"
+        <Input
+          type="text"
           value={res.limits?.memory ?? res.requests?.memory ?? "4Gi"}
-          onChange={(q) =>
+          onChange={(e) =>
             setResources({
               ...res,
-              requests: { ...res.requests, memory: q },
-              limits: { ...res.limits, memory: q },
+              requests: { ...res.requests, memory: e.target.value },
+              limits: { ...res.limits, memory: e.target.value },
             })
           }
+          placeholder="4Gi"
+          aria-label="Memory (GiB)"
         />
       </Field>
 
@@ -80,10 +83,12 @@ export function ResourcesSection({ draft, onChange }: SectionProps) {
         }
       >
         <Input
+          type="text"
           value={storage.size ?? ""}
           onChange={(e) => setStorage({ ...storage, size: e.target.value || undefined })}
           placeholder="10Gi"
           className={sizeValid ? "" : "border-danger focus:border-danger focus:ring-danger"}
+          aria-label="Storage size"
         />
         {!sizeValid && (
           <div className="pt-1 text-xs text-danger">Invalid quantity (e.g. &quot;10Gi&quot;).</div>
@@ -92,11 +97,13 @@ export function ResourcesSection({ draft, onChange }: SectionProps) {
 
       <Field label="StorageClass" hint="Leave blank to use the cluster default.">
         <Input
+          type="text"
           value={storage.storageClassName ?? ""}
           onChange={(e) =>
             setStorage({ ...storage, storageClassName: e.target.value || undefined })
           }
           placeholder="fast-ssd"
+          aria-label="StorageClass"
         />
       </Field>
     </div>
