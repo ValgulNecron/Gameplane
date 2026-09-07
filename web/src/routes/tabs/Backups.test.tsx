@@ -32,10 +32,10 @@ describe("BackupsTab", () => {
   it("disables 'Back up now' with a hint when no destination is configured", async () => {
     server.use(http.get("/backup-destinations", () => HttpResponse.json({ items: [] })));
     renderWithQuery(<BackupsTab name="alpha" />);
-    const btn = await screen.findByRole("button", { name: /back up now/i });
+    const btn = await screen.findByRole("button", { name: /back up now/i }, { timeout: 10000 });
     await waitFor(() => expect(btn).toBeDisabled());
     expect(btn.getAttribute("title")).toMatch(/No backup destination/i);
-  });
+  }, 15000);
 
   it("disables 'Back up now' with a multi-destination hint", async () => {
     server.use(
@@ -44,10 +44,10 @@ describe("BackupsTab", () => {
       ),
     );
     renderWithQuery(<BackupsTab name="alpha" />);
-    const btn = await screen.findByRole("button", { name: /back up now/i });
+    const btn = await screen.findByRole("button", { name: /back up now/i }, { timeout: 10000 });
     await waitFor(() => expect(btn.getAttribute("title")).toMatch(/Multiple destinations/i));
     expect(btn).toBeDisabled();
-  });
+  }, 15000);
 
   it("posts a backup when 'Back up now' is clicked", async () => {
     let posted: unknown = null;

@@ -81,7 +81,7 @@ describe("SettingsTab", () => {
     expect(screen.getAllByPlaceholderText("VAR_NAME")).toHaveLength(2);
 
     // Remove the literal row.
-    const removeButtons = screen.getAllByTitle("Remove");
+    const removeButtons = screen.getAllByLabelText("Remove");
     fireEvent.click(removeButtons[0]);
     expect(screen.getAllByPlaceholderText("VAR_NAME")).toHaveLength(1);
   });
