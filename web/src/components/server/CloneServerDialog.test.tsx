@@ -43,7 +43,7 @@ describe("CloneServerDialog", () => {
       />,
       { wrapper: Wrapper },
     );
-    expect(screen.getByText("Clone server")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Clone server" })).toBeInTheDocument();
     expect(
       screen.getByText(
         "Creates a new server with the same configuration. World data is not copied.",
@@ -194,6 +194,6 @@ describe("CloneServerDialog", () => {
       />,
       { wrapper: Wrapper },
     );
-    expect(screen.getByText("Clone server")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Clone server" })).toBeInTheDocument();
   });
 });

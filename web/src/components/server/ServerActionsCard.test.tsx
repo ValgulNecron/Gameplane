@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { ServerActionsCard } from "./ServerActionsCard";
 import type { GameTemplate, ServerActionDecl } from "@/types";
@@ -456,6 +457,7 @@ describe("ServerActionsCard", () => {
   });
 
   it("cancels dialog without running action", async () => {
+    const user = userEvent.setup();
     const runs: RunCall[] = [];
     routeFetch("operator", runs);
     renderWithQuery(
@@ -466,8 +468,12 @@ describe("ServerActionsCard", () => {
     );
     const openBtn = await screen.findByRole("button", { name: /Test/i });
     await waitFor(() => expect(openBtn).not.toBeDisabled());
-    fireEvent.click(openBtn);
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    // HeroUI v3 Button dispatches via react-aria's onPress, which
+    // fireEvent.click does not trigger reliably (it fires a bare "click"
+    // with no preceding pointer/mouse sequence) — userEvent.click drives
+    // the full pointer sequence onPress listens for.
+    await user.click(openBtn);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
     // HeroUI Modal closes, so check that the dialog title is gone
     await waitFor(() => expect(screen.queryByText("Test")).not.toBeInTheDocument());
     expect(runs).toHaveLength(0);

@@ -54,7 +54,7 @@ describe("EventList", () => {
 
   it("renders event sources correctly", () => {
     render(<EventList events={mockEvents} />);
-    expect(screen.getByText("kubelet")).toBeInTheDocument();
+    expect(screen.getAllByText("kubelet")).toHaveLength(2);
     expect(screen.getByText("metrics-server")).toBeInTheDocument();
   });
 

@@ -258,20 +258,24 @@ describe("WipeServerDialog", () => {
 
     // Close the dialog
     rerender(
-      <WipeServerDialog
-        name="mc-survival"
-        open={false}
-        onOpenChange={onOpenChange}
-      />,
+      <QueryClientProvider client={queryClient}>
+        <WipeServerDialog
+          name="mc-survival"
+          open={false}
+          onOpenChange={onOpenChange}
+        />
+      </QueryClientProvider>,
     );
 
     // Reopen the dialog
     rerender(
-      <WipeServerDialog
-        name="mc-survival"
-        open
-        onOpenChange={onOpenChange}
-      />,
+      <QueryClientProvider client={queryClient}>
+        <WipeServerDialog
+          name="mc-survival"
+          open
+          onOpenChange={onOpenChange}
+        />
+      </QueryClientProvider>,
     );
 
     // Checkbox should be unchecked

@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { GameServer } from "@/types";
@@ -275,7 +275,9 @@ describe("ServerActionsMenu", () => {
     await user.click(screen.getByText("Clone server"));
 
     // The clone dialog should be open (mocked component validates this)
-    expect(screen.getByTestId("clone-dialog")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("clone-dialog")).toBeInTheDocument();
+    });
   });
 
   it("calls onDeleted callback when DeleteServerDialog triggers it", async () => {
@@ -325,8 +327,8 @@ describe("ServerActionsMenu", () => {
     render(<Subject gs={gs} />);
 
     const triggerButton = screen.getByRole("button", { name: "Server actions" });
-    expect(triggerButton).toHaveClass("min-h-fit");
-    expect(triggerButton).toHaveClass("h-unit-8");
-    expect(triggerButton).toHaveClass("w-unit-8");
+    expect(triggerButton).toHaveClass("button");
+    expect(triggerButton).toHaveClass("button--icon-only");
+    expect(triggerButton).toHaveClass("button--ghost");
   });
 });

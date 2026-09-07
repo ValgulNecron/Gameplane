@@ -51,9 +51,11 @@ describe("DangerSection", () => {
     );
     renderWithQuery(<DangerSection name="alpha" />);
     await userEvent.click(screen.getByRole("button", { name: /Wipe world…/i }));
-    expect(await screen.findByText(/Wipe alpha.s world data/i)).toBeInTheDocument();
-    await userEvent.type(await screen.findByRole("textbox"), "alpha");
-    await userEvent.click(await screen.findByRole("button", { name: /Wipe world data/i }));
+    expect(await screen.findByText(/This permanently deletes the world data for/i)).toBeInTheDocument();
+    expect(screen.getByText("alpha", { selector: "span" })).toBeInTheDocument();
+    const checkbox = await screen.findByRole("checkbox", { name: /I understand/i });
+    await userEvent.click(checkbox);
+    await userEvent.click(await screen.findByRole("button", { name: /^Wipe world$/i }));
     await waitFor(() => expect(body).toEqual({ confirm: "alpha" }));
   });
 
@@ -80,7 +82,9 @@ describe("DangerSection", () => {
     renderWithQuery(<DangerSection name="alpha" />);
     await userEvent.click(screen.getByRole("button", { name: /Transfer…/i }));
     expect(await screen.findByText(/Current owner: root/i)).toBeInTheDocument();
-    await userEvent.selectOptions(await screen.findByRole("combobox"), "2");
+    await userEvent.click(await screen.findByRole("button", { name: /Select a user/i }));
+    const bobOption = await screen.findByRole("option", { name: /bob/i });
+    await userEvent.click(bobOption);
     await userEvent.click(screen.getByRole("button", { name: /^Transfer$/i }));
     await waitFor(() => expect(body).toEqual({ userId: 2 }));
   });
