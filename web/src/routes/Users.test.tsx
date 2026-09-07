@@ -154,8 +154,14 @@ describe("UsersPage", () => {
     await user.click(await screen.findByLabelText("Actions for alice"));
     await user.click(await screen.findByText("Edit user"));
 
-    const select = await screen.findByDisplayValue("operator");
-    await user.selectOptions(select, "admin");
+    // HeroUI v3 Select doesn't expose displayValue; find by label and click to open
+    const dialog = await screen.findByRole("dialog");
+    const select = within(dialog).getByLabelText(/Primary role/);
+    await user.click(select);
+    // Click the "admin" option in the opened popover
+    const adminOption = await screen.findByRole("option", { name: "admin" });
+    await user.click(adminOption);
+
     await user.click(screen.getByRole("button", { name: /Save changes/i }));
 
     await waitFor(() => expect(update).toHaveBeenCalledWith(2, { role: "admin" }));
@@ -522,8 +528,8 @@ describe("EditUserModal", () => {
 
   it("blocks self-demotion from user management role", async () => {
     const user = userEvent.setup();
-    // useMe() and the users list must agree on root's role: EditUserModal
-    // seeds its role <select> from the clicked row's own `user.role` (from
+    // useMe() and the users list must agree on root’s role: EditUserModal
+    // seeds its role <select> from the clicked row’s own `user.role` (from
     // `list`), not from useMe(), so leaving `list` on the base ME (role
     // "admin") meant the "operator" <select> the test looked for never
     // rendered.
@@ -542,12 +548,17 @@ describe("EditUserModal", () => {
     await user.click(await screen.findByLabelText("Actions for root"));
     await user.click(await screen.findByText("Edit user"));
 
-    const select = await screen.findByDisplayValue("operator");
-    await user.selectOptions(select, "viewer");
+    // HeroUI v3 Select doesn’t expose displayValue; find by label and click to open
+    const dialog = await screen.findByRole("dialog");
+    const select = within(dialog).getByLabelText(/Primary role/);
+    await user.click(select);
+    // Click the "viewer" option in the opened popover
+    const viewerOption = await screen.findByRole("option", { name: "viewer" });
+    await user.click(viewerOption);
 
     // The component renders a typographic apostrophe ("can’t", U+2019), not
     // a straight one — match on the surrounding text instead of the
-    // apostrophe-adjacent word so this doesn't depend on which quote glyph
+    // apostrophe-adjacent word so this doesn’t depend on which quote glyph
     // the copy uses.
     expect(
       await screen.findByText(/remove your own ability to manage users/i),
@@ -716,8 +727,8 @@ describe("UsersPage roles tab extended", () => {
 
     // Both non-admin roles (operator, viewer) render an "Edit" button, so
     // an unscoped findByRole match is ambiguous — scope to the operator
-    // card specifically.
-    const operatorCard = (await screen.findByText("operator")).closest(".rounded-lg");
+    // card specifically. HeroUI v3's Card uses data-slot="card", not Tailwind classes.
+    const operatorCard = (await screen.findByText("operator")).closest('[data-slot="card"]');
     const editBtn = within(operatorCard as HTMLElement).getByRole("button", { name: /Edit/ });
     await user.click(editBtn);
     const descInput = await screen.findByDisplayValue("Manage servers.");
