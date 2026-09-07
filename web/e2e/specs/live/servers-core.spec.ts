@@ -162,7 +162,13 @@ test.describe("live: servers core (list + detail)", () => {
     });
 
     await detail.clickTab("Players");
-    await expect(page.getByText(/players online/i).first()).toBeVisible({ timeout: 10_000 });
+    // Players.tsx's header renders "<online> online" or
+    // "<online> / <max> online" (never the literal "players online") once
+    // the snapshot query resolves — match that shape instead of a phrase
+    // the component has never rendered.
+    await expect(page.getByText(/\d+(\s*\/\s*\d+)?\s*online/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("server detail: clone/transfer/wipe/delete dialogs open and cancel without mutating the server", async ({
@@ -186,6 +192,16 @@ test.describe("live: servers core (list + detail)", () => {
       await expect(dialog.getByRole("heading", { name: dialogHeading })).toBeVisible();
       await dialog.getByRole("button", { name: /^cancel$/i }).click();
       await expect(dialog).toBeHidden({ timeout: 5_000 });
+      // The dialog's role element can report hidden before HeroUI's
+      // ModalBackdrop — a DOM sibling with its own independent exit
+      // animation — actually detaches. Until then it's a full-viewport,
+      // pointer-events-opaque div (`data-slot="modal-backdrop"`) sitting
+      // over the page, and the next call's click on "Server actions"
+      // retries against it for the rest of the test's timeout. Wait for
+      // every modal backdrop to be gone before handing control back.
+      await expect(page.locator('[data-slot="modal-backdrop"]')).toHaveCount(0, {
+        timeout: 5_000,
+      });
     };
 
     await openMenuAndDialog(/clone server/i, /^clone server$/i);
