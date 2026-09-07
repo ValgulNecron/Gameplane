@@ -37,7 +37,7 @@ import {
   TextField,
   Alert,
 } from "@heroui/react";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader } from "@/components/hero/PageHeader";
 import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
 import { ConfirmAdminMappingDialog } from "@/components/hero/ConfirmAdminMappingDialog";
 import { RemovableGroupChip } from "@/components/hero/RemovableGroupChip";
@@ -95,7 +95,7 @@ export function AdminSettingsPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Admin settings"
-        subtitle="Platform-wide configuration for this Gameplane instance."
+        description="Platform-wide configuration for this Gameplane instance."
       />
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
@@ -1834,7 +1834,7 @@ function RoleMappingOverridesCard({
       </SectionCard>
 
       {/* T030: Admin mapping confirmation dialog */}
-      <ConfirmDialog
+      <ConfirmAdminMappingDialog
         open={confirmingRole === "admin"}
         onOpenChange={(open) => {
           if (!open) {
@@ -1843,34 +1843,7 @@ function RoleMappingOverridesCard({
             setAdminInput("");
           }
         }}
-        title="Confirm admin role mapping?"
-        description={
-          <div className="space-y-4">
-            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 flex gap-3">
-              <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
-              <div className="text-xs">
-                <div className="font-medium text-warning mb-1">Full admin access</div>
-                <p className="text-warning/80">
-                  Mapping users to the admin role grants full cluster control. Ensure the mapped group contains only
-                  authorized personnel. Anyone in these groups gets full admin access from their next login.
-                </p>
-              </div>
-            </div>
-            {pendingGroups.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs text-muted">Group(s) being mapped to admin:</p>
-                <div className="flex flex-wrap gap-2">
-                  {pendingGroups.map((group) => (
-                    <span key={group} className="px-2 py-1 rounded text-xs bg-muted/20 text-muted">
-                      {group}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        }
-        confirmLabel="Map to admin role"
+        adminGroups={pendingGroups}
         onConfirm={handleConfirmAdminMapping}
       />
     </>
