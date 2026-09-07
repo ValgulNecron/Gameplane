@@ -11,14 +11,49 @@ import {
   Button,
   Input,
   Label,
+  Description,
+  Select,
+  ListBox,
+  ListBoxItem,
   FieldError,
 } from "@heroui/react";
+
+const MIN_PASSWORD_LEN = 12;
 
 export interface InviteUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onInvite?: (username: string, displayName: string, email: string, password: string) => void;
+  onInvite?: (
+    username: string,
+    displayName: string,
+    email: string,
+    password: string,
+    role?: string,
+  ) => void;
   isLoading?: boolean;
+  /**
+   * Role names offered in a "Role" select. When omitted (or empty), no role
+   * field is rendered and `onInvite` is called with its original 4-arg
+   * signature — this keeps every pre-existing caller/test unaffected.
+   */
+  roles?: string[];
+  /**
+   * When true, display name/email/password are optional (matching the
+   * "create a local account, leave password blank for an OIDC invite"
+   * flow) — only username is required, and password is validated for
+   * minimum length only when non-empty. Defaults to false, preserving the
+   * dialog's original all-fields-required behavior.
+   */
+  contactFieldsOptional?: boolean;
+  /**
+   * When true, the submit button is preemptively disabled while the
+   * username is empty or the password is present-but-too-short, instead of
+   * relying on a click to reveal the validation error. Defaults to false,
+   * preserving the original click-to-validate behavior.
+   */
+  disableSubmitUntilValid?: boolean;
+  /** Error text from an external (API) failure, shown alongside client validation. */
+  apiError?: string;
 }
 
 export function InviteUserDialog({
@@ -26,12 +61,22 @@ export function InviteUserDialog({
   onOpenChange,
   onInvite,
   isLoading = false,
+  roles,
+  contactFieldsOptional = false,
+  disableSubmitUntilValid = false,
+  apiError,
 }: InviteUserDialogProps) {
+  const hasRoles = !!roles && roles.length > 0;
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState(roles?.[0] ?? "viewer");
   const [error, setError] = useState<string>("");
+
+  const passwordTooShort = password.length > 0 && password.length < MIN_PASSWORD_LEN;
+  const submitDisabled =
+    isLoading || (disableSubmitUntilValid && (!username.trim() || passwordTooShort));
 
   const handleInvite = () => {
     setError("");
@@ -39,23 +84,33 @@ export function InviteUserDialog({
       setError("Username is required");
       return;
     }
-    if (!displayName.trim()) {
-      setError("Display name is required");
+    if (!contactFieldsOptional) {
+      if (!displayName.trim()) {
+        setError("Display name is required");
+        return;
+      }
+      if (!email.trim()) {
+        setError("Email is required");
+        return;
+      }
+      if (!password.trim()) {
+        setError("Password is required");
+        return;
+      }
+    }
+    if (passwordTooShort) {
+      setError(
+        contactFieldsOptional
+          ? `At least ${MIN_PASSWORD_LEN} characters.`
+          : `Password must be at least ${MIN_PASSWORD_LEN} characters`,
+      );
       return;
     }
-    if (!email.trim()) {
-      setError("Email is required");
-      return;
+    if (hasRoles) {
+      onInvite?.(username, displayName, email, password, role);
+    } else {
+      onInvite?.(username, displayName, email, password);
     }
-    if (!password.trim()) {
-      setError("Password is required");
-      return;
-    }
-    if (password.length < 12) {
-      setError("Password must be at least 12 characters");
-      return;
-    }
-    onInvite?.(username, displayName, email, password);
   };
 
   const handleClose = () => {
@@ -63,9 +118,12 @@ export function InviteUserDialog({
     setDisplayName("");
     setEmail("");
     setPassword("");
+    setRole(roles?.[0] ?? "viewer");
     setError("");
     onOpenChange(false);
   };
+
+  const displayError = error || apiError;
 
   return (
     <Modal isOpen={open} onOpenChange={handleClose}>
@@ -77,6 +135,12 @@ export function InviteUserDialog({
           </ModalHeader>
 
           <ModalBody className="gap-4">
+            {contactFieldsOptional && (
+              <Description>
+                Create a local account. Leave password blank to send an OIDC invite later.
+              </Description>
+            )}
+
             <div>
               <Label htmlFor="invite-username" className="text-xs">
                 Username
@@ -129,33 +193,50 @@ export function InviteUserDialog({
                 id="invite-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 12 characters"
+                placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
                 className="mt-1"
                 type="password"
                 disabled={isLoading}
               />
             </div>
 
-            {error && (
-              <FieldError className="text-xs">
-                {error}
-              </FieldError>
+            {hasRoles && (
+              <div className="space-y-1">
+                <Select value={role} onChange={(v) => setRole(String(v))} isDisabled={isLoading}>
+                  <Label htmlFor="invite-role" className="text-xs">
+                    Role
+                  </Label>
+                  <Select.Trigger
+                    id="invite-role"
+                    className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80"
+                  >
+                    <Select.Value />
+                    <Select.Indicator className="ml-auto h-4 w-4" />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded border border-border">
+                    <ListBox className="p-0" aria-label="Role">
+                      {roles?.map((r) => (
+                        <ListBoxItem key={r} id={r}>
+                          {r}
+                        </ListBoxItem>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
             )}
+
+            {displayError && <FieldError className="text-xs">{displayError}</FieldError>}
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={handleClose}
-              isDisabled={isLoading}
-            >
+            <Button variant="secondary" size="sm" onPress={handleClose} isDisabled={isLoading}>
               Cancel
             </Button>
             <Button
               size="sm"
               variant="primary"
-              isDisabled={isLoading}
+              isDisabled={submitDisabled}
               onPress={handleInvite}
             >
               {isLoading ? "Inviting…" : "Invite user"}

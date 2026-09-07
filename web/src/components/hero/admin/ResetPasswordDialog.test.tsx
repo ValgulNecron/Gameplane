@@ -179,4 +179,45 @@ describe("ResetPasswordDialog", () => {
     expect(newPasswordInput.value).toBe("");
     expect(screen.queryByText("Must be at least 12 characters.")).not.toBeInTheDocument();
   });
+
+  it("preemptively disables submit when disableSubmitUntilValid is set and password is too short", async () => {
+    const user = userEvent.setup();
+    render(
+      <ResetPasswordDialog
+        open
+        onOpenChange={() => {}}
+        username="alice"
+        disableSubmitUntilValid
+      />,
+    );
+    const passwordInput = screen.getByDisplayValue("") as HTMLInputElement;
+    await user.type(passwordInput, "short");
+    expect(screen.getByRole("button", { name: /Reset password/i })).toBeDisabled();
+  });
+
+  it("preemptively disables submit when disableSubmitUntilValid is set and password is empty", () => {
+    render(
+      <ResetPasswordDialog
+        open
+        onOpenChange={() => {}}
+        username="alice"
+        disableSubmitUntilValid
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Reset password/i })).toBeDisabled();
+  });
+
+  it("shows an external apiError alongside client validation", () => {
+    render(
+      <ResetPasswordDialog
+        open
+        onOpenChange={() => {}}
+        username="alice"
+        apiError="Cannot reset password for an OIDC-managed account"
+      />,
+    );
+    expect(
+      screen.getByText("Cannot reset password for an OIDC-managed account"),
+    ).toBeInTheDocument();
+  });
 });

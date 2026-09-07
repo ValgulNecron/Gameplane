@@ -18,8 +18,6 @@ import {
   DropdownSection,
   DropdownItem,
   Modal,
-  ModalBackdrop,
-  ModalContainer,
   ModalDialog,
   ModalHeader,
   ModalHeading,
@@ -29,8 +27,6 @@ import {
   AlertDialogBackdrop,
   AlertDialogContainer,
   Alert,
-  Label,
-  Description,
   Separator,
 } from "@heroui/react";
 import {
@@ -44,12 +40,14 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/hero/PageHeader";
 import { RoleEditorModal } from "@/components/hero/RoleEditorModal";
+import { InviteUserDialog } from "@/components/hero/admin/InviteUserDialog";
+import { EditUserDialog } from "@/components/hero/admin/EditUserDialog";
+import { ResetPasswordDialog } from "@/components/hero/admin/ResetPasswordDialog";
 import { APIError } from "@/lib/api";
 import { useMe, can } from "@/lib/auth";
 import {
   Users as UsersAPI,
   Roles as RolesAPI,
-  type UserCreate,
   type UserUpdate,
 } from "@/lib/endpoints";
 import { formatRelative } from "@/lib/utils";
@@ -57,7 +55,12 @@ import type { ExtendedUser, Role, RoleBinding } from "@/types";
 
 type Tab = "users" | "roles" | "service" | "idp";
 
-const MIN_PASSWORD_LEN = 12;
+function apiErrorText(error: unknown): string | undefined {
+  if (!error) return undefined;
+  return error instanceof APIError
+    ? error.body || `Request failed (${error.status})`
+    : (error as Error).message;
+}
 
 function roleGrantsUserManagement(roles: Role[], name: string): boolean {
   const r = roles.find((x) => x.name === name);
@@ -108,6 +111,26 @@ export function UsersPage() {
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["users"] });
   };
+
+  const create = useMutation({
+    mutationFn: UsersAPI.create,
+    onSuccess: () => {
+      invalidate();
+      setInviting(false);
+    },
+  });
+  const save = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: UserUpdate }) => UsersAPI.update(id, body),
+    onSuccess: () => {
+      invalidate();
+      setEditing(null);
+    },
+  });
+  const reset = useMutation({
+    mutationFn: ({ id, password }: { id: number; password: string }) =>
+      UsersAPI.resetPassword(id, password),
+    onSuccess: () => setResetting(null),
+  });
 
   return (
     <div className="space-y-6 p-6">
@@ -304,33 +327,72 @@ export function UsersPage() {
         </div>
       </div>
 
-      {inviting && (
-        <InviteUserForm
-          roles={roles}
-          onClose={() => setInviting(false)}
-          onCreated={() => {
-            invalidate();
+      <InviteUserDialog
+        open={inviting}
+        onOpenChange={(open) => {
+          if (!open) {
             setInviting(false);
-          }}
-        />
-      )}
+            create.reset();
+          }
+        }}
+        roles={roles.map((r) => r.name)}
+        contactFieldsOptional
+        disableSubmitUntilValid
+        isLoading={create.isPending}
+        apiError={apiErrorText(create.error)}
+        onInvite={(username, displayName, email, password, role) => {
+          create.mutate({
+            username,
+            displayName: displayName || undefined,
+            email: email || undefined,
+            password: password || undefined,
+            role: role ?? "viewer",
+          });
+        }}
+      />
       {editing && (
-        <EditUserForm
-          user={editing}
-          roles={roles}
+        <EditUserDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditing(null);
+              save.reset();
+            }
+          }}
+          username={editing.username}
+          displayName={editing.displayName ?? ""}
+          email={editing.email ?? ""}
+          role={editing.role}
+          roles={roles.map((r) => r.name)}
           isMe={!!me && me.id === editing.id}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            invalidate();
-            setEditing(null);
+          roleGrantsUserManagement={(r) => roleGrantsUserManagement(roles, r)}
+          isLoading={save.isPending}
+          apiError={apiErrorText(save.error)}
+          extraContent={<NamespaceGrants userId={editing.id} roles={roles} />}
+          onSave={(displayName, email, role) => {
+            const dirty: UserUpdate = {};
+            if (displayName !== (editing.displayName ?? "")) dirty.displayName = displayName;
+            if (email !== (editing.email ?? "")) dirty.email = email;
+            if (role !== editing.role) dirty.role = role;
+            if (Object.keys(dirty).length === 0) return;
+            save.mutate({ id: editing.id, body: dirty });
           }}
         />
       )}
       {resetting && (
-        <ResetPasswordForm
-          user={resetting}
-          onClose={() => setResetting(null)}
-          onDone={() => setResetting(null)}
+        <ResetPasswordDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setResetting(null);
+              reset.reset();
+            }
+          }}
+          username={resetting.username}
+          disableSubmitUntilValid
+          isLoading={reset.isPending}
+          apiError={apiErrorText(reset.error)}
+          onReset={(password) => reset.mutate({ id: resetting.id, password })}
         />
       )}
       {deleting && (
@@ -358,377 +420,6 @@ function ErrorLine({ error }: { error: unknown }) {
     <p role="alert" className="pt-2 text-xs text-danger">
       {text}
     </p>
-  );
-}
-
-function InviteUserForm({
-  roles,
-  onClose,
-  onCreated,
-}: {
-  roles: Role[];
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [form, setForm] = useState<UserCreate>({
-    username: "",
-    displayName: "",
-    email: "",
-    password: "",
-    role: "viewer",
-  });
-  const create = useMutation({
-    mutationFn: () =>
-      UsersAPI.create({
-        username: form.username,
-        displayName: form.displayName || undefined,
-        email: form.email || undefined,
-        password: form.password || undefined,
-        role: form.role,
-      }),
-    onSuccess: onCreated,
-  });
-
-  const passwordTooShort =
-    !!form.password && form.password.length < MIN_PASSWORD_LEN;
-  const submitDisabled =
-    !form.username || passwordTooShort || create.isPending;
-
-  return (
-    <Modal isOpen onOpenChange={(open) => !open && onClose()}>
-      <ModalBackdrop isDismissable={!create.isPending} isKeyboardDismissDisabled={create.isPending} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>Invite user</ModalHeading>
-          </ModalHeader>
-
-          <ModalBody className="gap-4">
-            <Description>Create a local account. Leave password blank to send an OIDC invite later.</Description>
-
-            <div>
-              <Label htmlFor="invite-username" className="text-xs">
-                Username
-              </Label>
-              <Input
-                id="invite-username"
-                autoFocus
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                placeholder="alice"
-                className="mt-1"
-                disabled={create.isPending}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="invite-display-name" className="text-xs">
-                  Display name
-                </Label>
-                <Input
-                  id="invite-display-name"
-                  value={form.displayName ?? ""}
-                  onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-                  placeholder="Alice Operator"
-                  className="mt-1"
-                  disabled={create.isPending}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="invite-email" className="text-xs">
-                  Email
-                </Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  value={form.email ?? ""}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="alice@example.com"
-                  className="mt-1"
-                  disabled={create.isPending}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="invite-password" className="text-xs">
-                  Initial password
-                </Label>
-                <Input
-                  id="invite-password"
-                  type="password"
-                  value={form.password ?? ""}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-                  className="mt-1"
-                  disabled={create.isPending}
-                />
-                {passwordTooShort && (
-                  <p className="pt-1 text-[11px] text-danger">
-                    At least {MIN_PASSWORD_LEN} characters.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="invite-role" className="text-xs">
-                  Role
-                </Label>
-                <select
-                  id="invite-role"
-                  className="mt-1 w-full rounded border border-border bg-surface px-3 py-2 text-sm text-foreground"
-                  value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  disabled={create.isPending}
-                >
-                  {roles.map((r) => (
-                    <option key={r.name} value={r.name}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <ErrorLine error={create.error} />
-          </ModalBody>
-
-          <ModalFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={onClose}
-              isDisabled={create.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              isDisabled={submitDisabled}
-              onPress={() => create.mutate()}
-            >
-              {create.isPending ? "Creating…" : "Create user"}
-            </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
-    </Modal>
-  );
-}
-
-function EditUserForm({
-  user,
-  roles,
-  isMe,
-  onClose,
-  onSaved,
-}: {
-  user: ExtendedUser;
-  roles: Role[];
-  isMe: boolean;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [displayName, setDisplayName] = useState(user.displayName ?? "");
-  const [email, setEmail] = useState(user.email ?? "");
-  const [role, setRole] = useState<string>(user.role);
-  const [resetFor, setResetFor] = useState(user);
-  if (user !== resetFor) {
-    setResetFor(user);
-    setDisplayName(user.displayName ?? "");
-    setEmail(user.email ?? "");
-    setRole(user.role);
-  }
-
-  const dirty: UserUpdate = useMemo(() => {
-    const out: UserUpdate = {};
-    if (displayName !== (user.displayName ?? "")) out.displayName = displayName;
-    if (email !== (user.email ?? "")) out.email = email;
-    if (role !== user.role) out.role = role;
-    return out;
-  }, [displayName, email, role, user]);
-
-  const save = useMutation({
-    mutationFn: () => UsersAPI.update(user.id, dirty),
-    onSuccess: onSaved,
-  });
-
-  const wouldDemoteSelf =
-    isMe && role !== user.role && !roleGrantsUserManagement(roles, role);
-  const noChanges = Object.keys(dirty).length === 0;
-
-  return (
-    <Modal isOpen onOpenChange={(open) => !open && onClose()}>
-      <ModalBackdrop isDismissable={!save.isPending} isKeyboardDismissDisabled={save.isPending} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>Edit user</ModalHeading>
-          </ModalHeader>
-
-          <ModalBody className="gap-4">
-            <Description>{user.username}</Description>
-
-            <div>
-              <Label htmlFor="edit-display-name" className="text-xs">
-                Display name
-              </Label>
-              <Input
-                id="edit-display-name"
-                autoFocus
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="mt-1"
-                disabled={save.isPending}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="edit-email" className="text-xs">
-                Email
-              </Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1"
-                disabled={save.isPending}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="edit-role" className="text-xs">
-                Primary role (cluster-wide)
-              </Label>
-              <select
-                id="edit-role"
-                className="mt-1 w-full rounded border border-border bg-surface px-3 py-2 text-sm text-foreground"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                disabled={save.isPending}
-              >
-                {roles.map((r) => (
-                  <option key={r.name} value={r.name}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-              {wouldDemoteSelf && (
-                <p className="pt-1 text-[11px] text-danger">
-                  You can't remove your own ability to manage users.
-                </p>
-              )}
-            </div>
-
-            <Separator className="my-2" />
-            <NamespaceGrants userId={user.id} roles={roles} />
-
-            <ErrorLine error={save.error} />
-          </ModalBody>
-
-          <ModalFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={onClose}
-              isDisabled={save.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              isDisabled={save.isPending || noChanges || wouldDemoteSelf}
-              onPress={() => save.mutate()}
-            >
-              {save.isPending ? "Saving…" : "Save changes"}
-            </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
-    </Modal>
-  );
-}
-
-function ResetPasswordForm({
-  user,
-  onClose,
-  onDone,
-}: {
-  user: ExtendedUser;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [pw, setPw] = useState("");
-  const reset = useMutation({
-    mutationFn: () => UsersAPI.resetPassword(user.id, pw),
-    onSuccess: onDone,
-  });
-  const tooShort = pw.length > 0 && pw.length < MIN_PASSWORD_LEN;
-  const disabled = pw.length < MIN_PASSWORD_LEN || reset.isPending;
-
-  return (
-    <Modal isOpen onOpenChange={(open) => !open && onClose()}>
-      <ModalBackdrop isDismissable={!reset.isPending} isKeyboardDismissDisabled={reset.isPending} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>Reset password for {user.username}</ModalHeading>
-          </ModalHeader>
-
-          <ModalBody className="gap-4">
-            <Description>They will need to sign in again with the new password.</Description>
-
-            <div>
-              <Label htmlFor="reset-password" className="text-xs">
-                New password
-              </Label>
-              <Input
-                id="reset-password"
-                type="password"
-                autoFocus
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-                className="mt-1"
-                disabled={reset.isPending}
-              />
-              {tooShort && (
-                <p className="pt-1 text-[11px] text-danger">
-                  At least {MIN_PASSWORD_LEN} characters.
-                </p>
-              )}
-            </div>
-
-            <ErrorLine error={reset.error} />
-          </ModalBody>
-
-          <ModalFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={onClose}
-              isDisabled={reset.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              isDisabled={disabled}
-              onPress={() => reset.mutate()}
-            >
-              {reset.isPending ? "Resetting…" : "Reset password"}
-            </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
-    </Modal>
   );
 }
 

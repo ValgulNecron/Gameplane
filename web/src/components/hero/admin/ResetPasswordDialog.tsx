@@ -11,7 +11,10 @@ import {
   Button,
   Input,
   Label,
+  FieldError,
 } from "@heroui/react";
+
+const MIN_PASSWORD_LEN = 12;
 
 export interface ResetPasswordDialogProps {
   open: boolean;
@@ -19,6 +22,15 @@ export interface ResetPasswordDialogProps {
   username?: string;
   onReset?: (password: string) => void;
   isLoading?: boolean;
+  /**
+   * When true, the submit button is preemptively disabled while the
+   * password is shorter than the minimum length, instead of relying on a
+   * click to reveal the validation error. Defaults to false, preserving
+   * the original click-to-validate behavior.
+   */
+  disableSubmitUntilValid?: boolean;
+  /** Error text from an external (API) failure, shown alongside client validation. */
+  apiError?: string;
 }
 
 export function ResetPasswordDialog({
@@ -27,9 +39,14 @@ export function ResetPasswordDialog({
   username = "",
   onReset,
   isLoading = false,
+  disableSubmitUntilValid = false,
+  apiError,
 }: ResetPasswordDialogProps) {
   const [password, setPassword] = useState("");
   const [validationError, setValidationError] = useState<string>("");
+
+  const submitDisabled =
+    isLoading || (disableSubmitUntilValid && password.length < MIN_PASSWORD_LEN);
 
   const handleReset = () => {
     setValidationError("");
@@ -37,8 +54,8 @@ export function ResetPasswordDialog({
       setValidationError("Password is required");
       return;
     }
-    if (password.length < 12) {
-      setValidationError("Must be at least 12 characters.");
+    if (password.length < MIN_PASSWORD_LEN) {
+      setValidationError(`Must be at least ${MIN_PASSWORD_LEN} characters.`);
       return;
     }
     onReset?.(password);
@@ -49,6 +66,8 @@ export function ResetPasswordDialog({
     setValidationError("");
     onOpenChange(false);
   };
+
+  const displayError = validationError || apiError;
 
   return (
     <Modal isOpen={open} onOpenChange={handleClose}>
@@ -69,32 +88,25 @@ export function ResetPasswordDialog({
                 autoFocus
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 12 characters"
+                placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
                 className="mt-1"
                 type="password"
                 disabled={isLoading}
               />
-              {validationError && (
-                <p className="mt-1 text-xs text-danger" role="alert">
-                  {validationError}
-                </p>
+              {displayError && (
+                <FieldError className="mt-1 text-xs">{displayError}</FieldError>
               )}
             </div>
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={handleClose}
-              isDisabled={isLoading}
-            >
+            <Button variant="secondary" size="sm" onPress={handleClose} isDisabled={isLoading}>
               Cancel
             </Button>
             <Button
               size="sm"
               variant="primary"
-              isDisabled={isLoading}
+              isDisabled={submitDisabled}
               onPress={handleReset}
             >
               {isLoading ? "Resetting…" : "Reset password"}

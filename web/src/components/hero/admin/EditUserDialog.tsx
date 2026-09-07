@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import {
   Modal,
@@ -11,10 +12,12 @@ import {
   Button,
   Input,
   Label,
+  Description,
   Select,
   ListBox,
   ListBoxItem,
   FieldError,
+  Separator,
 } from "@heroui/react";
 
 export interface EditUserDialogProps {
@@ -26,6 +29,21 @@ export interface EditUserDialogProps {
   roles?: string[];
   onSave?: (displayName: string, email: string, role: string) => void;
   isLoading?: boolean;
+  /** Username shown under the heading, matching the inline form's Description. */
+  username?: string;
+  /** True when the row being edited is the signed-in user's own account. */
+  isMe?: boolean;
+  /**
+   * Given a role name, whether that role grants user management. Used
+   * (together with `isMe`) to warn about and block self-demotion. Defaults
+   * to always-true, so the warning never triggers unless the caller opts
+   * in — this keeps every pre-existing caller/test unaffected.
+   */
+  roleGrantsUserManagement?: (roleName: string) => boolean;
+  /** Extra content rendered below the role select (e.g. namespace grants). */
+  extraContent?: ReactNode;
+  /** Error text from an external (API) failure, shown alongside client validation. */
+  apiError?: string;
 }
 
 export function EditUserDialog({
@@ -37,11 +55,20 @@ export function EditUserDialog({
   roles = ["admin", "operator", "viewer"],
   onSave,
   isLoading = false,
+  username,
+  isMe = false,
+  roleGrantsUserManagement = () => true,
+  extraContent,
+  apiError,
 }: EditUserDialogProps) {
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [email, setEmail] = useState(initialEmail);
   const [role, setRole] = useState(initialRole);
   const [error, setError] = useState<string>("");
+
+  const wouldDemoteSelf = isMe && role !== initialRole && !roleGrantsUserManagement(role);
+  const noChanges =
+    displayName === initialDisplayName && email === initialEmail && role === initialRole;
 
   const handleSave = () => {
     setError("");
@@ -68,6 +95,8 @@ export function EditUserDialog({
     onOpenChange(false);
   };
 
+  const displayError = error || apiError;
+
   return (
     <Modal isOpen={open} onOpenChange={handleClose}>
       <ModalBackdrop isDismissable={!isLoading} isKeyboardDismissDisabled={isLoading} />
@@ -78,6 +107,8 @@ export function EditUserDialog({
           </ModalHeader>
 
           <ModalBody className="gap-4">
+            {username && <Description>{username}</Description>}
+
             <div>
               <Label htmlFor="edit-display-name" className="text-xs">
                 Display name
@@ -134,28 +165,31 @@ export function EditUserDialog({
                   </ListBox>
                 </Select.Popover>
               </Select>
+              {wouldDemoteSelf && (
+                <p className="pt-1 text-[11px] text-danger">
+                  You can&rsquo;t remove your own ability to manage users.
+                </p>
+              )}
             </div>
 
-            {error && (
-              <FieldError className="text-xs">
-                {error}
-              </FieldError>
+            {extraContent && (
+              <>
+                <Separator className="my-2" />
+                {extraContent}
+              </>
             )}
+
+            {displayError && <FieldError className="text-xs">{displayError}</FieldError>}
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={handleClose}
-              isDisabled={isLoading}
-            >
+            <Button variant="secondary" size="sm" onPress={handleClose} isDisabled={isLoading}>
               Cancel
             </Button>
             <Button
               size="sm"
               variant="primary"
-              isDisabled={isLoading}
+              isDisabled={isLoading || noChanges || wouldDemoteSelf}
               onPress={handleSave}
             >
               {isLoading ? "Saving…" : "Save changes"}

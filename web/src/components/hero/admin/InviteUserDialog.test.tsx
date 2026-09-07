@@ -194,4 +194,116 @@ describe("InviteUserDialog", () => {
     const inviteBtn = screen.getByRole("button", { name: /Inviting/i });
     expect(inviteBtn).toBeDisabled();
   });
+
+  it("renders a role select when roles are provided", () => {
+    render(
+      <InviteUserDialog
+        open
+        onOpenChange={() => {}}
+        roles={["admin", "operator", "viewer"]}
+      />,
+    );
+    expect(screen.getByText("Role")).toBeInTheDocument();
+  });
+
+  it("does not render a role select when roles are omitted", () => {
+    render(
+      <InviteUserDialog
+        open
+        onOpenChange={() => {}}
+      />,
+    );
+    expect(screen.queryByText("Role")).not.toBeInTheDocument();
+  });
+
+  it("passes the selected role to onInvite when roles are provided", async () => {
+    const user = userEvent.setup();
+    const onInvite = vi.fn();
+    render(
+      <InviteUserDialog
+        open
+        onOpenChange={() => {}}
+        roles={["admin", "operator", "viewer"]}
+        onInvite={onInvite}
+      />,
+    );
+    const inputs = screen.getAllByDisplayValue("") as HTMLInputElement[];
+    await user.type(inputs[0], "alice");
+    await user.type(inputs[1], "Alice Operator");
+    await user.type(inputs[2], "alice@example.com");
+    await user.type(inputs[3], "SecurePass123");
+    await user.click(screen.getByRole("button", { name: /Invite user/i }));
+    expect(onInvite).toHaveBeenCalledWith(
+      "alice",
+      "Alice Operator",
+      "alice@example.com",
+      "SecurePass123",
+      "admin",
+    );
+  });
+
+  it("allows submitting with only a username when contactFieldsOptional is set", async () => {
+    const user = userEvent.setup();
+    const onInvite = vi.fn();
+    render(
+      <InviteUserDialog
+        open
+        onOpenChange={() => {}}
+        contactFieldsOptional
+        onInvite={onInvite}
+      />,
+    );
+    const usernameInput = screen.getByDisplayValue("") as HTMLInputElement;
+    await user.type(usernameInput, "oidc-user");
+    await user.click(screen.getByRole("button", { name: /Invite user/i }));
+    expect(onInvite).toHaveBeenCalledWith("oidc-user", "", "", "");
+  });
+
+  it("shows the OIDC-invite description when contactFieldsOptional is set", () => {
+    render(
+      <InviteUserDialog
+        open
+        onOpenChange={() => {}}
+        contactFieldsOptional
+      />,
+    );
+    expect(screen.getByText(/Leave password blank/i)).toBeInTheDocument();
+  });
+
+  it("preemptively disables submit when disableSubmitUntilValid is set and username is empty", () => {
+    render(
+      <InviteUserDialog
+        open
+        onOpenChange={() => {}}
+        disableSubmitUntilValid
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Invite user/i })).toBeDisabled();
+  });
+
+  it("preemptively disables submit when disableSubmitUntilValid is set and password is too short", async () => {
+    const user = userEvent.setup();
+    render(
+      <InviteUserDialog
+        open
+        onOpenChange={() => {}}
+        disableSubmitUntilValid
+      />,
+    );
+    const inputs = screen.getAllByDisplayValue("") as HTMLInputElement[];
+    await user.type(inputs[0], "alice");
+    await user.type(inputs[3], "short");
+    expect(screen.getByRole("button", { name: /Invite user/i })).toBeDisabled();
+  });
+
+  it("shows an external apiError alongside client validation", () => {
+    render(
+      <InviteUserDialog
+        open
+        onOpenChange={() => {}}
+        apiError="Username already exists"
+      />,
+    );
+    expect(screen.getByText("Username already exists")).toBeInTheDocument();
+  });
 });

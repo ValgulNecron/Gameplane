@@ -191,4 +191,78 @@ describe("EditUserDialog", () => {
     );
     expect(screen.getByText("Primary role (cluster-wide)")).toBeInTheDocument();
   });
+
+  it("shows the username as a description when provided", () => {
+    render(
+      <EditUserDialog
+        open
+        onOpenChange={() => {}}
+        username="alice"
+        displayName="Alice"
+        email="alice@example.com"
+      />,
+    );
+    expect(screen.getByText("alice")).toBeInTheDocument();
+  });
+
+  it("renders extraContent below the role select", () => {
+    render(
+      <EditUserDialog
+        open
+        onOpenChange={() => {}}
+        displayName="Alice"
+        email="alice@example.com"
+        extraContent={<div>Namespace grants go here</div>}
+      />,
+    );
+    expect(screen.getByText("Namespace grants go here")).toBeInTheDocument();
+  });
+
+  it("shows an external apiError alongside client validation", () => {
+    render(
+      <EditUserDialog
+        open
+        onOpenChange={() => {}}
+        displayName="Alice"
+        email="alice@example.com"
+        apiError="Permission denied"
+      />,
+    );
+    expect(screen.getByText("Permission denied")).toBeInTheDocument();
+  });
+
+  it("disables save when nothing has changed from the initial values", () => {
+    render(
+      <EditUserDialog
+        open
+        onOpenChange={() => {}}
+        displayName="Alice"
+        email="alice@example.com"
+        role="operator"
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Save changes/i })).toBeDisabled();
+  });
+
+  it("warns and blocks save on a self-demotion from a user-management role", async () => {
+    const user = userEvent.setup();
+    render(
+      <EditUserDialog
+        open
+        onOpenChange={() => {}}
+        displayName="Root"
+        email="root@example.com"
+        role="operator"
+        roles={["admin", "operator", "viewer"]}
+        isMe
+        roleGrantsUserManagement={(r) => r !== "viewer"}
+      />,
+    );
+    const select = screen.getByDisplayValue("operator");
+    await user.selectOptions(select, "viewer");
+    expect(
+      screen.getByText(/remove your own ability to manage users/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save changes/i })).toBeDisabled();
+  });
 });
