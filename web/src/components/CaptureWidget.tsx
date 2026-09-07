@@ -30,6 +30,7 @@ import {
   ModalContainer,
   ModalDialog,
   ModalHeader,
+  ModalHeading,
   ModalBody,
   ModalFooter,
   Table,
@@ -335,7 +336,7 @@ export function CaptureWidget({ name, ns, gs }: Props) {
               <Table.ScrollContainer>
                 <Table.Content aria-label="Completed and failed packet captures for this server">
                   <TableHeader>
-                    <TableColumn>ID</TableColumn>
+                    <TableColumn isRowHeader>ID</TableColumn>
                     <TableColumn>Status</TableColumn>
                     <TableColumn>Size</TableColumn>
                     <TableColumn>Packets</TableColumn>
@@ -541,7 +542,9 @@ function StartCaptureModal({
       <ModalBackdrop />
       <ModalContainer>
         <ModalDialog>
-          <ModalHeader className="flex flex-col gap-1">Start Capture</ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">
+            <ModalHeading>Start Capture</ModalHeading>
+          </ModalHeader>
           <ModalBody>
             <p className="text-sm text-default-500">
               Records raw network traffic on this server&rsquo;s advertised ports (or a custom

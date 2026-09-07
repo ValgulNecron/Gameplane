@@ -108,8 +108,8 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
             {sources.length > 1 && (
               <div className="space-y-1">
                 <Select
-                  value={source}
-                  onChange={(v) => setSource(String(v))}
+                  selectedKey={source}
+                  onSelectionChange={(v) => setSource(String(v))}
                 >
                   <Label className="text-xs">Upload to</Label>
                   <Select.Trigger className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
@@ -117,7 +117,7 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
                     <Select.Indicator className="ml-auto h-4 w-4" />
                   </Select.Trigger>
                   <Select.Popover className="rounded border border-border">
-                    <ListBox className="p-0" aria-label="Upload to">
+                    <ListBox className="p-0" aria-label="Upload to" items={sources.map(src => ({ id: src, name: src }))}>
                       {sources.map((src) => (
                         <ListBoxItem key={src} id={src}>
                           {src}
@@ -137,14 +137,14 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
               data-testid="bundle-file-input"
               onChange={(e) => void pick(e.target.files?.[0] ?? null)}
             />
-            <button
-              type="button"
-              onClick={() => fileInput.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-sm text-muted transition-colors hover:border-primary hover:text-fg"
+            <Button
+              variant="ghost"
+              className="w-full flex-col gap-2 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-sm text-muted hover:border-primary hover:text-fg"
+              onPress={() => fileInput.current?.click()}
             >
               <Upload className="h-4 w-4" />
-              {file ? file.name : "Choose a .tar.gz bundle…"}
-            </button>
+              {file ? file.name : "Choose a bundle archive…"}
+            </Button>
 
             {preview && (
               <div className="rounded border border-border bg-card/40 px-3 py-2 text-xs">
