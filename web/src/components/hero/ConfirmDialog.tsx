@@ -52,63 +52,64 @@ export function ConfirmDialog({
 
   return (
     <AlertDialog isOpen={open} onOpenChange={onOpenChange}>
-      <AlertDialogBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy} />
-      <AlertDialogContainer>
-        <AlertDialogDialog>
-          <AlertDialogHeader>
-            <div className="flex items-start gap-4">
-              <AlertDialogIcon
-                status={destructive ? "danger" : "accent"}
-                className="shrink-0"
+      <AlertDialogBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy}>
+        <AlertDialogContainer>
+          <AlertDialogDialog>
+            <AlertDialogHeader>
+              <div className="flex items-start gap-4">
+                <AlertDialogIcon
+                  status={destructive ? "danger" : "accent"}
+                  className="shrink-0"
+                >
+                  <AlertCircle className="h-5 w-5" />
+                </AlertDialogIcon>
+                <AlertDialogHeading>{title}</AlertDialogHeading>
+              </div>
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              <div className="space-y-4">
+                <div className="text-sm text-muted">{description}</div>
+
+                {confirmPhrase && (
+                  <div>
+                    <label className="block pb-2 text-xs text-muted">
+                      Type <span className="font-mono text-foreground">{confirmPhrase}</span> to
+                      confirm
+                    </label>
+                    <Input
+                      autoFocus
+                      value={typed}
+                      onChange={(e) => setTyped(e.target.value)}
+                      spellCheck={false}
+                      placeholder="Type to confirm"
+                    />
+                  </div>
+                )}
+              </div>
+            </AlertDialogBody>
+
+            <AlertDialogFooter className="flex items-center justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={busy}
+                onPress={() => onOpenChange(false)}
               >
-                <AlertCircle className="h-5 w-5" />
-              </AlertDialogIcon>
-              <AlertDialogHeading>{title}</AlertDialogHeading>
-            </div>
-          </AlertDialogHeader>
-
-          <AlertDialogBody>
-            <div className="space-y-4">
-              <div className="text-sm text-muted">{description}</div>
-
-              {confirmPhrase && (
-                <div>
-                  <label className="block pb-2 text-xs text-muted">
-                    Type <span className="font-mono text-foreground">{confirmPhrase}</span> to
-                    confirm
-                  </label>
-                  <Input
-                    autoFocus
-                    value={typed}
-                    onChange={(e) => setTyped(e.target.value)}
-                    spellCheck={false}
-                    placeholder="Type to confirm"
-                  />
-                </div>
-              )}
-            </div>
-          </AlertDialogBody>
-
-          <AlertDialogFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              isDisabled={busy}
-              onPress={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant={destructive ? "danger" : "primary"}
-              isDisabled={!matches || busy}
-              onPress={onConfirm}
-            >
-              {busy ? "Working…" : confirmLabel}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogDialog>
-      </AlertDialogContainer>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant={destructive ? "danger" : "primary"}
+                isDisabled={!matches || busy}
+                onPress={onConfirm}
+              >
+                {busy ? "Working…" : confirmLabel}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogDialog>
+        </AlertDialogContainer>
+      </AlertDialogBackdrop>
     </AlertDialog>
   );
 }

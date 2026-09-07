@@ -67,57 +67,58 @@ export function WipeServerDialog({ name, ns, open, onOpenChange, onWiped }: Prop
       if (!v) wipe.reset();
       onOpenChange(v);
     }}>
-      <AlertDialogBackdrop isDismissable={!wipe.isPending} isKeyboardDismissDisabled={wipe.isPending} />
-      <AlertDialogContainer>
-        <AlertDialogDialog>
-          <AlertDialogHeader>
-            <div className="flex items-start gap-4">
-              <AlertDialogIcon
-                status="danger"
-                className="shrink-0"
+      <AlertDialogBackdrop isDismissable={!wipe.isPending} isKeyboardDismissDisabled={wipe.isPending}>
+        <AlertDialogContainer>
+          <AlertDialogDialog>
+            <AlertDialogHeader>
+              <div className="flex items-start gap-4">
+                <AlertDialogIcon
+                  status="danger"
+                  className="shrink-0"
+                >
+                  <AlertCircle className="h-5 w-5" />
+                </AlertDialogIcon>
+                <AlertDialogHeading>Wipe world?</AlertDialogHeading>
+              </div>
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              <div className="space-y-4">
+                {description}
+
+                <Checkbox
+                  isSelected={confirmed}
+                  onChange={() => setConfirmed(!confirmed)}
+                >
+                  <Checkbox.Control />
+                  <Checkbox.Content className="text-sm text-foreground">
+                    I understand this will permanently delete the world data
+                  </Checkbox.Content>
+                </Checkbox>
+              </div>
+            </AlertDialogBody>
+
+            <AlertDialogFooter className="flex items-center justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={wipe.isPending}
+                onPress={() => onOpenChange(false)}
               >
-                <AlertCircle className="h-5 w-5" />
-              </AlertDialogIcon>
-              <AlertDialogHeading>Wipe world?</AlertDialogHeading>
-            </div>
-          </AlertDialogHeader>
-
-          <AlertDialogBody>
-            <div className="space-y-4">
-              {description}
-
-              <Checkbox
-                isSelected={confirmed}
-                onChange={() => setConfirmed(!confirmed)}
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                isDisabled={!confirmed || wipe.isPending}
+                onPress={() => wipe.mutate()}
               >
-                <Checkbox.Control />
-                <Checkbox.Content className="text-sm text-foreground">
-                  I understand this will permanently delete the world data
-                </Checkbox.Content>
-              </Checkbox>
-            </div>
-          </AlertDialogBody>
-
-          <AlertDialogFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              isDisabled={wipe.isPending}
-              onPress={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              isDisabled={!confirmed || wipe.isPending}
-              onPress={() => wipe.mutate()}
-            >
-              {wipe.isPending ? "Working…" : "Wipe world"}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogDialog>
-      </AlertDialogContainer>
+                {wipe.isPending ? "Working…" : "Wipe world"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogDialog>
+        </AlertDialogContainer>
+      </AlertDialogBackdrop>
     </AlertDialog>
   );
 }

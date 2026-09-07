@@ -514,50 +514,51 @@ function NamePromptDialog({
   const valid = trimmed.length > 0 && !trimmed.includes("/") && trimmed !== "." && trimmed !== "..";
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange}>
-      <ModalBackdrop isDismissable={!busy} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader className="flex flex-col gap-1">{title}</ModalHeader>
-          <ModalBody>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (valid && !busy) onSubmit(trimmed);
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block pb-2 text-xs text-default-500">{label}</label>
-                <Input
-                  autoFocus
-                  value={value}
-                  placeholder={placeholder}
-                  onChange={(e) => setValue(e.target.value)}
-                  spellCheck={false}
-                />
-              </div>
-            </form>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant="secondary"
-              onPress={() => onOpenChange(false)}
-              isDisabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              isDisabled={!valid || busy}
-              onPress={() => {
-                if (valid && !busy) onSubmit(trimmed);
-              }}
-            >
-              {busy ? "Working…" : confirmLabel}
-            </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+      <ModalBackdrop isDismissable={!busy}>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader className="flex flex-col gap-1">{title}</ModalHeader>
+            <ModalBody>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (valid && !busy) onSubmit(trimmed);
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block pb-2 text-xs text-default-500">{label}</label>
+                  <Input
+                    autoFocus
+                    value={value}
+                    placeholder={placeholder}
+                    onChange={(e) => setValue(e.target.value)}
+                    spellCheck={false}
+                  />
+                </div>
+              </form>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant="secondary"
+                onPress={() => onOpenChange(false)}
+                isDisabled={busy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                isDisabled={!valid || busy}
+                onPress={() => {
+                  if (valid && !busy) onSubmit(trimmed);
+                }}
+              >
+                {busy ? "Working…" : confirmLabel}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }

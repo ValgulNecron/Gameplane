@@ -303,44 +303,45 @@ function ActionDialog({
 
   return (
     <Modal isOpen onOpenChange={(open) => !open && onCancel()}>
-      <ModalBackdrop isDismissable={!pending} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader className="flex flex-col gap-1">
-            <h2 className="text-base font-semibold">{action.displayName}</h2>
-          </ModalHeader>
-          <ModalBody>
-            {action.description && (
-              <p className="text-sm text-muted">{action.description}</p>
-            )}
-            <div className="space-y-3">
-              {params.map((p) => (
-                <ParamField
-                  key={p.name}
-                  param={p}
-                  value={values[p.name] ?? ""}
-                  onChange={(v) => setValues((prev) => ({ ...prev, [p.name]: v }))}
-                />
-              ))}
-              {params.length === 0 && (
-                <p className="text-sm text-muted">Run this action now?</p>
+      <ModalBackdrop isDismissable={!pending}>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader className="flex flex-col gap-1">
+              <h2 className="text-base font-semibold">{action.displayName}</h2>
+            </ModalHeader>
+            <ModalBody>
+              {action.description && (
+                <p className="text-sm text-muted">{action.description}</p>
               )}
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="secondary" onPress={onCancel} isDisabled={pending}>
-              Cancel
-            </Button>
-            <Button
-              variant={action.danger ? "danger" : "primary"}
-              isDisabled={!valid || pending}
-              onPress={() => onRun(collect(params, values))}
-            >
-              {pending ? "Running…" : "Run"}
-            </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+              <div className="space-y-3">
+                {params.map((p) => (
+                  <ParamField
+                    key={p.name}
+                    param={p}
+                    value={values[p.name] ?? ""}
+                    onChange={(v) => setValues((prev) => ({ ...prev, [p.name]: v }))}
+                  />
+                ))}
+                {params.length === 0 && (
+                  <p className="text-sm text-muted">Run this action now?</p>
+                )}
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="secondary" onPress={onCancel} isDisabled={pending}>
+                Cancel
+              </Button>
+              <Button
+                variant={action.danger ? "danger" : "primary"}
+                isDisabled={!valid || pending}
+                onPress={() => onRun(collect(params, values))}
+              >
+                {pending ? "Running…" : "Run"}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }
