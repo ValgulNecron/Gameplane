@@ -793,12 +793,18 @@ export function buildScreenshotHandlers() {
     ),
 
     // Backups
+    // T118 (specs/014-heroui-web-rebuild/tasks.md): both entries' spec.serverRef
+    // is pinned to "test-server-01" (previously left at makeBackup()'s "alpha"
+    // default despite the metadata.name already reading "test-server-01-…") so
+    // ServerDetail's per-server Backups tab (which filters by
+    // spec.serverRef.name) actually has rows to render for the screenshot.
     http.get("/backups", () =>
       HttpResponse.json({
         items: [
-          makeBackup(),
+          makeBackup({ spec: { serverRef: { name: "test-server-01" } } }),
           makeBackup({
             metadata: { name: "test-server-01-2026-05-06", namespace: "default" },
+            spec: { serverRef: { name: "test-server-01" } },
             status: {
               phase: "Failed",
               startTime: "2026-05-06T03:00:00Z",
@@ -936,8 +942,12 @@ export function buildScreenshotHandlers() {
     http.get("/servers/:name/status", () => HttpResponse.json([])),
 
     // Mods
+    // T118 (specs/014-heroui-web-rebuild/tasks.md): modpacks flipped true so
+    // the Modpacks tab (screenshot slice2b) has a provider to browse —
+    // matches valheim-default's registry.providers[].modpacks declaration
+    // added to screenshotData.ts for the same task.
     http.get("/servers/:name/mods/registry/providers", () =>
-      HttpResponse.json([{ provider: "thunderstore", available: true, modpacks: false }]),
+      HttpResponse.json([{ provider: "thunderstore", available: true, modpacks: true }]),
     ),
     http.get("/servers/:name/mods/registry/search", () => HttpResponse.json(data.registryProjects)),
     http.get("/servers/:name/mods/registry/projects/:project/versions", () =>
