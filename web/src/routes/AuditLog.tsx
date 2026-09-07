@@ -1,12 +1,11 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useInfiniteQuery, useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { Download, RefreshCw, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import type { AuditEvent, AuditVerifyResult } from "@/types";
 import { Audit, type AuditExportFilter } from "@/lib/endpoints";
+import { Button, Card, Input, Chip, Table } from "@heroui/react";
 import { PageHeader } from "@/components/PageHeader";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AuditIntegrityBanner } from "@/components/hero/AuditIntegrityBanner";
 import { cn, formatRelative } from "@/lib/utils";
 
 const PAGE_SIZE = 100;
@@ -79,20 +78,20 @@ export function AuditLogPage() {
           <>
             <Button
               variant="outline"
-              onClick={() => {
+              onPress={() => {
                 const filter: AuditExportFilter = {};
                 if (actorQ.trim()) filter.actor = actorQ.trim();
                 if (methodFilter !== "all") filter.method = methodFilter;
                 if (statusClass !== "all") filter.status = statusClass;
                 exportMutation.mutate(filter);
               }}
-              disabled={exportMutation.isPending}
+              isDisabled={exportMutation.isPending}
             >
               <Download className="h-4 w-4" /> Export CSV
             </Button>
             <Button
-              onClick={() => query.refetch()}
-              disabled={query.isFetching && !query.isFetchingNextPage}
+              onPress={() => void query.refetch()}
+              isDisabled={query.isFetching && !query.isFetchingNextPage}
             >
               <RefreshCw
                 className={cn(
@@ -109,27 +108,24 @@ export function AuditLogPage() {
       {renderIntegrityBanner(verifyQuery)}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
+        <div className="flex gap-1">
           {(["all", "2xx", "4xx", "5xx"] as StatusClass[]).map((s) => (
-            <button
+            <Button
               key={s}
-              onClick={() => setStatusClass(s)}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                statusClass === s
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
+              variant={statusClass === s ? "primary" : "ghost"}
+              size="sm"
+              onPress={() => setStatusClass(s)}
+              className="text-xs"
             >
               {labelFor(s)} · {totals[s] ?? 0}
-            </button>
+            </Button>
           ))}
         </div>
 
         <select
           value={methodFilter}
           onChange={(e) => setMethodFilter(e.target.value as MethodFilter)}
-          className="h-9 rounded-md border border-border bg-surface px-2 text-sm text-fg"
+          className="h-9 rounded-md border border-border bg-surface px-2 text-sm text-foreground"
         >
           <option value="all">All methods</option>
           {(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((m) => (
@@ -142,6 +138,7 @@ export function AuditLogPage() {
           value={actorQ}
           onChange={(e) => setActorQ(e.target.value)}
           className="w-64"
+          variant="secondary"
         />
 
         <div className="ml-auto text-xs text-muted">
@@ -151,57 +148,56 @@ export function AuditLogPage() {
       </div>
 
       <Card className="overflow-hidden p-0">
-        <div className="max-h-[70vh] overflow-auto scrollbar-thin">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-surface/95 text-left uppercase tracking-wider text-muted backdrop-blur">
-              <tr>
-                <Th className="w-[160px]">Time</Th>
-                <Th className="w-[140px]">Actor</Th>
-                <Th>Action</Th>
-                <Th className="w-[80px]">Method</Th>
-                <Th className="w-[90px]">Access</Th>
-                <Th className="w-[120px]">IP</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border font-mono">
-              {filtered.length === 0 && !query.isLoading && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-muted">
+        <Table.Root className="bg-transparent text-xs">
+          <Table.ScrollContainer className="max-h-[70vh]">
+            <Table.Content aria-label="Audit log">
+              <Table.Header>
+                <Table.Column id="time" className="w-40">Time</Table.Column>
+                <Table.Column id="actor" className="w-36">Actor</Table.Column>
+                <Table.Column id="action">Action</Table.Column>
+                <Table.Column id="method" className="w-20">Method</Table.Column>
+                <Table.Column id="access" className="w-24">Access</Table.Column>
+                <Table.Column id="ip" className="w-32">IP</Table.Column>
+              </Table.Header>
+              <Table.Body
+                renderEmptyState={() =>
+                  <span>
                     {all.length === 0
                       ? "No audit events yet."
                       : "No events match the active filters."}
-                  </td>
-                </tr>
-              )}
-              {filtered.map((e) => {
-                const access = accessOutcome(e.status);
-                return (
-                  <tr key={e.id} className="hover:bg-surface/40">
-                    <td className="px-5 py-2 text-muted" title={e.ts}>
-                      {formatRelative(e.ts)}
-                    </td>
-                    <td className="px-5 py-2 text-fg">{e.actor}</td>
-                    <td className="px-5 py-2">
-                      <span
-                        className="block max-w-[480px] truncate text-fg"
-                        title={`${e.method} ${e.path}`}
-                      >
-                        {auditAction(e)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-2">
-                      <MethodPill method={e.method} />
-                    </td>
-                    <td className={cn("px-5 py-2", access.tone)} title={`HTTP ${e.status}`}>
-                      {access.label}
-                    </td>
-                    <td className="px-5 py-2 text-muted">{e.ip || "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  </span>
+                }
+              >
+                {filtered.map((e) => {
+                  const access = accessOutcome(e.status);
+                  return (
+                    <Table.Row key={e.id}>
+                      <Table.Cell className="text-muted">
+                        <span title={e.ts}>{formatRelative(e.ts)}</span>
+                      </Table.Cell>
+                      <Table.Cell>{e.actor}</Table.Cell>
+                      <Table.Cell>
+                        <span
+                          className="block max-w-[480px] truncate"
+                          title={`${e.method} ${e.path}`}
+                        >
+                          {auditAction(e)}
+                        </span>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <MethodPill method={e.method} />
+                      </Table.Cell>
+                      <Table.Cell className={access.tone}>
+                        <span title={`HTTP ${e.status}`}>{access.label}</span>
+                      </Table.Cell>
+                      <Table.Cell className="text-muted">{e.ip || "—"}</Table.Cell>
+                    </Table.Row>
+                  );
+                })}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table.Root>
 
         <div className="flex items-center justify-between border-t border-border px-5 py-3">
           <div className="text-xs text-muted">
@@ -209,8 +205,9 @@ export function AuditLogPage() {
           </div>
           <Button
             variant="outline"
-            onClick={() => query.fetchNextPage()}
-            disabled={!query.hasNextPage || query.isFetchingNextPage}
+            size="sm"
+            onPress={() => void query.fetchNextPage()}
+            isDisabled={!query.hasNextPage || query.isFetchingNextPage}
           >
             {query.isFetchingNextPage
               ? "Loading…"
@@ -242,17 +239,12 @@ function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactN
   if (data.ok) {
     return (
       <div className="flex items-center justify-between rounded-md border border-success bg-success/5 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-5 w-5 text-success" />
-          <span className="text-sm font-medium text-success">Audit chain verified — no tampering detected</span>
-        </div>
+        <div className="text-sm font-medium text-success">Audit chain verified — no tampering detected</div>
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => {
-            void query.refetch();
-          }}
-          disabled={query.isFetching}
+          onPress={() => void query.refetch()}
+          isDisabled={query.isFetching}
         >
           Re-check
         </Button>
@@ -260,29 +252,10 @@ function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactN
     );
   }
   return (
-    <div className="flex items-center justify-between rounded-md border border-danger bg-danger/5 px-4 py-3" role="alert">
-      <div className="flex items-center gap-3">
-        <AlertTriangle className="h-5 w-5 text-danger" />
-        <span className="text-sm font-medium text-danger">
-          {data.message || `Integrity check failed — chain breaks at event #${data.firstBadId}`}
-        </span>
-      </div>
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => {
-          void query.refetch();
-        }}
-        disabled={query.isFetching}
-      >
-        Re-check
-      </Button>
-    </div>
+    <AuditIntegrityBanner
+      message={data.message || `Integrity check failed — chain breaks at event #${data.firstBadId}`}
+    />
   );
-}
-
-function Th({ children, className }: { children: ReactNode; className?: string }) {
-  return <th className={cn("px-5 py-2 font-medium", className)}>{children}</th>;
 }
 
 // auditAction renders an audit row's method+path as a human-readable action
@@ -333,27 +306,27 @@ function accessOutcome(status: number): { label: string; tone: string } {
 }
 
 function MethodPill({ method }: { method: string }) {
-  const tone = methodTone(method);
+  const variant = methodVariant(method);
   return (
-    <span
-      className={cn(
-        "inline-flex h-5 min-w-[44px] items-center justify-center rounded px-1.5 text-[10px] font-semibold uppercase",
-        tone,
-      )}
+    <Chip
+      size="sm"
+      variant="soft"
+      className="text-[10px] font-semibold uppercase"
+      color={variant}
     >
       {method}
-    </span>
+    </Chip>
   );
 }
 
-function methodTone(m: string): string {
+function methodVariant(m: string): "default" | "success" | "warning" | "danger" {
   switch (m) {
-    case "GET":    return "bg-muted/30 text-muted";
-    case "POST":   return "bg-success/15 text-success";
+    case "GET":    return "default";
+    case "POST":   return "success";
     case "PUT":
-    case "PATCH":  return "bg-warning/15 text-warning";
-    case "DELETE": return "bg-danger/15 text-danger";
-    default:       return "bg-muted/30 text-muted";
+    case "PATCH":  return "warning";
+    case "DELETE": return "danger";
+    default:       return "default";
   }
 }
 
