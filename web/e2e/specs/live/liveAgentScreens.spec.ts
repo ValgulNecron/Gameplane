@@ -71,11 +71,11 @@ test.describe("live: agent-backed screens render real pod data", () => {
     }
     test.skip(!running, "pod did not reach Running within budget on this runner");
 
-    const tabNav = page.locator("header nav.scrollbar-thin");
+    const tablist = page.getByRole("tablist", { name: /Server detail tabs/i });
 
     // Overview: the metric tiles and events card are populated from the
     // agent heartbeat (cgroup + statfs) and real Kubernetes events.
-    await tabNav.getByRole("button", { name: /^Overview$/ }).click();
+    await tablist.getByRole("tab", { name: /^Overview$/i }).click();
     await expect(page.getByText("Recent events")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Connection")).toBeVisible();
     await expect(page.getByText("CPU")).toBeVisible();
@@ -84,7 +84,7 @@ test.describe("live: agent-backed screens render real pod data", () => {
     // client crash. (busybox has no RCON, so Players shows the genuine
     // "not supported" state — still real data, never fabricated.)
     for (const label of ["Logs", "Files", "Players"]) {
-      await tabNav.getByRole("button", { name: new RegExp(`^${label}$`) }).click();
+      await tablist.getByRole("tab", { name: new RegExp(`^${label}$`, "i") }).click();
       await page.waitForTimeout(400);
     }
 

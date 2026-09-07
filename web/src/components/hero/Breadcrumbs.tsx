@@ -54,7 +54,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }): JSX.Element {
               href={crumb.to && !isLast ? crumb.to : undefined}
               className={isLast ? "text-sm text-foreground" : "text-sm text-muted hover:text-foreground"}
             >
-              {isLast ? <span aria-current="page">{crumb.label}</span> : crumb.label}
+              {crumb.label}
             </HeroBreadcrumbs.Item>
           );
         })}
