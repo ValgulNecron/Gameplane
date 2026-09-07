@@ -50,7 +50,7 @@ describe("ProvenanceBadge", () => {
     render(<ProvenanceBadge type="overridden" size="lg" />);
     const chip = screen.getByText("Overridden in dashboard").closest('[data-slot="chip"]');
     expect(chip).not.toBeNull();
-    expect(chip?.className).toContain("size-lg");
+    expect(chip?.className).toContain("chip--lg");
   });
 
   // Test 8: Custom size prop - md
@@ -58,7 +58,7 @@ describe("ProvenanceBadge", () => {
     render(<ProvenanceBadge type="fromHelm" size="md" />);
     const chip = screen.getByText("From Helm values").closest('[data-slot="chip"]');
     expect(chip).not.toBeNull();
-    expect(chip?.className).toContain("size-md");
+    expect(chip?.className).toContain("chip--md");
   });
 
   // Test 9: Default size is sm
@@ -66,7 +66,7 @@ describe("ProvenanceBadge", () => {
     render(<ProvenanceBadge type="notConfigured" />);
     const chip = screen.getByText("Not configured").closest('[data-slot="chip"]');
     expect(chip).not.toBeNull();
-    expect(chip?.className).toContain("size-sm");
+    expect(chip?.className).toContain("chip--sm");
   });
 
   // Test 10: Custom className is applied
@@ -117,6 +117,6 @@ describe("ProvenanceBadge", () => {
   it("uses secondary variant", () => {
     const { container } = render(<ProvenanceBadge type="overridden" />);
     const chip = container.querySelector('[data-slot="chip"]');
-    expect(chip?.className).toContain("variant-secondary");
+    expect(chip?.className).toContain("chip--secondary");
   });
 });

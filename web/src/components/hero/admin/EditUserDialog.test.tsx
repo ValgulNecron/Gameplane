@@ -258,8 +258,11 @@ describe("EditUserDialog", () => {
         roleGrantsUserManagement={(r) => r !== "viewer"}
       />,
     );
-    const select = screen.getByDisplayValue("operator");
-    await user.selectOptions(select, "viewer");
+    // HeroUI Select uses a trigger button and popover
+    const selectTrigger = screen.getByRole("button", { name: /operator/i });
+    await user.click(selectTrigger);
+    const viewerOption = screen.getByRole("option", { name: /viewer/i });
+    await user.click(viewerOption);
     expect(
       screen.getByText(/remove your own ability to manage users/i),
     ).toBeInTheDocument();

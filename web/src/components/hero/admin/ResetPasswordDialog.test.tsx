@@ -117,7 +117,7 @@ describe("ResetPasswordDialog", () => {
         isLoading
       />,
     );
-    const passwordInput = screen.getByRole("textbox") as HTMLInputElement;
+    const passwordInput = screen.getByLabelText("New password") as HTMLInputElement;
     expect(passwordInput).toBeDisabled();
   });
 
@@ -146,36 +146,45 @@ describe("ResetPasswordDialog", () => {
 
   it("clears password and errors when closed", async () => {
     const user = userEvent.setup();
-    const onOpenChange = vi.fn();
+    let isOpen = true;
+    const onOpenChange = vi.fn((open) => {
+      isOpen = open;
+    });
     const { rerender } = render(
       <ResetPasswordDialog
-        open
+        open={isOpen}
         onOpenChange={onOpenChange}
         username="alice"
       />,
     );
-    const passwordInput = screen.getByDisplayValue("") as HTMLInputElement;
+    const passwordInput = screen.getByLabelText("New password") as HTMLInputElement;
     await user.type(passwordInput, "Short");
     const resetBtn = screen.getByRole("button", { name: /Reset password/i });
     await user.click(resetBtn);
     expect(screen.getByText("Must be at least 12 characters.")).toBeInTheDocument();
 
-    // Simulate closing and reopening
+    // Simulate closing by clicking the Cancel button (which calls handleClose internally)
+    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+    await user.click(cancelBtn);
+    isOpen = false;
+
+    // Reopen the dialog
     rerender(
       <ResetPasswordDialog
-        open={false}
+        open={isOpen}
         onOpenChange={onOpenChange}
         username="alice"
       />,
     );
+    isOpen = true;
     rerender(
       <ResetPasswordDialog
-        open
+        open={isOpen}
         onOpenChange={onOpenChange}
         username="alice"
       />,
     );
-    const newPasswordInput = screen.getByDisplayValue("") as HTMLInputElement;
+    const newPasswordInput = screen.getByLabelText("New password") as HTMLInputElement;
     expect(newPasswordInput.value).toBe("");
     expect(screen.queryByText("Must be at least 12 characters.")).not.toBeInTheDocument();
   });

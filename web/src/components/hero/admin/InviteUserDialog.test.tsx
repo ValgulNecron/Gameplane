@@ -15,7 +15,7 @@ describe("InviteUserDialog", () => {
         onOpenChange={() => {}}
       />,
     );
-    expect(screen.getByText("Invite user")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Invite user" })).toBeInTheDocument();
     expect(screen.getByLabelText("Username")).toBeInTheDocument();
     expect(screen.getByLabelText("Display name")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
