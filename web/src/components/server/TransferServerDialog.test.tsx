@@ -21,9 +21,11 @@ const mockServer = {
   },
 };
 
-const mockGetServer = vi.fn();
-const mockListUsers = vi.fn();
-const mockTransfer = vi.fn();
+const { mockGetServer, mockListUsers, mockTransfer } = vi.hoisted(() => ({
+  mockGetServer: vi.fn(),
+  mockListUsers: vi.fn(),
+  mockTransfer: vi.fn(),
+}));
 
 vi.mock("@/lib/endpoints", () => ({
   Servers: {
