@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AdminLogsPage, capBuffer } from "./AdminLogs";
 
 const fetchMock = vi.fn();
@@ -62,9 +63,9 @@ describe("AdminLogsPage", () => {
     );
     render(<AdminLogsPage />);
 
-    expect(screen.getByRole("button", { name: /api server/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /api server/i })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /operator/i })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Follow" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Follow" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /download/i })).toBeInTheDocument();
 
     expect(await screen.findByText(/api line one/)).toBeInTheDocument();
@@ -97,6 +98,7 @@ describe("AdminLogsPage", () => {
   });
 
   it("changing tail refetches with the new tailLines", async () => {
+    const user = userEvent.setup();
     fetchMock.mockImplementation(() =>
       Promise.resolve(logRes("some output\n", "gameplane-api-0")),
     );
@@ -104,12 +106,10 @@ describe("AdminLogsPage", () => {
     await screen.findByText(/some output/);
 
     // Find and click the Select trigger (initially showing "500 lines")
-    const selectTrigger = screen.getByText("500 lines").closest("button") as HTMLElement;
-    fireEvent.click(selectTrigger);
+    await user.click(screen.getByRole("button", { name: /tail lines/i }));
 
     // Find and click the 1000 lines option
-    const option1000 = screen.getByText("1000 lines");
-    fireEvent.click(option1000);
+    await user.click(await screen.findByRole("option", { name: "1000 lines" }));
 
     await waitFor(() =>
       expect(calledURLs().some((u) => u.includes("tailLines=1000"))).toBe(true),
@@ -117,13 +117,14 @@ describe("AdminLogsPage", () => {
   });
 
   it("toggling follow reconnects with follow=true", async () => {
+    const user = userEvent.setup();
     fetchMock.mockImplementation(() =>
       Promise.resolve(logRes("streamed line\n", "gameplane-api-0")),
     );
     render(<AdminLogsPage />);
     await screen.findByText(/streamed line/);
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Follow" }));
+    await user.click(screen.getByRole("switch", { name: "Follow" }));
 
     await waitFor(() =>
       expect(calledURLs().some((u) => u.includes("follow=true"))).toBe(true),

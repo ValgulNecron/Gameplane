@@ -4,7 +4,7 @@ import { Button, Select, Switch, ListBox, ListBoxItem } from "@heroui/react";
 import { APIError } from "@/lib/api";
 import { errorTextWithStatus } from "@/lib/errors";
 import { withCluster } from "@/lib/endpoints";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader } from "@/components/hero/PageHeader";
 
 type LogComponent = "api" | "operator";
 
@@ -178,7 +178,7 @@ export function AdminLogsPage() {
     <div className="flex h-full flex-col gap-4 p-6">
       <PageHeader
         title="System logs"
-        subtitle="Live logs from the Gameplane control-plane pods."
+        description="Live logs from the Gameplane control-plane pods."
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -191,6 +191,7 @@ export function AdminLogsPage() {
               variant={component === c.value ? "primary" : "ghost"}
               size="sm"
               className="px-3 py-1 text-xs"
+              aria-pressed={component === c.value}
             >
               {c.label}
             </Button>
