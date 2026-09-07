@@ -78,8 +78,8 @@ describe("BackupsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
 
     const dialog = await screen.findByRole("dialog");
-    const combobox = within(dialog).getByRole("combobox");
-    await userEvent.click(combobox);
+    const serverButton = within(dialog).getByRole("button", { name: /Server/i });
+    await userEvent.click(serverButton);
     const option = await screen.findByRole("option", { name: "alpha" });
     await userEvent.click(option);
 
@@ -102,7 +102,7 @@ describe("BackupsPage", () => {
     await userEvent.click(tab);
     // Empty restore list — page should still render the panel header
     // without crashing.
-    await waitFor(() => expect(tab).toHaveClass("aria-selected:after"));
+    await waitFor(() => expect(tab).toHaveAttribute("aria-selected", "true"));
   });
 
   it("filters backups by server name", async () => {
@@ -134,11 +134,8 @@ describe("BackupsPage", () => {
     await screen.findByText("alpha-1");
     // BackupFilters' server select defaults to "All servers" (a filter with
     // no selection means "show everything"), unlike the "Back up now" dialog's
-    // forced-choice "Select a server…". HeroUI Select renders as a combobox.
-    const serverSelect = screen.getAllByRole("combobox").find((c) =>
-      within(c).queryByText("All servers")
-    );
-    if (!serverSelect) throw new Error("server select not found");
+    // forced-choice "Select a server…".
+    const serverSelect = screen.getByRole("button", { name: /Filter by server/i });
     await userEvent.click(serverSelect);
     const betaOption = await screen.findByRole("option", { name: "beta" });
     await userEvent.click(betaOption);
@@ -167,12 +164,8 @@ describe("BackupsPage", () => {
     renderWithQuery(<BackupsPage />);
     await screen.findByText("backup-1");
     // Phase select defaults to "All phases" (same "no selection = show
-    // everything" convention as the server filter). HeroUI Select renders
-    // as a combobox.
-    const phaseSelect = screen.getAllByRole("combobox").find((c) =>
-      within(c).queryByText("All phases")
-    );
-    if (!phaseSelect) throw new Error("phase select not found");
+    // everything" convention as the server filter).
+    const phaseSelect = screen.getByRole("button", { name: /Filter by phase/i });
     await userEvent.click(phaseSelect);
     const succeededOption = await screen.findByRole("option", { name: "Succeeded" });
     await userEvent.click(succeededOption);
@@ -230,10 +223,7 @@ describe("BackupsPage", () => {
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-1");
     // Filter to beta server (which has no backups)
-    const serverSelect = screen.getAllByRole("combobox").find((c) =>
-      within(c).queryByText("All servers")
-    );
-    if (!serverSelect) throw new Error("server select not found");
+    const serverSelect = screen.getByRole("button", { name: /Filter by server/i });
     await userEvent.click(serverSelect);
     const betaOption = await screen.findByRole("option", { name: "beta" });
     await userEvent.click(betaOption);
@@ -249,8 +239,8 @@ describe("BackupsPage", () => {
     renderWithQuery(<BackupsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
     const dialog = await screen.findByRole("dialog");
-    const combobox = within(dialog).getByRole("combobox");
-    await userEvent.click(combobox);
+    const serverButton = within(dialog).getByRole("button", { name: /Server/i });
+    await userEvent.click(serverButton);
     const option = await screen.findByRole("option", { name: "alpha" });
     await userEvent.click(option);
     const run = within(dialog).getByRole("button", { name: /Run snapshot/i });
@@ -318,9 +308,9 @@ describe("BackupsPage", () => {
     const schedTab = screen.getByRole("tab", { name: /Schedules/i });
     await userEvent.click(schedTab);
     await screen.findByText("alpha-daily");
-    // HeroUI Switch renders as a checkbox input element
-    const switchCheckbox = screen.getByRole("checkbox", { name: /Schedule active/i });
-    await userEvent.click(switchCheckbox);
+    // HeroUI Switch renders as a switch element
+    const switchControl = screen.getByRole("switch", { name: /Schedule active/i });
+    await userEvent.click(switchControl);
     await waitFor(() => expect(toggleHandler).toHaveBeenCalled());
   });
 
@@ -386,10 +376,7 @@ describe("BackupsPage", () => {
     await screen.findByText("restore-1");
     // Filter by alpha server (RestoresTabPanel reuses BackupFilters, so
     // same "All servers" default as the Backups tab's server filter).
-    const serverSelect = screen.getAllByRole("combobox").find((c) =>
-      within(c).queryByText("All servers")
-    );
-    if (!serverSelect) throw new Error("server select not found");
+    const serverSelect = screen.getByRole("button", { name: /Filter by server/i });
     await userEvent.click(serverSelect);
     const alphaOption = await screen.findByRole("option", { name: "alpha" });
     await userEvent.click(alphaOption);

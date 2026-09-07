@@ -753,8 +753,8 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
         <div className="space-y-3 pt-3">
           <div className="text-xs uppercase tracking-wide text-muted">Template configuration</div>
           {fields.map((f) => (
-            <div key={f.name} className="space-y-1.5">
-              <label className="block text-xs text-muted">{f.displayName ?? f.name}</label>
+            <label key={f.name} className="space-y-1.5 block">
+              <div className="text-xs text-muted">{f.displayName ?? f.name}</div>
               {f.type === "enum" ? (
                 <select
                   className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
@@ -787,7 +787,7 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
                 />
               )}
               {f.description && <span className="text-[11px] text-muted">{f.description}</span>}
-            </div>
+            </label>
           ))}
         </div>
       )}

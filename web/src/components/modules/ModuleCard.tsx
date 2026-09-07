@@ -250,6 +250,7 @@ function VerifyBadge({ verify }: { verify: EntryVerify }) {
         variant="soft"
         title={keyless ? "keyless (Fulcio) signature verified" : "signature verified"}
         className="font-mono text-[10px] uppercase inline-flex items-center gap-1"
+        data-color="success"
       >
         <ShieldCheck className="h-3 w-3" />
         verified
@@ -263,6 +264,7 @@ function VerifyBadge({ verify }: { verify: EntryVerify }) {
       variant="soft"
       title={keyless ? "keyless (Fulcio) signature policy declared" : "signature policy declared"}
       className="font-mono text-[10px] uppercase inline-flex items-center gap-1"
+      data-color="success"
     >
       <ShieldQuestion className="h-3 w-3" />
       policy

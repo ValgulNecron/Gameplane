@@ -1,11 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 // (waitFor used for both the timing path and the empty-state DOM scan.)
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeModuleSource } from "@/test/factories";
 import { ModuleSourcesPanel, sourceLocation } from "./ModuleSourcesPanel";
+
+async function selectByAriaLabel(ariaLabel: string, optionText: string) {
+  const user = userEvent.setup();
+  const trigger = document.querySelector(`button[aria-label="${ariaLabel}"]`);
+  if (!trigger) throw new Error(`Select trigger with aria-label="${ariaLabel}" not found`);
+  await user.click(trigger);
+  const option = screen.getByRole("option", { name: new RegExp(optionText, "i") });
+  await user.click(option);
+}
 
 describe("ModuleSourcesPanel", () => {
   it("renders the listing", async () => {
@@ -114,7 +124,7 @@ describe("ModuleSourcesPanel", () => {
     renderWithQuery(<ModuleSourcesPanel />);
     fireEvent.click(await screen.findByRole("button", { name: /Add source/ }));
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "uploads" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), { target: { value: "upload" } });
+    await selectByAriaLabel("Type", "Uploaded bundles");
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     await waitFor(() => expect(created).not.toBeNull());
     expect(created).toMatchObject({ name: "uploads", type: "upload" });

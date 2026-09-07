@@ -19,9 +19,9 @@ export function BackupRow({ backup, showServer, onSelect, onRestore }: Props) {
       onClick={() => onSelect(backup)}
     >
       <Table.Cell className="font-mono text-xs">{backup.metadata.name}</Table.Cell>
-      {showServer && (
-        <Table.Cell>{backup.spec.serverRef.name}</Table.Cell>
-      )}
+      <Table.Cell>
+        {showServer && backup.spec.serverRef.name}
+      </Table.Cell>
       <Table.Cell>
         <PhaseChip phase={backup.status?.phase} />
       </Table.Cell>

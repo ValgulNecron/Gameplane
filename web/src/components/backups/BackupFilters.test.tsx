@@ -18,7 +18,8 @@ const baseProps = {
 describe("BackupFilters", () => {
   it("renders all server options plus an All-servers row", async () => {
     render(<BackupFilters {...baseProps} />);
-    await userEvent.click(screen.getAllByRole("combobox")[0]);
+    const serverButton = screen.getByRole("button", { name: /Filter by server/i });
+    await userEvent.click(serverButton);
     expect(screen.getByRole("option", { name: "All servers" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "alpha" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "beta" })).toBeInTheDocument();
@@ -34,8 +35,8 @@ describe("BackupFilters", () => {
   it("emits onServerChange when server dropdown changes", async () => {
     const onServerChange = vi.fn();
     render(<BackupFilters {...baseProps} onServerChange={onServerChange} />);
-    const comboboxes = screen.getAllByRole("combobox");
-    await userEvent.click(comboboxes[0]);
+    const serverButton = screen.getByRole("button", { name: /Filter by server/i });
+    await userEvent.click(serverButton);
     const alphaOption = screen.getByRole("option", { name: "alpha" });
     await userEvent.click(alphaOption);
     expect(onServerChange).toHaveBeenCalledWith("alpha");
@@ -44,8 +45,8 @@ describe("BackupFilters", () => {
   it("emits onPhaseChange when phase dropdown changes", async () => {
     const onPhaseChange = vi.fn();
     render(<BackupFilters {...baseProps} onPhaseChange={onPhaseChange} />);
-    const comboboxes = screen.getAllByRole("combobox");
-    await userEvent.click(comboboxes[1]);
+    const phaseButton = screen.getByRole("button", { name: /Filter by phase/i });
+    await userEvent.click(phaseButton);
     const succeededOption = screen.getByRole("option", { name: "Succeeded" });
     await userEvent.click(succeededOption);
     expect(onPhaseChange).toHaveBeenCalledWith("Succeeded");

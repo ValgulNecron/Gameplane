@@ -42,9 +42,9 @@ export function BackupFilters({
           </Select.Trigger>
           <Select.Popover>
             <ListBox aria-label="Server options">
-              <ListBoxItem id="">All servers</ListBoxItem>
+              <ListBoxItem id="" textValue="All servers">All servers</ListBoxItem>
               {servers.map((s) => (
-                <ListBoxItem key={s.metadata.name} id={s.metadata.name}>
+                <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
                   {s.metadata.name}
                 </ListBoxItem>
               ))}
@@ -58,9 +58,9 @@ export function BackupFilters({
           </Select.Trigger>
           <Select.Popover>
             <ListBox aria-label="Phase options">
-              <ListBoxItem id="">All phases</ListBoxItem>
+              <ListBoxItem id="" textValue="All phases">All phases</ListBoxItem>
               {phases.map((p) => (
-                <ListBoxItem key={p} id={p}>
+                <ListBoxItem key={p} id={p} textValue={p}>
                   {p}
                 </ListBoxItem>
               ))}

@@ -15,13 +15,20 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { BackupsPage } from "./Backups";
 
-// HeroUI Select renders as a combobox. This finds the dialog's server
-// select (which has the "Select a server…" placeholder).
+// HeroUI Select renders as a button. This finds the server select button,
+// either in an open dialog (for backups) or on the page (for schedules).
 function serverSelect(): HTMLElement {
-  const combos = screen.getAllByRole("combobox");
-  const match = combos.find((c) => within(c).queryByText(/select a server/i));
-  if (!match) throw new Error("server select not found");
-  return match;
+  try {
+    const dialog = screen.getByRole("dialog");
+    const serverButton = within(dialog).getByRole("button", { name: /Server/i });
+    return serverButton;
+  } catch {
+    // Not in a dialog; find the button on the page with "Select a server" text
+    const allButtons = screen.getAllByRole("button");
+    const match = allButtons.find((b) => within(b).queryByText(/Select a server/i));
+    if (!match) throw new Error("server select not found");
+    return match;
+  }
 }
 
 describe("BackupsPage flows", () => {
@@ -127,8 +134,8 @@ describe("BackupsPage flows", () => {
     await screen.findByText("alpha-daily");
 
     // Toggle the "active" switch → patchSpec (read-modify-write PUT).
-    const switchCheckbox = screen.getByRole("checkbox", { name: /Schedule active/i });
-    await userEvent.click(switchCheckbox);
+    const switchControl = screen.getByRole("switch", { name: /Schedule active/i });
+    await userEvent.click(switchControl);
     await waitFor(() => expect(patched).not.toBeNull());
 
     // Delete prompts a confirm dialog.

@@ -21,8 +21,8 @@ import {
   ModalHeading,
   ModalBody,
   ModalFooter,
-  Switch,
 } from "@heroui/react";
+import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/PageHeader";
 import { formatRelative } from "@/lib/utils";
 import { PhaseChip } from "@/components/hero/PhaseChip";
@@ -138,7 +138,9 @@ function BackupsTabPanel() {
           <Table.ScrollContainer>
             <Table.Content aria-label="Backups">
               <Table.Header>
-                <Table.Column key="name">Name</Table.Column>
+                <Table.Column key="name" isRowHeader>
+                  Name
+                </Table.Column>
                 <Table.Column key="server">Server</Table.Column>
                 <Table.Column key="phase">Phase</Table.Column>
                 <Table.Column key="size">Size</Table.Column>
@@ -247,7 +249,7 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
                   <Select.Popover>
                     <ListBox aria-label="Server options">
                       {(serversList?.items ?? []).map((s) => (
-                        <ListBoxItem key={s.metadata.name} id={s.metadata.name}>
+                        <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
                           {s.metadata.name}
                         </ListBoxItem>
                       ))}
@@ -271,7 +273,7 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
                     <Select.Popover>
                       <ListBox aria-label="Destination options">
                         {destinations.map((d) => (
-                          <ListBoxItem key={d.name} id={d.name}>{d.name}</ListBoxItem>
+                          <ListBoxItem key={d.name} id={d.name} textValue={d.name}>{d.name}</ListBoxItem>
                         ))}
                       </ListBox>
                     </Select.Popover>
@@ -359,7 +361,7 @@ function SchedulesTabPanel() {
               <Select.Popover>
                 <ListBox aria-label="Server options">
                   {(serversList?.items ?? []).map((s) => (
-                    <ListBoxItem key={s.metadata.name} id={s.metadata.name}>
+                    <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
                       {s.metadata.name}
                     </ListBoxItem>
                   ))}
@@ -381,7 +383,9 @@ function SchedulesTabPanel() {
           <Table.ScrollContainer>
             <Table.Content aria-label="Schedules">
               <Table.Header>
-                <Table.Column key="name">Name</Table.Column>
+                <Table.Column key="name" isRowHeader>
+                  Name
+                </Table.Column>
                 <Table.Column key="server">Server</Table.Column>
                 <Table.Column key="cron">Cron</Table.Column>
                 <Table.Column key="lastrun">Last run</Table.Column>
@@ -407,9 +411,9 @@ function SchedulesTabPanel() {
                     </Table.Cell>
                     <Table.Cell>
                       <Switch
-                        isSelected={!s.spec.suspend}
-                        onChange={(isSelected) =>
-                          toggleSuspend.mutate({ name: s.metadata.name, suspend: !isSelected })
+                        checked={!s.spec.suspend}
+                        onCheckedChange={(checked) =>
+                          toggleSuspend.mutate({ name: s.metadata.name, suspend: !checked })
                         }
                         aria-label="Schedule active"
                       />
@@ -505,7 +509,9 @@ function RestoresTabPanel() {
           <Table.ScrollContainer>
             <Table.Content aria-label="Restores">
               <Table.Header>
-                <Table.Column key="name">Name</Table.Column>
+                <Table.Column key="name" isRowHeader>
+                  Name
+                </Table.Column>
                 <Table.Column key="backup">Backup</Table.Column>
                 <Table.Column key="target">Target</Table.Column>
                 <Table.Column key="phase">Phase</Table.Column>

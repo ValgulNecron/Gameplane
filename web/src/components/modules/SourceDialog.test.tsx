@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { makeModuleSource } from "@/test/factories";
 import type { ModuleSourceSpec } from "@/types";
@@ -18,6 +19,35 @@ function renderDialog(props: Partial<Parameters<typeof SourceDialog>[0]> = {}) {
     />,
   );
   return onConfirm;
+}
+
+async function selectByAriaLabel(ariaLabel: string, optionText: string) {
+  const user = userEvent.setup();
+  const trigger = document.querySelector(`button[aria-label="${ariaLabel}"]`);
+  if (!trigger) throw new Error(`Select trigger with aria-label="${ariaLabel}" not found`);
+  await user.click(trigger);
+  const option = screen.getByRole("option", { name: new RegExp(optionText, "i") });
+  await user.click(option);
+}
+
+async function selectType(value: "oci" | "git" | "http" | "local" | "upload") {
+  const labelMap: Record<string, string> = {
+    oci: "OCI registry",
+    git: "Git repository",
+    http: "HTTP archive",
+    local: "Local directory",
+    upload: "Uploaded bundles",
+  };
+  await selectByAriaLabel("Type", labelMap[value]);
+}
+
+async function selectVerifyMode(value: "none" | "keyed" | "keyless") {
+  const labelMap: Record<string, string> = {
+    none: "None",
+    keyed: "Keyed",
+    keyless: "Keyless",
+  };
+  await selectByAriaLabel("Signature verification", labelMap[value]);
 }
 
 describe("specFrom", () => {
@@ -124,27 +154,24 @@ describe("SourceDialog", () => {
     expect(screen.getByText("Modules")).toBeInTheDocument();
 
     // Switch to upload: no url fields, just the explainer.
-    fireEvent.change(screen.getByDisplayValue("oci"), {
-      target: { value: "upload" },
-    });
+    await selectType("upload");
     await screen.findByText(/Indexes bundles uploaded/);
     expect(screen.queryByText("Registry URL")).not.toBeInTheDocument();
   });
 
   it("renders the git, http and local field sets", async () => {
     renderDialog();
-    const typeSelect = screen.getByDisplayValue("oci");
 
-    fireEvent.change(typeSelect, { target: { value: "git" } });
+    await selectType("git");
     await screen.findByText("Clone URL");
     expect(screen.getByText("Ref")).toBeInTheDocument();
     expect(screen.getByText("Subdirectory")).toBeInTheDocument();
 
-    fireEvent.change(typeSelect, { target: { value: "http" } });
+    await selectType("http");
     await screen.findByText("Archive URL");
     expect(screen.getByText(/Allow plain HTTP/)).toBeInTheDocument();
 
-    fireEvent.change(typeSelect, { target: { value: "local" } });
+    await selectType("local");
     await screen.findByText("Path");
     expect(screen.queryByText("Archive URL")).not.toBeInTheDocument();
   });
@@ -231,10 +258,7 @@ describe("SourceDialog", () => {
     });
 
     // Keyless reveals issuer + identity inputs.
-    const verifySelect = screen.getByDisplayValue("none");
-    fireEvent.change(verifySelect, {
-      target: { value: "keyless" },
-    });
+    await selectVerifyMode("keyless");
     await screen.findByText("OIDC issuer");
     const identity = screen.getByPlaceholderText(/release.yml/);
     fireEvent.change(screen.getByPlaceholderText("https://token.actions.githubusercontent.com"), {
@@ -305,10 +329,7 @@ describe("SourceDialog", () => {
     });
 
     // Switch to keyed verify mode.
-    const verifySelect = screen.getByDisplayValue("none");
-    fireEvent.change(verifySelect, {
-      target: { value: "keyed" },
-    });
+    await selectVerifyMode("keyed");
     await screen.findByText("Public key secret");
 
     // Blank secret name blocks submit.
@@ -350,9 +371,7 @@ describe("SourceDialog", () => {
   it("validates git source requires URL", async () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "git-src" } });
-    fireEvent.change(screen.getByDisplayValue("oci"), {
-      target: { value: "git" },
-    });
+    await selectType("git");
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     await screen.findByText(/url is required/);
     expect(onConfirm).not.toHaveBeenCalled();
@@ -361,9 +380,7 @@ describe("SourceDialog", () => {
   it("validates http source requires URL", async () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "http-src" } });
-    fireEvent.change(screen.getByDisplayValue("oci"), {
-      target: { value: "http" },
-    });
+    await selectType("http");
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     await screen.findByText(/url is required/);
     expect(onConfirm).not.toHaveBeenCalled();
@@ -375,9 +392,7 @@ describe("SourceDialog", () => {
       <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={onConfirm} />,
     );
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "local-src" } });
-    fireEvent.change(screen.getByDisplayValue("oci"), {
-      target: { value: "local" },
-    });
+    await selectType("local");
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
 
@@ -391,9 +406,7 @@ describe("SourceDialog", () => {
       <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={onConfirm} />,
     );
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upload-src" } });
-    fireEvent.change(screen.getByDisplayValue("oci"), {
-      target: { value: "upload" },
-    });
+    await selectType("upload");
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
   });

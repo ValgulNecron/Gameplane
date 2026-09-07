@@ -37,7 +37,6 @@ export const screenshotTemplates: GameTemplate[] = [
       version: "1.21",
       description: "Official Minecraft Java Edition server",
       image: "ghcr.io/valgulnecron/gameplane/minecraft:1.21",
-<<<<<<< HEAD
       // T118 (specs/014-heroui-web-rebuild/tasks.md): a version catalog so
       // test-server-01 (below) surfaces the Settings/Version sub-tab —
       // Settings.tsx hides that section entirely when the template has
@@ -49,7 +48,6 @@ export const screenshotTemplates: GameTemplate[] = [
         { id: "1.21-fabric", displayName: "1.21 (Fabric)", loader: "fabric" },
         { id: "1.20.4", displayName: "1.20.4", gameVersion: "1.20.4" },
         { id: "1.20", displayName: "1.20 (Vanilla)" },
-      ]
       ],
     },
   }),
