@@ -44,8 +44,8 @@ describe("FilterPopover", () => {
     expect(screen.getByText("gameplane-extra")).toBeInTheDocument();
 
     // Verify footer buttons are rendered
-    expect(screen.getByRole("button", { name: "Clear all filters" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Apply filters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
   });
 
   it("calls onToggleGame when a game checkbox is toggled", async () => {
@@ -127,7 +127,7 @@ describe("FilterPopover", () => {
       </FilterPopover>
     );
 
-    const applyButton = screen.getByRole("button", { name: "Apply filters" });
+    const applyButton = screen.getByRole("button", { name: "Apply" });
     await user.click(applyButton);
 
     expect(onApply).toHaveBeenCalledOnce();
@@ -154,7 +154,7 @@ describe("FilterPopover", () => {
       </FilterPopover>
     );
 
-    const clearButton = screen.getByRole("button", { name: "Clear all filters" });
+    const clearButton = screen.getByRole("button", { name: "Clear" });
     await user.click(clearButton);
 
     expect(onClear).toHaveBeenCalledOnce();
@@ -211,8 +211,8 @@ describe("FilterPopover", () => {
     );
 
     // Verify footer buttons are still rendered
-    expect(screen.getByRole("button", { name: "Clear all filters" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Apply filters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
 
     // Verify no section headers are rendered
     expect(screen.queryByText("Game")).not.toBeInTheDocument();

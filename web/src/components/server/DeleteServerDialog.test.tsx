@@ -147,7 +147,7 @@ describe("DeleteServerDialog", () => {
     await userEvent.click(deleteBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/delete failed/)).toBeInTheDocument();
+      expect(screen.getByText(/API error/)).toBeInTheDocument();
     });
   });
 
@@ -255,7 +255,7 @@ describe("DeleteServerDialog", () => {
 
     // Wait for error to appear
     await waitFor(() => {
-      expect(screen.getByText(/delete failed/)).toBeInTheDocument();
+      expect(screen.getByText(/API error/)).toBeInTheDocument();
     });
 
     // Close the dialog
@@ -276,7 +276,7 @@ describe("DeleteServerDialog", () => {
     );
 
     // Error message should be cleared
-    expect(screen.queryByText(/delete failed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/API error/)).not.toBeInTheDocument();
     expect(mockRemove).toHaveBeenCalledWith("test-server", undefined);
   });
 });

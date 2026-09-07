@@ -96,8 +96,10 @@ export function TransferServerDialog({ name, ns, open, onOpenChange, onTransferr
                   <PopoverContent className="min-w-[200px]">
                     <ListBox
                       aria-label="Transfer to"
+                      selectionMode="single"
                       onSelectionChange={(selected) => {
-                        setUserId(String(selected));
+                        const [id] = selected === "all" ? [] : selected;
+                        if (id !== undefined) setUserId(String(id));
                         setPopoverOpen(false);
                       }}
                     >

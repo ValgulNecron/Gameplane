@@ -79,7 +79,12 @@ describe("TransferServerDialog", () => {
     await waitFor(() => {
       expect(screen.getByText("Transfer test-server")).toBeInTheDocument();
     });
-    expect(screen.getByText(/Current owner: alice/)).toBeInTheDocument();
+    // The owner comes from the async Servers.get() query, which resolves
+    // after the (static) modal heading is already on screen — wait for it
+    // rather than asserting synchronously right after the heading appears.
+    await waitFor(() => {
+      expect(screen.getByText(/Current owner: alice/)).toBeInTheDocument();
+    });
   });
 
   it("displays 'unassigned' when server has no owner", async () => {

@@ -474,8 +474,10 @@ describe("ServerActionsCard", () => {
     // the full pointer sequence onPress listens for.
     await user.click(openBtn);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
-    // HeroUI Modal closes, so check that the dialog title is gone
-    await waitFor(() => expect(screen.queryByText("Test")).not.toBeInTheDocument());
+    // HeroUI Modal closes, so check the dialog itself is gone — the
+    // action button's own label is also "Test" and stays in the
+    // document, so scope this to the dialog role rather than the text.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(runs).toHaveLength(0);
   });
 

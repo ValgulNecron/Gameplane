@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { GameServer } from "@/types";
+import { can } from "@/lib/auth";
 import { ServerActionsMenu } from "./ServerActionsMenu";
 
 // Mock the dialog components
@@ -36,12 +37,17 @@ vi.mock("@/lib/auth", () => ({
       email: "test@example.com",
     },
   }),
-  can: vi.fn((_me, action, _ns) => {
-    // Default: admin can write servers
-    if (action === "servers:write") return true;
-    return false;
-  }),
+  can: vi.fn(defaultCan),
 }));
+
+// Default: admin can write servers. A named function (rather than an inline
+// arrow in the mock factory) so beforeEach can restore it after tests that
+// call `vi.mocked(can).mockReturnValue(false)` — vi.clearAllMocks() clears
+// call history but not a mock's implementation, so without this restore the
+// override would leak into every later test in the file.
+function defaultCan(_me: unknown, action: string, _ns?: string): boolean {
+  return action === "servers:write";
+}
 
 function createGameServer(overrides?: {
   metadata?: Partial<GameServer["metadata"]>;
@@ -94,6 +100,9 @@ function Subject({
 describe("ServerActionsMenu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks only clears call history — restore the default
+    // permission behavior tests below override with mockReturnValue(false).
+    vi.mocked(can).mockImplementation(defaultCan);
   });
 
   it("renders the menu trigger button", () => {
