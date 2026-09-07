@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Modal,
@@ -39,19 +39,13 @@ export function RoleEditorModal({
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
 
   // Reset state when dialog opens/closes
-  const [resetFor, setResetFor] = useState<{ open: boolean; roleId: string | null }>({
-    open: false,
-    roleId: role?.name ?? null,
-  });
-
-  if (open !== resetFor.open || role?.name !== resetFor.roleId) {
-    setResetFor({ open, roleId: role?.name ?? null });
+  useEffect(() => {
     if (open) {
       setName(role?.name ?? "");
       setDescription(role?.description ?? "");
       setSelectedPerms(new Set(role?.permissions ?? []));
     }
-  }
+  }, [open, role?.name, role?.description, role?.permissions]);
 
   const save = useMutation({
     mutationFn: () => {
