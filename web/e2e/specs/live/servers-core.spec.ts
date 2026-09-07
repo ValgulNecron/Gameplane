@@ -206,6 +206,30 @@ test.describe("live: servers core (list + detail)", () => {
       // backdrop animates out (opacity 0) rather than unmounting immediately,
       // so wait for all backdrops to be either removed from the DOM or
       // completely invisible (opacity 0).
+      //
+      // Two bugs stacked here across five prior fix attempts, both visible
+      // only in a captured trace (see PR #351 review notes), never locally:
+      // 1) `page.waitForFunction(fn, arg, options)` takes the wait's
+      //    *options* as its THIRD parameter — the second is `arg`, the
+      //    value passed *into* the page function. Passing `{ timeout: 5000
+      //    }` as the second argument (as every previous version of this
+      //    wait did) silently became the function's unused `arg`, so no
+      //    `options.timeout` was ever applied; the wait then ran under
+      //    Playwright's default polling with no distinct timeout of its
+      //    own, and finally died with the *test's* 30s timeout instead of
+      //    its own — which is exactly the "Test timeout of 30000ms
+      //    exceeded" (not "waitForFunction: Timeout Xms exceeded") reported
+      //    on every failing run.
+      // 2) `waitForFunction`'s default `polling: "raf"` re-checks the
+      //    predicate once per requestAnimationFrame callback on the PAGE.
+      //    On this live (kind-cluster, non-headed) target the tab is never
+      //    brought to the foreground, and rAF callbacks on a backgrounded
+      //    Chromium tab can be throttled far below real-time — so a
+      //    predicate that is in fact already true can still wait
+      //    indefinitely for a frame that never (or very rarely) arrives.
+      //    An explicit numeric `polling` interval re-checks on a plain
+      //    `setInterval` in the Node/CDP side instead, independent of the
+      //    page's own animation-frame loop.
       await page.waitForFunction(
         () => {
           const backdrops = document.querySelectorAll('[data-slot="modal-backdrop"]');
@@ -216,7 +240,8 @@ test.describe("live: servers core (list + detail)", () => {
             )
           );
         },
-        { timeout: 5_000 },
+        undefined,
+        { timeout: 10_000, polling: 100 },
       );
     };
 
