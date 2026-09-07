@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { screen, fireEvent, within, waitFor } from "@testing-library/react";
+import { screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
@@ -93,8 +93,8 @@ describe("NetworkCaptureSection", () => {
     renderWithQuery(<NetworkCaptureSection draft={draft} onChange={() => {}} />);
     const value = await screen.findByLabelText("Retention window value");
     expect(value).toHaveValue("1");
-    const unit = screen.getByLabelText("Retention window unit") as HTMLSelectElement;
-    expect(unit.value).toBe("days");
+    const unitTrigger = screen.getByRole("button", { name: /Retention window unit/i });
+    expect(unitTrigger).toHaveTextContent("days");
   });
 
   it("converts a value entered in days to seconds on spec.capture.retentionSeconds", async () => {
@@ -104,10 +104,15 @@ describe("NetworkCaptureSection", () => {
     };
     const onChange = vi.fn();
     renderWithQuery(<NetworkCaptureSection draft={draft} onChange={onChange} />);
-    const unit = await screen.findByLabelText("Retention window unit");
-    fireEvent.change(unit, { target: { value: "days" } });
+
+    const unitTrigger = await screen.findByRole("button", { name: /Retention window unit/i });
+    await userEvent.click(unitTrigger);
+    const daysOption = await screen.findByRole("option", { name: /days/i });
+    await userEvent.click(daysOption);
+
     const value = screen.getByLabelText("Retention window value");
-    fireEvent.change(value, { target: { value: "2" } });
+    await userEvent.clear(value);
+    await userEvent.type(value, "2");
 
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.capture.retentionSeconds).toBe(172800);
@@ -123,10 +128,15 @@ describe("NetworkCaptureSection", () => {
     renderWithQuery(
       <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
     );
-    const unit = await screen.findByLabelText("Retention window unit");
-    fireEvent.change(unit, { target: { value: "days" } });
+
+    const unitTrigger = await screen.findByLabelText("Retention window unit");
+    await userEvent.click(unitTrigger);
+    const daysOption = await screen.findByRole("option", { name: /days/i });
+    await userEvent.click(daysOption);
+
     const value = screen.getByLabelText("Retention window value");
-    fireEvent.change(value, { target: { value: "8" } }); // 8 days > 7-day cluster max
+    await userEvent.clear(value);
+    await userEvent.type(value, "8"); // 8 days > 7-day cluster max
 
     expect(
       screen.getByText(/exceeds the cluster maximum of 7 days \(604,800 seconds\)/i),
@@ -150,7 +160,7 @@ describe("NetworkCaptureSection", () => {
     const onChange = vi.fn();
     renderWithQuery(<NetworkCaptureSection draft={draft} onChange={onChange} />);
     const value = await screen.findByLabelText("Retention window value");
-    fireEvent.change(value, { target: { value: "" } });
+    await userEvent.clear(value);
 
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.capture.retentionSeconds).toBeUndefined();
@@ -174,7 +184,8 @@ describe("NetworkCaptureSection", () => {
     const sw = screen.getByRole("switch", { name: /Enable Capture/i });
     expect(sw).toBeDisabled();
     expect(screen.getByLabelText("Retention window value")).toBeDisabled();
-    expect(screen.getByLabelText("Retention window unit")).toBeDisabled();
+    const unitTrigger = screen.getByRole("button", { name: /Retention window unit/i });
+    expect(unitTrigger).toBeDisabled();
   });
 
   it("leaves the controls enabled for an admin session", async () => {
@@ -191,8 +202,8 @@ describe("NetworkCaptureSection", () => {
     renderWithQuery(<NetworkCaptureSection draft={draft} onChange={() => {}} />);
     const value = await screen.findByLabelText("Retention window value");
     expect(value).toHaveValue("5");
-    const unit = screen.getByLabelText("Retention window unit") as HTMLSelectElement;
-    expect(unit.value).toBe("minutes");
+    const unitTrigger = screen.getByRole("button", { name: /Retention window unit/i });
+    expect(unitTrigger).toHaveTextContent("minutes");
   });
 
   it("defaults to 'seconds' unit for a non-divisible-by-60 retention (61 seconds)", async () => {
@@ -203,8 +214,8 @@ describe("NetworkCaptureSection", () => {
     renderWithQuery(<NetworkCaptureSection draft={draft} onChange={() => {}} />);
     const value = await screen.findByLabelText("Retention window value");
     expect(value).toHaveValue("61");
-    const unit = screen.getByLabelText("Retention window unit") as HTMLSelectElement;
-    expect(unit.value).toBe("seconds");
+    const unitTrigger = screen.getByRole("button", { name: /Retention window unit/i });
+    expect(unitTrigger).toHaveTextContent("seconds");
   });
 
   it("rejects '0' as the retention value, shows error, and does not call onChange with invalid value", async () => {
@@ -218,7 +229,8 @@ describe("NetworkCaptureSection", () => {
       <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
     );
     const value = await screen.findByLabelText("Retention window value");
-    fireEvent.change(value, { target: { value: "0" } });
+    await userEvent.clear(value);
+    await userEvent.type(value, "0");
 
     expect(screen.getByText(/Enter a positive number\./)).toBeInTheDocument();
     expect(onValidityChange).toHaveBeenLastCalledWith(false);
@@ -243,7 +255,8 @@ describe("NetworkCaptureSection", () => {
       <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
     );
     const value = await screen.findByLabelText("Retention window value");
-    fireEvent.change(value, { target: { value: "-5" } });
+    await userEvent.clear(value);
+    await userEvent.type(value, "-5");
 
     expect(screen.getByText(/Enter a positive number\./)).toBeInTheDocument();
     expect(onValidityChange).toHaveBeenLastCalledWith(false);
@@ -268,7 +281,8 @@ describe("NetworkCaptureSection", () => {
       <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
     );
     const value = await screen.findByLabelText("Retention window value");
-    fireEvent.change(value, { target: { value: "not-a-number" } });
+    await userEvent.clear(value);
+    await userEvent.type(value, "not-a-number");
 
     expect(screen.getByText(/Enter a positive number\./)).toBeInTheDocument();
     expect(onValidityChange).toHaveBeenLastCalledWith(false);

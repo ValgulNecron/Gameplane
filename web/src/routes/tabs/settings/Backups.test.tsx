@@ -229,7 +229,7 @@ describe("BackupsSection", () => {
       },
     };
     // The default MSW handler only returns a destination named "default" —
-    // override it so a "backup-repo" option exists for the select to match.
+    // override it so a "backup-repo" option exists for the ListBox to match.
     server.use(
       http.get("/backup-destinations", () =>
         HttpResponse.json({ items: [makeDestination({ name: "backup-repo" })] }),
@@ -240,9 +240,8 @@ describe("BackupsSection", () => {
       <BackupsSection draft={draftWithPolicy} onChange={onChange} />,
     );
 
-    // The Select component value should be "backup-repo"
-    const select = await screen.findByDisplayValue("backup-repo");
-    expect(select).toBeInTheDocument();
+    // The popover trigger should display "backup-repo"
+    expect(screen.getByText("backup-repo")).toBeInTheDocument();
   });
 
   it("toggles suspend state off", async () => {

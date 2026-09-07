@@ -67,7 +67,7 @@ describe("EnvVarsSection", () => {
     });
     const onChange = vi.fn();
     render(<EnvVarsSection draft={draft} onChange={onChange} />);
-    await userEvent.click(screen.getByTitle(/Remove/i));
+    await userEvent.click(screen.getByRole("button", { name: /Remove/i }));
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.env).toBeUndefined();
   });
@@ -161,7 +161,7 @@ describe("EnvVarsSection", () => {
     });
     const onChange = vi.fn();
     render(<EnvVarsSection draft={draft} onChange={onChange} />);
-    const removeButtons = screen.getAllByTitle(/Remove/i);
+    const removeButtons = screen.getAllByRole("button", { name: /Remove/i });
     await userEvent.click(removeButtons[0]);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.env).toHaveLength(1);
@@ -197,7 +197,7 @@ describe("EnvVarsSection", () => {
     });
     const onChange = vi.fn();
     render(<EnvVarsSection draft={draft} onChange={onChange} />);
-    await userEvent.click(screen.getByTitle(/Remove/i));
+    await userEvent.click(screen.getByRole("button", { name: /Remove/i }));
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.env).toBeUndefined();
   });
