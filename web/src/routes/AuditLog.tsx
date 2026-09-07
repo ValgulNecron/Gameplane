@@ -4,7 +4,7 @@ import { Download, RefreshCw } from "lucide-react";
 import type { AuditEvent, AuditVerifyResult } from "@/types";
 import { Audit, type AuditExportFilter } from "@/lib/endpoints";
 import { Button, Card, Input, Chip, Table } from "@heroui/react";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader } from "@/components/hero/PageHeader";
 import { AuditIntegrityBanner } from "@/components/hero/AuditIntegrityBanner";
 import { cn, formatRelative } from "@/lib/utils";
 
@@ -73,7 +73,7 @@ export function AuditLogPage() {
     <div className="space-y-5 p-6">
       <PageHeader
         title="Audit log"
-        subtitle="Mutating control-plane requests, newest first."
+        description="Mutating control-plane requests, newest first."
         actions={
           <>
             <Button

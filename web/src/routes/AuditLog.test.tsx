@@ -76,9 +76,7 @@ describe("AuditLogPage", () => {
     expect(screen.getByText("Deleted server")).toBeInTheDocument();
 
     // Find and click the 5xx filter button
-    const buttons = screen.getAllByRole("button");
-    const fivexxButton = buttons.find((btn) => btn.textContent?.includes("5xx · 1"));
-    if (fivexxButton) await user.click(fivexxButton);
+    await user.click(screen.getByRole("button", { name: /5xx · 1/ }));
 
     expect(screen.getByText("Deleted server")).toBeInTheDocument();
     expect(screen.queryByText("Created backup")).toBeNull();
@@ -98,9 +96,7 @@ describe("AuditLogPage", () => {
     renderWithQuery(<AuditLogPage />);
     await screen.findByText(/loaded/);
     // Find and click the 4xx filter button
-    const buttons = screen.getAllByRole("button");
-    const fourxxButton = buttons.find((btn) => btn.textContent?.includes("4xx · 0"));
-    if (fourxxButton) await user.click(fourxxButton);
+    await user.click(screen.getByRole("button", { name: /4xx · 0/ }));
     expect(screen.getByText("No events match the active filters.")).toBeInTheDocument();
   });
 
@@ -323,9 +319,7 @@ describe("AuditLogPage", () => {
     await user.selectOptions(methodSelect, "POST");
 
     // Find and click the 5xx filter button
-    const buttons = screen.getAllByRole("button");
-    const fivexxButton = buttons.find((btn) => btn.textContent?.includes("5xx · 1"));
-    if (fivexxButton) await user.click(fivexxButton);
+    await user.click(screen.getByRole("button", { name: /5xx · 1/ }));
 
     const actorInput = screen.getByPlaceholderText(/Filter by actor/i);
     fireEvent.change(actorInput, { target: { value: "alice" } });
