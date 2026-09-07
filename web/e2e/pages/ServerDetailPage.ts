@@ -28,11 +28,6 @@ export class ServerDetailPage {
   async goto(serverName: string, ns?: string): Promise<void> {
     const url = ns ? `/servers/${serverName}?ns=${ns}` : `/servers/${serverName}`;
     await this.page.goto(url);
-    // Mirrors the beforeEach pattern used by every live spec (page.goto then
-    // waitForLoadState) — without it, callers race the initial navigation
-    // against their first assertion instead of Playwright's normal
-    // auto-waiting picking up a fully-settled DOM.
-    await this.page.waitForLoadState("domcontentloaded");
   }
 
   // Navigate to a tab by label (Overview, Events, Console, Logs, Files, Mods, Modpacks, Players, Backups, Capture, Settings)
