@@ -44,7 +44,7 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.62.1",
     "@tanstack/router-devtools": "^1.167.1",
     "@tailwindcss/postcss": "^4.3.3",
@@ -58,7 +58,7 @@
     "@typescript-eslint/eslint-plugin": "^8.69.0",
     "@typescript-eslint/parser": "^8.68.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^5.0.0",
     "autoprefixer": "^10.5.4",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
@@ -70,7 +70,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11",
+    "vitest": "^5.0.0",
     "vitest-websocket-mock": "^0.7.0"
   },
   "msw": {

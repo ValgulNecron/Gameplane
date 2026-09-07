@@ -1,4 +1,5 @@
-import "@testing-library/jest-dom";
+import { Blob as NodeBlob } from "node:buffer";
+import "@testing-library/jest-dom/vitest";
 import { configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { server } from "./server";
@@ -60,6 +61,19 @@ if (typeof window !== "undefined") {
         dispatchEvent: () => false,
       }) as MediaQueryList;
   }
+
+  // Align jsdom's Blob with Node's Blob so Node 22+ Response and MSW interceptors
+  // have native .stream() support and expect(res.blob()).toBeInstanceOf(Blob) succeeds.
+  Object.defineProperty(window, "Blob", {
+    value: NodeBlob,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, "Blob", {
+    value: NodeBlob,
+    writable: true,
+    configurable: true,
+  });
 }
 
 // MSW lifecycle. onUnhandledRequest:"error" makes a missed handler fail
