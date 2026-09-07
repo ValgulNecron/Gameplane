@@ -191,37 +191,33 @@ test.describe("live: servers core (list + detail)", () => {
     // waitForFunction — all hung identically; see PR #351 review notes):
     // HeroUI v3's `ModalBackdrop`/`ModalContainer` (and the equivalent
     // `AlertDialogBackdrop`/`AlertDialogContainer` used by the wipe/delete
-    // AlertDialogs) are meant to be composed as siblings under `<Modal>`,
-    // matching every usage in this codebase — but react-aria-components'
-    // underlying `ModalOverlay` (what `ModalBackdrop` wraps) tracks its OWN
-    // exit animation AND a *second* one on an internal `modalRef` meant to
-    // be attached by nested modal content
+    // AlertDialogs) are meant to be composed with the container NESTED
+    // inside the backdrop, not as siblings under `<Modal>` — react-aria-
+    // components' underlying `ModalOverlay` (what `ModalBackdrop` wraps)
+    // tracks its OWN exit animation AND a *second* one on an internal
+    // `modalRef` that only gets attached when the modal content
+    // (`ModalContainer`/`AlertDialogContainer`) is rendered as a descendant,
+    // via `InternalModalContext`
     // (react-aria-components/dist/private/Modal.mjs,
     // `ModalOverlayWithForwardRef`: `isExiting = isOverlayExiting ||
-    // isModalExiting`). Used as siblings, that `modalRef` is never attached
-    // to anything, so `useAnimation`'s `if (isActive && ref.current)` guard
-    // (react-aria/dist/private/utils/animation.mjs) never fires for it —
-    // `isModalExiting` latches `true` the very first time any dialog
-    // closes and never resets, which permanently disables the backdrop's
-    // "should I unmount" check for the rest of that component instance's
-    // life. The backdrop element (`[data-slot="modal-backdrop"]` /
-    // `[data-slot="alert-dialog-backdrop"]`) is confirmed (via
-    // `iframe.contentDocument` queries against the trace's reconstructed
-    // DOM snapshots, both right when the wait started and 10s later at
-    // timeout) to still be in the DOM, `data-exiting="true"`, at its
-    // resting (non-animating) computed opacity of 1 with `pointer-events:
-    // auto` — a full-viewport `position:fixed; z-index:50` div that never
-    // goes away and blocks every later interaction on that page. This is a
-    // real HeroUI v3.2.4 / react-aria-components bug reachable from every
-    // dialog in this app (Clone/Transfer/Wipe/Delete included) the first
-    // time it's opened and closed on a given page load — not something a
-    // test-side wait can wait out, since the backdrop never actually
-    // disappears. Fixing the composition itself is out of scope for this
-    // test (it touches production markup for six components); tracked
-    // instead as a follow-up. The workaround here is to give each dialog a
-    // fresh, never-yet-closed-once component instance: reload between
-    // dialogs instead of reusing the same page, so the stuck backdrop from
-    // dialog N never has a chance to block dialog N+1's trigger click.
+    // isModalExiting`). Every one of this app's six dialog components used
+    // to compose them as siblings instead, so that `modalRef` was never
+    // attached to anything and `useAnimation`'s `if (isActive &&
+    // ref.current)` guard (react-aria/dist/private/utils/animation.mjs)
+    // never fired for it — `isModalExiting` latched `true` the very first
+    // time any dialog closed and never reset, permanently disabling the
+    // backdrop's "should I unmount" check for the rest of that component
+    // instance's life. Fixed by nesting `ModalContainer`/
+    // `AlertDialogContainer` inside `ModalBackdrop`/`AlertDialogBackdrop` in
+    // all six components (matches the HeroUI type composition:
+    // `ModalContainerProps`/`AlertDialogContainerProps` wrap
+    // `react-aria-components/Modal`'s `Modal`, and `ModalBackdrop`/
+    // `AlertDialogBackdrop` wrap its `ModalOverlay`). With the fix, the
+    // backdrop element (`[data-slot="modal-backdrop"]` /
+    // `[data-slot="alert-dialog-backdrop"]`) actually unmounts once its
+    // exit animation completes, so all four dialogs can be exercised on a
+    // single page load without a stuck backdrop blocking the next trigger
+    // click.
     const openMenuAndDialog = async (itemName: RegExp, dialogHeading: RegExp, role: "dialog" | "alertdialog" = "dialog") => {
       await page.getByRole("button", { name: /server actions/i }).click();
       await page.getByRole("menuitem", { name: itemName }).click();
@@ -235,12 +231,18 @@ test.describe("live: servers core (list + detail)", () => {
       await dialog.getByRole("button", { name: /^cancel$/i }).click();
       await expect(dialog).toBeHidden({ timeout: 5_000 });
 
+      // The backdrop must actually unmount once its exit animation
+      // completes — this is the assertion that proves the nested
+      // composition fixed the exit-state latch (see the note above). It
+      // must hold before the next dialog is opened, or a stuck backdrop
+      // from this dialog would block the next trigger click.
+      await expect(
+        page.locator('[data-slot="modal-backdrop"], [data-slot="alert-dialog-backdrop"]'),
+      ).toHaveCount(0);
+
       // The server must still exist — this dialog was cancelled, not
-      // confirmed. Reload (see the stuck-backdrop note above for why) and
-      // confirm the heading still renders before the next dialog opens.
-      await page.reload();
-      await page.waitForLoadState("domcontentloaded");
-      await expect(page.getByRole("heading", { name: serverName })).toBeVisible({ timeout: 20_000 });
+      // confirmed.
+      await expect(page.getByRole("heading", { name: serverName })).toBeVisible();
     };
 
     await openMenuAndDialog(/clone server/i, /^clone server$/i);
