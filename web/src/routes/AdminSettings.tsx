@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ChangeEvent, type ComponentType, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -1297,6 +1297,59 @@ function AddSinkForm({
   );
 }
 
+function TestButton({ dirty, disabled, onPress, children }: { dirty: boolean; disabled: boolean; onPress: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      if (dirty) {
+        ref.current.setAttribute("title", "Save changes first — tests run against the saved config");
+      } else {
+        ref.current.removeAttribute("title");
+      }
+    }
+  }, [dirty]);
+
+  return (
+    <Button
+      ref={ref}
+      variant="outline"
+      size="sm"
+      isDisabled={disabled}
+      onPress={onPress}
+    >
+      {children}
+    </Button>
+  );
+}
+
+function TelemetrySwitch({ isSelected, onChange, ariaLabel }: { isSelected: boolean; onChange: (value: boolean) => void; ariaLabel: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (containerRef.current) {
+      const button = containerRef.current.querySelector('[role="switch"]') as HTMLElement;
+      if (button) {
+        button.setAttribute("aria-checked", isSelected ? "true" : "false");
+      }
+    }
+  }, [isSelected]);
+
+  return (
+    <div ref={containerRef}>
+      <Switch
+        aria-label={ariaLabel}
+        isSelected={isSelected}
+        onChange={onChange}
+      >
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch.Content>
+      </Switch>
+    </div>
+  );
+}
+
 function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
   const f = useSectionForm<NotificationsCfg>(initial ?? defaultNotif, "notifications");
   const [adding, setAdding] = useState(false);
@@ -1368,16 +1421,13 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
                   {result.ok ? "✓ delivered" : result.message}
                 </span>
               )}
-              <div title={dirty ? "Save changes first — tests run against the saved config" : undefined}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  isDisabled={!s.configRef || dirty || test.isPending}
-                  onPress={() => runTest(s.name)}
-                >
-                  Send test
-                </Button>
-              </div>
+              <TestButton
+                dirty={dirty}
+                disabled={!s.configRef || dirty || test.isPending}
+                onPress={() => runTest(s.name)}
+              >
+                Send test
+              </TestButton>
               <Switch
                 aria-label={s.enabled ? `Disable sink ${s.name}` : `Enable sink ${s.name}`}
                 isSelected={s.enabled}
@@ -1452,17 +1502,11 @@ function TelemetrySection({ initial }: { initial?: TelemetryCfg }) {
             No server names, player counts, or identifying data.
           </div>
         </div>
-        <Switch
-          aria-label={f.draft.sendMetrics ? "Disable telemetry" : "Enable telemetry"}
+        <TelemetrySwitch
+          ariaLabel={f.draft.sendMetrics ? "Disable telemetry" : "Enable telemetry"}
           isSelected={f.draft.sendMetrics}
           onChange={(v) => f.update({ sendMetrics: v })}
-        >
-          <Switch.Content>
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-          </Switch.Content>
-        </Switch>
+        />
       </div>
     </SectionCard>
   );

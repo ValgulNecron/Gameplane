@@ -15,6 +15,7 @@ import {
   Dropdown,
   DropdownTrigger,
   DropdownMenu,
+  DropdownPopover,
   DropdownSection,
   DropdownItem,
   Modal,
@@ -196,7 +197,7 @@ export function UsersPage() {
               <Table.ScrollContainer>
                 <Table.Content aria-label="Users list">
                   <Table.Header>
-                    <Table.Column id="user">User</Table.Column>
+                    <Table.Column id="user" isRowHeader>User</Table.Column>
                     <Table.Column id="role">Role</Table.Column>
                     <Table.Column id="provider">Provider</Table.Column>
                     <Table.Column id="created">Created</Table.Column>
@@ -243,51 +244,51 @@ export function UsersPage() {
                     <Table.Cell className="text-foreground/60">{formatRelative(u.createdAt)}</Table.Cell>
                     <Table.Cell>
                       <Dropdown>
-                        <DropdownTrigger>
-                          <Button
-                            isIconOnly
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Actions for ${u.username}`}
-                          >
+                        <DropdownTrigger
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-default-100 text-foreground/60 hover:text-foreground"
+                          aria-label={`Actions for ${u.username}`}
+                        >
+                          <>
                             <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          </>
                         </DropdownTrigger>
-                        <DropdownMenu aria-label={`Actions for ${u.username}`}>
-                          <DropdownItem
-                            key="edit"
-                            onPress={() => setEditing(u)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Pencil className="h-4 w-4" />
-                              Edit user
-                            </div>
-                          </DropdownItem>
-                          <DropdownItem
-                            key="reset"
-                            isDisabled={u.provider === "oidc"}
-                            onPress={() => setResetting(u)}
-                            aria-label={u.provider === "oidc" ? "Reset password: Account is OIDC-managed" : "Reset password"}
-                          >
-                            <div className="flex items-center gap-2" title={u.provider === "oidc" ? "Account is OIDC-managed" : undefined}>
-                              <KeyRound className="h-4 w-4" />
-                              Reset password
-                            </div>
-                          </DropdownItem>
-                          <DropdownSection>
+                        <DropdownPopover>
+                          <DropdownMenu aria-label={`Actions for ${u.username}`}>
                             <DropdownItem
-                              key="delete"
-                              variant="danger"
-                              isDisabled={Boolean(me && me.id === u.id)}
-                              onPress={() => setDeleting(u)}
+                              key="edit"
+                              onPress={() => setEditing(u)}
                             >
                               <div className="flex items-center gap-2">
-                                <Trash2 className="h-4 w-4" />
-                                Delete user
+                                <Pencil className="h-4 w-4" />
+                                Edit user
                               </div>
                             </DropdownItem>
-                          </DropdownSection>
-                        </DropdownMenu>
+                            <DropdownItem
+                              key="reset"
+                              isDisabled={u.provider === "oidc"}
+                              onPress={() => setResetting(u)}
+                              aria-label={u.provider === "oidc" ? "Reset password: Account is OIDC-managed" : "Reset password"}
+                            >
+                              <div className="flex items-center gap-2" title={u.provider === "oidc" ? "Account is OIDC-managed" : undefined}>
+                                <KeyRound className="h-4 w-4" />
+                                Reset password
+                              </div>
+                            </DropdownItem>
+                            <DropdownSection>
+                              <DropdownItem
+                                key="delete"
+                                variant="danger"
+                                isDisabled={Boolean(me && me.id === u.id)}
+                                onPress={() => setDeleting(u)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete user
+                                </div>
+                              </DropdownItem>
+                            </DropdownSection>
+                          </DropdownMenu>
+                        </DropdownPopover>
                       </Dropdown>
                     </Table.Cell>
                   </Table.Row>
