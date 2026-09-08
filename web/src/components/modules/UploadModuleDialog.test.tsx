@@ -173,14 +173,12 @@ describe("UploadModuleDialog", () => {
     expect(screen.queryByText("second")).not.toBeInTheDocument();
   });
 
-  it("handles missing source gracefully when sources list is empty", async () => {
+  it("handles missing source gracefully when sources list is empty", () => {
     renderWithQuery(
       <UploadModuleDialog open onOpenChange={() => undefined} sources={[]} onUploaded={() => undefined} />,
     );
-    // Dialog should render without crashing. HeroUI's Modal mounts its
-    // content a tick after the overlay (portal + entering-state), so this
-    // needs findByText rather than a synchronous getByText.
-    expect(await screen.findByText(/Choose a \.tar\.gz bundle/)).toBeInTheDocument();
+    // Dialog should render without crashing
+    expect(screen.getByText(/Choose a bundle archive/)).toBeInTheDocument();
   });
 
   it("closes dialog after successful upload", async () => {

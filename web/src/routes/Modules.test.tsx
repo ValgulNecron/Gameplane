@@ -240,7 +240,7 @@ describe("ModulesPage", () => {
     await screen.findByText("Minecraft (Java)");
     const uploadBtn = await screen.findByRole("button", { name: /upload module/i });
     await userEvent.click(uploadBtn);
-    expect(await screen.findByText(/Choose a .tar.gz bundle/)).toBeInTheDocument();
+    expect(await screen.findByText(/Choose a bundle archive/)).toBeInTheDocument();
   });
 
   it("hides the upload action without upload sources", async () => {
