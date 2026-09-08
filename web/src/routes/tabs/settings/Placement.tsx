@@ -96,7 +96,7 @@ export function PlacementSection({
     <div className="space-y-6">
       <div className="grid grid-cols-1 items-start gap-1.5 sm:grid-cols-[200px_1fr] sm:gap-4">
         <div className="sm:pt-2">
-          <Label htmlFor="tolerations-editor" className="text-sm">
+          <Label id="tolerations-label" className="text-sm">
             Tolerations
           </Label>
           <Description className="pt-1 text-xs">
@@ -105,11 +105,11 @@ export function PlacementSection({
         </div>
         <div className="space-y-2">
           <div
-            id="tolerations-editor"
             className="rounded border border-border bg-surface/50"
             style={{ height: "180px" }}
           >
             <Editor
+              aria-labelledby="tolerations-label"
               theme="vs-dark"
               language="json"
               value={rawTol}
@@ -126,7 +126,7 @@ export function PlacementSection({
 
       <div className="grid grid-cols-1 items-start gap-1.5 sm:grid-cols-[200px_1fr] sm:gap-4">
         <div className="sm:pt-2">
-          <Label htmlFor="affinity-editor" className="text-sm">
+          <Label id="affinity-label" className="text-sm">
             Affinity
           </Label>
           <Description className="pt-1 text-xs">
@@ -135,11 +135,11 @@ export function PlacementSection({
         </div>
         <div className="space-y-2">
           <div
-            id="affinity-editor"
             className="rounded border border-border bg-surface/50"
             style={{ height: "180px" }}
           >
             <Editor
+              aria-labelledby="affinity-label"
               theme="vs-dark"
               language="json"
               value={rawAff}

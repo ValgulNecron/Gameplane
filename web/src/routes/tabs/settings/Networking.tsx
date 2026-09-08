@@ -4,6 +4,7 @@ import {
   Select,
   ListBox,
   ListBoxItem,
+  Switch,
 } from "@heroui/react";
 import { X, AlertCircle, Check, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -176,21 +177,23 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <label htmlFor="enable-tunnel" className="flex items-center gap-3 cursor-pointer">
-                <input
-                  id="enable-tunnel"
-                  type="checkbox"
-                  checked={tunnel?.enabled ?? false}
-                  onChange={(e) => {
-                    const newTunnel: GameServerTunnel | undefined = e.target.checked
-                      ? { enabled: true, provider: tunnel?.provider ?? "frp" }
-                      : undefined;
-                    setNet({ ...net, tunnel: newTunnel });
-                  }}
-                  className="h-4 w-4 rounded border border-border bg-surface accent-primary"
-                />
-                <span className="text-sm font-medium">Enable tunnel</span>
-              </label>
+              <Switch
+                isSelected={tunnel?.enabled ?? false}
+                onChange={(selected) => {
+                  const newTunnel: GameServerTunnel | undefined = selected
+                    ? { enabled: true, provider: tunnel?.provider ?? "frp" }
+                    : undefined;
+                  setNet({ ...net, tunnel: newTunnel });
+                }}
+                aria-label="Enable tunnel"
+              >
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Content>
+              </Switch>
+              <span className="text-sm font-medium">Enable tunnel</span>
             </div>
             <div className="text-xs text-muted">
               Route players through a relay so they can connect without port-forwarding or a public IP.
@@ -958,6 +961,7 @@ function TunnelCredentialField({
               size="sm"
               variant="ghost"
               isIconOnly
+              aria-label="Remove tunnel credentials"
               onPress={onRemove}
               isDisabled={isLoading}
               className="text-danger hover:text-danger"
