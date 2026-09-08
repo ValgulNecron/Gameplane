@@ -150,8 +150,7 @@ export function FilterPopover({
               size="sm"
               variant="ghost"
               className="h-7"
-              onClick={onClear}
-              aria-label="Clear all filters"
+              onPress={onClear}
             >
               Clear
             </Button>
@@ -159,8 +158,7 @@ export function FilterPopover({
               size="sm"
               variant="primary"
               className="h-7"
-              onClick={onApply}
-              aria-label="Apply filters"
+              onPress={onApply}
             >
               Apply
             </Button>

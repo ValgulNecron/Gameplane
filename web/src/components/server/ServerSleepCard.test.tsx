@@ -105,7 +105,7 @@ describe("ServerSleepCard", () => {
       },
     });
     render(<ServerSleepCard gs={gs} />);
-    expect(screen.getByText("Empty since")).toBeInTheDocument();
+    expect(screen.getByText(/Empty since/)).toBeInTheDocument();
     expect(screen.getByText("Empty, sleeping in 5m30s")).toBeInTheDocument();
   });
 
@@ -152,7 +152,7 @@ describe("ServerSleepCard", () => {
       });
       render(<ServerSleepCard gs={gs} />);
       expect(screen.getByText("Will never sleep")).toBeInTheDocument();
-      expect(screen.getByText("This game reports no player count")).toBeInTheDocument();
+      expect(screen.getByText(/This game reports no player count/)).toBeInTheDocument();
     });
 
     it("does not show an explanatory sub-line for a normal working reason", () => {

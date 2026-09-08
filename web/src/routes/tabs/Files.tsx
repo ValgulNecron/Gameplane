@@ -6,7 +6,17 @@ import {
   type ReactNode,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Dialog from "@radix-ui/react-dialog";
+import {
+  Modal,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Input,
+} from "@heroui/react";
 import Editor from "@monaco-editor/react";
 import {
   ChevronLeft,
@@ -22,9 +32,8 @@ import {
   Upload,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
+import { ErrorBanner } from "@/components/hero/ErrorBanner";
 import { Files, type FileEntry } from "@/lib/endpoints";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -196,19 +205,27 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <Breadcrumbs cwd={cwd} onNavigate={navigateTo} />
+        <BreadcrumbsNav cwd={cwd} onNavigate={navigateTo} />
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setNewFileOpen(true)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => setNewFileOpen(true)}
+          >
             <FilePlus className="h-4 w-4" /> New file
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setMkdirOpen(true)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => setMkdirOpen(true)}
+          >
             <FolderPlus className="h-4 w-4" /> New folder
           </Button>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            onClick={() => uploadInputRef.current?.click()}
-            disabled={uploadMutation.isPending}
+            onPress={() => uploadInputRef.current?.click()}
+            isDisabled={uploadMutation.isPending}
           >
             {uploadMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -226,43 +243,40 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
             data-testid="files-upload-input"
           />
           <Button
-            variant="outline"
-            size="icon"
+            isIconOnly
+            variant="ghost"
+            size="sm"
             aria-label="Refresh"
-            onClick={() => refetch()}
+            onPress={() => refetch()}
           >
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
           </Button>
         </div>
       </div>
 
-      {opError && (
-        <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
-          {opError}
-        </div>
-      )}
+      {opError && <ErrorBanner err={opError} onDismiss={() => setOpError(null)} />}
 
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded border border-border bg-card">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-divider bg-surface">
         <aside
           className={cn(
-            "w-full shrink-0 flex-col border-r border-border md:flex md:w-72",
+            "w-full shrink-0 flex-col border-r border-divider md:flex md:w-72",
             pane === "tree" ? "flex" : "hidden",
           )}
         >
-          <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">
+          <div className="border-b border-divider bg-background px-3 py-2 font-mono text-xs text-default-500">
             {cwd}
           </div>
           <ul className="flex-1 overflow-auto">
             {cwd !== ROOT && (
               <li
-                className="flex cursor-pointer items-center gap-2 px-3 py-1 text-sm text-muted hover:bg-surface"
+                className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm text-default-500 hover:bg-default-100"
                 onClick={() => navigateTo(parentOf(cwd))}
               >
                 <Folder className="h-3 w-3" /> ..
               </li>
             )}
             {entries?.length === 0 && (
-              <li className="px-3 py-4 text-center text-xs text-muted">
+              <li className="px-3 py-4 text-center text-xs text-default-500">
                 Empty folder
               </li>
             )}
@@ -271,18 +285,18 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
                 key={e.path}
                 onClick={() => onEntryClick(e)}
                 className={cn(
-                  "flex cursor-pointer items-center gap-2 px-3 py-1 text-sm hover:bg-surface",
-                  selected?.path === e.path && "bg-primary/10",
+                  "flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-default-100",
+                  selected?.path === e.path && "bg-primary/10 text-foreground",
                 )}
               >
                 {e.dir ? (
-                  <Folder className="h-3 w-3 text-muted" />
+                  <Folder className="h-3 w-3 text-default-500" />
                 ) : (
-                  <FileIcon className="h-3 w-3 text-muted" />
+                  <FileIcon className="h-3 w-3 text-default-500" />
                 )}
                 <span className="truncate">{e.name}</span>
                 {!e.dir && (
-                  <span className="ml-auto text-xs text-muted">
+                  <span className="ml-auto text-xs text-default-500">
                     {formatBytes(e.size)}
                   </span>
                 )}
@@ -297,46 +311,49 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
             pane === "view" ? "flex" : "hidden",
           )}
         >
-          <div className="flex items-center border-b border-border px-2 py-1.5 md:hidden">
-            <button
-              type="button"
-              onClick={() => setPane("tree")}
+          <div className="flex items-center border-b border-divider bg-background px-2 py-1.5 md:hidden">
+            <Button
+              isIconOnly
+              variant="ghost"
+              size="sm"
+              onPress={() => setPane("tree")}
               aria-label="Back to files"
-              className="inline-flex items-center gap-1 rounded p-1 text-xs text-muted hover:bg-surface hover:text-fg"
+              className="text-default-500"
             >
-              <ChevronLeft className="h-4 w-4" /> Files
-            </button>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-xs text-default-500 ml-1">Files</span>
           </div>
           {selected && !selected.dir ? (
             <>
-              <div className="flex items-center justify-between border-b border-border px-4 py-2">
+              <div className="flex items-center justify-between border-b border-divider bg-background px-4 py-2">
                 <div className="flex items-center gap-2 text-sm">
                   <FileIcon className="h-4 w-4 text-primary" />
-                  <span className="font-medium text-fg">{selected.name}</span>
+                  <span className="font-medium text-foreground">{selected.name}</span>
                   {dirty && (
                     <span className="text-xs text-warning">· modified</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
-                    onClick={downloadSelected}
+                    onPress={downloadSelected}
                   >
                     <Download className="h-3 w-3" /> Download
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="danger"
                     size="sm"
-                    onClick={() => setConfirmDelete(selected)}
+                    onPress={() => setConfirmDelete(selected)}
                   >
-                    <Trash2 className="h-3 w-3 text-danger" />
-                    <span className="text-danger">Delete</span>
+                    <Trash2 className="h-3 w-3" /> Delete
                   </Button>
                   <Button
                     size="sm"
-                    disabled={!dirty || saveMutation.isPending}
-                    onClick={() => saveMutation.mutate(editorValue)}
+                    isDisabled={!dirty || saveMutation.isPending}
+                    onPress={() => saveMutation.mutate(editorValue)}
+                    variant="primary"
                   >
                     {saveMutation.isPending ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -347,13 +364,13 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
                   </Button>
                 </div>
               </div>
-              <div className="min-h-0 flex-1">
+              <div className="min-h-0 flex-1 bg-background">
                 {loadError ? (
                   <div className="grid h-full place-items-center text-sm text-danger">
                     {loadError}
                   </div>
                 ) : serverContent === null ? (
-                  <div className="grid h-full place-items-center text-sm text-muted">
+                  <div className="grid h-full place-items-center text-sm text-default-500">
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </div>
                 ) : (
@@ -371,7 +388,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
               </div>
             </>
           ) : (
-            <div className="grid h-full place-items-center text-sm text-muted">
+            <div className="grid h-full place-items-center text-sm text-default-500">
               Select a file to edit.
             </div>
           )}
@@ -380,7 +397,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
 
       {confirmDelete && (
         <ConfirmDialog
-          open
+          open={!!confirmDelete}
           onOpenChange={(open) => !open && setConfirmDelete(null)}
           title={`Delete ${confirmDelete.name}?`}
           description={
@@ -419,7 +436,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
   );
 }
 
-function Breadcrumbs({
+function BreadcrumbsNav({
   cwd,
   onNavigate,
 }: {
@@ -428,10 +445,10 @@ function Breadcrumbs({
 }): ReactNode {
   const segments = cwd === ROOT ? [] : cwd.split("/").filter(Boolean);
   return (
-    <nav className="flex items-center gap-1 rounded border border-border bg-card px-3 py-1.5 font-mono text-xs">
+    <div className="flex items-center gap-0.5 rounded-lg border border-divider bg-background px-3 py-1.5">
       <button
         type="button"
-        className="text-muted hover:text-fg"
+        className="text-default-500 hover:text-foreground text-xs font-mono"
         onClick={() => onNavigate(ROOT)}
       >
         /
@@ -440,22 +457,24 @@ function Breadcrumbs({
         const path = "/" + segments.slice(0, i + 1).join("/");
         const isLast = i === segments.length - 1;
         return (
-          <span key={path} className="flex items-center gap-1">
+          <span key={path} className="flex items-center gap-0.5">
             <button
               type="button"
               className={cn(
-                "hover:text-fg",
-                isLast ? "font-medium text-fg" : "text-muted",
+                "text-xs font-mono hover:text-foreground",
+                isLast
+                  ? "font-medium text-foreground"
+                  : "text-default-500",
               )}
               onClick={() => onNavigate(path)}
             >
               {seg}
             </button>
-            {!isLast && <span className="text-muted">/</span>}
+            {!isLast && <span className="text-default-500">/</span>}
           </span>
         );
       })}
-    </nav>
+    </div>
   );
 }
 
@@ -494,44 +513,53 @@ function NamePromptDialog({
   // what the agent's resolve() will accept anyway, so users get instant feedback.
   const valid = trimmed.length > 0 && !trimmed.includes("/") && trimmed !== "." && trimmed !== "..";
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[440px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">{title}</Dialog.Title>
-          <Dialog.Description className="sr-only">{label}</Dialog.Description>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (valid && !busy) onSubmit(trimmed);
-            }}
-          >
-            <label className="block pb-1 pt-3 text-xs text-muted">{label}</label>
-            <Input
-              autoFocus
-              value={value}
-              placeholder={placeholder}
-              onChange={(e) => setValue(e.target.value)}
-              spellCheck={false}
-            />
-            <div className="flex items-center justify-end gap-2 pt-5">
+    <Modal isOpen={open} onOpenChange={onOpenChange}>
+      <ModalBackdrop isDismissable={!busy}>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader className="flex flex-col gap-1">{title}</ModalHeader>
+            <ModalBody>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (valid && !busy) onSubmit(trimmed);
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block pb-2 text-xs text-default-500">{label}</label>
+                  <Input
+                    autoFocus
+                    value={value}
+                    placeholder={placeholder}
+                    onChange={(e) => setValue(e.target.value)}
+                    spellCheck={false}
+                  />
+                </div>
+              </form>
+            </ModalBody>
+            <ModalFooter>
               <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onOpenChange(false)}
-                disabled={busy}
+                variant="secondary"
+                onPress={() => onOpenChange(false)}
+                isDisabled={busy}
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={!valid || busy}>
+              <Button
+                variant="primary"
+                isDisabled={!valid || busy}
+                onPress={() => {
+                  if (valid && !busy) onSubmit(trimmed);
+                }}
+              >
                 {busy ? "Working…" : confirmLabel}
               </Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
+    </Modal>
   );
 }
 

@@ -1,25 +1,29 @@
 {
   "type": "frame",
   "id": "vStkb",
-  "x": 1481,
-  "y": 27599,
+  "x": -16679,
+  "y": 26399,
   "name": "Gameplane/Removable Group Chip/Violet",
-  "theme": {},
   "reusable": true,
-  "fill": "$c:--color-info",
-  "cornerRadius": "$c:--radius-pill",
+  "fill": "$accent/soft",
+  "cornerRadius": 9999,
   "gap": 6,
-  "padding": [8, 8, 8, 12],
+  "padding": [
+    8,
+    8,
+    8,
+    12
+  ],
   "alignItems": "center",
   "children": [
     {
       "type": "text",
       "id": "RNxys",
       "name": "chipLabel",
-      "fill": "$c:--color-info-foreground",
+      "fill": "$accent/soft-foreground",
       "content": "group-name",
       "lineHeight": 1.1428571428571428,
-      "fontFamily": "$c:--font-primary",
+      "fontFamily": "$typography/font-mono",
       "fontSize": 14,
       "fontWeight": "500"
     },
@@ -29,7 +33,7 @@
       "name": "chipRemove",
       "width": 16,
       "height": 16,
-      "cornerRadius": "$c:--radius-pill",
+      "cornerRadius": 9999,
       "justifyContent": "center",
       "alignItems": "center",
       "children": [
@@ -41,7 +45,7 @@
           "height": 12,
           "icon": "x",
           "library": "lucide",
-          "fill": "$c:--color-info-foreground"
+          "fill": "$accent/soft-foreground"
         }
       ]
     }

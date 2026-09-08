@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { ServerActionsCard } from "./ServerActionsCard";
 import type { GameTemplate, ServerActionDecl } from "@/types";
@@ -99,7 +100,7 @@ describe("ServerActionsCard", () => {
     await waitFor(() => expect(open).not.toBeDisabled());
     fireEvent.click(open);
 
-    const input = await screen.findByRole("textbox");
+    const input = await screen.findByRole("textbox", { name: /message/i });
     fireEvent.change(input, { target: { value: "hello world" } });
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
 
@@ -360,10 +361,19 @@ describe("ServerActionsCard", () => {
     const openBtn = await screen.findByRole("button", { name: /Set mode/i });
     await waitFor(() => expect(openBtn).not.toBeDisabled());
     fireEvent.click(openBtn);
-    const select = screen.getByRole("combobox");
-    expect(select).toHaveValue("creative"); // First enum value is default
-    fireEvent.change(select, { target: { value: "survival" } });
-    await waitFor(() => expect(select).toHaveValue("survival"));
+    // HeroUI's compound Select renders its trigger as a plain button
+    // (react-aria's useSelect wires it up via useMenuTrigger({type:
+    // "listbox"}), which leaves the trigger's role as "button" with
+    // aria-haspopup="listbox" — it never becomes role="combobox"). The
+    // field's <Label htmlFor> points at the trigger's id, so the trigger's
+    // accessible name is the label text ("mode"), letting it still be
+    // found by label the way the other param fields are.
+    const trigger = screen.getByRole("button", { name: /mode/i });
+    expect(trigger).toHaveTextContent("creative"); // First enum value is default
+    fireEvent.click(trigger);
+    const survivalOption = await screen.findByRole("option", { name: "survival" });
+    fireEvent.click(survivalOption);
+    await waitFor(() => expect(trigger).toHaveTextContent("survival"));
   });
 
   it("validates int parameters", async () => {
@@ -447,6 +457,7 @@ describe("ServerActionsCard", () => {
   });
 
   it("cancels dialog without running action", async () => {
+    const user = userEvent.setup();
     const runs: RunCall[] = [];
     routeFetch("operator", runs);
     renderWithQuery(
@@ -457,8 +468,15 @@ describe("ServerActionsCard", () => {
     );
     const openBtn = await screen.findByRole("button", { name: /Test/i });
     await waitFor(() => expect(openBtn).not.toBeDisabled());
-    fireEvent.click(openBtn);
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    // HeroUI v3 Button dispatches via react-aria's onPress, which
+    // fireEvent.click does not trigger reliably (it fires a bare "click"
+    // with no preceding pointer/mouse sequence) — userEvent.click drives
+    // the full pointer sequence onPress listens for.
+    await user.click(openBtn);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    // HeroUI Modal closes, so check the dialog itself is gone — the
+    // action button's own label is also "Test" and stays in the
+    // document, so scope this to the dialog role rather than the text.
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(runs).toHaveLength(0);
   });

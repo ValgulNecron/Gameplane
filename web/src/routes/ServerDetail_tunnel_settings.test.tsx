@@ -46,7 +46,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Click Settings tab
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
 
     // Click Networking tab
@@ -64,7 +64,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Navigate to networking settings
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
     const networkingButton = await screen.findByRole("button", { name: /Networking/i });
     await user.click(networkingButton);
@@ -93,7 +93,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Navigate to networking settings
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
     const networkingButton = await screen.findByRole("button", { name: /Networking/i });
     await user.click(networkingButton);
@@ -115,7 +115,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Navigate to networking settings
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
     const networkingButton = await screen.findByRole("button", { name: /Networking/i });
     await user.click(networkingButton);
@@ -141,7 +141,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Navigate to networking settings
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
     const networkingButton = await screen.findByRole("button", { name: /Networking/i });
     await user.click(networkingButton);
@@ -168,7 +168,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Navigate to networking settings
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
     const networkingButton = await screen.findByRole("button", { name: /Networking/i });
     await user.click(networkingButton);
@@ -206,7 +206,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Navigate to networking settings
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
     const networkingButton = await screen.findByRole("button", { name: /Networking/i });
     await user.click(networkingButton);
@@ -259,7 +259,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Navigate to networking settings
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
     const networkingButton = await screen.findByRole("button", { name: /Networking/i });
     await user.click(networkingButton);
@@ -317,7 +317,7 @@ describe("NetworkingSection tunnel configuration", () => {
     const user = userEvent.setup();
 
     // Navigate to networking settings
-    const settingsButton = await screen.findByRole("button", { name: /Settings/i });
+    const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
     const networkingButton = await screen.findByRole("button", { name: /Networking/i });
     await user.click(networkingButton);

@@ -3,9 +3,8 @@
   "id": "Y5cmvI",
   "x": 11480,
   "y": 10375,
-  "name": "Screen/Server Detail \u2014 Settings \u00b7 Placement",
+  "name": "Screen/Server Detail — Settings · Placement",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,
@@ -19,65 +18,23 @@
       "ref": "kKFX9",
       "height": "fill_container",
       "descendants": {
-        "z8Yor": {
-          "id": "gKT38",
-          "type": "ref",
-          "ref": "c:X6nwq",
-          "name": "navDashboard",
-          "width": "fill_container",
-          "cornerRadius": 6,
-          "padding": [
-            8,
-            12
-          ],
-          "gap": 12,
-          "height": 36,
-          "alignItems": "center",
-          "fill": "#00000000",
-          "descendants": {
-            "c:xGT5g": {
-              "icon": "layout-dashboard",
-              "library": "lucide",
-              "width": 18,
-              "height": 18,
-              "fill": "$muted"
-            },
-            "c:TXca3": {
-              "content": "Dashboard",
-              "fontSize": 14,
-              "fill": "$muted"
-            }
-          }
+        "iTbd8": {
+          "fill": "#00000000"
         },
-        "wUkZr": {
-          "id": "XFuLe",
-          "type": "ref",
-          "ref": "c:dOLzc",
-          "name": "navServers",
-          "width": "fill_container",
-          "cornerRadius": 6,
-          "padding": [
-            8,
-            12
-          ],
-          "gap": 12,
-          "height": 36,
-          "alignItems": "center",
-          "fill": "$accent/soft",
-          "descendants": {
-            "c:xGT5g": {
-              "icon": "server",
-              "library": "lucide",
-              "width": 18,
-              "height": 18,
-              "fill": "$accent/accent"
-            },
-            "c:TXca3": {
-              "content": "Servers",
-              "fontSize": 14,
-              "fill": "$accent/accent"
-            }
-          }
+        "iTbd8/ghUsw": {
+          "fill": "$foreground/foreground"
+        },
+        "iTbd8/bpSQ7": {
+          "fill": "$foreground/foreground"
+        },
+        "i8Z1B": {
+          "fill": "$accent/soft"
+        },
+        "i8Z1B/Sr2Q5": {
+          "fill": "$accent/soft-foreground"
+        },
+        "i8Z1B/Ra9NK": {
+          "fill": "$accent/soft-foreground"
         }
       }
     },
@@ -96,7 +53,7 @@
           "ref": "gu5WY",
           "width": "fill_container",
           "descendants": {
-            "GqBm6/c:bT3Mm": {
+            "Gl7AY": {
               "content": "mc-survival"
             }
           }
@@ -132,44 +89,17 @@
                 24
               ],
               "descendants": {
-                "N37AkT": {
-                  "stroke": "#00000000"
+                "Wp6q1": {
+                  "fill": "#00000000"
                 },
-                "F2aQhk": {
+                "Wp6q1/YUR8N": {
                   "fill": "$muted"
                 },
-                "oVyjI": {
-                  "fill": "$muted"
+                "Y4QES": {
+                  "fill": "$segment"
                 },
-                "nr19d": {
-                  "fill": "$muted"
-                },
-                "ZFqdG": {
-                  "fill": "$muted"
-                },
-                "vSZtk": {
-                  "fill": "$muted"
-                },
-                "bSVUu": {
-                  "fill": "$muted"
-                },
-                "ki4l6": {
-                  "fill": "$muted"
-                },
-                "yS1Dt": {
-                  "fill": "$muted"
-                },
-                "P1zGbN": {
-                  "fill": "$muted"
-                },
-                "R4v48": {
-                  "fill": "$muted"
-                },
-                "Jilsi": {
-                  "stroke": "$accent/accent"
-                },
-                "nS5Qg": {
-                  "fill": "$foreground/foreground"
+                "Y4QES/VcxMI": {
+                  "fill": "$foreground/segment"
                 }
               }
             },
@@ -222,7 +152,7 @@
                           "id": "T6fsJV",
                           "fill": "$muted",
                           "content": "General",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -253,7 +183,7 @@
                           "id": "wUtr5",
                           "fill": "$muted",
                           "content": "Version",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -284,7 +214,7 @@
                           "id": "Fi1th",
                           "fill": "$muted",
                           "content": "Resources",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -315,7 +245,7 @@
                           "id": "SlC6l",
                           "fill": "$muted",
                           "content": "Networking",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -346,7 +276,7 @@
                           "id": "lNCFV",
                           "fill": "$muted",
                           "content": "Environment",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -377,7 +307,7 @@
                           "id": "zcR3J",
                           "fill": "$muted",
                           "content": "Lifecycle",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -408,7 +338,7 @@
                           "id": "Fo3ku",
                           "fill": "$muted",
                           "content": "Scheduled backups",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -440,7 +370,7 @@
                           "id": "XnBhF",
                           "fill": "$foreground/foreground",
                           "content": "Placement",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -471,7 +401,7 @@
                           "id": "DBTha",
                           "fill": "$muted",
                           "content": "RBAC & access",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -502,7 +432,7 @@
                           "id": "fR0vu",
                           "fill": "$muted",
                           "content": "Share links",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -533,7 +463,7 @@
                           "id": "l4dxb3",
                           "fill": "#DC2828",
                           "content": "Danger zone",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -588,7 +518,7 @@
                                       "name": "t",
                                       "fill": "$foreground/foreground",
                                       "content": "Tolerations",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "$typography/font-sans",
                                       "fontSize": 14,
                                       "fontWeight": "normal"
                                     },
@@ -600,7 +530,7 @@
                                       "textGrowth": "fixed-width",
                                       "width": 200,
                                       "content": "Pod tolerations for Kubernetes node taints. Array of toleration objects (optional).",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "$typography/font-sans",
                                       "fontSize": 12,
                                       "fontWeight": "normal"
                                     }
@@ -659,7 +589,7 @@
                                       "name": "t",
                                       "fill": "$foreground/foreground",
                                       "content": "Affinity",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "$typography/font-sans",
                                       "fontSize": 14,
                                       "fontWeight": "normal"
                                     },
@@ -671,7 +601,7 @@
                                       "textGrowth": "fixed-width",
                                       "width": 200,
                                       "content": "Pod affinity/anti-affinity and node affinity constraints. JSON object (optional).",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "$typography/font-sans",
                                       "fontSize": 12,
                                       "fontWeight": "normal"
                                     }

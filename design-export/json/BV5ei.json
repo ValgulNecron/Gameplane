@@ -1,13 +1,12 @@
 {
   "type": "frame",
   "id": "BV5ei",
-  "x": 2107,
-  "y": 27599,
+  "x": -14757,
+  "y": 26228,
   "name": "Gameplane/Provenance Badge/Not configured",
-  "theme": {},
   "reusable": true,
   "fill": "#00000000",
-  "cornerRadius": "$c:--radius-pill",
+  "cornerRadius": 9999,
   "stroke": "$border/border",
   "strokeWidth": 1,
   "strokeAlignment": "inner",
@@ -34,7 +33,7 @@
       "name": "pbLabel",
       "fill": "$muted",
       "content": "Not configured",
-      "fontFamily": "$c:--font-primary",
+      "fontFamily": "$typography/font-mono",
       "fontSize": 12,
       "fontWeight": "500"
     }

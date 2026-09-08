@@ -4,7 +4,6 @@
   "x": -15622,
   "y": 25519,
   "name": "Gameplane/Filter Popover",
-  "theme": {},
   "reusable": true,
   "width": 240,
   "fill": "$surface/surface",
@@ -104,7 +103,7 @@
       "id": "wmLke",
       "name": "separator",
       "width": "fill_container",
-      "fill": "$border/border",
+      "fill": "#00000000",
       "stroke": "$border/border",
       "padding": [
         4,

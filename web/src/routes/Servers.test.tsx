@@ -167,7 +167,8 @@ describe("ServersPage", () => {
       ),
     );
     renderWithQuery(<ServersPage />);
-    const row = (await screen.findByText("metrics-off")).closest("tr") as HTMLElement;
+    const nameCell = await screen.findByText("metrics-off");
+    const row = nameCell.closest("tr") as HTMLElement;
     // Both the CPU and Memory cells fall back to "—" (so does Node).
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
@@ -335,8 +336,8 @@ describe("ServersPage", () => {
     await screen.findByText("alpha");
     const filterButton = screen.getByRole("button", { name: /Filter/i });
     expect(filterButton).toBeInTheDocument();
-    // Badge text should not be a number when no facets are applied
-    expect(filterButton.textContent).not.toMatch(/\d/);
+    // Badge should not contain a number when no facets are applied
+    expect(within(filterButton).queryByText(/\d/)).not.toBeInTheDocument();
   });
 
   it("opens the popover and lists distinct games and namespaces", async () => {
@@ -366,11 +367,11 @@ describe("ServersPage", () => {
     const filterButton = screen.getByRole("button", { name: /Filter/i });
     await userEvent.click(filterButton);
 
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitemcheckbox", { name: "minecraft-java" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitemcheckbox", { name: "valheim" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitemcheckbox", { name: "gameplane-games" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitemcheckbox", { name: "other-ns" })).toBeInTheDocument();
+    // HeroUI Popover contains checkboxes with the game and namespace names
+    expect(await screen.findByRole("checkbox", { name: "minecraft-java" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "valheim" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "gameplane-games" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "other-ns" })).toBeInTheDocument();
   });
 
   it("filters servers by game when a game is selected and Apply is clicked", async () => {
@@ -398,7 +399,7 @@ describe("ServersPage", () => {
     await userEvent.click(filterButton);
 
     // Select minecraft-java
-    const minecraftCheckbox = screen.getByRole("menuitemcheckbox", { name: "minecraft-java" });
+    const minecraftCheckbox = screen.getByRole("checkbox", { name: "minecraft-java" });
     await userEvent.click(minecraftCheckbox);
 
     // Click Apply
@@ -435,7 +436,7 @@ describe("ServersPage", () => {
     await userEvent.click(filterButton);
 
     // Select minecraft-java
-    const minecraftCheckbox = screen.getByRole("menuitemcheckbox", { name: "minecraft-java" });
+    const minecraftCheckbox = screen.getByRole("checkbox", { name: "minecraft-java" });
     await userEvent.click(minecraftCheckbox);
 
     // Click Clear (should keep popover open)
@@ -443,7 +444,7 @@ describe("ServersPage", () => {
     await userEvent.click(clearButton);
 
     // minecraft-java should no longer be checked
-    expect(minecraftCheckbox).not.toHaveAttribute("data-state", "checked");
+    expect(minecraftCheckbox).not.toBeChecked();
   });
 
   it("shows count badge when facets are applied", async () => {
@@ -471,11 +472,11 @@ describe("ServersPage", () => {
     await userEvent.click(filterButton);
 
     // Select one game
-    const minecraftCheckbox = screen.getByRole("menuitemcheckbox", { name: "minecraft-java" });
+    const minecraftCheckbox = screen.getByRole("checkbox", { name: "minecraft-java" });
     await userEvent.click(minecraftCheckbox);
 
     // Select one namespace
-    const otherNsCheckbox = screen.getByRole("menuitemcheckbox", { name: "other-ns" });
+    const otherNsCheckbox = screen.getByRole("checkbox", { name: "other-ns" });
     await userEvent.click(otherNsCheckbox);
 
     // Click Apply
@@ -519,14 +520,14 @@ describe("ServersPage", () => {
     // Apply game filter for minecraft-java
     const filterButton = screen.getByRole("button", { name: /Filter/i });
     await userEvent.click(filterButton);
-    const minecraftCheckbox = screen.getByRole("menuitemcheckbox", { name: "minecraft-java" });
+    const minecraftCheckbox = screen.getByRole("checkbox", { name: "minecraft-java" });
     await userEvent.click(minecraftCheckbox);
     const applyButton = screen.getByRole("button", { name: /^Apply$/i });
     await userEvent.click(applyButton);
 
-    // Now apply status filter to "Running"
-    const runningButton = screen.getByRole("button", { name: /Running/i });
-    await userEvent.click(runningButton);
+    // Now apply status filter to "Running" (HeroUI Tab)
+    const runningTab = screen.getByRole("tab", { name: /Running/i });
+    await userEvent.click(runningTab);
 
     // Only mc-running should be visible
     expect(screen.getByText("mc-running")).toBeInTheDocument();

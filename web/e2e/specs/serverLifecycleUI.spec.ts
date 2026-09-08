@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { LoginPage } from "../pages/LoginPage";
+import { ServerDetailPage } from "../pages/ServerDetailPage";
 
 // ServerDetail header lifecycle buttons. The header has Restart (always
 // enabled), Stop (enabled when phase=Running), and Start (only rendered
@@ -31,23 +32,25 @@ test.describe("server lifecycle UI", () => {
   });
 
   test("Restart button POSTs /servers/{name}:restart", async ({ page }) => {
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
     const restarted = page.waitForRequest(
       (req) => /\/servers\/alpha:restart$/.test(req.url()) && req.method() === "POST",
     );
-    await page.getByRole("button", { name: /^restart$/i }).first().click();
+    await serverDetail.restartButton.click();
     await restarted;
   });
 
   test("Stop button POSTs /servers/{name}:stop", async ({ page }) => {
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
     // Wait for phase to settle so Stop is enabled (it's gated on
     // phase === "Running").
-    const stopBtn = page.getByRole("button", { name: /^stop$/i }).first();
+    const stopBtn = serverDetail.stopButton;
     await expect(stopBtn).toBeEnabled({ timeout: 5_000 });
 
     const stopped = page.waitForRequest(
@@ -58,15 +61,16 @@ test.describe("server lifecycle UI", () => {
   });
 
   test("Open console button switches to the Console tab", async ({ page }) => {
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
-    await page.getByRole("button", { name: /open console/i }).click();
-    // Console tab is selected — the tab strip's Console button reflects
+    await serverDetail.openConsoleButton.click();
+    // Console tab is selected — the tab strip's Console tab reflects
     // active state. xterm.js itself is heavy and lazy-loaded; we just
     // assert the tab nav advanced rather than waiting for the terminal
     // to fully mount.
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await expect(tabNav.getByRole("button", { name: /^console$/i })).toBeVisible();
+    const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
+    await expect(tabNav.getByRole("tab", { name: /^console$/i })).toBeVisible();
   });
 });

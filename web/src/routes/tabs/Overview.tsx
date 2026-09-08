@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Cpu, HardDrive, MemoryStick } from "lucide-react";
+import { Copy, Cpu, HardDrive, MemoryStick, AlertCircle } from "lucide-react";
 import type { GameServer, GameTemplate, PlayersResp } from "@/types";
 import { Players, Servers } from "@/lib/endpoints";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Sparkline } from "@/components/ui/sparkline";
+import { Card, CardHeader, CardContent, Alert } from "@heroui/react";
+import { Sparkline } from "@/components/hero/Sparkline";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
 import { ServerStatusCard } from "@/components/server/ServerStatusCard";
 import { ServerSleepCard } from "@/components/server/ServerSleepCard";
@@ -91,83 +91,110 @@ export function OverviewTab({
     : primary;
   const tunnelReady = status.conditions?.find((c) => c.type === "TunnelReady");
 
+  // Check for provisioning failures
+  const provisioningFailure = status.conditions?.find(
+    (c) => c.reason?.includes("Provisioning") || c.reason?.includes("Storage") || c.reason?.includes("PVC")
+  );
+
   return (
-    <div className="grid gap-5 p-6 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-3">
-          <MetricTile
-            label="CPU"
-            icon={<Cpu className="h-4 w-4" />}
-            primary={
-              cpuKnown ? (cpuLimitMilli ? `${cpuPct.toFixed(0)}%` : `${(cpuMilli / 1000).toFixed(2)} cores`) : "—"
-            }
-            secondary={
-              cpuKnown && cpuLimitMilli
-                ? `${(cpuMilli / 1000).toFixed(1)} / ${(cpuLimitMilli / 1000).toFixed(1)} cores`
-                : undefined
-            }
-            progress={cpuKnown && cpuLimitMilli ? cpuPct : undefined}
-            sample={cpuKnown && cpuLimitMilli ? cpuPct : undefined}
-            accent="primary"
-          />
-          <MetricTile
-            label="Memory"
-            icon={<MemoryStick className="h-4 w-4" />}
-            primary={memKnown ? (memLimit ? `${memPct.toFixed(0)}%` : formatBytes(memUsed)) : "—"}
-            secondary={
-              memKnown ? `${formatBytes(memUsed)} / ${memLimit ? formatBytes(memLimit) : "—"}` : undefined
-            }
-            progress={memKnown && memLimit ? memPct : undefined}
-            sample={memKnown && memLimit ? memPct : undefined}
-            accent="violet"
-          />
-          <MetricTile
-            label="Disk"
-            icon={<HardDrive className="h-4 w-4" />}
-            primary={diskKnown ? (diskTotal ? `${diskPct.toFixed(0)}%` : formatBytes(diskUsed)) : "—"}
-            secondary={
-              diskKnown ? `${formatBytes(diskUsed)} / ${diskTotal ? formatBytes(diskTotal) : "—"}` : undefined
-            }
-            progress={diskKnown && diskTotal ? diskPct : undefined}
-            sample={diskKnown && diskTotal ? diskPct : undefined}
-            accent="success"
-          />
+    <div className="space-y-5 p-6">
+      {/* Provisioning failure alert */}
+      {provisioningFailure && (
+        <Alert
+          status="warning"
+          className="flex items-start gap-3"
+        >
+          <Alert.Indicator className="mt-0.5">
+            <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
+          </Alert.Indicator>
+          <Alert.Content className="flex flex-1 flex-col gap-1">
+            <Alert.Title className="font-semibold text-sm">
+              Waiting on storage — the server can&apos;t provision yet
+            </Alert.Title>
+            <Alert.Description className="text-sm">
+              Ready condition: {provisioningFailure.reason} — {provisioningFailure.message}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-3">
+            <ResourceCard
+              label="CPU"
+              icon={<Cpu className="h-4 w-4" />}
+              value={
+                cpuKnown ? (cpuLimitMilli ? `${cpuPct.toFixed(0)}%` : `${(cpuMilli / 1000).toFixed(2)} cores`) : "—"
+              }
+              sub={
+                cpuKnown && cpuLimitMilli
+                  ? `${(cpuMilli / 1000).toFixed(1)} / ${(cpuLimitMilli / 1000).toFixed(1)} cores`
+                  : undefined
+              }
+              progress={cpuKnown && cpuLimitMilli ? cpuPct : undefined}
+              trend={cpuKnown && cpuLimitMilli ? cpuPct : undefined}
+              accent="primary"
+            />
+            <ResourceCard
+              label="Memory"
+              icon={<MemoryStick className="h-4 w-4" />}
+              value={memKnown ? (memLimit ? `${memPct.toFixed(0)}%` : formatBytes(memUsed)) : "—"}
+              sub={
+                memKnown ? `${formatBytes(memUsed)} / ${memLimit ? formatBytes(memLimit) : "—"}` : undefined
+              }
+              progress={memKnown && memLimit ? memPct : undefined}
+              trend={memKnown && memLimit ? memPct : undefined}
+              accent="violet"
+            />
+            <ResourceCard
+              label="Disk"
+              icon={<HardDrive className="h-4 w-4" />}
+              value={diskKnown ? (diskTotal ? `${diskPct.toFixed(0)}%` : formatBytes(diskUsed)) : "—"}
+              sub={
+                diskKnown ? `${formatBytes(diskUsed)} / ${diskTotal ? formatBytes(diskTotal) : "—"}` : undefined
+              }
+              progress={diskKnown && diskTotal ? diskPct : undefined}
+              trend={diskKnown && diskTotal ? diskPct : undefined}
+              accent="success"
+            />
+          </div>
+
+          <Card className="border border-border bg-surface">
+            <CardHeader className="flex flex-col gap-3 border-b border-border p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-foreground">Recent events</h3>
+                <button
+                  className="text-xs font-medium text-accent hover:underline"
+                  onClick={onViewAllEvents}
+                >
+                  View all
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-0">
+              <EventList
+                events={events}
+                emptyMessage="No events yet. Lifecycle, backup, and agent activity will appear here."
+              />
+            </CardContent>
+          </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CardTitle>Recent events</CardTitle>
-            </div>
-            <button
-              className="text-xs text-primary hover:underline"
-              onClick={onViewAllEvents}
-            >
-              View all
-            </button>
-          </CardHeader>
-          <CardContent className="px-0">
-            <EventList
-              events={events}
-              emptyMessage="No events yet. Lifecycle, backup, and agent activity will appear here."
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-5">
-        <Card>
-          <CardHeader><CardTitle>Connection</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3 text-sm">
+        <div className="space-y-5">
+          <Card className="border border-border bg-surface">
+            <CardHeader className="border-b border-border px-4 py-3">
+              <h3 className="text-lg font-semibold text-foreground">Connection</h3>
+            </CardHeader>
+            <CardContent className="space-y-3 px-4 py-3 text-sm">
               {/* Show tunnel endpoint first if it exists */}
               {primary?.tunnelProvider && (
                 <>
-                  <InfoRow label={`${primary.tunnelProvider} tunnel`}>
+                  <EndpointRow label={`${primary.tunnelProvider} tunnel`}>
                     {primary?.host ? (
                       <>
                         <div className="flex min-w-0 flex-1 items-center gap-2">
-                          <span className="truncate font-mono">{primary.host}</span>
+                          <span className="truncate font-mono text-foreground">{primary.host}</span>
                           {primary?.private && (
                             <span className="shrink-0 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-medium text-warning">
                               Tailnet only — not public
@@ -175,7 +202,7 @@ export function OverviewTab({
                           )}
                         </div>
                         <button
-                          className="rounded p-1 text-muted hover:bg-border hover:text-fg"
+                          className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
                           onClick={() => navigator.clipboard?.writeText(primary.host)}
                           title="Copy"
                         >
@@ -187,18 +214,18 @@ export function OverviewTab({
                         {tunnelReady?.message ?? "Waiting for tunnel address…"}
                       </span>
                     )}
-                  </InfoRow>
+                  </EndpointRow>
                   {primary?.port !== undefined && (
-                    <InfoRow label="Port">
-                      <span className="font-mono">{primary.port}</span>
-                    </InfoRow>
+                    <EndpointRow label="Port">
+                      <span className="font-mono text-foreground">{primary.port}</span>
+                    </EndpointRow>
                   )}
                   {/* Show cluster address below */}
                   <div className="border-t border-border pt-3">
-                    <div className="text-xs text-muted mb-3">Cluster address</div>
-                    <InfoRow label="Host">
-                      <span className="truncate font-mono">{clusterEndpoint?.host ?? "—"}</span>
-                    </InfoRow>
+                    <div className="text-xs text-muted mb-3 uppercase">Cluster address</div>
+                    <EndpointRow label="Host">
+                      <span className="truncate font-mono text-foreground">{clusterEndpoint?.host ?? "—"}</span>
+                    </EndpointRow>
                   </div>
                 </>
               )}
@@ -206,39 +233,41 @@ export function OverviewTab({
                   the operator bound one (there is only one host to show). */}
               {!primary?.tunnelProvider && (
                 <>
-                  <InfoRow label="Host">
-                    <span className="truncate font-mono">{primary?.host ?? "—"}</span>
-                    {primary?.pool ? (
-                      <span className="shrink-0 text-xs text-muted">
-                        from pool &apos;{primary.pool}&apos;
-                      </span>
-                    ) : null}
+                  <EndpointRow label="Host">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="truncate font-mono text-foreground">{primary?.host ?? "—"}</span>
+                      {primary?.pool && (
+                        <span className="text-xs text-muted">
+                          from pool &apos;{primary.pool}&apos;
+                        </span>
+                      )}
+                    </div>
                     {primary?.host && (
                       <button
-                        className="rounded p-1 text-muted hover:bg-border hover:text-fg"
+                        className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
                         onClick={() => navigator.clipboard?.writeText(primary.host)}
                         title="Copy"
                       >
                         <Copy className="h-3.5 w-3.5" />
                       </button>
                     )}
-                  </InfoRow>
-                  <InfoRow label="Port">
-                    <span className="font-mono">{primary?.port ?? "—"}</span>
-                  </InfoRow>
+                  </EndpointRow>
+                  <EndpointRow label="Port">
+                    <span className="font-mono text-foreground">{primary?.port ?? "—"}</span>
+                  </EndpointRow>
                 </>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <PlayersCard roster={roster} fallbackOnline={players} />
+          <PlayersCard roster={roster} fallbackOnline={players} />
 
-        <ServerStatusCard name={name} tmpl={tmpl} running={running} />
+          <ServerStatusCard name={name} tmpl={tmpl} running={running} />
 
-        <ServerSleepCard gs={gs} />
+          <ServerSleepCard gs={gs} />
 
-        <ServerActionsCard name={name} tmpl={tmpl} />
+          <ServerActionsCard name={name} tmpl={tmpl} />
+        </div>
       </div>
     </div>
   );
@@ -262,61 +291,61 @@ function useMetricHistory(value: number | undefined, max = 32): number[] {
   return hist;
 }
 
-function MetricTile({
+function ResourceCard({
   label,
   icon,
-  primary,
-  secondary,
+  value,
+  sub,
   progress,
-  sample,
+  trend,
   accent,
 }: {
   label: string;
   icon: ReactNode;
-  primary: string;
-  secondary?: string;
+  value: string;
+  sub?: string;
   progress?: number;
-  sample?: number;
+  trend?: number;
   accent?: "primary" | "success" | "warning" | "violet";
 }) {
   const accentClass = {
-    primary: "bg-primary",
+    primary: "bg-accent",
     success: "bg-success",
     warning: "bg-warning",
-    violet:  "bg-violet",
+    violet: "bg-violet",
   }[accent ?? "primary"];
   const accentText = {
-    primary: "text-primary",
+    primary: "text-accent",
     success: "text-success",
     warning: "text-warning",
-    violet:  "text-violet",
+    violet: "text-violet",
   }[accent ?? "primary"];
-  const history = useMetricHistory(sample);
+  const history = useMetricHistory(trend);
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted">
+    <Card className="border border-border bg-surface p-4">
+      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted">
         <span>{label}</span>
         <span className="text-muted">{icon}</span>
       </div>
-      <div className="pt-2 font-mono text-2xl text-fg">{primary}</div>
+      <div className="pt-2 font-mono text-2xl font-bold text-foreground">{value}</div>
       <Sparkline data={history} className={`mt-2 ${accentText}`} />
       {progress !== undefined && (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface">
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface/60">
           <div
             className={`h-full ${accentClass}`}
             style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
           />
         </div>
       )}
-      {secondary && <div className="pt-2 text-xs text-muted">{secondary}</div>}
+      {sub && <div className="pt-2 text-xs text-muted">{sub}</div>}
     </Card>
   );
 }
 
-function InfoRow({ label, children }: { label: string; children: ReactNode }) {
+function EndpointRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border bg-surface/60 px-3 py-2">
-      <span className="w-16 shrink-0 text-xs text-muted">{label}</span>
+    <div className="flex items-start gap-2 rounded-md border border-border bg-surface/60 px-3 py-2">
+      <span className="w-16 shrink-0 pt-1 text-xs font-medium text-muted">{label}</span>
       <div className="flex min-w-0 flex-1 items-center gap-2">{children}</div>
     </div>
   );
@@ -335,14 +364,18 @@ function PlayersCard({
     roster === undefined || roster.capabilities !== undefined;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Players online · {online}</CardTitle>
-        {names.length > 0 && (
-          <span className="text-xs text-muted">{names.length} listed</span>
-        )}
+    <Card className="border border-border bg-surface">
+      <CardHeader className="border-b border-border px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-lg font-semibold text-foreground">
+            Players online · <span className="font-mono">{online}</span>
+          </h3>
+          {names.length > 0 && (
+            <span className="text-xs text-muted">{names.length} listed</span>
+          )}
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 py-3">
         {!supported ? (
           <p className="text-sm text-muted">
             Player list not supported for this game.
@@ -357,10 +390,10 @@ function PlayersCard({
           <ul className="space-y-2 text-sm">
             {names.slice(0, 5).map((n) => (
               <li key={n} className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-surface font-mono text-[10px] text-muted">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface font-mono text-[10px] text-muted">
                   {n.slice(0, 2).toUpperCase()}
                 </div>
-                <span className="font-mono">{n}</span>
+                <span className="truncate font-mono text-foreground">{n}</span>
               </li>
             ))}
             {names.length > 5 && (

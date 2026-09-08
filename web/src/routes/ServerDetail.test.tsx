@@ -226,7 +226,7 @@ describe("ServerDetailPage", () => {
       http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
     );
     renderWithQuery(<ServerDetailPage />);
-    const logsTab = await screen.findByRole("button", { name: /Logs/i });
+    const logsTab = await screen.findByRole("tab", { name: /Logs/i });
     await userEvent.click(logsTab);
     await waitFor(() => expect(screen.getByText("logs-tab")).toBeInTheDocument());
   });
@@ -238,7 +238,7 @@ describe("ServerDetailPage", () => {
     renderWithQuery(<ServerDetailPage />);
     // Two "console"-named buttons exist: the "Open console" header
     // action and the "Console" tab. Match the tab via its exact label.
-    const consoleTab = await screen.findByRole("button", { name: "Console" });
+    const consoleTab = await screen.findByRole("tab", { name: "Console" });
     await userEvent.click(consoleTab);
     await waitFor(() => expect(screen.getByText("console-tab")).toBeInTheDocument());
   });
@@ -248,7 +248,7 @@ describe("ServerDetailPage", () => {
       http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
     );
     renderWithQuery(<ServerDetailPage />);
-    const filesTab = await screen.findByRole("button", { name: /Files/i });
+    const filesTab = await screen.findByRole("tab", { name: /Files/i });
     await userEvent.click(filesTab);
     await waitFor(() => expect(screen.getByText("files-tab")).toBeInTheDocument());
   });
@@ -297,8 +297,12 @@ describe("ServerDetailPage dynamic tabs", () => {
     );
     renderWithQuery(<ServerDetailPage />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
+    // The Console tab defaults to visible while the template query is still
+    // loading (consoleAvailable = !tmpl || ...), so this waitFor genuinely
+    // exercises the template resolving and the tab disappearing rather than
+    // trivially matching a role that never existed.
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Console" })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("tab", { name: "Console" })).not.toBeInTheDocument(),
     );
     expect(screen.queryByRole("button", { name: /Open console/i })).not.toBeInTheDocument();
   });
@@ -309,9 +313,9 @@ describe("ServerDetailPage dynamic tabs", () => {
       // default template has no capabilities.mods
     );
     renderWithQuery(<ServerDetailPage />);
-    await screen.findByRole("button", { name: "Console" });
+    await screen.findByRole("tab", { name: "Console" });
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Mods" })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("tab", { name: "Mods" })).not.toBeInTheDocument(),
     );
   });
 
@@ -328,7 +332,7 @@ describe("ServerDetailPage dynamic tabs", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    const modsTab = await screen.findByRole("button", { name: "Mods" });
+    const modsTab = await screen.findByRole("tab", { name: "Mods" });
     await userEvent.click(modsTab);
     await waitFor(() => expect(screen.getByText("mods-tab")).toBeInTheDocument());
   });
@@ -348,8 +352,8 @@ describe("ServerDetailPage dynamic tabs", () => {
     renderWithQuery(<ServerDetailPage />);
     // Container stdout (install/startup output) is always streamable via
     // the pod-log API, so Logs stays even without a configured logPath.
-    await screen.findByRole("button", { name: "Console" });
-    expect(screen.getByRole("button", { name: /^Logs$/i })).toBeInTheDocument();
+    await screen.findByRole("tab", { name: "Console" });
+    expect(screen.getByRole("tab", { name: /^Logs$/i })).toBeInTheDocument();
   });
 });
 
@@ -376,7 +380,7 @@ describe("ServerDetailPage clone action", () => {
     await openMenu(user);
     const item = screen.getByText("Clone server").closest("[role='menuitem']");
     await waitFor(() => expect(item).toHaveAttribute("aria-disabled", "true"));
-    expect(item).toHaveAttribute("title", "Requires operator role");
+    expect(item?.querySelector("[title]")).toHaveAttribute("title", "Requires operator role");
   });
 
   it("opens the dialog prefilled and validates the name", async () => {
@@ -505,7 +509,7 @@ describe("ServerDetailPage failure states", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    const modpacksTab = await screen.findByRole("button", { name: "Modpacks" });
+    const modpacksTab = await screen.findByRole("tab", { name: "Modpacks" });
     expect(modpacksTab).toBeInTheDocument();
   });
 
@@ -522,9 +526,9 @@ describe("ServerDetailPage failure states", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    await screen.findByRole("button", { name: "Console" });
+    await screen.findByRole("tab", { name: "Console" });
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Modpacks" })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("tab", { name: "Modpacks" })).not.toBeInTheDocument(),
     );
   });
 
@@ -545,7 +549,7 @@ describe("ServerDetailPage failure states", () => {
     );
     const { client } = renderWithQuery(<ServerDetailPage />);
     // Click Console tab which should show
-    const consoleTab = await screen.findByRole("button", { name: "Console" });
+    const consoleTab = await screen.findByRole("tab", { name: "Console" });
     await userEvent.click(consoleTab);
     await waitFor(() => expect(screen.getByText("console-tab")).toBeInTheDocument());
 
@@ -602,10 +606,10 @@ describe("ServerDetailPage capture tab", () => {
   it("renders the Capture tab between Backups and Settings", async () => {
     server.use(http.get("/servers/alpha", () => HttpResponse.json(makeServer())));
     renderWithQuery(<ServerDetailPage />);
-    const nav = await screen.findByRole("navigation");
-    await screen.findByRole("button", { name: "Capture" });
+    const nav = await screen.findByRole("tablist", { name: "Server detail tabs" });
+    await screen.findByRole("tab", { name: "Capture" });
     const labels = within(nav)
-      .getAllByRole("button")
+      .getAllByRole("tab")
       .map((b) => b.textContent);
     const backupsIdx = labels.indexOf("Backups");
     const captureIdx = labels.indexOf("Capture");
@@ -619,7 +623,7 @@ describe("ServerDetailPage capture tab", () => {
     // Default makeServer() has no spec.capture — capture defaults to off.
     server.use(http.get("/servers/alpha", () => HttpResponse.json(makeServer())));
     renderWithQuery(<ServerDetailPage />);
-    const captureTab = await screen.findByRole("button", { name: "Capture" });
+    const captureTab = await screen.findByRole("tab", { name: "Capture" });
     await userEvent.click(captureTab);
     expect(
       await screen.findByText("Capture is not enabled on this server."),
@@ -646,7 +650,7 @@ describe("ServerDetailPage capture tab", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    const captureTab = await screen.findByRole("button", { name: "Capture" });
+    const captureTab = await screen.findByRole("tab", { name: "Capture" });
     await userEvent.click(captureTab);
     expect(await screen.findByText("No captures yet.")).toBeInTheDocument();
     expect(screen.getByText("Ready")).toBeInTheDocument();
@@ -675,7 +679,7 @@ describe("ServerDetailPage capture tab", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    const captureTab = await screen.findByRole("button", { name: "Capture" });
+    const captureTab = await screen.findByRole("tab", { name: "Capture" });
     await user.click(captureTab);
 
     const openBtn = await screen.findByRole("button", { name: "Start Capture" });

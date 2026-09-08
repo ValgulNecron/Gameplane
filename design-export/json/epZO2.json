@@ -3,9 +3,8 @@
   "id": "epZO2",
   "x": 6560,
   "y": 23709,
-  "name": "Screen/Share Link \u2014 Invalid or expired",
+  "name": "Screen/Share Link — Invalid or expired",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,
@@ -14,5 +13,202 @@
   "fill": "$background/background",
   "layout": "vertical",
   "justifyContent": "center",
-  "alignItems": "center"
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "frame",
+      "id": "F3I3O",
+      "name": "shareCard",
+      "width": 440,
+      "fill": "$surface/surface",
+      "cornerRadius": 12,
+      "stroke": "$border/border",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 36,
+      "children": [
+        {
+          "type": "frame",
+          "id": "sMGZF",
+          "name": "brand",
+          "width": "fill_container",
+          "gap": 10,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "t1uUx",
+              "name": "logoK",
+              "width": 36,
+              "height": 36,
+              "fill": "$accent/soft",
+              "cornerRadius": 8,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "OgLXN",
+                  "name": "shield",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "shield-check",
+                  "library": "lucide",
+                  "fill": "$accent/accent"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "c9KCbt",
+              "name": "logoCol",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ilrWM",
+                  "fill": "$foreground/foreground",
+                  "content": "gameplane",
+                  "fontFamily": "$typography/font-mono",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "Xbcy3",
+                  "fill": "$muted",
+                  "content": "shared server link",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "k6PGXq",
+          "name": "invalidCol",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "fQ0XB",
+              "fill": "$foreground/foreground",
+              "content": "Link not available",
+              "fontFamily": "$typography/font-mono",
+              "fontSize": 20,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "HPIXm",
+              "fill": "$muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "This link may be invalid, expired, or revoked. Ask the person who shared it for a new one.",
+              "lineHeight": 1.5,
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "BtrZe",
+          "x": 36,
+          "y": 187,
+          "name": "addressBlock",
+          "enabled": false,
+          "width": "fill_container(368)",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "Ldst7",
+              "fill": "$muted",
+              "content": "CONNECT AT",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 11,
+              "fontWeight": "600",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "VVFoW",
+              "name": "addressRow",
+              "width": "fill_container",
+              "fill": "$default/default",
+              "cornerRadius": 8,
+              "stroke": "$border/border",
+              "strokeWidth": 1,
+              "padding": [
+                12,
+                14
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "TNWHo",
+                  "fill": "$foreground/foreground",
+                  "content": "play.gameplane.example:25565",
+                  "fontFamily": "$typography/font-mono",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "icon",
+                  "id": "lpoNr",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "copy",
+                  "library": "lucide",
+                  "fill": "$muted"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ts8Mh",
+          "x": 36,
+          "y": 275,
+          "name": "playersRow",
+          "enabled": false,
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "bJjAR",
+              "width": 14,
+              "height": 14,
+              "icon": "users",
+              "library": "lucide",
+              "fill": "$muted"
+            },
+            {
+              "type": "text",
+              "id": "M9Xeeb",
+              "fill": "$muted",
+              "content": "3 players online",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

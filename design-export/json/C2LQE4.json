@@ -3,9 +3,8 @@
   "id": "C2LQE4",
   "x": 0,
   "y": 23709,
-  "name": "Screen/Share Link \u2014 Up",
+  "name": "Screen/Share Link — Up",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,
@@ -72,7 +71,7 @@
                   "id": "YRl42",
                   "fill": "$foreground/foreground",
                   "content": "gameplane",
-                  "fontFamily": "$c:--font-primary",
+                  "fontFamily": "$typography/font-mono",
                   "fontSize": 16,
                   "fontWeight": "600"
                 },
@@ -81,7 +80,7 @@
                   "id": "NIKuW",
                   "fill": "$muted",
                   "content": "shared server link",
-                  "fontFamily": "$c:--font-secondary",
+                  "fontFamily": "$typography/font-sans",
                   "fontSize": 11,
                   "fontWeight": "normal"
                 }
@@ -102,43 +101,38 @@
               "id": "Q2PgN",
               "fill": "$foreground/foreground",
               "content": "mc-survival",
-              "fontFamily": "$c:--font-primary",
+              "fontFamily": "$typography/font-mono",
               "fontSize": 22,
               "fontWeight": "600"
             },
             {
-              "type": "frame",
-              "id": "kKIN6",
+              "id": "I6B4F",
+              "type": "ref",
+              "ref": "UOoQW",
               "name": "statusBadge",
-              "fill": "#22C55E1A",
-              "cornerRadius": 999,
-              "stroke": "#22C55E99",
-              "strokeWidth": 1,
-              "strokeAlignment": "inner",
-              "gap": 8,
               "padding": [
-                6,
-                14
+                2,
+                4,
+                2,
+                20
               ],
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "ellipse",
-                  "id": "T6MGk",
-                  "fill": "#22C55E",
-                  "width": 7,
-                  "height": 7
-                },
-                {
-                  "type": "text",
-                  "id": "FiWjl",
-                  "fill": "#22C55E",
+              "descendants": {
+                "YXoPG": {
                   "content": "Online",
-                  "fontFamily": "$c:--font-primary",
-                  "fontSize": 12,
-                  "fontWeight": "500"
+                  "fontFamily": "$typography/font-mono"
                 }
-              ]
+              }
+            },
+            {
+              "type": "ellipse",
+              "id": "zHqma",
+              "layoutPosition": "absolute",
+              "x": 10,
+              "y": 45.5,
+              "name": "statusDot",
+              "fill": "$success/success",
+              "width": 6,
+              "height": 6
             }
           ]
         },
@@ -155,7 +149,7 @@
               "id": "HLfoY",
               "fill": "$muted",
               "content": "CONNECT AT",
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 11,
               "fontWeight": "600",
               "letterSpacing": 1
@@ -181,7 +175,7 @@
                   "id": "Sif8n",
                   "fill": "$foreground/foreground",
                   "content": "play.gameplane.example:25565",
-                  "fontFamily": "$c:--font-primary",
+                  "fontFamily": "$typography/font-mono",
                   "fontSize": 14,
                   "fontWeight": "500"
                 },
@@ -219,7 +213,7 @@
               "id": "BgV2u",
               "fill": "$muted",
               "content": "3 players online",
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 12,
               "fontWeight": "normal"
             }

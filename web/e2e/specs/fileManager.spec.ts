@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { LoginPage } from "../pages/LoginPage";
+import { ServerDetailPage } from "../pages/ServerDetailPage";
 
 // Files tab e2e. The tab proxies through the API to the agent's
 // /files/{list,read,write,mkdir,delete}. MSW seeds the listing with
@@ -31,11 +32,12 @@ test.describe("file manager tab", () => {
   });
 
   test("renders the listing from /files/list", async ({ page }) => {
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await tabNav.getByRole("button", { name: /^files$/i }).click();
+    const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
+    await tabNav.getByRole("tab", { name: /^files$/i }).click();
 
     // Wait for the listing fetch to complete, then assert seeded entries
     // are visible. The MSW handler returns server.properties + world/.
@@ -44,11 +46,12 @@ test.describe("file manager tab", () => {
   });
 
   test("clicking a file fires a /files/read request", async ({ page }) => {
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await tabNav.getByRole("button", { name: /^files$/i }).click();
+    const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
+    await tabNav.getByRole("tab", { name: /^files$/i }).click();
     await expect(page.getByText("server.properties")).toBeVisible({ timeout: 10_000 });
 
     const readReq = page.waitForRequest(

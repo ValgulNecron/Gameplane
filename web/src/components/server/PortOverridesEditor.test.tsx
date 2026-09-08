@@ -16,9 +16,10 @@ describe("PortOverridesEditor", () => {
     const onChange = vi.fn();
     const values: PortOverride[] = [{ name: "game" }];
     render(<PortOverridesEditor values={values} onChange={onChange} />);
-    fireEvent.change(screen.getByPlaceholderText("—"), { target: { value: "25565" } });
+    const inputs = screen.getAllByRole("textbox");
+    fireEvent.change(inputs[1], { target: { value: "25565" } });
     expect(onChange).toHaveBeenLastCalledWith([{ name: "game", servicePort: 25565 }]);
-    fireEvent.change(screen.getByPlaceholderText("30000-32767"), { target: { value: "30005" } });
+    fireEvent.change(inputs[2], { target: { value: "30005" } });
     expect(onChange).toHaveBeenLastCalledWith([{ name: "game", nodePort: 30005 }]);
   });
 

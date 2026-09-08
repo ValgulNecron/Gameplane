@@ -1,9 +1,262 @@
 {
+  "type": "frame",
   "id": "E9EEv0",
-  "type": "ref",
-  "reusable": true,
-  "ref": "x3beP",
+  "x": -16525,
+  "y": 28535,
   "name": "Gameplane/Dialog/Restore Backup",
-  "x": 3320,
-  "y": 29221
+  "reusable": true,
+  "width": 480,
+  "fill": "$surface/surface",
+  "cornerRadius": "$radius/xl",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000080",
+    "offset": {
+      "x": 0,
+      "y": 12
+    },
+    "blur": 32,
+    "spread": -8
+  },
+  "layout": "vertical",
+  "padding": 20,
+  "children": [
+    {
+      "type": "text",
+      "id": "E9EEv0/E7Whx",
+      "name": "mTitle",
+      "fill": "$foreground/foreground",
+      "content": "Restore backup",
+      "fontFamily": "$typography/font-sans",
+      "fontSize": 16,
+      "fontWeight": "600"
+    },
+    {
+      "type": "frame",
+      "id": "E9EEv0/ABbjS",
+      "name": "mDescWrap",
+      "width": "fill_container",
+      "padding": [
+        4,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "E9EEv0/qzcst",
+          "name": "mDesc",
+          "fill": "$muted",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Restore into a brand-new server, or overwrite an existing one.",
+          "lineHeight": 1.5,
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Q2QDV",
+      "name": "mBody",
+      "width": "fill_container",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": [
+        16,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "Lvs4o",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "MIgc1",
+              "fill": "$muted",
+              "content": "Source backup",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "mazee",
+              "name": "Input",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mazee/PJERm",
+                  "name": "inputValue",
+                  "fill": "#949494",
+                  "content": "mc-survival-nightly-0713",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "jP975",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "eN292",
+              "fill": "$muted",
+              "content": "New server name",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "z7yI8Y",
+              "name": "Input",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "z7yI8Y/PJERm",
+                  "name": "inputValue",
+                  "fill": "#5C5C5C",
+                  "content": "my-restored-server",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "E9EEv0/GCwAF",
+      "name": "mFooter",
+      "width": "fill_container",
+      "gap": 8,
+      "padding": [
+        20,
+        0,
+        0,
+        0
+      ],
+      "justifyContent": "end",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "E9EEv0/SBdeH",
+          "name": "btnCancel",
+          "height": 32,
+          "cornerRadius": 6,
+          "padding": [
+            0,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "E9EEv0/REcmP",
+              "fill": "$foreground/foreground",
+              "content": "Cancel",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "E9EEv0/V7HYp",
+          "name": "btnPrimary",
+          "height": 32,
+          "fill": "$accent/accent",
+          "cornerRadius": 6,
+          "padding": [
+            0,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "E9EEv0/TZ7Ef",
+              "fill": "$accent/foreground",
+              "content": "Run snapshot",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
