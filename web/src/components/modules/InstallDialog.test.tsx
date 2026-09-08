@@ -32,7 +32,8 @@ describe("InstallDialog", () => {
     expect(screen.getByText("upstream (oci)")).toBeInTheDocument();
     const selects = screen.getAllByRole("combobox");
     expect(selects).toHaveLength(1);
-    expect((selects[0] as HTMLSelectElement).value).toBe("1.21");
+    // HeroUI Select displays selected value via Select.Value component
+    expect(screen.getByText("1.21")).toBeInTheDocument();
   });
 
   it("Install button submits source/version/name", async () => {
@@ -140,8 +141,8 @@ describe("InstallDialog", () => {
     const selects = screen.getAllByRole("combobox");
     // Should have 1 select for versions
     expect(selects.length).toBeGreaterThan(0);
-    const versionSelect = selects[selects.length - 1] as HTMLSelectElement;
-    expect(versionSelect.value).toBe("2.0");
+    // HeroUI Select displays selected value via Select.Value component
+    expect(screen.getByText("2.0")).toBeInTheDocument();
   });
 
   it("shows multiple source options in a select when available", () => {
@@ -160,7 +161,7 @@ describe("InstallDialog", () => {
         onConfirm={() => {}}
       />,
     );
-    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    const selects = screen.getAllByRole("combobox");
     // Should have 1 select for sources
     expect(selects.length).toBeGreaterThan(0);
     expect(screen.getByText(/upstream.*oci/)).toBeInTheDocument();
@@ -255,8 +256,12 @@ describe("InstallDialog", () => {
       />,
     );
     const selects = screen.getAllByRole("combobox");
-    const versionSelect = selects[selects.length - 1] as HTMLSelectElement;
-    fireEvent.change(versionSelect, { target: { value: "1.0" } });
+    const versionSelect = selects[selects.length - 1];
+    // Click the version select trigger to open the popover
+    await userEvent.click(versionSelect);
+    // Click the "1.0" option
+    const option = screen.getByRole("option", { name: "1.0" });
+    await userEvent.click(option);
 
     await userEvent.click(screen.getByRole("button", { name: /Install/i }));
     await waitFor(() =>

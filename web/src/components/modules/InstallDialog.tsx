@@ -11,6 +11,9 @@ import {
   Input,
   Label,
   Description,
+  Select,
+  ListBox,
+  ListBoxItem,
 } from "@heroui/react";
 import { APIError } from "@/lib/api";
 import type { CatalogEntry } from "@/types";
@@ -90,21 +93,25 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
               {/* Source */}
               {entry.sources.length > 1 ? (
                 <div className="space-y-1">
-                  <Label htmlFor="source-select" className="text-xs">
-                    Source
-                  </Label>
-                  <select
-                    id="source-select"
-                    value={source}
-                    onChange={(e) => setSource(e.target.value)}
-                    className="rounded border border-border bg-surface px-3 py-2 text-sm"
+                  <Select
+                    selectedKey={source}
+                    onSelectionChange={(v) => setSource(String(v))}
                   >
-                    {entry.sources.map((s) => (
-                      <option key={s.name} value={s.name}>
-                        {s.name} ({s.type})
-                      </option>
-                    ))}
-                  </select>
+                    <Label className="text-xs">Source</Label>
+                    <Select.Trigger className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
+                      <Select.Value />
+                      <Select.Indicator className="ml-auto h-4 w-4" />
+                    </Select.Trigger>
+                    <Select.Popover className="rounded border border-border">
+                      <ListBox className="p-0" aria-label="Source">
+                        {entry.sources.map((s) => (
+                          <ListBoxItem key={s.name} id={s.name}>
+                            {s.name} ({s.type})
+                          </ListBoxItem>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
                 </div>
               ) : (
                 <div className="space-y-1">
@@ -120,21 +127,25 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
               {/* Version */}
               {versions.length > 1 ? (
                 <div className="space-y-1">
-                  <Label htmlFor="version-select" className="text-xs">
-                    Version
-                  </Label>
-                  <select
-                    id="version-select"
-                    value={version}
-                    onChange={(e) => setVersion(e.target.value)}
-                    className="rounded border border-border bg-surface px-3 py-2 text-sm"
+                  <Select
+                    selectedKey={version}
+                    onSelectionChange={(v) => setVersion(String(v))}
                   >
-                    {versions.map((v) => (
-                      <option key={v} value={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
+                    <Label className="text-xs">Version</Label>
+                    <Select.Trigger className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
+                      <Select.Value />
+                      <Select.Indicator className="ml-auto h-4 w-4" />
+                    </Select.Trigger>
+                    <Select.Popover className="rounded border border-border">
+                      <ListBox className="p-0" aria-label="Version">
+                        {versions.map((v) => (
+                          <ListBoxItem key={v} id={v}>
+                            {v}
+                          </ListBoxItem>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
                 </div>
               ) : (
                 <div className="space-y-1">
