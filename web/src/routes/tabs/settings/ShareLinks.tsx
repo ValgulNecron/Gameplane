@@ -238,56 +238,57 @@ function CreatedDialog({ open, onOpenChange, link }: CreatedDialogProps) {
 
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange}>
-      <ModalBackdrop isDismissable />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>Share link created</ModalHeading>
-          </ModalHeader>
+      <ModalBackdrop isDismissable>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader>
+              <ModalHeading>Share link created</ModalHeading>
+            </ModalHeader>
 
-          <ModalBody className="gap-4">
-            <Description className="text-sm text-foreground">
-              Send this to your friend. It works without a Gameplane account.
-            </Description>
+            <ModalBody className="gap-4">
+              <Description className="text-sm text-foreground">
+                Send this to your friend. It works without a Gameplane account.
+              </Description>
 
-            <div className="rounded-lg border-2 border-warning bg-warning/10 p-3">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
-                <div className="text-sm text-warning">
-                  <strong>You will not see this link again</strong>
-                  <p className="mt-1">
-                    Gameplane stores only a one-way hash of the token, so it can&apos;t be shown
-                    or recovered after you close this dialog. Copy it now.
-                  </p>
+              <div className="rounded-lg border-2 border-warning bg-warning/10 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
+                  <div className="text-sm text-warning">
+                    <strong>You will not see this link again</strong>
+                    <p className="mt-1">
+                      Gameplane stores only a one-way hash of the token, so it can&apos;t be shown
+                      or recovered after you close this dialog. Copy it now.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="rounded-lg bg-surface p-3">
-              <div className="break-all font-mono text-sm text-foreground">{url}</div>
+              <div className="rounded-lg bg-surface p-3">
+                <div className="break-all font-mono text-sm text-foreground">{url}</div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="mt-3"
+                  onPress={handleCopy}
+                >
+                  <Copy className="h-4 w-4" />
+                  {copied ? "Copied!" : "Copy link"}
+                </Button>
+              </div>
+            </ModalBody>
+
+            <ModalFooter className="flex items-center justify-end gap-2">
               <Button
                 size="sm"
-                variant="secondary"
-                className="mt-3"
-                onPress={handleCopy}
+                variant="primary"
+                onPress={() => onOpenChange(false)}
               >
-                <Copy className="h-4 w-4" />
-                {copied ? "Copied!" : "Copy link"}
+                Done
               </Button>
-            </div>
-          </ModalBody>
-
-          <ModalFooter className="flex items-center justify-end gap-2">
-            <Button
-              size="sm"
-              variant="primary"
-              onPress={() => onOpenChange(false)}
-            >
-              Done
-            </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }
