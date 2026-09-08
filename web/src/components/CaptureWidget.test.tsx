@@ -706,9 +706,17 @@ describe("CaptureWidget", () => {
       // vacuously for any other reason (there is none here, since no
       // confirmPhrase is passed and `matches` is always true, but tying it
       // to the pending-only label keeps that true even if that changes).
+      //
+      // The scope role is "alertdialog", not "dialog": HeroUI v3's
+      // AlertDialogDialog hard-codes role="alertdialog" on the react-aria
+      // Dialog (node_modules/@heroui/react/dist/components/alert-dialog/
+      // alert-dialog.js), and Testing Library's byRole matches the role
+      // string literally — it does not walk the ARIA role hierarchy, so
+      // "dialog" never matches an alertdialog. Only the Modal-based
+      // StartCaptureModal below is role="dialog".
       try {
         await waitFor(() => {
-          const dialog = screen.getByRole("dialog");
+          const dialog = screen.getByRole("alertdialog");
           const pendingBtn = within(dialog).getByRole("button", { name: /Working/i });
           expect(pendingBtn).toBeDisabled();
         });
@@ -721,7 +729,9 @@ describe("CaptureWidget", () => {
       // clears deleteTarget, which closes the dialog. That is the only
       // observable proof the DELETE was issued and succeeded — the
       // captures list is a fixed mock, so the row itself never disappears.
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      // Same "alertdialog" role as above — queried as "dialog" this
+      // assertion was vacuous (it can never find the confirm dialog).
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     });
 
     it("shows expiry time with correct tone badge", async () => {
