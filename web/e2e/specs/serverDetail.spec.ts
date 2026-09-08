@@ -54,11 +54,21 @@ test.describe("server detail tabs", () => {
     // Visit each tab in sequence. Console and Files lazy-load via
     // React.Suspense; allow time for the chunk to settle.
     // Slice 2b adds Mods and Modpacks tabs; both depend on template capabilities.
-    const labels = ["Overview", "Console", "Logs", "Files", "Players", "Mods", "Modpacks", "Backups", "Settings"];
+    // Events and Capture are always present; Console, Mods, Modpacks are optional.
+    const labels = ["Overview", "Events", "Console", "Logs", "Files", "Players", "Mods", "Modpacks", "Backups", "Capture", "Settings"];
+    const optionalTabs = ["Console", "Mods", "Modpacks"];
     for (const label of labels) {
       const tab = tabNav.getByRole("tab", { name: new RegExp(`^${label}$`) });
-      // Some tabs may not be present depending on template capabilities; tolerate that gracefully.
-      if (await tab.isVisible().catch(() => false)) {
+      if (optionalTabs.includes(label)) {
+        // Some tabs may not be present depending on template capabilities; tolerate that gracefully.
+        if (await tab.isVisible().catch(() => false)) {
+          await tab.click();
+          // Tab content swap doesn't change URL — just await DOM stability.
+          await page.waitForTimeout(200);
+        }
+      } else {
+        // Required tabs must be visible; fail loudly if missing (regression detector).
+        await expect(tab).toBeVisible();
         await tab.click();
         // Tab content swap doesn't change URL — just await DOM stability.
         await page.waitForTimeout(200);
