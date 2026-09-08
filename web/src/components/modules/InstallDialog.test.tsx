@@ -30,7 +30,7 @@ describe("InstallDialog", () => {
     expect(screen.getByRole("heading", { name: /Install / })).toBeInTheDocument();
     // Single source renders as static text; two versions render a select.
     expect(screen.getByText("upstream (oci)")).toBeInTheDocument();
-    const selects = screen.getAllByRole("combobox");
+    const selects = screen.getAllByRole("button", { name: /version/i });
     expect(selects).toHaveLength(1);
     // HeroUI Select displays selected value via Select.Value component
     expect(screen.getByText("1.21")).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("InstallDialog", () => {
         onConfirm={() => {}}
       />,
     );
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /version|source/i })).not.toBeInTheDocument();
     expect(screen.getByText("only (upload)")).toBeInTheDocument();
     expect(screen.getByText("1.0")).toBeInTheDocument();
   });
@@ -138,7 +138,7 @@ describe("InstallDialog", () => {
         onConfirm={() => {}}
       />,
     );
-    const selects = screen.getAllByRole("combobox");
+    const selects = screen.getAllByRole("button", { name: /version/i });
     // Should have 1 select for versions
     expect(selects.length).toBeGreaterThan(0);
     // HeroUI Select displays selected value via Select.Value component
@@ -161,7 +161,7 @@ describe("InstallDialog", () => {
         onConfirm={() => {}}
       />,
     );
-    const selects = screen.getAllByRole("combobox");
+    const selects = screen.getAllByRole("button", { name: /source/i });
     // Should have 1 select for sources
     expect(selects.length).toBeGreaterThan(0);
     expect(screen.getByText(/upstream.*oci/)).toBeInTheDocument();
@@ -209,7 +209,7 @@ describe("InstallDialog", () => {
       />,
     );
     expect(screen.getByText("1.0")).toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: /Version/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /version/i })).not.toBeInTheDocument();
   });
 
   it("clears error when dialog re-opens", async () => {
@@ -255,8 +255,7 @@ describe("InstallDialog", () => {
         onConfirm={onConfirm}
       />,
     );
-    const selects = screen.getAllByRole("combobox");
-    const versionSelect = selects[selects.length - 1];
+    const versionSelect = screen.getByRole("button", { name: /version/i });
     // Click the version select trigger to open the popover
     await userEvent.click(versionSelect);
     // Click the "1.0" option
