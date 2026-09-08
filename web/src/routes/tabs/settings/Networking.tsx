@@ -824,7 +824,9 @@ function FrpPortMappingEditor({
             aria-label="Remove"
             onPress={() => remove(idx)}
           >
-            <X className="h-3 w-3" />
+            <span title="Remove">
+              <X className="h-3 w-3" />
+            </span>
           </Button>
         </div>
       ))}
@@ -874,7 +876,9 @@ function KVEditor({
               onChange(next);
             }}
           >
-            <X className="h-3 w-3" />
+            <span title="Remove">
+              <X className="h-3 w-3" />
+            </span>
           </Button>
         </div>
       ))}

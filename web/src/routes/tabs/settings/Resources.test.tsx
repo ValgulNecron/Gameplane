@@ -7,8 +7,10 @@ describe("ResourcesSection", () => {
   it("renders default CPU and memory values when no resources set", () => {
     render(<ResourcesSection draft={makeServer()} onChange={() => {}} />);
     // Defaults are 2 CPU / 4 Gi.
-    expect(screen.getByLabelText("CPU cores value")).toHaveValue("2");
-    expect(screen.getByLabelText("Memory (GiB) value")).toHaveValue("4");
+    // ResourceInput's number field always reads back as a JS number, per
+    // jest-dom's getInputValue(type=number) — not the string "2"/"4".
+    expect(screen.getByLabelText("CPU cores value")).toHaveValue(2);
+    expect(screen.getByLabelText("Memory (GiB) value")).toHaveValue(4);
   });
 
   it("changing CPU slider updates draft to a quantity", () => {

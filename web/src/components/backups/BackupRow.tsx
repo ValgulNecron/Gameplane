@@ -16,7 +16,7 @@ export function BackupRow({ backup, showServer, onSelect, onRestore }: Props) {
   return (
     <Table.Row
       className="cursor-pointer"
-      onClick={() => onSelect(backup)}
+      onAction={() => onSelect(backup)}
     >
       <Table.Cell className="font-mono text-xs">{backup.metadata.name}</Table.Cell>
       <Table.Cell>
@@ -29,10 +29,7 @@ export function BackupRow({ backup, showServer, onSelect, onRestore }: Props) {
       <Table.Cell>
         {formatRelative(backup.status?.completionTime)}
       </Table.Cell>
-      <Table.Cell
-        className="text-right"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <Table.Cell className="text-right">
         <Button
           size="sm"
           variant="outline"

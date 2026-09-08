@@ -13,9 +13,12 @@ describe("ScheduleForm", () => {
     // Retention policy defaults to keepLast: 7
     expect((screen.getByLabelText("Keep last") as HTMLInputElement).value).toBe("7");
     // Destination select defaults to the only configured destination
-    // (the MSW handler returns one named "default").
+    // (the MSW handler returns one named "default"). HeroUI v3's Select
+    // renders the chosen value as visible text inside the trigger (the
+    // mirrored native <select> used for form semantics has no text
+    // content on its <option>s, so getByDisplayValue can't see it here).
     await waitFor(() => {
-      expect(screen.getByDisplayValue("default")).toBeInTheDocument();
+      expect(screen.getByLabelText("Destination")).toHaveTextContent("default");
     });
   });
 

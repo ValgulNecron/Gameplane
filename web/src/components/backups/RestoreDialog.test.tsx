@@ -243,9 +243,12 @@ describe("RestoreDialog", () => {
     );
     // Wait for dialog to render and defaultServer to populate the target
     await screen.findByText(/Restore backup/i);
-    // The selected server should be displayed in the trigger
-    const allText = screen.getByRole("dialog").textContent || "";
-    expect(allText).toContain("beta");
+    // The selected server should be displayed in the trigger once the
+    // servers list has loaded and the trigger label resolves against it.
+    await waitFor(() => {
+      const allText = screen.getByRole("dialog").textContent || "";
+      expect(allText).toContain("beta");
+    });
   });
 
   it("shows danger variant for restic restore button", async () => {

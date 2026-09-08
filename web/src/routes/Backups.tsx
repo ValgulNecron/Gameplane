@@ -21,8 +21,8 @@ import {
   ModalHeading,
   ModalBody,
   ModalFooter,
+  Switch,
 } from "@heroui/react";
-import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/PageHeader";
 import { formatRelative } from "@/lib/utils";
 import { PhaseChip } from "@/components/hero/PhaseChip";
@@ -411,12 +411,18 @@ function SchedulesTabPanel() {
                     </Table.Cell>
                     <Table.Cell>
                       <Switch
-                        checked={!s.spec.suspend}
-                        onCheckedChange={(checked) =>
-                          toggleSuspend.mutate({ name: s.metadata.name, suspend: !checked })
+                        isSelected={!s.spec.suspend}
+                        onChange={(isSelected) =>
+                          toggleSuspend.mutate({ name: s.metadata.name, suspend: !isSelected })
                         }
                         aria-label="Schedule active"
-                      />
+                      >
+                        <Switch.Content>
+                          <Switch.Control>
+                            <Switch.Thumb />
+                          </Switch.Control>
+                        </Switch.Content>
+                      </Switch>
                     </Table.Cell>
                     <Table.Cell>
                       <Button

@@ -29,6 +29,22 @@ function tableWrap(children: React.ReactNode) {
 }
 
 describe("BackupRow", () => {
+  it("clicking the row calls onSelect", async () => {
+    const onSelect = vi.fn();
+    render(
+      tableWrap(
+        <BackupRow
+          backup={makeBackup({ metadata: { name: "alpha-1" } })}
+          showServer={true}
+          onSelect={onSelect}
+          onRestore={() => {}}
+        />,
+      ),
+    );
+    await userEvent.click(screen.getByText("alpha-1"));
+    expect(onSelect).toHaveBeenCalled();
+  });
+
   it("renders the backup name and server", async () => {
     render(
       tableWrap(
