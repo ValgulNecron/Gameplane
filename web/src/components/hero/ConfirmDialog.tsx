@@ -50,19 +50,11 @@ export function ConfirmDialog({
 
   const matches = !confirmPhrase || typed === confirmPhrase;
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape" && !busy && open) {
-      e.preventDefault();
-      onOpenChange(false);
-    }
-  };
-
   return (
     <AlertDialog isOpen={open} onOpenChange={onOpenChange}>
       <AlertDialogBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy}>
         <AlertDialogContainer>
-          <div onKeyDown={handleKeyDown}>
-            <AlertDialogDialog>
+          <AlertDialogDialog>
             <AlertDialogHeader>
               <div className="flex items-start gap-4">
                 <AlertDialogIcon
@@ -115,8 +107,7 @@ export function ConfirmDialog({
                 {busy ? "Working…" : confirmLabel}
               </Button>
             </AlertDialogFooter>
-            </AlertDialogDialog>
-          </div>
+          </AlertDialogDialog>
         </AlertDialogContainer>
       </AlertDialogBackdrop>
     </AlertDialog>
