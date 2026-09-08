@@ -225,45 +225,21 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal isOpen onOpenChange={(open) => { if (!open) onClose(); }}>
-      <ModalBackdrop isDismissable={!createNow.isPending} isKeyboardDismissDisabled={createNow.isPending} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>Back up now</ModalHeading>
-          </ModalHeader>
-          <ModalBody className="gap-4">
-            <p className="text-sm text-foreground/60">Run a one-off snapshot outside any schedule.</p>
-            <div className="space-y-4">
-              <div>
-                <Select
-                  value={createServer}
-                  onChange={(v) => setCreateServer(v as string)}
-                  placeholder="Select a server…"
-                  aria-label="Server"
-                  className="mt-1"
-                >
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator className="ml-auto h-4 w-4" />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox aria-label="Server options">
-                      {(serversList?.items ?? []).map((s) => (
-                        <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
-                          {s.metadata.name}
-                        </ListBoxItem>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              </div>
-              {destinations.length > 1 && (
+      <ModalBackdrop isDismissable={!createNow.isPending} isKeyboardDismissDisabled={createNow.isPending}>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader>
+              <ModalHeading>Back up now</ModalHeading>
+            </ModalHeader>
+            <ModalBody className="gap-4">
+              <p className="text-sm text-foreground/60">Run a one-off snapshot outside any schedule.</p>
+              <div className="space-y-4">
                 <div>
                   <Select
-                    value={createDest}
-                    onChange={(v) => setCreateDest(v as string)}
-                    placeholder="Select a destination…"
-                    aria-label="Destination"
+                    value={createServer}
+                    onChange={(v) => setCreateServer(v as string)}
+                    placeholder="Select a server…"
+                    aria-label="Server"
                     className="mt-1"
                   >
                     <Select.Trigger>
@@ -271,41 +247,66 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
                       <Select.Indicator className="ml-auto h-4 w-4" />
                     </Select.Trigger>
                     <Select.Popover>
-                      <ListBox aria-label="Destination options">
-                        {destinations.map((d) => (
-                          <ListBoxItem key={d.name} id={d.name} textValue={d.name}>{d.name}</ListBoxItem>
+                      <ListBox aria-label="Server options">
+                        {(serversList?.items ?? []).map((s) => (
+                          <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
+                            {s.metadata.name}
+                          </ListBoxItem>
                         ))}
                       </ListBox>
                     </Select.Popover>
                   </Select>
                 </div>
-              )}
-              {noDestinations && (
-                <p className="text-xs text-foreground/60">
-                  No backup destinations configured. Add one in{" "}
-                  <Link to="/admin" className="text-primary hover:underline">
-                    admin settings
-                  </Link>{" "}
-                  to enable snapshots.
-                </p>
-              )}
-              {createNow.error && <ErrorBanner err={createNow.error} />}
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="secondary" onPress={onClose} isDisabled={createNow.isPending}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              isDisabled={!createServer || !createDest || createNow.isPending || noDestinations}
-              onPress={() => createNow.mutate()}
-            >
-              {createNow.isPending ? "Starting…" : "Run snapshot"}
-            </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+                {destinations.length > 1 && (
+                  <div>
+                    <Select
+                      value={createDest}
+                      onChange={(v) => setCreateDest(v as string)}
+                      placeholder="Select a destination…"
+                      aria-label="Destination"
+                      className="mt-1"
+                    >
+                      <Select.Trigger>
+                        <Select.Value />
+                        <Select.Indicator className="ml-auto h-4 w-4" />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox aria-label="Destination options">
+                          {destinations.map((d) => (
+                            <ListBoxItem key={d.name} id={d.name} textValue={d.name}>{d.name}</ListBoxItem>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </div>
+                )}
+                {noDestinations && (
+                  <p className="text-xs text-foreground/60">
+                    No backup destinations configured. Add one in{" "}
+                    <Link to="/admin" className="text-primary hover:underline">
+                      admin settings
+                    </Link>{" "}
+                    to enable snapshots.
+                  </p>
+                )}
+                {createNow.error && <ErrorBanner err={createNow.error} />}
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="secondary" onPress={onClose} isDisabled={createNow.isPending}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                isDisabled={!createServer || !createDest || createNow.isPending || noDestinations}
+                onPress={() => createNow.mutate()}
+              >
+                {createNow.isPending ? "Starting…" : "Run snapshot"}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }
