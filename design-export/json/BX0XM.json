@@ -1,19 +1,68 @@
 {
+  "type": "frame",
   "id": "BX0XM",
-  "type": "ref",
-  "reusable": true,
-  "ref": "x3beP",
+  "x": -15225,
+  "y": 27237,
   "name": "Gameplane/Dialog/Upload Module",
-  "x": 1960,
-  "y": 29221,
-  "descendants": {
-    "E7Whx": {
-      "content": "Upload module"
+  "reusable": true,
+  "width": 480,
+  "fill": "$surface/surface",
+  "cornerRadius": "$radius/xl",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000080",
+    "offset": {
+      "x": 0,
+      "y": 12
     },
-    "qzcst": {
-      "content": "Push a bundle straight into an upload-type source."
+    "blur": 32,
+    "spread": -8
+  },
+  "layout": "vertical",
+  "padding": 20,
+  "children": [
+    {
+      "type": "text",
+      "id": "BX0XM/E7Whx",
+      "name": "mTitle",
+      "fill": "$foreground/foreground",
+      "content": "Upload module",
+      "fontFamily": "$typography/font-sans",
+      "fontSize": 16,
+      "fontWeight": "600"
     },
-    "Nht52": {
+    {
+      "type": "frame",
+      "id": "BX0XM/ABbjS",
+      "name": "mDescWrap",
+      "width": "fill_container",
+      "padding": [
+        4,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "BX0XM/qzcst",
+          "name": "mDesc",
+          "fill": "$muted",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Push a bundle straight into an upload-type source.",
+          "lineHeight": 1.5,
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
       "type": "frame",
       "id": "C1vScd",
       "name": "mBody",
@@ -37,23 +86,61 @@
             {
               "type": "text",
               "id": "fM5I5",
-              "fill": "$c:--muted-foreground",
+              "fill": "$muted",
               "content": "Upload to",
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 12,
               "fontWeight": "normal"
             },
             {
+              "type": "frame",
               "id": "ZZ2S0",
-              "type": "ref",
-              "ref": "AT7ya",
               "name": "Select",
               "width": "fill_container",
-              "descendants": {
-                "cFsFk": {
-                  "content": "uploads"
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZZ2S0/cFsFk",
+                  "name": "selectValue",
+                  "fill": "$field/foreground",
+                  "content": "uploads",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "ZZ2S0/mULN8",
+                  "name": "selectChevron",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "chevron-down",
+                  "library": "lucide",
+                  "fill": "$field/placeholder"
                 }
-              }
+              ]
             }
           ]
         },
@@ -64,7 +151,7 @@
           "width": "fill_container",
           "height": 88,
           "cornerRadius": 6,
-          "stroke": "$c:--border",
+          "stroke": "$border/border",
           "strokeWidth": 1,
           "strokeAlignment": "inner",
           "gap": 8,
@@ -78,20 +165,86 @@
               "height": 16,
               "icon": "upload",
               "library": "lucide",
-              "fill": "$c:--muted-foreground"
+              "fill": "$muted"
             },
             {
               "type": "text",
               "id": "Jg1RH",
-              "fill": "$c:--muted-foreground",
-              "content": "Choose a .tar.gz bundle\u2026",
-              "fontFamily": "$c:--font-secondary",
+              "fill": "$muted",
+              "content": "Choose a .tar.gz bundle…",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 14,
               "fontWeight": "normal"
             }
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "BX0XM/GCwAF",
+      "name": "mFooter",
+      "width": "fill_container",
+      "gap": 8,
+      "padding": [
+        20,
+        0,
+        0,
+        0
+      ],
+      "justifyContent": "end",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "BX0XM/SBdeH",
+          "name": "btnCancel",
+          "height": 32,
+          "cornerRadius": 6,
+          "padding": [
+            0,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "BX0XM/REcmP",
+              "fill": "$foreground/foreground",
+              "content": "Cancel",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "BX0XM/V7HYp",
+          "name": "btnPrimary",
+          "height": 32,
+          "fill": "$accent/accent",
+          "cornerRadius": 6,
+          "padding": [
+            0,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "BX0XM/TZ7Ef",
+              "fill": "$accent/foreground",
+              "content": "Run snapshot",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        }
+      ]
     }
-  }
+  ]
 }

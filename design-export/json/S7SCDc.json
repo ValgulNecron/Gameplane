@@ -1,9 +1,26 @@
 {
-    "id": "S7SCDc",
-    "type": "ref",
-    "reusable": true,
-    "ref": "WwNlX",
-    "name": "Gameplane/Dialog/Revoke Share Link",
-    "x": 2000,
-    "y": 29918
+  "id": "S7SCDc",
+  "type": "ref",
+  "reusable": true,
+  "ref": "WwNlX",
+  "name": "Gameplane/Dialog/Revoke Share Link",
+  "x": -15185,
+  "y": 27934,
+  "descendants": {
+    "QARhG": {
+      "content": "Revoke this share link?"
+    },
+    "WKy74": {
+      "content": "Anyone using this link will immediately lose access to mc-survival's status page. This action cannot be undone."
+    },
+    "Wa0YZ": {
+      "enabled": false
+    },
+    "uSic3": {
+      "content": "Cancel"
+    },
+    "tvH6d": {
+      "content": "Revoke link"
+    }
+  }
 }

@@ -3,9 +3,8 @@
   "id": "xvlB6",
   "x": 22720,
   "y": 10155,
-  "name": "Screen/Server Detail \u2014 Capture (Running)",
+  "name": "Screen/Server Detail — Capture (Running)",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,
@@ -20,61 +19,23 @@
       "name": "App Sidebar",
       "height": "fill_container",
       "descendants": {
-        "z8Yor": {
-          "id": "gFF4c",
-          "type": "ref",
-          "ref": "c:X6nwq",
-          "cornerRadius": 6,
-          "padding": [
-            8,
-            12
-          ],
-          "gap": 12,
-          "height": 36,
-          "alignItems": "center",
-          "fill": "#00000000",
-          "descendants": {
-            "c:xGT5g": {
-              "icon": "layout-dashboard",
-              "width": 18,
-              "height": 18,
-              "fill": "$muted",
-              "library": "lucide"
-            },
-            "c:TXca3": {
-              "content": "Dashboard",
-              "fontSize": 14,
-              "fill": "$muted"
-            }
-          }
+        "iTbd8": {
+          "fill": "#00000000"
         },
-        "wUkZr": {
-          "id": "cSswD",
-          "type": "ref",
-          "ref": "c:dOLzc",
-          "cornerRadius": 6,
-          "padding": [
-            8,
-            12
-          ],
-          "gap": 12,
-          "height": 36,
-          "alignItems": "center",
-          "fill": "$accent/soft",
-          "descendants": {
-            "c:xGT5g": {
-              "icon": "server",
-              "width": 18,
-              "height": 18,
-              "fill": "$accent/accent",
-              "library": "lucide"
-            },
-            "c:TXca3": {
-              "content": "Servers",
-              "fontSize": 14,
-              "fill": "$accent/accent"
-            }
-          }
+        "iTbd8/ghUsw": {
+          "fill": "$foreground/foreground"
+        },
+        "iTbd8/bpSQ7": {
+          "fill": "$foreground/foreground"
+        },
+        "i8Z1B": {
+          "fill": "$accent/soft"
+        },
+        "i8Z1B/Sr2Q5": {
+          "fill": "$accent/soft-foreground"
+        },
+        "i8Z1B/Ra9NK": {
+          "fill": "$accent/soft-foreground"
         }
       }
     },
@@ -94,7 +55,7 @@
           "name": "Top Bar",
           "width": "fill_container",
           "descendants": {
-            "GqBm6/c:bT3Mm": {
+            "Gl7AY": {
               "content": "mc-survival"
             }
           }
@@ -130,44 +91,17 @@
                 24
               ],
               "descendants": {
-                "N37AkT": {
-                  "stroke": "#00000000"
+                "Wp6q1": {
+                  "fill": "#00000000"
                 },
-                "F2aQhk": {
+                "Wp6q1/YUR8N": {
                   "fill": "$muted"
                 },
-                "oVyjI": {
-                  "fill": "$muted"
+                "XcBPc": {
+                  "fill": "$segment"
                 },
-                "nr19d": {
-                  "fill": "$muted"
-                },
-                "ZFqdG": {
-                  "fill": "$muted"
-                },
-                "vSZtk": {
-                  "fill": "$muted"
-                },
-                "bSVUu": {
-                  "fill": "$muted"
-                },
-                "ki4l6": {
-                  "fill": "$muted"
-                },
-                "yS1Dt": {
-                  "fill": "$muted"
-                },
-                "P1zGbN": {
-                  "fill": "$muted"
-                },
-                "k62ubV": {
-                  "stroke": "$accent/accent"
-                },
-                "R4v48": {
-                  "fill": "$foreground/foreground"
-                },
-                "nS5Qg": {
-                  "fill": "$muted"
+                "XcBPc/VcxMI": {
+                  "fill": "$foreground/segment"
                 }
               }
             },
@@ -187,69 +121,7 @@
                   "name": "Header Row",
                   "width": "fill_container",
                   "justifyContent": "space_between",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "CYoQV",
-                      "name": "Left",
-                      "gap": 12,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "id": "beBtE",
-                          "type": "ref",
-                          "ref": "c:7KC5U",
-                          "name": "Status Badge",
-                          "cornerRadius": 4,
-                          "fill": "$accent/soft",
-                          "padding": [
-                            0,
-                            8
-                          ],
-                          "height": 20,
-                          "descendants": {
-                            "c:sDzhI": {
-                              "stroke": "$success/soft-foreground"
-                            },
-                            "c:AWwyf": {
-                              "content": "Capturing\u2026",
-                              "fill": "$accent/accent",
-                              "fontSize": 12
-                            }
-                          }
-                        },
-                        {
-                          "type": "text",
-                          "id": "XPyWZ",
-                          "name": "Retention",
-                          "fill": "$muted",
-                          "content": "Capture started 2m 30s ago",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 13,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "type": "text",
-                          "id": "ZbNmx",
-                          "name": "Configure Retention Link",
-                          "fill": "$accent/accent",
-                          "content": "Configure retention",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 13,
-                          "fontWeight": "500"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "b1Bdxv",
-                      "name": "Right",
-                      "width": "fit_content(0)",
-                      "height": "fit_content(0)",
-                      "gap": 8
-                    }
-                  ]
+                  "alignItems": "center"
                 },
                 {
                   "id": "z6xTv",
@@ -294,228 +166,7 @@
                   "strokeAlignment": "inner",
                   "layout": "vertical",
                   "gap": 20,
-                  "padding": 24,
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "l9i23R",
-                      "name": "Top Row",
-                      "width": "fill_container",
-                      "justifyContent": "space_between",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "TQIx0",
-                          "name": "Id Col",
-                          "layout": "vertical",
-                          "gap": 4,
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "HLsSq",
-                              "name": "Capture Id",
-                              "fill": "$foreground/foreground",
-                              "content": "cap-abc123def456",
-                              "fontFamily": "$c:--font-primary",
-                              "fontSize": 16,
-                              "fontWeight": "600"
-                            },
-                            {
-                              "type": "text",
-                              "id": "hXkIs",
-                              "name": "Filter",
-                              "fill": "$muted",
-                              "content": "Filter: tcp port 25565",
-                              "fontFamily": "$c:--font-primary",
-                              "fontSize": 12,
-                              "fontWeight": "normal"
-                            }
-                          ]
-                        },
-                        {
-                          "id": "viUOH",
-                          "type": "ref",
-                          "ref": "XoX7L",
-                          "name": "Btn Stop Capture",
-                          "descendants": {
-                            "dyD7Z": {
-                              "icon": "square"
-                            },
-                            "C8QRt/t8p1M2": {
-                              "content": "Stop Capture"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "CfGzm",
-                      "name": "Bars Wrap",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 16,
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "GMYN1",
-                          "name": "Duration Wrap",
-                          "width": "fill_container",
-                          "layout": "vertical",
-                          "gap": 6,
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "NGBfg",
-                              "name": "Duration Head",
-                              "width": "fill_container",
-                              "justifyContent": "space_between",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "G5TfHa",
-                                  "name": "Duration Label",
-                                  "fill": "$foreground/foreground",
-                                  "content": "Max duration",
-                                  "fontFamily": "$c:--font-secondary",
-                                  "fontSize": 13,
-                                  "fontWeight": "500"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "mcQ9k",
-                                  "name": "Duration Value",
-                                  "fill": "$muted",
-                                  "content": "2m 30s / 5m elapsed",
-                                  "fontFamily": "$c:--font-secondary",
-                                  "fontSize": 13,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "id": "Z0ift6",
-                              "type": "ref",
-                              "ref": "c:W4YFH",
-                              "name": "Duration Progress",
-                              "width": "fill_container",
-                              "fill": "$default/default",
-                              "descendants": {
-                                "c:qQ5Qx": {
-                                  "width": 542,
-                                  "fill": "$accent/accent"
-                                }
-                              }
-                            },
-                            {
-                              "type": "text",
-                              "id": "J9u6Hg",
-                              "name": "Duration Sub",
-                              "fill": "#F59F0A",
-                              "content": "Time remaining: ~2m 30s \u2014 closest to its limit",
-                              "fontFamily": "$c:--font-secondary",
-                              "fontSize": 12,
-                              "fontWeight": "500"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "frame",
-                          "id": "mg2NH",
-                          "name": "Size Wrap",
-                          "width": "fill_container",
-                          "layout": "vertical",
-                          "gap": 6,
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "zG64g",
-                              "name": "Size Head",
-                              "width": "fill_container",
-                              "justifyContent": "space_between",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "V9V0Et",
-                                  "name": "Size Label",
-                                  "fill": "$foreground/foreground",
-                                  "content": "Max size",
-                                  "fontFamily": "$c:--font-secondary",
-                                  "fontSize": 13,
-                                  "fontWeight": "500"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "GHolj",
-                                  "name": "Size Value",
-                                  "fill": "$muted",
-                                  "content": "2.5 MB / 5 GB collected",
-                                  "fontFamily": "$c:--font-secondary",
-                                  "fontSize": 13,
-                                  "fontWeight": "normal"
-                                }
-                              ]
-                            },
-                            {
-                              "id": "I07m1",
-                              "type": "ref",
-                              "ref": "c:W4YFH",
-                              "name": "Size Progress",
-                              "width": "fill_container",
-                              "fill": "$default/default",
-                              "descendants": {
-                                "c:qQ5Qx": {
-                                  "width": 3,
-                                  "fill": "$accent/accent"
-                                }
-                              }
-                            },
-                            {
-                              "type": "text",
-                              "id": "vkKdw",
-                              "name": "Size Sub",
-                              "fill": "$muted",
-                              "content": "Space remaining: ~5 GB",
-                              "fontFamily": "$c:--font-secondary",
-                              "fontSize": 12,
-                              "fontWeight": "normal"
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "HWeLh",
-                      "name": "Metrics Row",
-                      "width": "fill_container",
-                      "stroke": "$border/border",
-                      "strokeWidth": {
-                        "top": 1
-                      },
-                      "strokeAlignment": "inner",
-                      "gap": 24,
-                      "padding": [
-                        16,
-                        0,
-                        0,
-                        0
-                      ],
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "OLEML",
-                          "name": "Packet Count",
-                          "fill": "$foreground/foreground",
-                          "content": "1,234 packets captured",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 13,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    }
-                  ]
+                  "padding": 24
                 }
               ]
             }

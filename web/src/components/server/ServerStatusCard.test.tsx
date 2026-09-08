@@ -65,6 +65,7 @@ describe("ServerStatusCard", () => {
         running
       />,
     );
+    expect(await screen.findByText("Game status")).toBeInTheDocument();
     expect(await screen.findByText("-4096")).toBeInTheDocument();
     expect(await screen.findByText("19.8")).toBeInTheDocument();
     expect(screen.getByText("World seed")).toBeInTheDocument();

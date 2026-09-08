@@ -11,9 +11,9 @@ import {
   ListChecks,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { StatCard } from "@/components/ui/stat";
+import { Button, Input } from "@heroui/react";
+import { StatCard } from "@/components/hero/StatCard";
+import { ErrorBanner } from "@/components/hero/ErrorBanner";
 import { errorText } from "@/lib/errors";
 import { Players as PlayersAPI } from "@/lib/endpoints";
 import { cn } from "@/lib/utils";
@@ -114,26 +114,32 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
         <h2 className="text-sm text-muted">
           {data ? (data.max >= 0 ? `${data.online} / ${data.max} online` : `${data.online} online`) : "Loading…"}
         </h2>
-        <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} title="Refresh">
-          <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
+        <Button
+          isIconOnly
+          variant="ghost"
+          size="sm"
+          onClick={() => refetch()}
+          isDisabled={isFetching}
+          aria-label="Refresh players"
+        >
+          <span title="Refresh">
+            <RotateCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          </span>
         </Button>
       </header>
 
-      {status && (
-        <div
-          className={cn(
-            "rounded border px-3 py-2 text-sm",
-            status.kind === "ok"
-              ? "border-border bg-surface/30 text-fg"
-              : "border-red-500/40 bg-red-500/10 text-red-200",
-          )}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <span className="font-mono">{status.text}</span>
-            <button onClick={() => setStatus(null)} className="text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
-          </div>
+      {status && status.kind === "err" && (
+        <ErrorBanner
+          err={status.text}
+          onDismiss={() => setStatus(null)}
+        />
+      )}
+      {status && status.kind === "ok" && (
+        <div className="flex items-start justify-between gap-3 rounded border border-border bg-surface/30 px-3 py-2 text-sm">
+          <span className="font-mono">{status.text}</span>
+          <button onClick={() => setStatus(null)} className="text-xs text-muted hover:text-fg">
+            dismiss
+          </button>
         </div>
       )}
 
@@ -152,28 +158,34 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
               <div className="flex items-center gap-1">
                 {caps.kick && (
                   <Button
+                    isIconOnly
                     variant="ghost"
                     size="sm"
-                    title="Kick"
+                    aria-label="Kick"
                     onClick={() => {
                       setPending({ player: p, action: "kick" });
                       setReason("");
                     }}
                   >
-                    <UserMinus className="h-3 w-3" />
+                    <span title="Kick">
+                      <UserMinus className="h-4 w-4" />
+                    </span>
                   </Button>
                 )}
                 {caps.ban && (
                   <Button
+                    isIconOnly
                     variant="ghost"
                     size="sm"
-                    title="Ban"
+                    aria-label={`Ban ${p}`}
                     onClick={() => {
                       setPending({ player: p, action: "ban" });
                       setReason("");
                     }}
                   >
-                    <Ban className="h-3 w-3" />
+                    <span title="Ban">
+                      <Ban className="h-4 w-4" />
+                    </span>
                   </Button>
                 )}
               </div>
@@ -210,8 +222,8 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
             onClick={() => setShowWhitelist((v) => !v)}
             className="flex items-center gap-1 text-sm text-muted hover:text-fg"
           >
-            {showWhitelist ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            <ListChecks className="h-3 w-3" /> Whitelist {whitelist ? `(${whitelist.length})` : ""}
+            {showWhitelist ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <ListChecks className="h-4 w-4" /> Whitelist {whitelist ? `(${whitelist.length})` : ""}
           </button>
           {showWhitelist && (
             <div className="mt-2 space-y-2">
@@ -230,8 +242,13 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                   onChange={(e) => setWlName(e.target.value)}
                   maxLength={32}
                 />
-                <Button size="sm" type="submit" disabled={!wlName.trim() || whitelistMut.isPending}>
-                  <UserPlus className="h-3 w-3" /> Add
+                <Button
+                  size="sm"
+                  type="submit"
+                  isDisabled={!wlName.trim() || whitelistMut.isPending}
+                  variant="primary"
+                >
+                  <UserPlus className="h-4 w-4" /> Add
                 </Button>
               </form>
               {whitelistFetching && !whitelist && <p className="text-sm text-muted">Loading…</p>}
@@ -242,13 +259,16 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                 >
                   <span className="truncate">{w}</span>
                   <Button
+                    isIconOnly
                     variant="ghost"
                     size="sm"
-                    title="Remove from whitelist"
-                    disabled={whitelistMut.isPending}
+                    aria-label={`Remove ${w} from whitelist`}
+                    isDisabled={whitelistMut.isPending}
                     onClick={() => whitelistMut.mutate({ op: "remove", player: w })}
                   >
-                    <UserMinus className="h-3 w-3" />
+                    <span title="Remove from whitelist">
+                      <UserMinus className="h-4 w-4" />
+                    </span>
                   </Button>
                 </div>
               ))}
@@ -264,7 +284,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
             onClick={() => setShowBanned((v) => !v)}
             className="flex items-center gap-1 text-sm text-muted hover:text-fg"
           >
-            {showBanned ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            {showBanned ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             Banned {banned ? `(${banned.length})` : ""}
           </button>
           {showBanned && (
@@ -286,13 +306,16 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     )}
                   </div>
                   <Button
-                    variant="ghost"
                     size="sm"
-                    title="Unban"
-                    disabled={moderate.isPending}
+                    variant="ghost"
+                    aria-label={`Unban ${b.name}`}
+                    isDisabled={moderate.isPending}
                     onClick={() => moderate.mutate({ action: "unban", player: b.name })}
                   >
-                    <Undo2 className="h-3 w-3" /> Unban
+                    <span title="Unban">
+                      <Undo2 className="h-4 w-4" />
+                    </span>{" "}
+                    Unban
                   </Button>
                 </div>
               ))}
@@ -325,7 +348,7 @@ function ConfirmAction({
   const verb = action === "kick" ? "Kick" : "Ban";
   return (
     <div className="rounded border border-border bg-surface/50 p-4">
-      <p className="text-sm text-fg">
+      <p className="text-sm text-foreground">
         {verb} <span className="font-mono">{player}</span>?
       </p>
       <Input
@@ -337,10 +360,20 @@ function ConfirmAction({
         autoFocus
       />
       <div className="mt-3 flex items-center justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={submitting}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          isDisabled={submitting}
+        >
           Cancel
         </Button>
-        <Button size="sm" onClick={onConfirm} disabled={submitting}>
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={onConfirm}
+          isDisabled={submitting}
+        >
           {submitting ? `${verb}ing…` : verb}
         </Button>
       </div>

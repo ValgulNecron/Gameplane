@@ -1,0 +1,216 @@
+{
+  "type": "frame",
+  "id": "FhrUm",
+  "x": -15825,
+  "y": 29734,
+  "name": "Gameplane/Dialog/Wipe World",
+  "reusable": true,
+  "width": 400,
+  "fill": "$overlay",
+  "cornerRadius": "$radius/3xl",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000018",
+    "offset": {
+      "x": 0,
+      "y": 8
+    },
+    "blur": 24
+  },
+  "layout": "vertical",
+  "padding": "$spacing/6",
+  "children": [
+    {
+      "type": "frame",
+      "id": "FhrUm/G2APR",
+      "name": "Header",
+      "width": "fill_container",
+      "layout": "vertical",
+      "gap": 12,
+      "children": [
+        {
+          "type": "frame",
+          "id": "FhrUm/jJSQ7",
+          "name": "Icon",
+          "width": 40,
+          "height": 40,
+          "fill": "$danger/soft",
+          "cornerRadius": 9999,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "FhrUm/BoRpU",
+              "width": 20,
+              "height": 20,
+              "icon": "triangle-alert",
+              "library": "lucide",
+              "fill": "$danger/soft-foreground"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "FhrUm/ocSbw",
+          "name": "Heading",
+          "fill": "$foreground/foreground",
+          "content": "Wipe world?",
+          "fontFamily": "Inter",
+          "fontSize": 16,
+          "fontWeight": "500"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "FhrUm/q23ikL",
+      "name": "Body",
+      "width": "fill_container",
+      "layout": "vertical",
+      "padding": [
+        8,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "FhrUm/rs23G",
+          "name": "Content",
+          "fill": "$muted",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "This permanently deletes the world data for mc-survival. Backups are not removed. This cannot be undone.",
+          "lineHeight": 1.43,
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "FhrUm/PGfIf",
+      "name": "Footer",
+      "width": "fill_container",
+      "gap": 8,
+      "padding": [
+        20,
+        0,
+        0,
+        0
+      ],
+      "justifyContent": "end",
+      "children": [
+        {
+          "type": "frame",
+          "id": "FhrUm/I2D1LW",
+          "name": "cancelBtn",
+          "height": 32,
+          "fill": "$default/default",
+          "cornerRadius": "$radius/3xl",
+          "gap": 5,
+          "padding": [
+            8,
+            "$spacing/3"
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "FhrUm/a70Eb",
+              "x": 12,
+              "y": 9,
+              "name": "i7",
+              "enabled": false,
+              "width": 14,
+              "height": 14,
+              "icon": "plus",
+              "library": "lucide",
+              "fill": "$foreground/foreground"
+            },
+            {
+              "type": "text",
+              "id": "FhrUm/RAlJp",
+              "name": "Label",
+              "fill": "$foreground/foreground",
+              "content": "Cancel",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 13,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "FhrUm/NAWFW",
+          "name": "dangerBtn",
+          "height": 32,
+          "fill": "$danger/danger",
+          "cornerRadius": "$radius/3xl",
+          "gap": 5,
+          "padding": [
+            8,
+            "$spacing/3"
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "FhrUm/l2Hjb4",
+              "x": 12,
+              "y": 9,
+              "name": "i1",
+              "enabled": false,
+              "width": 14,
+              "height": 14,
+              "icon": "plus",
+              "library": "lucide",
+              "fill": "$danger/foreground"
+            },
+            {
+              "type": "text",
+              "id": "FhrUm/i56eAy",
+              "name": "Label",
+              "fill": "$danger/foreground",
+              "content": "Wipe world",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 13,
+              "fontWeight": "500"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "FhrUm/Z680fg",
+      "layoutPosition": "absolute",
+      "x": 362,
+      "y": 14,
+      "name": "CloseButton",
+      "width": 24,
+      "height": 24,
+      "fill": "$default/default",
+      "cornerRadius": "$radius/xl",
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "FhrUm/ZTgXb",
+          "width": 16,
+          "height": 16,
+          "icon": "x",
+          "library": "lucide",
+          "fill": "$muted"
+        }
+      ]
+    }
+  ]
+}

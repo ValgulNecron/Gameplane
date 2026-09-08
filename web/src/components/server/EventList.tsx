@@ -3,7 +3,7 @@ import { formatRelative } from "@/lib/utils";
 
 function EventDot({ kind }: { kind: NormalizedServerEvent["kind"] }) {
   const color = {
-    info: "bg-primary",
+    info: "bg-accent",
     warn: "bg-warning",
     error: "bg-danger",
   }[kind];
@@ -29,7 +29,7 @@ export function EventList({
           <li key={e.id} className="flex items-start gap-3 px-6 py-3">
             <EventDot kind={e.kind} />
             <div className="min-w-0 flex-1">
-              <div className="text-sm text-fg">{e.message}</div>
+              <div className="text-sm text-foreground">{e.message}</div>
               <div className="pt-0.5 text-xs text-muted">
                 {e.source ?? "system"}
               </div>

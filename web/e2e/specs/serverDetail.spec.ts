@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { LoginPage } from "../pages/LoginPage";
+import { ServerDetailPage } from "../pages/ServerDetailPage";
 
 // Server detail tabs. Mock mode walks each tab and asserts no
 // uncaught console errors fire during navigation. Per-tab content
@@ -38,23 +39,23 @@ test.describe("server detail tabs", () => {
       if (msg.type() === "error") errors.push(msg.text());
     });
 
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
     // Header shows the server name.
     await expect(page.getByRole("heading", { name: "alpha" })).toBeVisible();
 
-    // The header contains two <nav> elements: a breadcrumb and the
-    // tab strip. The tab strip carries the `scrollbar-thin` class so
-    // locator selection stays unambiguous.
-    const tabNav = page.locator("header nav.scrollbar-thin");
+    // The tablist is accessible via its aria-label "Server detail tabs"
+    // and individual tabs are accessed via their label text.
+    const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
     await expect(tabNav).toBeVisible();
 
     // Visit each tab in sequence. Console and Files lazy-load via
     // React.Suspense; allow time for the chunk to settle.
     const labels = ["Overview", "Console", "Logs", "Files", "Players", "Backups", "Settings"];
     for (const label of labels) {
-      await tabNav.getByRole("button", { name: new RegExp(`^${label}$`) }).click();
+      await tabNav.getByRole("tab", { name: new RegExp(`^${label}$`) }).click();
       // Tab content swap doesn't change URL — just await DOM stability.
       await page.waitForTimeout(200);
     }
@@ -66,11 +67,12 @@ test.describe("server detail tabs", () => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
 
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await tabNav.getByRole("button", { name: /^Settings$/ }).click();
+    const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
+    await tabNav.getByRole("tab", { name: /^Settings$/i }).click();
 
     // Settings has an inner tab strip (TabBar) — sub-tabs differ in
     // styling but are also <button> elements. Match by their text and

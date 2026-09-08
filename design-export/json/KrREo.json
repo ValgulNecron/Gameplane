@@ -4,8 +4,8 @@
   "reusable": true,
   "ref": "x3beP",
   "name": "Gameplane/Dialog/Install Module",
-  "x": 1280,
-  "y": 29221,
+  "x": -15905,
+  "y": 27237,
   "descendants": {
     "E7Whx": {
       "content": "Install Minecraft (Java Edition)"
@@ -37,9 +37,9 @@
             {
               "type": "text",
               "id": "XUqGf",
-              "fill": "$c:--muted-foreground",
+              "fill": "$muted",
               "content": "Source",
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 12,
               "fontWeight": "normal"
             },
@@ -51,7 +51,8 @@
               "width": "fill_container",
               "descendants": {
                 "cFsFk": {
-                  "content": "default (git)"
+                  "content": "default (git)",
+                  "fill": "$field/foreground"
                 }
               }
             }
@@ -67,9 +68,9 @@
             {
               "type": "text",
               "id": "VoXvd",
-              "fill": "$c:--muted-foreground",
+              "fill": "$muted",
               "content": "Version",
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 12,
               "fontWeight": "normal"
             },
@@ -81,7 +82,8 @@
               "width": "fill_container",
               "descendants": {
                 "cFsFk": {
-                  "content": "v2.7.0"
+                  "content": "v2.7.0",
+                  "fill": "$field/foreground"
                 }
               }
             }
@@ -97,9 +99,9 @@
             {
               "type": "text",
               "id": "rFgk7",
-              "fill": "$c:--muted-foreground",
+              "fill": "$muted",
               "content": "Install as",
-              "fontFamily": "$c:--font-secondary",
+              "fontFamily": "$typography/font-sans",
               "fontSize": 12,
               "fontWeight": "normal"
             },
@@ -112,7 +114,7 @@
               "descendants": {
                 "PJERm": {
                   "content": "minecraft-java",
-                  "fill": "#5C5C5C"
+                  "fill": "$field/foreground"
                 }
               }
             }

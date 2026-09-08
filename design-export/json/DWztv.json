@@ -5,7 +5,6 @@
   "y": 22565,
   "name": "Screen/Mobile — Servers (Light)",
   "theme": {
-    "c:Mode": "Light",
     "semantic": "light"
   },
   "clip": true,
@@ -103,55 +102,16 @@
           "alignItems": "center",
           "children": [
             {
-              "type": "frame",
               "id": "E1v7ir",
+              "type": "ref",
+              "ref": "Lmaf1",
               "name": "Search",
-              "theme": {},
               "width": "fill_container",
-              "height": 36,
-              "fill": "$field/background",
-              "cornerRadius": "$radius/xl",
-              "stroke": "$field/border",
-              "strokeWidth": 1,
-              "strokeAlignment": "inner",
-              "effect": {
-                "type": "shadow",
-                "shadowType": "outer",
-                "color": "#0000000F",
-                "offset": {
-                  "x": 0,
-                  "y": 1
-                },
-                "blur": 2
-              },
-              "gap": 6,
-              "padding": [
-                0,
-                12
-              ],
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "icon",
-                  "id": "E1v7ir/vXxT5",
-                  "name": "searchIcon",
-                  "width": 16,
-                  "height": 16,
-                  "icon": "search",
-                  "library": "lucide",
-                  "fill": "$field/placeholder"
-                },
-                {
-                  "type": "text",
-                  "id": "E1v7ir/EJMtX",
-                  "name": "searchPlaceholder",
-                  "fill": "$field/placeholder",
-                  "content": "Search…",
-                  "fontFamily": "$typography/font-sans",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
+              "descendants": {
+                "EJMtX": {
+                  "content": "Search…"
                 }
-              ]
+              }
             },
             {
               "type": "frame",
@@ -299,7 +259,7 @@
                           "name": "Label",
                           "fill": "$success/soft-foreground",
                           "content": "Running",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }
@@ -511,7 +471,7 @@
                           "name": "Label",
                           "fill": "$color-sleep-foreground",
                           "content": "Asleep",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }
@@ -723,7 +683,7 @@
                           "name": "Label",
                           "fill": "$success/soft-foreground",
                           "content": "Running",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }
@@ -935,7 +895,7 @@
                           "name": "Label",
                           "fill": "$warning/soft-foreground",
                           "content": "Starting",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }
@@ -1147,7 +1107,7 @@
                           "name": "Label",
                           "fill": "$danger/soft-foreground",
                           "content": "CrashLoop",
-                          "fontFamily": "Inter",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "500"
                         }

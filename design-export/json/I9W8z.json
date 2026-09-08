@@ -5,8 +5,8 @@
   "ref": "x3beP",
   "name": "Gameplane/Dialog/New Folder",
   "width": 440,
-  "x": 6040,
-  "y": 29221,
+  "x": -15145,
+  "y": 29203,
   "descendants": {
     "E7Whx": {
       "content": "New folder"
@@ -31,9 +31,9 @@
         {
           "type": "text",
           "id": "R8mKla",
-          "fill": "$c:--muted-foreground",
+          "fill": "$muted",
           "content": "Folder name",
-          "fontFamily": "$c:--font-secondary",
+          "fontFamily": "$typography/font-sans",
           "fontSize": 12,
           "fontWeight": "normal"
         },

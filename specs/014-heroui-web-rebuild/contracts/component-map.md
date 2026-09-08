@@ -68,7 +68,7 @@ Slice 0 atoms: `tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 J09iP IU7OG` (buttons → 
 
 Slice 1: `kKFX9` App Sidebar, `gu5WY` Top Bar, `aI9PL` Cluster Selector, `hboVw` Notifications Panel, `IdaU7` Search Results.
 
-Slice 2a: `S4k0x` Server Detail Header, `I9kvlZ` Server Detail Tabs, dialogs `T1LzpU` Clone, `rdlrx` Transfer, `t9irnv` Wipe World, `I9W8z` New Folder, `JLaGB` New File.
+Slice 2a: `S4k0x` Server Detail Header, `I9kvlZ` Server Detail Tabs, dialogs `Jpl8j` Clone (re-created 2026-09-05 as Jpl8j), `NVN2r` Transfer (re-created 2026-09-05 as NVN2r), `FhrUm` Wipe World (re-created 2026-09-05 as FhrUm), `I9W8z` New Folder, `JLaGB` New File.
 
 Slice 2b: `f0s9zG` Capture Warning Banner, `KrREo` Install Module, `BX0XM` Upload Module.
 

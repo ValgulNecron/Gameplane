@@ -1,42 +1,41 @@
 {
-    "type": "frame",
-    "id": "Rwnu3",
-    "x": 1929,
-    "y": 27599,
-    "name": "Gameplane/Provenance Badge/From Helm",
-    "theme": {},
-    "reusable": true,
-    "fill": "#00000000",
-    "cornerRadius": "$c:--radius-pill",
-    "stroke": "$border/border",
-    "strokeWidth": 1,
-    "strokeAlignment": "inner",
-    "gap": 6,
-    "padding": [
-        3,
-        10
-    ],
-    "alignItems": "center",
-    "children": [
-        {
-            "type": "icon",
-            "id": "kgQwp",
-            "name": "pbIcon",
-            "width": 12,
-            "height": 12,
-            "icon": "package",
-            "library": "lucide",
-            "fill": "$muted"
-        },
-        {
-            "type": "text",
-            "id": "d5cgOs",
-            "name": "pbLabel",
-            "fill": "$muted",
-            "content": "From Helm values",
-            "fontFamily": "$c:--font-primary",
-            "fontSize": 12,
-            "fontWeight": "500"
-        }
-    ]
+  "type": "frame",
+  "id": "Rwnu3",
+  "x": -14935,
+  "y": 26228,
+  "name": "Gameplane/Provenance Badge/From Helm",
+  "reusable": true,
+  "fill": "#00000000",
+  "cornerRadius": 9999,
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "gap": 6,
+  "padding": [
+    3,
+    10
+  ],
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "icon",
+      "id": "kgQwp",
+      "name": "pbIcon",
+      "width": 12,
+      "height": 12,
+      "icon": "package",
+      "library": "lucide",
+      "fill": "$muted"
+    },
+    {
+      "type": "text",
+      "id": "d5cgOs",
+      "name": "pbLabel",
+      "fill": "$muted",
+      "content": "From Helm values",
+      "fontFamily": "$typography/font-mono",
+      "fontSize": 12,
+      "fontWeight": "500"
+    }
+  ]
 }

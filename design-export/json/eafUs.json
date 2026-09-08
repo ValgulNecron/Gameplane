@@ -1,0 +1,17 @@
+{
+  "type": "frame",
+  "id": "eafUs",
+  "x": 1286,
+  "y": 537,
+  "name": "Table Header",
+  "reusable": true,
+  "width": 600,
+  "height": "fit_content(36)",
+  "fill": "$surface/secondary",
+  "stroke": "$separator/separator",
+  "strokeWidth": {
+    "bottom": 1
+  },
+  "strokeAlignment": "inner",
+  "strokeLinejoin": "round"
+}

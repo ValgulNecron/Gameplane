@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { LoginPage } from "../pages/LoginPage";
+import { ServerDetailPage } from "../pages/ServerDetailPage";
 
 // Players tab e2e. Renders /players + /players/banned and posts to the
 // kick / ban / unban endpoints when the matching action is taken.
@@ -29,11 +30,12 @@ test.describe("players tab", () => {
   });
 
   test("renders the online list from /players", async ({ page }) => {
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
 
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await tabNav.getByRole("button", { name: /^players$/i }).click();
+    const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
+    await tabNav.getByRole("tab", { name: /^players$/i }).click();
 
     // The MSW makePlayers() seed has at least one player. The tab
     // renders a list/table — wait for any content to mount before
@@ -47,10 +49,11 @@ test.describe("players tab", () => {
   });
 
   test("Kick action POSTs to /players/kick", async ({ page }) => {
-    await page.goto("/servers/alpha");
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha");
     await page.waitForLoadState("domcontentloaded");
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await tabNav.getByRole("button", { name: /^players$/i }).click();
+    const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
+    await tabNav.getByRole("tab", { name: /^players$/i }).click();
 
     // Wait for the player list to load — the per-player Kick action is an
     // icon button whose accessible name comes from its title="Kick".

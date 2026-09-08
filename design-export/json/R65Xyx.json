@@ -1,42 +1,41 @@
 {
-    "type": "frame",
-    "id": "R65Xyx",
-    "x": 1701,
-    "y": 27599,
-    "name": "Gameplane/Provenance Badge/Overridden",
-    "theme": {},
-    "reusable": true,
-    "fill": "#00000000",
-    "cornerRadius": "$c:--radius-pill",
-    "stroke": "$border/border",
-    "strokeWidth": 1,
-    "strokeAlignment": "inner",
-    "gap": 6,
-    "padding": [
-        3,
-        10
-    ],
-    "alignItems": "center",
-    "children": [
-        {
-            "type": "icon",
-            "id": "fz2Rp",
-            "name": "pbIcon",
-            "width": 12,
-            "height": 12,
-            "icon": "pencil",
-            "library": "lucide",
-            "fill": "$muted"
-        },
-        {
-            "type": "text",
-            "id": "QHjWr",
-            "name": "pbLabel",
-            "fill": "$muted",
-            "content": "Overridden in dashboard",
-            "fontFamily": "$c:--font-primary",
-            "fontSize": 12,
-            "fontWeight": "500"
-        }
-    ]
+  "type": "frame",
+  "id": "R65Xyx",
+  "x": -15163,
+  "y": 26228,
+  "name": "Gameplane/Provenance Badge/Overridden",
+  "reusable": true,
+  "fill": "#00000000",
+  "cornerRadius": 9999,
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "gap": 6,
+  "padding": [
+    3,
+    10
+  ],
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "icon",
+      "id": "fz2Rp",
+      "name": "pbIcon",
+      "width": 12,
+      "height": 12,
+      "icon": "pencil",
+      "library": "lucide",
+      "fill": "$muted"
+    },
+    {
+      "type": "text",
+      "id": "QHjWr",
+      "name": "pbLabel",
+      "fill": "$muted",
+      "content": "Overridden in dashboard",
+      "fontFamily": "$typography/font-mono",
+      "fontSize": 12,
+      "fontWeight": "500"
+    }
+  ]
 }

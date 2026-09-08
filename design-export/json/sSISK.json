@@ -1,11 +1,10 @@
 {
   "type": "frame",
   "id": "sSISK",
-  "x": -1519,
+  "x": 1640,
   "y": 7150,
-  "name": "Screen/Server Detail \u2014 Overview (Light)",
+  "name": "Screen/Server Detail — Overview (Light)",
   "theme": {
-    "c:Mode": "Light",
     "semantic": "light"
   },
   "clip": true,
@@ -18,65 +17,7 @@
       "type": "ref",
       "ref": "kKFX9",
       "name": "App Sidebar",
-      "height": "fill_container",
-      "descendants": {
-        "z8Yor": {
-          "id": "WrxyX",
-          "type": "ref",
-          "ref": "c:X6nwq",
-          "cornerRadius": 6,
-          "padding": [
-            8,
-            12
-          ],
-          "gap": 12,
-          "height": 36,
-          "alignItems": "center",
-          "fill": "#00000000",
-          "descendants": {
-            "c:xGT5g": {
-              "icon": "layout-dashboard",
-              "width": 18,
-              "height": 18,
-              "fill": "$muted",
-              "library": "lucide"
-            },
-            "c:TXca3": {
-              "content": "Dashboard",
-              "fontSize": 14,
-              "fill": "$muted"
-            }
-          }
-        },
-        "wUkZr": {
-          "id": "jJgAu",
-          "type": "ref",
-          "ref": "c:dOLzc",
-          "cornerRadius": 6,
-          "padding": [
-            8,
-            12
-          ],
-          "gap": 12,
-          "height": 36,
-          "alignItems": "center",
-          "fill": "$accent/soft",
-          "descendants": {
-            "c:xGT5g": {
-              "icon": "server",
-              "width": 18,
-              "height": 18,
-              "fill": "$accent/soft-foreground",
-              "library": "lucide"
-            },
-            "c:TXca3": {
-              "content": "Servers",
-              "fontSize": 14,
-              "fill": "$accent/soft-foreground"
-            }
-          }
-        }
-      }
+      "height": "fill_container"
     },
     {
       "type": "frame",
@@ -92,12 +33,7 @@
           "type": "ref",
           "ref": "gu5WY",
           "name": "Top Bar",
-          "width": "fill_container",
-          "descendants": {
-            "GqBm6/c:bT3Mm": {
-              "content": "mc-survival"
-            }
-          }
+          "width": "fill_container"
         },
         {
           "id": "O8sUKj",
@@ -117,12 +53,7 @@
             0,
             0,
             24
-          ],
-          "descendants": {
-            "nS5Qg": {
-              "fill": "$muted"
-            }
-          }
+          ]
         },
         {
           "type": "frame",
@@ -158,34 +89,33 @@
                       "gap": 16,
                       "children": [
                         {
-                          "id": "xo9D3",
-                          "type": "ref",
-                          "ref": "c:ERkuB",
+                          "type": "frame",
+                          "id": "R4dtoJ",
                           "name": "Metric CPU",
                           "width": "fill_container",
                           "fill": "$surface/surface",
-                          "stroke": "$border/border",
-                          "descendants": {
-                            "c:4zoFt": {
-                              "enabled": false
-                            },
-                            "c:QMHOm": {
-                              "padding": 16,
-                              "gap": 8,
-                              "justifyContent": "start",
-                              "layout": "vertical",
+                          "cornerRadius": "$radius/3xl",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "j62bJ0",
+                              "name": "Card Content",
                               "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "padding": 16,
                               "children": [
                                 {
                                   "type": "frame",
-                                  "id": "FFQUq",
+                                  "id": "PFinw",
                                   "width": "fill_container",
                                   "justifyContent": "space_between",
                                   "alignItems": "center",
                                   "children": [
                                     {
                                       "type": "text",
-                                      "id": "mGvPM",
+                                      "id": "o8T41",
                                       "fill": "$muted",
                                       "content": "CPU",
                                       "fontFamily": "$c:--font-secondary",
@@ -195,7 +125,7 @@
                                     },
                                     {
                                       "type": "icon",
-                                      "id": "h3Ysf3",
+                                      "id": "VPPZz",
                                       "width": 16,
                                       "height": 16,
                                       "icon": "cpu",
@@ -206,7 +136,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "XRAdW",
+                                  "id": "wk4aE",
                                   "fill": "$foreground/foreground",
                                   "content": "0%",
                                   "fontFamily": "$c:--font-primary",
@@ -215,7 +145,7 @@
                                 },
                                 {
                                   "type": "path",
-                                  "id": "w1iRjs",
+                                  "id": "MWfCt",
                                   "geometry": "M0 21l12-1 13 1 12-2 13 1 12-1 13 2 12-1 13 0",
                                   "viewBox": [
                                     0,
@@ -231,7 +161,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "Hmaau",
+                                  "id": "I3fmW",
                                   "clip": true,
                                   "width": "fill_container",
                                   "height": 6,
@@ -241,7 +171,7 @@
                                     {
                                       "type": "rectangle",
                                       "cornerRadius": 999,
-                                      "id": "JE1zo",
+                                      "id": "y7Z1Z4",
                                       "fill": "$accent/accent",
                                       "width": 2,
                                       "height": 6
@@ -250,7 +180,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "mga2R",
+                                  "id": "A1Fm7",
                                   "fill": "$muted",
                                   "content": "0.0 / 2.0 cores",
                                   "fontFamily": "$c:--font-secondary",
@@ -258,41 +188,37 @@
                                   "fontWeight": "normal"
                                 }
                               ]
-                            },
-                            "c:tiojM": {
-                              "enabled": false
                             }
-                          }
+                          ]
                         },
                         {
-                          "id": "E9UJU",
-                          "type": "ref",
-                          "ref": "c:ERkuB",
+                          "type": "frame",
+                          "id": "TbJL4",
                           "name": "Metric Memory",
                           "width": "fill_container",
                           "fill": "$surface/surface",
-                          "stroke": "$border/border",
-                          "descendants": {
-                            "c:4zoFt": {
-                              "enabled": false
-                            },
-                            "c:QMHOm": {
-                              "padding": 16,
-                              "gap": 8,
-                              "justifyContent": "start",
-                              "layout": "vertical",
+                          "cornerRadius": "$radius/3xl",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "PDsE2",
+                              "name": "Card Content",
                               "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "padding": 16,
                               "children": [
                                 {
                                   "type": "frame",
-                                  "id": "d45NK",
+                                  "id": "CyOdF",
                                   "width": "fill_container",
                                   "justifyContent": "space_between",
                                   "alignItems": "center",
                                   "children": [
                                     {
                                       "type": "text",
-                                      "id": "SAwtc",
+                                      "id": "sAfaW",
                                       "fill": "$muted",
                                       "content": "MEMORY",
                                       "fontFamily": "$c:--font-secondary",
@@ -302,7 +228,7 @@
                                     },
                                     {
                                       "type": "icon",
-                                      "id": "UwExX",
+                                      "id": "AAHeE",
                                       "width": 16,
                                       "height": 16,
                                       "icon": "memory-stick",
@@ -313,7 +239,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "hK1cQ",
+                                  "id": "R9qA6",
                                   "fill": "$foreground/foreground",
                                   "content": "38%",
                                   "fontFamily": "$c:--font-primary",
@@ -322,7 +248,7 @@
                                 },
                                 {
                                   "type": "path",
-                                  "id": "TwIMQ",
+                                  "id": "agDI3",
                                   "geometry": "M0 16l12-3 13 4 12-6 13 4 12-5 13 4 12-2 13-1",
                                   "viewBox": [
                                     0,
@@ -338,7 +264,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "qNse7",
+                                  "id": "Vi1Nh",
                                   "clip": true,
                                   "width": "fill_container",
                                   "height": 6,
@@ -348,7 +274,7 @@
                                     {
                                       "type": "rectangle",
                                       "cornerRadius": 999,
-                                      "id": "EqKJd",
+                                      "id": "EZqIJ",
                                       "fill": "#8b5cf6",
                                       "width": 91,
                                       "height": 6
@@ -357,7 +283,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "SztTq",
+                                  "id": "UNzsJ",
                                   "fill": "$muted",
                                   "content": "1.5 GB / 4.0 GB",
                                   "fontFamily": "$c:--font-secondary",
@@ -365,41 +291,37 @@
                                   "fontWeight": "normal"
                                 }
                               ]
-                            },
-                            "c:tiojM": {
-                              "enabled": false
                             }
-                          }
+                          ]
                         },
                         {
-                          "id": "JGgcW",
-                          "type": "ref",
-                          "ref": "c:ERkuB",
+                          "type": "frame",
+                          "id": "Goo15",
                           "name": "Metric Disk",
                           "width": "fill_container",
                           "fill": "$surface/surface",
-                          "stroke": "$border/border",
-                          "descendants": {
-                            "c:4zoFt": {
-                              "enabled": false
-                            },
-                            "c:QMHOm": {
-                              "padding": 16,
-                              "gap": 8,
-                              "justifyContent": "start",
-                              "layout": "vertical",
+                          "cornerRadius": "$radius/3xl",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "Yv9gn",
+                              "name": "Card Content",
                               "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "padding": 16,
                               "children": [
                                 {
                                   "type": "frame",
-                                  "id": "feaPN",
+                                  "id": "a8LH8",
                                   "width": "fill_container",
                                   "justifyContent": "space_between",
                                   "alignItems": "center",
                                   "children": [
                                     {
                                       "type": "text",
-                                      "id": "Nu46n",
+                                      "id": "APHg5",
                                       "fill": "$muted",
                                       "content": "DISK",
                                       "fontFamily": "$c:--font-secondary",
@@ -409,7 +331,7 @@
                                     },
                                     {
                                       "type": "icon",
-                                      "id": "d9DuqV",
+                                      "id": "DEtZn",
                                       "width": 16,
                                       "height": 16,
                                       "icon": "hard-drive",
@@ -420,7 +342,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "zUXtt",
+                                  "id": "vcUb5",
                                   "fill": "$foreground/foreground",
                                   "content": "13%",
                                   "fontFamily": "$c:--font-primary",
@@ -429,7 +351,7 @@
                                 },
                                 {
                                   "type": "path",
-                                  "id": "LBQyn",
+                                  "id": "Mb8ON",
                                   "geometry": "M0 20l12-1 13 1 12-3 13 2 12-1 13-2 12 2 13-1",
                                   "viewBox": [
                                     0,
@@ -445,7 +367,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "VeEWY",
+                                  "id": "RyPEk",
                                   "clip": true,
                                   "width": "fill_container",
                                   "height": 6,
@@ -455,7 +377,7 @@
                                     {
                                       "type": "rectangle",
                                       "cornerRadius": 999,
-                                      "id": "rtdFd",
+                                      "id": "OpOI4",
                                       "fill": "$success/soft-foreground",
                                       "width": 31,
                                       "height": 6
@@ -464,7 +386,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "mETxB",
+                                  "id": "UPdD0",
                                   "fill": "$muted",
                                   "content": "3.7 GB / 29 GB",
                                   "fontFamily": "$c:--font-secondary",
@@ -472,42 +394,40 @@
                                   "fontWeight": "normal"
                                 }
                               ]
-                            },
-                            "c:tiojM": {
-                              "enabled": false
                             }
-                          }
+                          ]
                         }
                       ]
                     },
                     {
-                      "id": "A9IRE",
-                      "type": "ref",
-                      "ref": "c:ERkuB",
+                      "type": "frame",
+                      "id": "A4x7LB",
                       "name": "Recent Events Card",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "stroke": "$border/border",
-                      "descendants": {
-                        "c:4zoFt": {
-                          "height": "fit_content",
-                          "justifyContent": "space_between",
-                          "alignItems": "center",
+                      "cornerRadius": "$radius/3xl",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "mwOde",
+                          "name": "Card Header",
+                          "width": "fill_container",
+                          "stroke": "$border/border",
+                          "strokeWidth": {
+                            "bottom": 1
+                          },
+                          "strokeAlignment": "inner",
                           "padding": [
                             20,
                             24
                           ],
-                          "stroke": "$border/border",
-                          "strokeAlignment": "inner",
-                          "strokeWidth": {
-                            "bottom": 1
-                          },
-                          "width": "fill_container",
-                          "layout": "horizontal",
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
                           "children": [
                             {
                               "type": "text",
-                              "id": "B3DWI6",
+                              "id": "SsXIt",
                               "fill": "$muted",
                               "content": "RECENT EVENTS",
                               "fontFamily": "$c:--font-secondary",
@@ -517,7 +437,7 @@
                             },
                             {
                               "type": "text",
-                              "id": "EJ0HX",
+                              "id": "II35d",
                               "fill": "$accent/accent",
                               "content": "View all",
                               "fontFamily": "$c:--font-secondary",
@@ -526,21 +446,23 @@
                             }
                           ]
                         },
-                        "c:QMHOm": {
+                        {
+                          "type": "frame",
+                          "id": "K1xcuZ",
+                          "name": "Card Content",
+                          "width": "fill_container",
+                          "layout": "vertical",
                           "padding": [
                             0,
                             24,
                             24,
                             24
                           ],
-                          "gap": 0,
-                          "layout": "vertical",
-                          "width": "fill_container",
-                          "alignItems": "start",
+                          "justifyContent": "center",
                           "children": [
                             {
                               "type": "text",
-                              "id": "Z6ZLxs",
+                              "id": "AsBgw",
                               "fill": "$muted",
                               "content": "No events yet. Lifecycle, backup, and agent activity will appear here.",
                               "fontFamily": "$c:--font-secondary",
@@ -548,11 +470,8 @@
                               "fontWeight": "normal"
                             }
                           ]
-                        },
-                        "c:tiojM": {
-                          "enabled": false
                         }
-                      }
+                      ]
                     }
                   ]
                 },
@@ -565,17 +484,20 @@
                   "gap": 24,
                   "children": [
                     {
-                      "id": "aQvyY",
-                      "type": "ref",
-                      "ref": "c:ERkuB",
+                      "type": "frame",
+                      "id": "wE3Hk",
                       "name": "Connection Card",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "stroke": "$border/border",
-                      "descendants": {
-                        "c:4zoFt": {
-                          "height": "fit_content",
-                          "justifyContent": "start",
+                      "cornerRadius": "$radius/3xl",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "p174I4",
+                          "name": "Card Header",
+                          "width": "fill_container",
+                          "layout": "vertical",
                           "padding": [
                             20,
                             24,
@@ -585,7 +507,7 @@
                           "children": [
                             {
                               "type": "text",
-                              "id": "cGjud",
+                              "id": "sQlt9",
                               "fill": "$muted",
                               "content": "CONNECTION",
                               "fontFamily": "$c:--font-secondary",
@@ -595,18 +517,24 @@
                             }
                           ]
                         },
-                        "c:QMHOm": {
+                        {
+                          "type": "frame",
+                          "id": "mgqT5",
+                          "name": "Card Content",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 12,
                           "padding": [
                             0,
                             24,
                             20,
                             24
                           ],
-                          "gap": 12,
+                          "justifyContent": "center",
                           "children": [
                             {
                               "type": "frame",
-                              "id": "yKxni",
+                              "id": "iiDO5",
                               "name": "Tunnel Address Row",
                               "width": "fill_container",
                               "fill": "$default/default",
@@ -622,14 +550,14 @@
                               "children": [
                                 {
                                   "type": "frame",
-                                  "id": "p6LVMj",
+                                  "id": "D794C8",
                                   "name": "left",
                                   "gap": 10,
                                   "alignItems": "center",
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "qRmNn",
+                                      "id": "ybPZ9",
                                       "name": "tunnelIcon",
                                       "width": 16,
                                       "height": 16,
@@ -639,17 +567,17 @@
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "bBlnJ",
+                                      "id": "CKRzS",
                                       "name": "text stack",
                                       "layout": "vertical",
                                       "gap": 2,
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "S6q0k",
+                                          "id": "ddNNM",
                                           "name": "eyebrow",
                                           "fill": "$muted",
-                                          "content": "TUNNEL \u00b7 FRP",
+                                          "content": "TUNNEL · FRP",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "600",
@@ -657,7 +585,7 @@
                                         },
                                         {
                                           "type": "text",
-                                          "id": "sCXHf",
+                                          "id": "OgpcP",
                                           "name": "address",
                                           "fill": "$foreground/foreground",
                                           "content": "mc.frp.gameplane.dev:25565",
@@ -671,7 +599,7 @@
                                 },
                                 {
                                   "type": "icon",
-                                  "id": "uKeew",
+                                  "id": "SesnA",
                                   "name": "copy",
                                   "width": 14,
                                   "height": 14,
@@ -683,7 +611,7 @@
                             },
                             {
                               "type": "text",
-                              "id": "QNu65",
+                              "id": "CAkFA",
                               "name": "External Address Label",
                               "fill": "$muted",
                               "content": "EXTERNAL ADDRESS",
@@ -694,7 +622,7 @@
                             },
                             {
                               "type": "frame",
-                              "id": "KwT8h",
+                              "id": "t3PBK",
                               "name": "External Address Row",
                               "width": "fill_container",
                               "fill": "$default/default",
@@ -710,7 +638,7 @@
                               "children": [
                                 {
                                   "type": "text",
-                                  "id": "euxMi",
+                                  "id": "XkNXR",
                                   "name": "Label",
                                   "fill": "$muted",
                                   "content": "Address",
@@ -720,7 +648,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "mmF2S",
+                                  "id": "o1sK76",
                                   "name": "stack",
                                   "layout": "vertical",
                                   "gap": 2,
@@ -728,14 +656,14 @@
                                   "children": [
                                     {
                                       "type": "frame",
-                                      "id": "rsxsZ",
+                                      "id": "u7lAU",
                                       "name": "line",
                                       "gap": 8,
                                       "alignItems": "center",
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "v2lhL0",
+                                          "id": "r9wLU",
                                           "name": "Address",
                                           "fill": "$foreground/foreground",
                                           "content": "172.18.255.203",
@@ -745,7 +673,7 @@
                                         },
                                         {
                                           "type": "icon",
-                                          "id": "q3hz6Z",
+                                          "id": "Q7hgV",
                                           "name": "copy",
                                           "width": 14,
                                           "height": 14,
@@ -757,7 +685,7 @@
                                     },
                                     {
                                       "type": "text",
-                                      "id": "kgqt1",
+                                      "id": "fsMvT",
                                       "name": "PoolNote",
                                       "fill": "$muted",
                                       "content": "pool: pool-us-west",
@@ -771,7 +699,7 @@
                             },
                             {
                               "type": "text",
-                              "id": "A4uPCv",
+                              "id": "Oymrr",
                               "name": "Cluster Address Label",
                               "fill": "$muted",
                               "content": "CLUSTER ADDRESS",
@@ -782,7 +710,7 @@
                             },
                             {
                               "type": "frame",
-                              "id": "b6BkCc",
+                              "id": "Gygyy",
                               "width": "fill_container",
                               "fill": "$default/default",
                               "cornerRadius": 8,
@@ -797,7 +725,7 @@
                               "children": [
                                 {
                                   "type": "text",
-                                  "id": "igz7L",
+                                  "id": "bKV2O",
                                   "fill": "$muted",
                                   "content": "Host",
                                   "fontFamily": "$c:--font-secondary",
@@ -806,13 +734,13 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "vOCQV",
+                                  "id": "XKSW6",
                                   "gap": 8,
                                   "alignItems": "center",
                                   "children": [
                                     {
                                       "type": "text",
-                                      "id": "O4o7j",
+                                      "id": "zxVav",
                                       "fill": "$foreground/foreground",
                                       "content": "10.107.129.42",
                                       "fontFamily": "$c:--font-primary",
@@ -821,7 +749,7 @@
                                     },
                                     {
                                       "type": "icon",
-                                      "id": "EAOjP",
+                                      "id": "mHhFO",
                                       "width": 14,
                                       "height": 14,
                                       "icon": "copy",
@@ -834,7 +762,7 @@
                             },
                             {
                               "type": "frame",
-                              "id": "H63ZL",
+                              "id": "PTKCi",
                               "width": "fill_container",
                               "fill": "$default/default",
                               "cornerRadius": 8,
@@ -849,7 +777,7 @@
                               "children": [
                                 {
                                   "type": "text",
-                                  "id": "fRuuG",
+                                  "id": "G8CKW",
                                   "fill": "$muted",
                                   "content": "Port",
                                   "fontFamily": "$c:--font-secondary",
@@ -858,7 +786,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "c5oFa",
+                                  "id": "fBAnk",
                                   "fill": "$foreground/foreground",
                                   "content": "30812",
                                   "fontFamily": "$c:--font-primary",
@@ -868,24 +796,24 @@
                               ]
                             }
                           ]
-                        },
-                        "c:tiojM": {
-                          "enabled": false
                         }
-                      }
+                      ]
                     },
                     {
-                      "id": "kyYj3",
-                      "type": "ref",
-                      "ref": "c:ERkuB",
+                      "type": "frame",
+                      "id": "f9s4y",
                       "name": "Players Online Card",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "stroke": "$border/border",
-                      "descendants": {
-                        "c:4zoFt": {
-                          "height": "fit_content",
-                          "justifyContent": "start",
+                      "cornerRadius": "$radius/3xl",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "WGeuC",
+                          "name": "Card Header",
+                          "width": "fill_container",
+                          "layout": "vertical",
                           "padding": [
                             20,
                             24,
@@ -895,9 +823,9 @@
                           "children": [
                             {
                               "type": "text",
-                              "id": "qUzyD",
+                              "id": "UOfp4",
                               "fill": "$muted",
-                              "content": "PLAYERS ONLINE \u00b7 0",
+                              "content": "PLAYERS ONLINE · 0",
                               "fontFamily": "$c:--font-secondary",
                               "fontSize": 11,
                               "fontWeight": "600",
@@ -905,7 +833,13 @@
                             }
                           ]
                         },
-                        "c:QMHOm": {
+                        {
+                          "type": "frame",
+                          "id": "BqI1o",
+                          "name": "Card Content",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 8,
                           "padding": [
                             0,
                             24,
@@ -917,7 +851,7 @@
                           "children": [
                             {
                               "type": "text",
-                              "id": "p6GuR",
+                              "id": "d19dq2",
                               "fill": "$muted",
                               "content": "No players connected.",
                               "textAlign": "center",
@@ -926,37 +860,35 @@
                               "fontWeight": "normal"
                             }
                           ]
-                        },
-                        "c:tiojM": {
-                          "enabled": false
                         }
-                      }
+                      ]
                     },
                     {
-                      "id": "H697A",
-                      "type": "ref",
-                      "ref": "c:ERkuB",
+                      "type": "frame",
+                      "id": "iT3g6",
                       "name": "Game Status Card",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "stroke": "$border/border",
-                      "descendants": {
-                        "c:4zoFt": {
-                          "height": "fit_content",
-                          "justifyContent": "space_between",
+                      "cornerRadius": "$radius/3xl",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "L6JflQ",
+                          "name": "Card Header",
+                          "width": "fill_container",
                           "padding": [
                             20,
                             24,
                             12,
                             24
                           ],
-                          "layout": "horizontal",
+                          "justifyContent": "space_between",
                           "alignItems": "center",
-                          "width": "fill_container",
                           "children": [
                             {
                               "type": "text",
-                              "id": "Qb0QQ",
+                              "id": "GqIeI",
                               "fill": "$muted",
                               "content": "GAME STATUS",
                               "fontFamily": "$c:--font-secondary",
@@ -966,7 +898,7 @@
                             },
                             {
                               "type": "icon",
-                              "id": "kfnpU",
+                              "id": "dpu3C",
                               "width": 16,
                               "height": 16,
                               "icon": "activity",
@@ -975,18 +907,24 @@
                             }
                           ]
                         },
-                        "c:QMHOm": {
+                        {
+                          "type": "frame",
+                          "id": "EWRTV",
+                          "name": "Card Content",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 12,
                           "padding": [
                             0,
                             24,
                             20,
                             24
                           ],
-                          "gap": 12,
+                          "justifyContent": "center",
                           "children": [
                             {
                               "type": "frame",
-                              "id": "M5m3RX",
+                              "id": "Ev8aI",
                               "width": "fill_container",
                               "fill": "$default/default",
                               "cornerRadius": 8,
@@ -1001,7 +939,7 @@
                               "children": [
                                 {
                                   "type": "text",
-                                  "id": "R3LDA4",
+                                  "id": "NDJYj",
                                   "fill": "$muted",
                                   "content": "World seed",
                                   "fontFamily": "$c:--font-secondary",
@@ -1010,7 +948,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "a9DWc",
+                                  "id": "o8ofh",
                                   "fill": "$foreground/foreground",
                                   "content": "3825002917346286791",
                                   "fontFamily": "$c:--font-primary",
@@ -1021,7 +959,7 @@
                             },
                             {
                               "type": "frame",
-                              "id": "lzbnc",
+                              "id": "PoPSV",
                               "width": "fill_container",
                               "fill": "$default/default",
                               "cornerRadius": 8,
@@ -1036,7 +974,7 @@
                               "children": [
                                 {
                                   "type": "text",
-                                  "id": "LODTi",
+                                  "id": "CBPWR",
                                   "fill": "$muted",
                                   "content": "Difficulty",
                                   "fontFamily": "$c:--font-secondary",
@@ -1045,7 +983,7 @@
                                 },
                                 {
                                   "type": "text",
-                                  "id": "T6DSFO",
+                                  "id": "sWQPS",
                                   "fill": "$foreground/foreground",
                                   "content": "Easy",
                                   "fontFamily": "$c:--font-primary",
@@ -1055,24 +993,24 @@
                               ]
                             }
                           ]
-                        },
-                        "c:tiojM": {
-                          "enabled": false
                         }
-                      }
+                      ]
                     },
                     {
-                      "id": "ozfdk",
-                      "type": "ref",
-                      "ref": "c:ERkuB",
+                      "type": "frame",
+                      "id": "Tnwrg",
                       "name": "Quick Actions Card",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "stroke": "$border/border",
-                      "descendants": {
-                        "c:4zoFt": {
-                          "height": "fit_content",
-                          "justifyContent": "start",
+                      "cornerRadius": "$radius/3xl",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "IUcDF",
+                          "name": "Card Header",
+                          "width": "fill_container",
+                          "layout": "vertical",
                           "padding": [
                             20,
                             24,
@@ -1082,7 +1020,7 @@
                           "children": [
                             {
                               "type": "text",
-                              "id": "g9DQmT",
+                              "id": "I1oBB",
                               "fill": "$muted",
                               "content": "QUICK ACTIONS",
                               "fontFamily": "$c:--font-secondary",
@@ -1092,9 +1030,9 @@
                             }
                           ]
                         },
-                        "c:QMHOm": {
+                        {
                           "type": "frame",
-                          "id": "ug04o",
+                          "id": "OPSy2",
                           "name": "Content",
                           "width": "fill_container",
                           "layout": "vertical",
@@ -1108,7 +1046,7 @@
                           "children": [
                             {
                               "type": "frame",
-                              "id": "i3Ub8",
+                              "id": "c2LNF7",
                               "name": "World Group",
                               "width": "fill_container",
                               "layout": "vertical",
@@ -1116,7 +1054,7 @@
                               "children": [
                                 {
                                   "type": "frame",
-                                  "id": "W97Eqz",
+                                  "id": "Iisub",
                                   "name": "World Label",
                                   "width": "fill_container",
                                   "layout": "vertical",
@@ -1129,7 +1067,7 @@
                                   "children": [
                                     {
                                       "type": "text",
-                                      "id": "i0UyI",
+                                      "id": "W4HkE",
                                       "name": "Label",
                                       "fill": "$muted",
                                       "content": "WORLD",
@@ -1142,7 +1080,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "X1iMsy",
+                                  "id": "jQGEL",
                                   "name": "Set time",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -1152,7 +1090,7 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "zRv9y",
+                                      "id": "g0iru",
                                       "name": "Icon",
                                       "width": 18,
                                       "height": 18,
@@ -1162,7 +1100,7 @@
                                     },
                                     {
                                       "type": "text",
-                                      "id": "LjdXZ",
+                                      "id": "ROJL1",
                                       "name": "Title",
                                       "fill": "$foreground/foreground",
                                       "content": "Set time",
@@ -1174,7 +1112,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "MMQZU",
+                                  "id": "qDPS0",
                                   "name": "Set weather",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -1184,7 +1122,7 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "I1MSaS",
+                                      "id": "YKE6O",
                                       "name": "Icon",
                                       "width": 18,
                                       "height": 18,
@@ -1194,7 +1132,7 @@
                                     },
                                     {
                                       "type": "text",
-                                      "id": "SULB4",
+                                      "id": "g2tXn",
                                       "name": "Title",
                                       "fill": "$foreground/foreground",
                                       "content": "Set weather",
@@ -1206,7 +1144,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "G9pnf",
+                                  "id": "BqjkD",
                                   "name": "Save world",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -1215,7 +1153,7 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "tDdlZ",
+                                      "id": "zEm1G",
                                       "name": "Icon",
                                       "width": 18,
                                       "height": 18,
@@ -1225,7 +1163,7 @@
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "M1tbLl",
+                                      "id": "IfOCn",
                                       "name": "Text",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -1233,7 +1171,7 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "F7p1CL",
+                                          "id": "C8GQZ",
                                           "name": "Title",
                                           "fill": "$foreground/foreground",
                                           "content": "Save world",
@@ -1243,7 +1181,7 @@
                                         },
                                         {
                                           "type": "text",
-                                          "id": "i7i7vW",
+                                          "id": "L42R4h",
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Flush the world to disk now.",
@@ -1257,7 +1195,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "F0si6",
+                                  "id": "RXnNe",
                                   "name": "Output Echo",
                                   "width": "fill_container",
                                   "layout": "vertical",
@@ -1270,7 +1208,7 @@
                                   "children": [
                                     {
                                       "type": "frame",
-                                      "id": "d9zIR",
+                                      "id": "Q6l6X",
                                       "name": "Echo",
                                       "width": "fill_container",
                                       "fill": "$default/default",
@@ -1287,7 +1225,7 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "zYpw5",
+                                          "id": "GNcVw",
                                           "name": "Output Text",
                                           "fill": "$foreground/foreground",
                                           "content": "Saved the game",
@@ -1297,7 +1235,7 @@
                                         },
                                         {
                                           "type": "text",
-                                          "id": "TyCdM",
+                                          "id": "Ny1cE",
                                           "name": "Dismiss",
                                           "fill": "$muted",
                                           "content": "dismiss",
@@ -1313,7 +1251,7 @@
                             },
                             {
                               "type": "frame",
-                              "id": "X1lUW",
+                              "id": "V942Mg",
                               "name": "Server Group",
                               "width": "fill_container",
                               "layout": "vertical",
@@ -1321,7 +1259,7 @@
                               "children": [
                                 {
                                   "type": "frame",
-                                  "id": "RQQ2F",
+                                  "id": "DCio3",
                                   "name": "Server Label",
                                   "width": "fill_container",
                                   "layout": "vertical",
@@ -1334,7 +1272,7 @@
                                   "children": [
                                     {
                                       "type": "text",
-                                      "id": "DxwPx",
+                                      "id": "usWBn",
                                       "name": "Label",
                                       "fill": "$muted",
                                       "content": "SERVER",
@@ -1347,7 +1285,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "szbDc",
+                                  "id": "s3ZNLW",
                                   "name": "Broadcast message",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -1356,7 +1294,7 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "SR6JP",
+                                      "id": "AMcpB",
                                       "name": "Icon",
                                       "width": 18,
                                       "height": 18,
@@ -1366,7 +1304,7 @@
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "dAS6U",
+                                      "id": "hokSc",
                                       "name": "Text",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -1374,7 +1312,7 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "x7ZDmW",
+                                          "id": "nAKEK",
                                           "name": "Title",
                                           "fill": "$foreground/foreground",
                                           "content": "Broadcast message",
@@ -1384,7 +1322,7 @@
                                         },
                                         {
                                           "type": "text",
-                                          "id": "U82g8",
+                                          "id": "RPbzK",
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Send a chat message to everyone on the server.",
@@ -1398,7 +1336,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "sbyS3",
+                                  "id": "RzquJ",
                                   "name": "Sent Confirmation",
                                   "width": "fill_container",
                                   "layout": "vertical",
@@ -1411,7 +1349,7 @@
                                   "children": [
                                     {
                                       "type": "frame",
-                                      "id": "kDGhl",
+                                      "id": "Baemg",
                                       "name": "Sent Chip",
                                       "fill": "$success/soft",
                                       "cornerRadius": "$c:--radius-pill",
@@ -1424,7 +1362,7 @@
                                       "children": [
                                         {
                                           "type": "icon",
-                                          "id": "x4MQYj",
+                                          "id": "TcOlu",
                                           "name": "Check",
                                           "width": 13,
                                           "height": 13,
@@ -1434,7 +1372,7 @@
                                         },
                                         {
                                           "type": "text",
-                                          "id": "U2rkO",
+                                          "id": "KDE4t",
                                           "name": "Label",
                                           "fill": "$success/soft-foreground",
                                           "content": "Broadcast sent",
@@ -1448,7 +1386,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "IFWgG",
+                                  "id": "R6APL",
                                   "name": "Reload config",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -1457,7 +1395,7 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "kIN4r",
+                                      "id": "bwMJQ",
                                       "name": "Icon",
                                       "width": 18,
                                       "height": 18,
@@ -1467,7 +1405,7 @@
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "bVg4j",
+                                      "id": "O3rMW",
                                       "name": "Text",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -1475,7 +1413,7 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "PNJke",
+                                          "id": "OmZAW",
                                           "name": "Title",
                                           "fill": "$foreground/foreground",
                                           "content": "Reload config",
@@ -1485,7 +1423,7 @@
                                         },
                                         {
                                           "type": "text",
-                                          "id": "a0aYG",
+                                          "id": "TTW6H",
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Reapply server.properties without a restart.",
@@ -1499,7 +1437,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "w62oLc",
+                                  "id": "C3z0Po",
                                   "name": "Announce restart",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -1508,7 +1446,7 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "LocZy",
+                                      "id": "mCRXP",
                                       "name": "Icon",
                                       "width": 18,
                                       "height": 18,
@@ -1518,7 +1456,7 @@
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "R2RtH",
+                                      "id": "ZMb5o",
                                       "name": "Text",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -1526,7 +1464,7 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "Z5tEr",
+                                          "id": "TRbrL",
                                           "name": "Title",
                                           "fill": "$danger/danger",
                                           "content": "Announce restart",
@@ -1536,7 +1474,7 @@
                                         },
                                         {
                                           "type": "text",
-                                          "id": "Z6wU1",
+                                          "id": "fSdlZ",
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Warn players, save, and restart the server.",
@@ -1552,7 +1490,7 @@
                             },
                             {
                               "type": "frame",
-                              "id": "pR4sV",
+                              "id": "NekDm",
                               "name": "Players Group",
                               "width": "fill_container",
                               "layout": "vertical",
@@ -1560,7 +1498,7 @@
                               "children": [
                                 {
                                   "type": "frame",
-                                  "id": "P33oc6",
+                                  "id": "tgk90",
                                   "name": "Players Label",
                                   "width": "fill_container",
                                   "layout": "vertical",
@@ -1573,7 +1511,7 @@
                                   "children": [
                                     {
                                       "type": "text",
-                                      "id": "u5EFK",
+                                      "id": "G6bKB",
                                       "name": "Label",
                                       "fill": "$muted",
                                       "content": "PLAYERS",
@@ -1586,7 +1524,7 @@
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "M3x8yv",
+                                  "id": "Mbvfj",
                                   "name": "Toggle PvP",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -1595,7 +1533,7 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "vICAt",
+                                      "id": "ItiRU",
                                       "name": "Icon",
                                       "width": 18,
                                       "height": 18,
@@ -1605,7 +1543,7 @@
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "r6n5pc",
+                                      "id": "EmrNc",
                                       "name": "Text",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -1613,7 +1551,7 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "Y19DFv",
+                                          "id": "tMZTo",
                                           "name": "Title",
                                           "fill": "$foreground/foreground",
                                           "content": "Toggle PvP",
@@ -1623,7 +1561,7 @@
                                         },
                                         {
                                           "type": "text",
-                                          "id": "v16v3c",
+                                          "id": "GgeQ2",
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Enable or disable player-versus-player combat.",
@@ -1638,11 +1576,8 @@
                               ]
                             }
                           ]
-                        },
-                        "c:tiojM": {
-                          "enabled": false
                         }
-                      }
+                      ]
                     }
                   ]
                 }

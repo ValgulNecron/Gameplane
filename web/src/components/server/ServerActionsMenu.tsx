@@ -6,15 +6,15 @@ import {
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
+import { buttonVariants } from "@heroui/styles";
 import type { GameServer } from "@/types";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/hero/DropdownMenu";
 import { useMe, can } from "@/lib/auth";
 import { OWNER_ID_ANNOTATION } from "@/lib/annotations";
 import { CloneServerDialog } from "./CloneServerDialog";
@@ -46,10 +46,11 @@ export function ServerActionsMenu({ gs, onDeleted, onTransferred }: Props) {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label="Server actions">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+        <DropdownMenuTrigger
+          className={buttonVariants({ isIconOnly: true, variant: "ghost" })}
+          aria-label="Server actions"
+        >
+          <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem

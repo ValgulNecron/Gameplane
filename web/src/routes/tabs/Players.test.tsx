@@ -88,7 +88,8 @@ describe("PlayersTab", () => {
     await userEvent.click(toggle);
     const input = await screen.findByPlaceholderText(/Add player to whitelist/i);
     await userEvent.type(input, "dave");
-    await userEvent.click(screen.getByRole("button", { name: /add/i }));
+    const addButton = screen.getByRole("button", { name: /Add/i });
+    await userEvent.click(addButton);
     await waitFor(() => expect(added).toContain("dave"));
   });
 });

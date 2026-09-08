@@ -260,7 +260,7 @@ Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 2
 |---|---|---|---|
 | `LtgNm` | HeroUI: Design System Components | Component library | Frame (reusable component library root) containing 236 children: HeroUI component definitions, labels, and supporting elements. |
 | `tpKRk` | Gameplane/Button/Default | Button composition | Button/Primary/MD variant from HeroUI definitions. |
-| `rNhll` | Gameplane/Button/Outline | Button composition | Button/Outline/MD variant from HeroUI definitions. |
+| `rNhll` | Gameplane/Button/Outline | Button composition | Button/Outline/SM variant from HeroUI definitions (fixed 2026-09-06 from a mis-wired Outline/MD ref — see Incremental export below). |
 | `LMIom` | Gameplane/Button/Ghost | Button composition | Button/Ghost/MD variant from HeroUI definitions. |
 | `XoX7L` | Gameplane/Button/Danger | Button composition | Button/Danger/MD variant from HeroUI definitions. |
 | `z9ShNE` | Gameplane/Button/Small/Default | Button composition | Button/Primary/SM variant from HeroUI definitions. |
@@ -287,7 +287,7 @@ Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) required all 2
 **Export method & validation:**
 
 - **JSON:** `Get(id, {depth: ≥12, includePathGeometry: true})` via the Pencil `execute` tool for each of the 25 components (button components at depth 12; `LtgNm` iterated at depth 10–12 per child, per the section above). All exports executed at depth ≥ 12 (`LtgNm` 10–12) to ensure no `"..."` elision markers appear in structural fields.
-- **Validation of truncation markers:** Programmatic check of all 25 JSON files (`python3 json.load()` + a `"..."` scan) confirmed zero `"..."` as Pencil truncation markers in structural fields (`"children": "..."`, `"geometry": "..."`, etc.), and top-level `"id"` matches the filename in every file. `LtgNm` contains two instances of `"..."` as actual component content — the `Pagination/Ellipsis` (`i18Al2`) symbol and `tableEx` (`Q0ilUf`) cell text — confirmed by path (`.content` fields on leaf nodes `EHTqO`, `DpNvd`), not a structural elision. For the six button components (`tpKRk`, `rNhll`, `LMIom`, `XoX7L`, `z9ShNE`, `d5N3W3`), the first child is a `ref` node pointing at a HeroUI Button definition (`cb4rt`, `i6gfu`, `jsrtu`, `CFM8i`, `j9c5W`, `FIB65` respectively).
+- **Validation of truncation markers:** Programmatic check of all 25 JSON files (`python3 json.load()` + a `"..."` scan) confirmed zero `"..."` as Pencil truncation markers in structural fields (`"children": "..."`, `"geometry": "..."`, etc.), and top-level `"id"` matches the filename in every file. `LtgNm` contains two instances of `"..."` as actual component content — the `Pagination/Ellipsis` (`i18Al2`) symbol and `tableEx` (`Q0ilUf`) cell text — confirmed by path (`.content` fields on leaf nodes `EHTqO`, `DpNvd`), not a structural elision. For the six button components (`tpKRk`, `rNhll`, `LMIom`, `XoX7L`, `z9ShNE`, `d5N3W3`), the first child is a `ref` node pointing at a HeroUI Button definition (`cb4rt`, `FIB65`, `jsrtu`, `CFM8i`, `j9c5W`, `FIB65` respectively — `rNhll` corrected 2026-09-06 from the wrong `i6gfu` (Outline/MD) to `FIB65` (Outline/SM), see Incremental export below).
 - **Screenshots:** `export_nodes` PNG export of each component at 2× scale to `/design-export/screenshots/<id>.png`. All 25 PNG files present, verified non-empty and valid PNG via `file`.
 - **File inventory:** All 25 components have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-04 (git status confirms all 25 ids' json+png as modified).
 - **Verification command:** `for id in LtgNm tpKRk rNhll LMIom XoX7L z9ShNE d5N3W3 J09iP IU7OG D0cDM qvQPg Lmaf1 AT7ya hl7R3 rh2QH k38Uta ZWcwn xCDF7 x3beP WwNlX BPEpm FyV6E w4ntSc zzx8f igj2U; do grep -c "$id" design-export/MANIFEST.md; done` — each id appears exactly once in this section (grep returns 1).
@@ -639,3 +639,347 @@ Component `Llzos` (Alert/Warning callout frame) and related instances on screens
 **Context:**
 
 The Alert/Warning callout component (`Llzos`) used to display Helm-configured admin mapping warnings on the Admin Settings Authentication screens now uses soft warning styling (pink/orange background and foreground colors) with a megaphone icon to better differentiate it as a Helm-seeded configuration callout. The same component instance is referenced by both authentication screens via the HelmAdminMappingWarning ref pattern.
+
+## Incremental export 2026-09-06 — Audit Log screen shell drift fix
+
+Screen `DxKOh` (Screen/Audit Log) inlined its shell as a bare frame (`w2Nho`) instead of instancing `kKFX9` (App Sidebar), leaving the "Audit log" nav item unhighlighted and dropping two levels of the breadcrumb. Fixed the sidebar highlight overrides and rebuilt the breadcrumb to the standard 3-level `gameplane › Settings › Audit log` shape used elsewhere (e.g. `Bq2Yg`, Screen/Admin — System Logs).
+
+**Screen (1):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `DxKOh` | Screen/Audit Log | Re-exported 2026-09-06 after shell/breadcrumb fix. Sidebar instance `w2Nho` (ref `kKFX9`) now overrides: `iTbd8` (navDashboard) fill reset to transparent with icon/label reset to `$foreground/foreground` (was incorrectly left highlighted); `uLhzP` (navAudit) fill set to `$accent/soft` with icon (`Sr2Q5`) and label (`Ra9NK`) set to `$accent/soft-foreground` (was unhighlighted). Top Bar instance `ilUXM` (ref `gu5WY`) breadcrumb descendant `VzGni` replaced with a 3-crumb structure (new id `np6Fv`): "gameplane" › "Settings" › "Audit log" (previously only 2 crumbs reading "gameplane" › "Dashboard"). |
+
+**Export method & validation:**
+
+- **JSON:** `Get("DxKOh", {depth: 20})` via the Pencil `execute` tool, zero `"..."` elision markers. Passes `python3 -m json.tool` validation.
+- **Screenshot:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/DxKOh.png` (2880×1800, valid PNG).
+- **Verification:** JSON contains exactly one `"content":"Audit log"` (breadcrumb leaf) and one `"Settings"` (breadcrumb mid crumb), confirming the 3-level breadcrumb landed. Screenshot visually confirmed only "Audit log" is highlighted in the sidebar and the breadcrumb reads `gameplane › Settings › Audit log`.
+
+**Context:**
+
+`w2Nho` inlines the App Sidebar's structure directly on this screen rather than referencing the `kKFX9` component, so its nav-item overrides had to be set explicitly per-child rather than inherited from a shared instance default. The breadcrumb fix could not use `Copy` directly into the `ilUXM/VzGni` instance descendant path (Pencil rejects mutating instance descendants except via `Update`/`Replace`), so the full 5-node breadcrumb (root, sep, mid, sep, leaf) was rebuilt in one `Replace("ilUXM/VzGni", {...})` call modeled on the equivalent structure already present on `Bq2Yg` (Screen/Admin — System Logs).
+
+## Incremental export 2026-09-06 — Create Server Step 3 Configure: missing CPU/Memory number fields
+
+Screen `vUqMl` (Screen/Create Server — Step 3 Configure) was missing the bordered number input between each resource slider and its unit dropdown (original design: slider → number field showing the value → unit select). Inserted a `Gameplane/Input/Primary` instance (ref `aRqX6`) into each `CtrlRow` between the slider and unit-select refs, with its own Label and Description hidden (`opacity:0, height:0`), height set to 36 to match the row, and the Placeholder text repurposed to show the live value ("2" / "GiB" unit's sibling "4") in `$foreground/foreground` at weight 500 instead of placeholder gray. Also fixed the Memory slider's fill bar (`OoBku/lJsFB`), which stopped short of the thumb — widened from 108 to 156 (the thumb's fixed x=143 + half its 26px width) so the pink fill now ends exactly at the thumb's centre, matching the CPU slider's already-correct 170px fill against the same thumb position.
+
+**Fields (2):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `JZrLu` | Field (CPU row) | Re-exported 2026-09-06. New instance `C87ZoT` (CpuValue, ref `aRqX6`) inserted into `B4fzF5` (CtrlRow) at index 1, between `GMRpf` (CpuSlider) and `q4offT` (CpuUnit). Descendant overrides: `ANxU1` (Label) `opacity:0,height:0`; `K5pqlT` (Input) `height:36, fill:"$field/background", stroke:"$border/border", strokeWidth:1, strokeAlignment:"inner", justifyContent:"center"`; `hokJ3` (Placeholder) `content:"2", fill:"$foreground/foreground", fontWeight:"500"`; `OiyAM` (Description Wrap) `opacity:0,height:0`. |
+| `DxsT3` | Field (Memory row) | Re-exported 2026-09-06. New instance `E2iTg` (MemValue, ref `aRqX6`) inserted into `WGTH9` (CtrlRow) at index 1, between `OoBku` (MemSlider) and `BOTBb` (MemUnit), same descendant overrides as `C87ZoT` but `hokJ3` content `"4"`. Also fixed `OoBku`'s `lJsFB` (Fill) descendant override from `width:108` to `width:156` so the track fill ends at the thumb's centre (thumb `tES7p` sits at fixed `x:143`, width `26`, unchanged). |
+
+## Incremental export 2026-09-06 — Audit Log table: last lunaris instances replaced with HeroUI Table
+
+`DxKOh` (Screen/Audit Log) held one remaining pre-HeroUI ("lunaris") component instance: `PsEYM` (ref `c:pPOgy`, "Table"). Note the original task premise assumed ~64 nested lunaris instances (Table Row/Column Header/Cell); investigation found only the single outer `c:pPOgy` instance is a real document-level component reference — its internal rows/cells/column-headers are baked into the `c:pPOgy` component's own definition as plain frames, not separately overridable instances, so they carry no independent `c:` ref to convert. `Replace("PsEYM", {...})` swapped it in place for a `ECbbo` ("Table") HeroUI instance (new id `dqzgx`), rebuilt with `eafUs` (Table Header) → 6 `DYYKO` (Table Column) headers (TIME/ACTOR/ACTION/METHOD/ACCESS/IP, widths 160/140/fill/104/110/160 matching the original), `GUHQo` (Table Body) → 8 `tDY4O` (Table Row) instances each with 6 `TDRJE` (Table Cell) instances carrying the original text content and colors (`$muted` for TIME/IP, `$foreground/foreground` for ACTOR/ACTION), the METHOD cell nesting a `UOoQW`/`Yeemi`/`eg3vM` (Chip/Soft/Success/Danger/Warning SM) instance per original method color (POST=green, DELETE=red, PUT=amber), and the ACCESS cell as plain colored text (`#21C45D` Allowed, `#DC2626` Denied) matching the original's chip-less styling. The literal (non-lunaris) `Table Footer`/`btnLoadMore` frames, which were already plain frames in the original (not a `c:` instance), were recreated verbatim as a sibling frame after the table body since HeroUI's `X3AX4` Table Footer component has no button slot.
+
+**Screen (1):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `DxKOh` | Screen/Audit Log | Re-exported 2026-09-06. `PsEYM` (`c:pPOgy` Table) replaced by `dqzgx` (`ECbbo` Table) with header/body/footer structure described above. |
+
+**Export method & validation:**
+
+- **JSON:** `Get("DxKOh", {depth: 20})` via the Pencil `execute` tool, zero `"..."` elision markers. Passes `python3 -m json.tool` validation.
+- **Screenshot:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/DxKOh.png` (2880×1800, valid PNG).
+- **Residue check:** `Get("DxKOh", n => (n.ref||"").startsWith("c:") && ..., {depth: 30})` (with a `ctx.skipChildren()` guard on `ref` nodes to work around a Pencil engine crash when Get descends into an instance's children without `resolveInstances: true`) returned zero matches — only the unrelated `"c:Mode":"Dark"` theme key remains, not a component ref.
+- **Verification:** JSON contains exactly one `"content":"Page size 100. Older events load on demand."` (footer text), and the screenshot visually confirms all 8 rows, 6 columns, method chip colors, and Allowed/Denied text colors match the pre-conversion screenshot with no overflow or collapsed layout.
+
+**Engine note:** `Get` on this document throws `TypeError: cannot read property of undefined` whenever it is asked to descend into a component instance's (`type: "ref"`) children without `resolveInstances: true` in the same call — even at `depth: 0`/`depth: 1` on the ref itself as the root path. Reading into instance subtrees therefore requires either `resolveInstances: true` (which flattens all nested refs to their resolved `frame`/`text` types, losing nested-instance identity) or a `ctx.skipChildren()` guard on every `ref` node to stop before the crash (which reveals only the outermost instance boundary, not nested ones).
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: 12, resolveInstances: true})` via the Pencil `execute` tool for both fields, zero `"..."` elision markers. Both pass `python3 -m json.tool` validation.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/JZrLu.png` and `design-export/screenshots/DxsT3.png` (640×202 each, valid PNG).
+- **Verification:** `JZrLu.json` contains exactly one `"content":"cores"` (unit dropdown value, unique to the CPU row) and `DxsT3.json` contains exactly one `"content":"GiB"` (unit dropdown value, unique to the Memory row); no cross-contamination between the two exports. Screenshots visually confirmed: both rows now show slider → bordered number box → unit dropdown, matching the original design reference; Memory's pink fill now reaches the thumb with no gap.
+
+**Context:**
+
+The number-input step was dropped for both resource rows at some point after the sliders and unit selects were built — the slider component (`KWcnQ`) itself carries a "CPU"/"Memory" + value header (`Gky2W`/`x2jDfP`/`S07mY`) that isn't hidden but renders at a barely-visible low-contrast tone, which is not the same UI element as the original's high-contrast bordered value box next to the slider. Reused the existing `aRqX6` HeroUI `Input/Primary` component (already used elsewhere for text fields) rather than introducing a new component, hiding its label/description parts the same way the unit-select component (`gNnkz`) already hides its own label/description via `opacity:0, height:0` overrides on `s5vl0`/`ghgxf`.
+
+## Incremental export 2026-09-06 — Share Link status chips missing leading dot
+
+Three Share Link screens' status chips (`DF2tD`/`g8yT5` "Asleep", `I6B4F` "Online") had lost their leading status dot. The underlying HeroUI chip components (`KmZnF` Chip/Soft/Default/SM, `UOoQW` Chip/Soft/Success/SM) have no dot slot, and each chip instance's immediate parent (`serverIdCol`, one per screen) is a vertical auto-layout — not a horizontal row with a small gap — so a plain in-flow sibling insert before the chip would stack the dot above/below it instead of to its left. Per the blind-edit task's fallback branch: overrode each chip instance's own `padding` to `[2,4,2,20]` (left padding widened from 4 to 20 to make room) and inserted a 6×6 `statusDot` ellipse as an absolutely-positioned (`layoutPosition:"absolute"`) child of the same `serverIdCol` parent, at `x:10, y:45.5` (chip's left edge + 10px, vertically centered on the chip's 19px height), filled with the chip's own color (`#A78BFA` for the two "Asleep" chips, `$success/success` for "Online").
+
+**Screens (3):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `q31B6w` | Screen/Share Link — Asleep (can start) | Re-exported 2026-09-06. Chip `DF2tD` (in `VJg0v`/serverIdCol) gained `padding:[2,4,2,20]`; new sibling ellipse `oJQtJ` (statusDot, `#A78BFA`, 6×6, absolute at 10,45.5). |
+| `qFLfB` | Screen/Share Link — Asleep (view only) | Re-exported 2026-09-06. Chip `g8yT5` (in `g0l7u0`/serverIdCol) gained `padding:[2,4,2,20]`; new sibling ellipse `AJc6E` (statusDot, `#A78BFA`, 6×6, absolute at 10,45.5). |
+| `C2LQE4` | Screen/Share Link — Up | Re-exported 2026-09-06. Chip `I6B4F` (in `v4w83`/serverIdCol) gained `padding:[2,4,2,20]`; new sibling ellipse `zHqma` (statusDot, `$success/success`, 6×6, absolute at 10,45.5). |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: 20})` via the Pencil `execute` tool for all three screens, zero `"..."` elision markers. All three pass `python3 -m json.tool` validation.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/{q31B6w,qFLfB,C2LQE4}.png` (2880×1800 each, valid PNGs).
+- **Verification:** each screen's JSON contains exactly one `"name": "statusDot"` node and the chip's `"padding": [2, 4, 2, 20]` override; no cross-contamination between the three exports. Screenshots visually confirmed against the original references (`orig2/q31B6w.png`, `orig2/qFLfB.png`, `orig2/C2LQE4.png`): the dot now renders before the label inside each pill (e.g. "● Asleep", "● Online"), matching the original layout, with the pill growing slightly wider (48px → 64px) to accommodate the dot rather than the dot overlapping the label.
+
+**Context:**
+
+This is a blind, scoped edit — only the three named chip instances and their immediate parents were touched; the shared component definitions `KmZnF`/`UOoQW` were left untouched so no other chip instance in the document is affected. Pencil does not auto-save; this export was produced directly against the in-memory MCP session state per this task's explicit "never save" instruction, so a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — TE2jI de-instancing (lunaris Card leftovers) + Asleep badge color fix
+
+Screen `TE2jI` (Screen/Server Detail — Overview (Asleep)) still had 9 leftover `c:ERkuB` ("lunaris Card") component instances from before the current HeroUI Card pattern was adopted: `Rbuuh` (Metric CPU), `T5cUA` (Metric Memory), `v2CgN` (Metric Disk), `U9o4n` (Recent Events Card), `syhCk` (Sleep Card), `kTwiX` (Connection Card), `DYtWX` (Players Online Card), `FnrZ4` (Game Status Card), `ayfXc` (Quick Actions Card, disabled). Each was rebuilt in place as a plain frame mirroring the equivalent non-instance card already present on `IzuY2` (Screen/Server Detail — Overview (Never sleeps)) — same wrapper style (`$surface/surface` fill, `$border/border` stroke, outer shadow, no rounded corners), same content/values as the original asleep-state instance (placeholder `—` metric values, "Slept/Woke" event rows, sleep schedule, connection host/port, "offline" game status, hidden Quick Actions) — then the old instance was deleted. Also fixed the "Asleep" status badge next to the `mc-survival` title (`wgpnF/N3nc2n` chip + `wgpnF/N3nc2n/YXoPG` label, part of the `S4k0x` Detail Header instance): it was rendering with the pink accent tokens (`$accent/soft` / `$accent/soft-foreground`) instead of the purple treatment used everywhere else for "Asleep" (matching `z1DZpL`/`ElKBy` on `F9pUrx`, Screen/Servers) — set to `#8B5CF633` (chip background) and `#A78BFA` (label), same values already correctly used inside the rebuilt Sleep Card's own "Asleep" state row.
+
+**New node IDs (replacing the deleted instances, same parent/index):** `Mcf1C` (Metric CPU, in `MDbbJ` idx 0), `QGBuR` (Metric Memory, idx 1), `rUAVC` (Metric Disk, idx 2), `xBlbL` (Recent Events Card, in `L43Cc` idx 1), `t2ALqD` (Sleep Card, in `Ki1IT` idx 0), `HdpM9` (Connection Card, idx 1), `UcHPx` (Players Online Card, idx 2), `X8RUZ1` (Game Status Card, idx 3), `g5GDp` (Quick Actions Card, disabled, idx 4).
+
+**Export method & validation:**
+
+- **JSON:** `Get("TE2jI", {depth: 30, includePathGeometry: true})` via the Pencil `execute` tool, zero `"..."` elision markers (sparkline path geometry included in full via `includePathGeometry`). Passes `python3 -m json.tool` validation.
+- **Screenshot:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/TE2jI.png`.
+- **Verification:** residue check `Get("TE2jI", n => ((n.ref||"").startsWith("c:") || JSON.stringify(n,(k,v)=>k==="children"?undefined:v).includes('"$c:')) && Print(...), {depth: 20})` printed nothing after removing the leftover `cornerRadius:"$c:--radius-none"` token values (replaced with plain `0`, which resolves identically — the original c:ERkuB instances and the IzuY2 mirror cards both carried that same token, so it was a false-positive source, not real residue). JSON contains exactly one `"content":"Player count unavailable while asleep."` (unique to the asleep-state Players Online card) and the purple treatment appears three times as `"fill":"#A78BFA"` (badge label, Sleep Card icon, Sleep Card "Asleep" text) plus once as `"fill":"#8B5CF633"` (badge chip background). Screenshot visually confirmed against `orig2/TE2jI.png`: identical card layout/content/positions, badge now purple instead of pink.
+
+**Context:**
+
+Blind, scoped edit — only the 9 named `c:ERkuB` instances and the one status-badge chip were touched; the shared component definition (`ERkuB`) and every other instance of it elsewhere in the document were left untouched. Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — F9pUrx Servers Table row flex hardening
+
+Investigated a reported overflow/clipping bug on `ucID1` (Servers Table instance, ref `ECbbo`) on `F9pUrx` (Screen/Servers): NAME/GAME/STATUS/CPU/MEMORY/PLAYERS/NODE/ACTIONS column widths were already correctly overridden per-instance (NAME `fill_container`, others fixed 90–180px, ACTIONS 180px with `justifyContent:"end"`), and the current render showed no actual clipping or overflow — NODE text renders in full and the ACTIONS icons sit inside the card in both the pre-change screenshot and `orig2/F9pUrx.png`.
+
+As a defensive hardening (not a visual fix, since none was needed), added explicit `layout: "horizontal"` + `alignItems: "center"` to the 4 row-level instances that were previously relying on an unset (`"none"`/absolute per the schema docs) layout mode: `Z6aeH` (Header Row), `bFomj` (Row mc-survival), `ep3TT` (Row mc-test), `U3GfsB` (Row user-server-test). This makes the row's flex arrangement of its fixed/fill_container cell children explicit rather than implicit, with zero visual change (pixel diff against the pre-edit screenshot showed only a benign ~6px vertical row-position shift from the added `alignItems:center`, no horizontal change).
+
+**Tried and reverted:** also attempted narrowing the ACTIONS cells (`QPxOE`, `Uu6Tk`, `IDgv7`, `H92w9`) from 180px to 140px per the task's suggestion; this caused a severe layout regression (all columns collapsed toward the left with a large empty gap on the right, NAME cell not filling). Reverted those 4 cells back to `width: 180` — left at the original, confirmed-safe value.
+
+**Export method & validation:**
+
+- **JSON:** `Get("F9pUrx", {depth: 20})` via the Pencil `execute` tool, zero `"..."` elision markers. Passes `python3 -m json.tool` validation. Contains `"layout":"horizontal"` exactly 4 times (the 4 touched row nodes) and `"width":180` for all 4 ACTIONS-column cells (`QPxOE`, `Uu6Tk`, `IDgv7`, `H92w9`), confirming the revert.
+- **Screenshot:** `export_nodes` PNG export at 2× scale, 2880×1800, valid PNG.
+- **Verification:** pixel diff between pre-edit and post-edit `F9pUrx` screenshots showed a diff bounding box confined to the table region with mean difference 0.72/255 — visually confirmed as only the ~6px row-height shift from centered alignment, no horizontal shift, no new clipping or overflow. Zoomed crops of the NODE/ACTIONS columns confirm `kubelab-control` / `kubelab-worker-2` render in full and all 4 action icons sit inside the card.
+
+**Context:**
+
+Blind, scoped edit — only the 4 named row instances and the temporarily-touched 4 ACTIONS cells (reverted) were touched; the shared component definitions (`ECbbo`, `eafUs`, `tDY4O`, `TDRJE`, `GUHQo`, `DYYKO`) were left untouched. Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — zhLZN Backup Detail Drawer header button fix (OD-12)
+
+Investigated `zhLZN` (Gameplane/Backup Detail Drawer)'s header (`sVSGe`). A previous haiku agent had mis-renamed the header's only action button instance `JINV8` (ref `J09iP`, a `Button/Ghost/SM`) to "Btn Restore" as an internal node name. A filtered `Get("sVSGe", ..., {depth: 4/6, resolveInstances: true})` established the header contains exactly one button instance — no separate close ("x") icon button exists anywhere in `sVSGe`'s subtree at all (confirmed by an unconditional-print sweep to depth 6 that returned only `sVSGe`, `R4kYq`, `J6746o`, `Y9xsP`, `JINV8`, and `JINV8`'s two resolved children).
+
+`JINV8`'s icon child (`WtPjS`) was `pencil`, not `x` — so the conditional rename-to-"Btn Close" instruction did not apply and its internal node name was left as-is (unchanged; it is not user-visible). `JINV8`'s label child (`r4VbAi`) held the literal placeholder text "Button" (OD-12) — fixed: `content` → `"Restore"`, and its icon (`WtPjS`) → `rotate-ccw` to match the footer's `oxVkD` Restore button treatment.
+
+Checked the footer instances `CghXi` (Btn Delete, ref `IU7OG`, icon `trash-2`, label "Delete") and `oxVkD` (Btn Restore, ref `z9ShNE`, icon `rotate-ccw`, label "Restore") — both already correct, no literal "Button" text, no changes made.
+
+**Node touched:** `JINV8` only, via `descendants` overrides (`eWkIT/r4VbAi.content`, `eWkIT/WtPjS.icon`) — the shared `J09iP` (Button/Ghost/SM) component definition was not touched.
+
+**Export method & validation:**
+
+- **JSON:** `Get("zhLZN", {depth: 20})` via the Pencil `execute` tool, zero `"..."` elision markers. Passes `python3 -m json.tool` validation. Contains `"content":"Restore"` exactly twice (header `JINV8` override and footer `oxVkD` override, both correct).
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/zhLZN.png`, 1008x1648, valid PNG.
+- **Verification:** screenshot of `sVSGe` before the edit showed "Backup details" / filename on the left and a pencil-icon "Button" on the right; after the edit it shows the same title/filename and a rotate-ccw-icon "Restore" button, no layout overflow. Full `zhLZN` screenshot confirms header now reads "Backup details" + "Restore" alongside the unchanged footer "Delete"/"Restore" buttons.
+
+**Open question not resolved by this pass:** the task described `JINV8` as "the close (x) button," but no close/x button node exists anywhere in `sVSGe` — the header has only ever had the one action button. Whether the design is missing a dedicated close control is a design-intent question, not something this scoped, blind edit pass should decide; flagged for the maintainer/a design-judgement pass rather than invented here.
+
+**Context:**
+
+Blind, scoped edit — only `JINV8`'s descendant overrides were touched; `R4kYq`, `J6746o`, `Y9xsP`, the footer instances, and the shared component definitions (`J09iP`, `IU7OG`, `z9ShNE`) were left untouched. Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — UMJli Create Server Step 5 primary button icon order
+
+Investigated `UMJli` (Screen/Create Server — Step 5 Review)'s primary footer button instance `Bn9BX` (ref `aic7V` = `Button/Primary/LG`, label child `aNpk5`, icon child `y91nX`). The live render showed the icon (`check`) *before* the label "Create server"; the original design (`orig2/UMJli.png`) shows the label followed by a trailing icon.
+
+`Get("Bn9BX", ..., {depth: 2, resolveInstances: true})` confirmed `Bn9BX` is an instance of `aic7V`, not a standalone frame, and that the icon-then-label child order is baked into the shared definition `aic7V` itself (`y91nX` icon child precedes `aNpk5` label child in `aic7V`'s own children array) — editing that order would mean editing the `LtgNm` component definition, which is out of scope (never edit a definition inside `LtgNm`).
+
+Listed all `Button/Primary/*` variants in `LtgNm`: `j9c5W` (SM), `cb4rt` (MD), `aic7V` (LG), plus icon-only variants `RC4D7`/`pRZSi`/`uvgI7` (Icon/SM/MD/LG — checked `uvgI7`, confirmed icon-only with no label, not usable). **No trailing-icon (label-then-icon) `Button/Primary` variant exists.**
+
+Per the no-variant fallback: hid the leading icon on the instance only via `Update("Bn9BX", {descendants: {"y91nX": {opacity: 0, width: 0}}})`. Screenshot after the change shows a clean "Create server" label, no overflow or collapse, though the button loses the trailing-icon look of the original (opacity: 0 removes visibility but not the icon's original layout completely — verified no visible gap/artifact remains).
+
+**Node touched:** `Bn9BX` only, via `descendants` override (`y91nX.opacity`, `y91nX.width`) — the shared `aic7V` (Button/Primary/LG) component definition was not touched, and no other footer button (`wuwVx`/Back) was touched.
+
+**Export method & validation:**
+
+- **JSON:** `Get("UMJli", {depth: 30})` via the Pencil `execute` tool, zero `"..."` elision markers. Passes `python3 -m json.tool` validation. Contains `"content":"Create server"` once (footer `Bn9BX` override) and the `y91nX` override `"opacity":0,"width":0` once.
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/UMJli.png`, 2880×1800, valid PNG.
+- **Verification:** screenshot of `Bn9BX` before the edit showed a leading check icon then "Create server"; after the edit it shows "Create server" alone, centered, no broken/overflowing layout. Full `UMJli` screenshot confirms the rest of the review screen (template/version/configuration/network sections, YAML preview, footer Back button) is unchanged.
+
+**Open question not resolved by this pass:** no `Button/Primary` variant in the component library supports a trailing icon, so the original design's "label then arrow/check icon" treatment cannot be reproduced without either a new component variant or a definition edit — both out of scope for a blind, scoped fix. Flagged for a design-judgement pass to decide whether to add a `Button/Primary/Trailing` variant.
+
+**Context:**
+
+Blind, scoped edit — only `Bn9BX`'s descendant override was touched; the `aic7V` shared definition and all other `Button/Primary/*`/`Button/Primary/Icon/*` variants were left untouched. Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — DxKOh / QgW58 / J5pjJ3 icon fixes
+
+Three icon-correctness fixes across three screens, found via filtered `Get` sweeps (never a full-depth screen dump):
+
+1. **`DxKOh` (Screen/Audit Log)** — the audit-integrity banner's "Re-check" button (`x8cjS`, a `Gameplane/Button/Ghost/SM`-shaped bespoke frame, not an instance) had a `pencil` icon on its icon child `x8cjS/eWkIT/WtPjS`. That read as an edit affordance on a button whose label is "Button"/re-check action, not an edit action — changed the icon to `plus`. `Update("x8cjS", {descendants: {"eWkIT/WtPjS": {icon: "plus"}}})`.
+2. **`QgW58` (Screen/Admin Settings — Authentication (Save rejected))** — two separate fixes:
+   - The "Helm-configured admin mapping" warning callout (`zg6cG`, a bespoke frame, not a HeroUI Alert instance) had a plain `triangle-alert` icon on its icon child `H4Cgu5`. Changed directly to `megaphone` to match the house warning-callout style: `Update("H4Cgu5", {icon: "megaphone"})`.
+   - The bottom error banner `B89TO` ("saveErrorBanner", containing the text "Request failed (409): a server with that name already exists.") was a plain frame with only a text child (`E51IQ`) — no icon at all. Inserted a new leading icon child: `Insert("B89TO", {type: "icon", name: "Error Icon", icon: "alert-circle", library: "lucide", width: 16, height: 16, fill: "$danger/danger"})` then `Move(id, "B89TO", 0)`. The icon set in this document uses the renamed lucide id `circle-alert`, not `alert-circle` — the engine rejected `alert-circle` with an "icon not found" issue, corrected via a follow-up `Update(id, {icon: "circle-alert"})`. Final banner: `circle-alert` icon then the "409" text, both `$danger/danger`.
+3. **`J5pjJ3` (Screen/Server Detail — Settings · Networking)** — three warning callouts (`znLuB` "Tailscale is tailnet-only", `q1zaXx` "Address preference ignored", `MLrud` "No address manager configured"), each a bespoke frame (not a HeroUI Alert instance) with a `triangle-alert` icon on child path `<instId>/JvjWQ`. All three changed to `megaphone`: `Update("znLuB", {descendants: {"JvjWQ": {icon: "megaphone"}}})` (and the same for `q1zaXx`, `MLrud`). A fourth `triangle-alert` icon (`eRj5l`) found by the same filtered sweep sits in the unrelated `snDangerZone` section (not a warning callout) and was correctly left untouched.
+
+**Nodes touched:** `x8cjS` (descendant override only), `H4Cgu5` (direct, plain node), `B89TO` (new child `UEI7P` inserted + icon corrected), `znLuB`/`q1zaXx`/`MLrud` (descendant overrides only, path `JvjWQ`). No shared component definition (`LtgNm`) was touched; no root frame moved/deleted/duplicated.
+
+**Export method & validation:**
+
+- **JSON:** component-level `Get(id, {depth: 10[, resolveInstances: true]})` for each of the six touched nodes (`x8cjS`, `zg6cG`, `B89TO`, `znLuB`, `q1zaXx`, `MLrud` — `zg6cG` exported instead of bare `H4Cgu5` to keep the callout's full context), zero `"..."` elision markers, written to `design-export/json/<id>.json`. All six pass `python3 -m json.tool`. Full-screen `DxKOh.json`/`QgW58.json`/`J5pjJ3.json` were left as their existing (pre-existing, shallow sidebar-only) exports since the touched sub-nodes are not represented in that shallow depth and are now covered by their own component-level files.
+- **Screenshots:** `export_nodes` PNG export at 2x scale for all six touched node ids to `design-export/screenshots/<id>.png`; all non-empty with real pixel dimensions. Also took full-screen screenshots of `DxKOh`, `QgW58`, `J5pjJ3` via `get_screenshot` to confirm no layout regression.
+- **Verification:** each component screenshot visually confirms the corrected icon — `x8cjS` shows a `+` before "Button"; `zg6cG`/`znLuB`/`q1zaXx`/`MLrud` all show the megaphone glyph before their respective warning titles; `B89TO` shows a red circle-alert glyph before "Request failed (409): a server with that name already exists.". Full-screen screenshots show no overflow/collapse anywhere on the three screens.
+
+**Context:**
+
+Grep-first, blind-edit pass per CLAUDE.md rule 17 — filtered `Get` visitors located every candidate icon by type/value, no full-depth screen dump or judgement-based "reconcile" was performed. Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — zqzr4 Admin Settings action-row alignment fix
+
+Investigated `zqzr4` (Screen/Admin Settings — Authentication, admin mapping warning): the "Save changes" button under the "Add identity provider" panel was left-aligned instead of right-aligned as in the original (`orig2/zqzr4.png`) and the sibling screen `QgW58`.
+
+Located the button via a filtered `Get("zqzr4", (n, ctx) => n.content === "Save changes" ..., {depth: 30, resolveInstances: true})`, which returned the ancestor chain `HPFBR/q58In/U6q13B < HPFBR/q58In < HPFBR < Y6K3J < ...` — `HPFBR` is the button instance, `Y6K3J` its direct parent (the action row). The same filter on `QgW58` returned `wyW2y < Wdqop < Xng32 < xCAZJ < ...` — `Xng32` the button instance, `xCAZJ` its direct parent (the reference action row).
+
+Compared the two action rows at `{depth: 1}`: `xCAZJ` (reference, correct) had `{justifyContent: "end", width: "fill_container", padding: [8,20,20,20], alignItems: "center", gap: 8}`; `Y6K3J` (buggy) had the same `width`/`padding`/`gap` but was **missing `justifyContent` and `alignItems`**, defaulting to left/start alignment. Verified the row had not been moved into the wrong parent: `LxJdk`'s children (`r3MEl, jhSx4, Y6K3J`) mirror `pDbdm`'s children (`jR1Pi, byGWB, xCAZJ`) — same structural position, three siblings with the action row last in both.
+
+**Fix:** `Update("Y6K3J", {justifyContent: "end", alignItems: "center"})`. No move, no other property changed.
+
+**Export method & validation:**
+
+- **JSON:** `Get("zqzr4", {depth: 40, resolveInstances: true})` via the Pencil `execute` tool (output exceeded the tool's inline token limit and was saved to a harness tool-results file; extracted the `Print output` JSON line and validated with `python3 -m json.tool`). Zero elision — file is 337,452 bytes. Contains `"Save role mappings"` exactly once (the bottom row label).
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/zqzr4.png`, 2880x4672, valid PNG.
+- **Verification:** full-screen screenshot confirms "Save changes" is now right-aligned under the "Add identity provider" panel, all cards fit inside the 2336px frame, and the "Role mapping overrides" panel with its "Save role mappings" row is fully visible at the bottom — no overflow.
+
+**Context:**
+
+Grep-first, blind-edit pass per CLAUDE.md rule 17 — only `Y6K3J`'s own layout properties were changed; no screen-wide dump or judgement-based "reconcile" was performed. Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — x7MJI Connection Card HeroUI re-skin (GN3ni, AWAjU)
+
+`x7MJI` (Gameplane/Connection Card — Tunnel States reference) still held two `lunaris` `c:ERkuB` Card instances — `GN3ni` "Connection Card (Tailscale)" and `AWAjU` "Connection Card (playit connecting)" — the only surviving `c:`-ref Card instances on that reference screen. Rebuilt both in place as plain HeroUI-styled frames.
+
+For each card: inserted a new plain frame into the card's parent column (`aAPWT` for `GN3ni`, `B3x43y` for `AWAjU`) styled like `Card/Default` (`XDZ0E`) — `fill: "$surface/surface"`, `stroke: "$border/border"`, `cornerRadius: "$radius/3xl"`, `layout: "vertical"`, same `width: 399` as the old instance, `gap`/`padding` `0` (matching the `c:ERkuB` definition's own undefined gap/padding — its sections carry their own padding) — then inserted two child frames mirroring `Card Header` (`FRpsu`: `width: "fill_container"`, `layout: "vertical"`) and `Card Content` (`I9ZPb`: `width: "fill_container"`, `layout: "vertical"`, `gap: 4` pattern), each given the old instance's actual section padding (header `[20,24,12,24]`, content `[0,24,20,24]`, content `gap: 12`). Moved every real content child from the old instance's resolved descendant paths (e.g. `GN3ni/c:4zoFt/CGDUl`, `GN3ni/c:QMHOm/zjymb`) into the new frames in original order, then deleted the emptied old ref instance. Because `Insert` appends and the old instance was deleted afterward, the new card landed at the same child index automatically (`aAPWT`: `[u9bCb, XVJA4]`; `B3x43y`: `[z7Xfpm, o6lxF]` — same positions as `[caption, card]` before).
+
+New node ids: `XVJA4` (Tailscale card, was `GN3ni`) with children `QhZSW` (Card Header) and `lOZGP` (Card Content); `o6lxF` (playit card, was `AWAjU`) with children `y53nlu` (Card Header) and `HGEjK` (Card Content). All original leaf content nodes (`CGDUl`, `zjymb`, `wT7p7`, `tWEy4`, `n0rynH`, `E9xw2f`, `YbjOG`, `RfbOQ`, `CA1Zv`, `oyd1p`, and their descendants) kept their original ids and content unchanged — only their parent chain changed.
+
+**Engine quirk hit:** `Get(id, (n,ctx)=>{...(n.children||[]).map(...)`, `{depth:1}`)` visitors throw `TypeError: not a function` — in visitor mode `n.children` is not a plain array (accessing `.map` on it fails). Worked around by printing `n.id`/`n.type` per visited node instead of touching `n.children` directly; child order was inferred from the visit sequence.
+
+**Residue check:** `Get("x7MJI", (n,ctx) => { if ((n.ref||"").startsWith("c:")) Print("RESIDUE", n.id, n.ref); if (n.type === "ref") ctx.skipChildren(); }, {depth: 30})` printed nothing — no `c:`-ref residue anywhere under `x7MJI`.
+
+**Export method & validation:**
+
+- **JSON:** `Get("x7MJI", {depth: 12})` via `execute`, zero `"..."` elision markers, written to `design-export/json/x7MJI.json`. Passes `python3 -m json.tool`. `grep -o '"content": "[^"]*"'` confirms all 18 original body strings survived verbatim (Unicode-escaped in the re-serialized JSON, e.g. `Tailscale — private (tailnet only)`, `mc-survival.tail4e2a.ts.net:25565`, `Waiting for tunnel address…`).
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/x7MJI.png`, 1740x686, valid non-empty PNG.
+- **Verification:** the screenshot shows both cards as bordered, rounded, dark-surface HeroUI cards with a "CONNECTION" header, matching content in the same rows as before (Tailscale: warning-bordered tunnel-address row with lock icon, "TUNNEL · TAILSCALE" eyebrow, tailnet-only badge, mono address, host/port rows; playit: neutral tunnel-address row with loader-circle icon, "TUNNEL · PLAYIT.GG" eyebrow, italic "Waiting for tunnel address…", host/port rows). No collapsed, overflowing, or broken layout.
+
+**Context:**
+
+Grep-first, blind-edit pass per CLAUDE.md rule 17 — the edit list (parent-styled frame + two section frames + child moves) was fixed in advance from the already-exported `x7MJI.json` and the `c:ERkuB`/`FRpsu`/`I9ZPb`/`XDZ0E` definitions; no full-depth judgement-based "reconcile" of the card was performed. Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — z9ShNE / rNhll HeroUI ref cleanup (CodeRabbit PR #349)
+
+CodeRabbit flagged `z9ShNE` (Gameplane/Button/Small/Default) and `rNhll` (Gameplane/Button/Outline) as hand-built wrapper frames duplicating HeroUI button styling instead of referencing the HeroUI definitions.
+
+`Get("z9ShNE", {depth: 2})` showed the inner `Button` child (`IVgQ8`) was **already** a `ref` instance of `j9c5W` (Button/Primary/SM) with the label override (`U1xvSo`: `{content: "Button"}`) intact — a prior pass had already done the ref swap. The only remaining defect was the wrapper `z9ShNE` itself still carrying its own duplicated `fill: "$accent/accent"` and `cornerRadius: "$radius/md"`, redundant with `j9c5W`'s own `fill`/`cornerRadius`.
+
+`Get("rNhll", {depth: 2})` showed its inner `Button` child (`Q57b2`) was a `ref`, but wired to the **wrong** definition: `i6gfu` (Button/**Outline/MD**, 100×36) instead of the SM variant. Found the correct target via `Get("LtgNm", n => n.reusable && /^Button\/Outline\/SM$/.test(n.name||"") && Print(n.id, n.name), {depth: 2})` → `FIB65` (Button/Outline/SM, 84×32). The wrapper `rNhll` also carried its own duplicated `stroke: "$border/border"` and `cornerRadius: "$radius/3xl"`.
+
+**Fix:**
+- `z9ShNE`: `Update("z9ShNE", {fill: "#00000000", cornerRadius: 0})` — cleared the wrapper's duplicated fill/cornerRadius; visual styling now comes solely from the `j9c5W` ref child. Label/icon/size/position untouched.
+- `rNhll`: `Replace("Q57b2", {...})` threw `TypeError: Cannot read properties of undefined (reading 'type')` on every path form tried (bare id, `rNhll/Q57b2`) — worked around with `Delete("Q57b2")` followed by `Insert("rNhll", {type: "ref", ref: "FIB65", name: "Button", descendants: {"zMNkR": {content: "Button"}}})` (new child id `wDXFJ`), preserving the "Button" label text on the new definition's own label node (`zMNkR`, since `FIB65`'s label child id differs from `i6gfu`'s `GqVun`). Then `Update("rNhll", {stroke: "#00000000", cornerRadius: 0})` cleared the wrapper's duplicated stroke/cornerRadius.
+- Net effect on `rNhll`'s hug width: 132×36 → 116×36 (84px SM child + unchanged `[8, $spacing/4]` padding, down from the wrong 100px MD child) — height and position unchanged; this narrowing is the correct consequence of using the SM definition instead of the previously-mis-wired MD one.
+
+**Verification:**
+- Post-fix `Get` on both wrappers confirmed `fill`/`stroke`/`cornerRadius` are now `undefined` on both wrapper frames and on their ref children — all visual styling delegates to the HeroUI `j9c5W`/`FIB65` definitions.
+- Screenshots of `z9ShNE` and `rNhll` in isolation show solid, cleanly-rounded pill buttons with no visible seam, gap, or double border between wrapper and inner ref.
+- Screenshots of `dQV9N` (Screen/Server Detail — Settings · Share links (Empty), uses `z9ShNE` via a "Create link" instance) and `b4eaUf` (Screen/Server Detail — Capture — Start capture (Invalid filter), uses `rNhll` via a "Cancel" instance) confirm both screens render correctly post-fix — no broken, collapsed, or overflowing layout.
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: 4})` via `execute` for both `z9ShNE` and `rNhll` (button compositions are shallow — depth 4 fully resolves the wrapper + its one ref child + descendant overrides with zero `"..."` elision), written to `design-export/json/z9ShNE.json` and `design-export/json/rNhll.json`. Both pass `python3 -m json.tool`.
+- **Screenshots:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/z9ShNE.png` and `design-export/screenshots/rNhll.png`, both non-empty valid PNGs.
+
+**Context:**
+
+Targeted, judgement-light fix per CLAUDE.md rule 17 spirit — only the two flagged wrapper nodes and `rNhll`'s single ref child were touched; no screen-wide dump or reconcile-by-eye was performed on either definition or on the two screens used only for regression screenshotting. Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — EZFW0 Server Detail Overview: restored missing metric-card sparklines
+
+`EZFW0`'s three metric cards (CPU `yyxoE`, Memory `d9mRd`, Disk `E62N4`) had lost their sparkline trend lines — each card's `path` node (`XCNbc`, `IMSDo`, `bjZE6`) existed structurally (same `type`, `viewBox`, `stroke`, `strokeWidth` as the working sibling screen `IzuY2`) but rendered as a blank/invisible line. `n.geometry` reads as the literal 3-character placeholder `"..."` via a normal `Get` (confirmed via `.length`/char-code checks) regardless of whether the path actually renders — `Get`'s `includePathGeometry: true` option (undocumented in the app-state summary; found via the `execute` API's own inline TS signature) is required to see real path data, and copying `n.geometry` through `Update` did not restore the visual (the value read back was the same elided placeholder on both the broken and working nodes, so a naive `Update(target, {geometry: sourceGeometryValue})` was a no-op).
+
+**Fix:** used the native `Copy(path, parent, copyNodeData)` primitive instead of reading/writing the `geometry` property, since `Copy` duplicates the node's actual internal data rather than round-tripping it through the elided JS reflection:
+- `Delete("XCNbc")` → `Copy("OB5ve", "N7x6Xs", {})` (from `IzuY2`'s CPU card) → `Move(<newId m72bbw>, "N7x6Xs", 2)` to restore its position between the "0%" text and the progress-bar frame.
+- `Delete("IMSDo")` → `Copy("Kkgv2", "A5w3dO", {})` (from `IzuY2`'s Memory card) → `Move(<newId KGZYS>, "A5w3dO", 2)`.
+- `Delete("bjZE6")` → `Copy("KVGfX", "XNdKY", {})` (from `IzuY2`'s Disk card) → `Move(<newId vdDJJ>, "XNdKY", 2)`.
+
+**Verification:** screenshots of each metric card (`yyxoE`, `d9mRd`, `E62N4`) individually and the full `EZFW0` screen, compared against `IzuY2`'s equivalents and the reference screenshot supplied for this task — all three sparklines now render (pink/purple/green zigzag lines matching their card's accent color), no layout breakage, overflow, or clipping. A follow-up `Get(..., {includePathGeometry: true})` on the new nodes confirmed real `M0 16l12-3...`-style path data (not the `"..."` placeholder).
+
+**Export method & validation:**
+- **JSON:** `Get("EZFW0", {depth: 20, includePathGeometry: true, resolveInstances: true})`, written to `design-export/json/EZFW0.json`. Passes `python3 -m json.tool`; zero `"..."` elision markers (`grep -c '"\.\.\."'` = 0); content-validated via `grep -o '"Saved the game"'` (unique body text on this screen).
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/EZFW0.png` (2880×2600, non-empty RGBA).
+
+**Context:** Only the three sparkline path nodes on `EZFW0` were touched (delete + copy + reposition); no other node on the screen was read or modified. Pencil does not auto-save — a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — kIxaJ Audit Integrity Banner: replaced last lunaris `c:` instance
+
+Residue check (`Get("kIxaJ", (n,ctx)=>{ if((n.ref||"").startsWith("c:")) Print("RESIDUE",n.id,n.ref,n.name); if(n.type==="ref") ctx.skipChildren(); }, {depth:30})`) printed exactly one hit: `RESIDUE aAaPa c:YZjRF Integrity Banner (Broken)` — the reusable `kIxaJ` composition's only child besides its own reference-label text (`ZEqkj`) was a `ref` into the lunaris library (`c:YZjRF`, named "Integrity Banner (Broken)").
+
+`Get("aAaPa", ..., {depth:5, resolveInstances:true})` showed the resolved instance: a horizontal `frame` (`fill_container` width, `$danger/danger` fill, `gap:12`, `padding:16`, `alignItems:"center"`) containing a 24×24 icon frame (`aAaPa/c:LB3Fl`, fill `$foreground/foreground`) wrapping a hand-drawn wave/pulse vector path (`aAaPa/c:FTYwP`), and a text child (`fuKsy`, content `"Integrity check failed — chain breaks at event #286"`, fill `$danger/foreground`, `fontSize:16`, `fontWeight:"500"`, `fontFamily:"$typography/font-sans"`). The reference screenshot (`design-export/screenshots/kIxaJ.png`, pre-edit) confirmed the same: a solid red banner with a dark icon chip (pulse icon) and bold white message text.
+
+No HeroUI `Alert/*` definition (`CEGPG`, `O3T14b`, `v0xtri`, `Llzos`, `f7KBn` Danger, `r0CzE`, `JCxNu`, `uJ3KZ`) matches this single-line full-width banner shape — all eight are title+description cards on a light `$surface/surface` background at fixed `width:540`. Per the task's guidance that colours/shapes may differ as long as content/rows/icons/sizes/position match, rebuilt the banner as a plain frame styled like the original (not literally re-parented under an `Alert/*` definition, since none fit), replacing only the lunaris vector icon with the closest semantic lucide icon (`activity` — a pulse/waveform, matching the original hand-drawn squiggle) and keeping the exact original text content and styling.
+
+**Fix:**
+- `Insert("kIxaJ", {type:"frame", name:"Integrity Banner (Broken)", width:"fill_container", fill:"$danger/danger", gap:12, padding:16, alignItems:"center"})` → new id `m1hP1j`.
+- `Insert(m1hP1j, {type:"frame", name:"Icon", width:32, height:32, fill:"$foreground/foreground", cornerRadius:6, padding:4, alignItems:"center", justifyContent:"center"})` → `gJjR4`, then `Insert(gJjR4, {type:"icon", library:"lucide", icon:"activity", width:20, height:20, fill:"$danger/foreground"})` → `z04z2`.
+- `Insert(m1hP1j, {type:"text", name:"Message", content:"Integrity check failed — chain breaks at event #286", fill:"$danger/foreground", lineHeight:1.5, fontFamily:"$typography/font-sans", fontSize:16, fontWeight:"500"})` → `Mtc22` (text copied verbatim from the old `fuKsy` node).
+- `Delete("aAaPa")` (the emptied lunaris ref; not a root frame — `kIxaJ` itself is untouched and keeps its id/size).
+- `Move("m1hP1j", "kIxaJ", 1)` — restored the new node to `aAaPa`'s original index (1) among `kIxaJ`'s two children.
+
+**Verification:**
+- Residue check re-run post-fix: zero output — no `c:`-prefixed `ref` remains under `kIxaJ`.
+- Screenshot of `kIxaJ` post-fix shows a solid red banner, dark rounded icon chip with a white pulse icon, and bold white "Integrity check failed — chain breaks at event #286" text — matching the pre-edit reference screenshot's layout, proportions, and content; no broken, collapsed, or overflowing layout.
+
+**Export method & validation:**
+- **JSON:** `Get("kIxaJ", {depth: 15})` via `execute` (zero `"..."` elision markers — the whole composition is 2 levels deep past `kIxaJ`), written to `design-export/json/kIxaJ.json`. Passes `python3 -m json.tool`; content-validated via `grep -o "chain breaks at event #286"` (unique body text, one hit).
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/kIxaJ.png` (1400×312, non-empty RGBA).
+
+**Context:** `kIxaJ` is `Gameplane/Audit Integrity Banner`, a reusable component — its root id (`kIxaJ`) and outer size (700×hug, per its own `width:700` / vertical layout) were not touched; only the inner `aAaPa` slot was replaced. Pencil does not auto-save — a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — RC3Kf Admin Settings — Backup destinations: replaced last lunaris `c:` instance
+
+Residue check (`Get("RC3Kf", (n,ctx)=>{ if((n.ref||"").startsWith("c:")) Print("RESIDUE",n.id,n.ref,n.name); if(n.type==="ref") ctx.skipChildren(); }, {depth:30})`) printed exactly one hit: `RESIDUE t86T1 c:ERkuB Settings Panel` — the "Backup destinations" card in the settings-layout body was a lunaris library instance.
+
+`Get("t86T1", ..., {depth:5, resolveInstances:true})` showed the resolved instance: an 888×159 vertical frame (`$surface/surface` fill) with a Card Header sub-frame (title text `BwzPk` "Backup destinations", description text `U2CRgX` "Restic repositories for snapshots. Stored as labelled Kubernetes Secrets in the configured namespace."), a Card Content sub-frame (empty-state text `NMici` "No backup destinations configured. Add one to enable snapshots."), and a Card Actions sub-frame containing a pink "+ Add destination" button (`wFu1e`, already a plain `Gameplane/Button/Default` (`tpKRk`) ref, not a lunaris one). The reference screenshot (`orig2/RC3Kf.png`) confirmed the same layout.
+
+Rebuilt as a plain frame styled like the HeroUI `XDZ0E` Card/Default definition (`width:888`, vertical layout, `fill:"$surface/surface"`, `cornerRadius:"$radius/3xl"`, outer shadow effect matching `XDZ0E`), with `FRpsu`/`I9ZPb`-style Card Header / Card Content sub-frames plus a Card Actions sub-frame, moving the three real text nodes and the existing button ref into the new structure instead of recreating them.
+
+**Fix:**
+- `Insert("rMHXz", {type:"frame", name:"Card/Default", width:888, layout:"vertical", fill:"$surface/surface", cornerRadius:"$radius/3xl", effect:{type:"shadow", shadowType:"outer", color:"#0000000A", offset:{x:0,y:2}, blur:4}, x:244, y:0})` → new id `kq3Lz`.
+- `Insert(kq3Lz, {type:"frame", name:"Card Header", layout:"vertical", gap:4, padding:[20,20,16,20]})` → `Lo8oV`; `Insert(kq3Lz, {type:"frame", name:"Card Content", layout:"vertical", gap:16, padding:[0,20]})` → `pROKa`; `Insert(kq3Lz, {type:"frame", name:"Card Actions", layout:"horizontal", justifyContent:"flex-end", gap:8, padding:[8,20,20,20]})` → `fOMFH`.
+- `Move("BwzPk", "Lo8oV")`, `Move("U2CRgX", "Lo8oV")`, `Move("NMici", "pROKa")`, `Move("wFu1e", "fOMFH")` — moved the real title, description, empty-state text and button into the new frames; `Update` calls set `width:"fill_container"` on the three new sub-frames and the three moved text nodes to resolve the resulting collapsed-size warnings.
+- `Delete("t86T1")` (the emptied lunaris ref; not a root frame).
+- `Move("kq3Lz", "rMHXz", 1)` — placed the new card at `t86T1`'s original index (1, after `X4OyDd` Settings Nav) among `rMHXz`'s children.
+
+**Verification:**
+- Residue check re-run post-fix: zero output — no `c:`-prefixed `ref` remains under `RC3Kf`.
+- Screenshot of `RC3Kf` post-fix shows the same "Backup destinations" card — title, description, empty-state message, and pink "+ Add destination" button in the same 888×159 position/size as the reference screenshot; no broken, collapsed, or overflowing layout.
+
+**Export method & validation:**
+- **JSON:** `Get("RC3Kf", {depth: 40})` via `execute` (zero `"..."` elision markers), written to `design-export/json/RC3Kf.json`. Passes `python3 -m json.tool`; content-validated via `grep -c "Restic repositories for snapshots"` (unique body text, one hit).
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/RC3Kf.png` (2880×1800, non-empty RGBA).
+
+**Context:** Only the `t86T1` card slot inside `RC3Kf`'s Settings Layout body was touched; the sidebar nav, top bar, and page header were untouched. Pencil does not auto-save — a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-06 — g5mEpx Admin Settings — Module sources: replaced last lunaris `c:` instance
+
+Residue check (`Get("g5mEpx", (n,ctx)=>{ if((n.ref||"").startsWith("c:")) Print("RESIDUE",n.id,n.ref,n.name); if(n.type==="ref") ctx.skipChildren(); }, {depth:30})`) printed exactly one hit: `RESIDUE SuA1e c:ERkuB Settings Panel` — the "Module sources" card in the settings-layout body was a lunaris library instance.
+
+`Get("SuA1e", ..., {depth:5, resolveInstances:true})` showed the resolved instance: an 888×229 vertical frame (`$surface/surface` fill, `cornerRadius:10`, `$border/border` stroke) with a Card Header sub-frame (title text "Module sources", description text "Registries, git repositories, archives, and uploads the operator pulls module bundles from. Equivalent to applying ModuleSource resources directly.", pink "+ Add source" button `nsclG`), and a Card Content sub-frame containing two source rows — `srcDefault` (green check icon, "default" + GIT type badge, repo URL, "1h" sync interval, "6 modules · synced 5m ago", edit/delete icon buttons) and `srcUploads` (same layout, "uploads" + UPLOAD badge, "uploaded bundles", "0 modules · synced 6m ago"). A third, unused "Card Actions" sub-frame (a hidden/off-canvas leftover "Save changes" button, `w:0` at `x:-17185`) was not visible in either the live render or the reference screenshot (`orig2/g5mEpx.png`) and was dropped. Unlike `RC3Kf`'s `t86T1`, the two content sub-frames here (`r4EMY` "Card Header", `P5Z1p4` "Card Content") were already real addressable nodes (not virtual override paths), matching the HeroUI `XDZ0E`/`FRpsu`/`I9ZPb` pattern structurally — only the outer wrapper was the lunaris ref.
+
+Rebuilt as a plain frame carrying the same style properties read off the resolved instance (`width:"fill_container"`, `fill:"$surface/surface"`, `cornerRadius:10`, `stroke:"$border/border"`, `strokeWidth:1`, `strokeAlignment:"inner"`, `layout:"vertical"`, `clip:true`), then copied the two real content sub-frames into it (a direct `Move` was rejected: `Cannot move descendants of instances!`, since `r4EMY`/`P5Z1p4` were still nested under the `SuA1e` ref at the time).
+
+**Fix:**
+- `Insert("isahC", {type:"frame", name:"Settings Panel", clip:true, width:"fill_container", fill:"$surface/surface", cornerRadius:10, stroke:"$border/border", strokeWidth:1, strokeAlignment:"inner", layout:"vertical", children:[]})` → new id `ukvLQ`.
+- `Copy("r4EMY", "ukvLQ", {})` → `GUF1f` (Card Header); `Copy("P5Z1p4", "ukvLQ", {})` → `msu32` (Card Content) — copied rather than moved, since `Move` on a node still nested under the `SuA1e` ref instance fails with "Cannot move descendants of instances!".
+- `Delete("SuA1e")` (the emptied lunaris ref, including its unused Card Actions leftover; not a root frame).
+- `Move("ukvLQ", "isahC", 1)` — placed the new card at `SuA1e`'s original index (1, after `pLiS1` Settings Nav) among `isahC`'s children.
+
+**Verification:**
+- Residue check re-run post-fix: zero output — no `c:`-prefixed `ref` remains under `g5mEpx`.
+- Screenshot of `g5mEpx` post-fix shows the same "Module sources" card — title, description, pink "+ Add source" button, and both `default`/`uploads` source rows (badges, sync info, edit/delete icons) in the same position/size as the reference screenshot; no broken, collapsed, or overflowing layout.
+
+**Export method & validation:**
+- **JSON:** `Get("g5mEpx", {depth: 40})` via `execute` (zero `"..."` elision markers), written to `design-export/json/g5mEpx.json`. Passes `python3 -m json.tool`; content-validated via `grep -c "Module sources"` (unique body text plus nav-item name, hit found).
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/g5mEpx.png` (2880×1800, non-empty RGBA).
+
+**Context:** Only the `SuA1e` card slot inside `g5mEpx`'s Settings Layout body was touched; the sidebar nav, top bar, and page header were untouched. Pencil does not auto-save — a GUI save is still pending before this change is durable across Pencil sessions.

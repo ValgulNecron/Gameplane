@@ -66,8 +66,7 @@ test.describe("live: PTY console", () => {
       return;
     }
 
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await tabNav.getByRole("button", { name: /^console$/i }).click();
+    await page.getByRole("tablist", { name: /Server detail tabs/i }).getByRole("tab", { name: /^console$/i }).click();
 
     // xterm.js renders into a child of the Console panel. We can't
     // reliably "type" into it through Playwright's keyboard API because

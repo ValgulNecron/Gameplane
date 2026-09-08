@@ -218,6 +218,80 @@ export const screenshotServers: GameServer[] = [
       startedAt: "2026-08-15T18:30:00Z",
     },
   }),
+  // T086 (specs/014-heroui-web-rebuild): three additional Overview state
+  // variants with no prior fixture — idle armed (counting down, not yet
+  // asleep), never sleeps (game reports no player count, so the sleep
+  // trigger can never fire — see ServerSleepCard's `neverSleeps` check),
+  // and PVC provisioning failed (operator's checkPVCProvisioningFailure,
+  // gameserver_status.go — phase stays Pending, not Failed).
+  makeServer({
+    metadata: {
+      name: "test-server-06",
+      namespace: "default",
+      annotations: { "gameplane.local/node": "node-01" },
+    },
+    spec: {
+      templateRef: { name: "factorio-vanilla" },
+      idle: { enabled: true, afterMinutes: 30, wakeOnConnect: true },
+    },
+    status: {
+      phase: "Running",
+      idle: { emptySince: "2026-09-06T09:15:00Z", reason: "counting down" },
+      agent: {
+        playersOnline: 0,
+        playersMax: 16,
+        lastHeartbeat: "2026-09-06T09:30:00Z",
+        cpuMillicores: 210,
+        cpuLimitMillicores: 2000,
+        memoryBytes: 900_000_000,
+        memoryLimitBytes: 2_000_000_000,
+      },
+      endpoints: [
+        { name: "main", host: "test-server-06.gameplane-demo.local", port: 34197, protocol: "udp" },
+      ],
+      startedAt: "2026-09-05T08:00:00Z",
+    },
+  }),
+  makeServer({
+    metadata: { name: "test-server-07", namespace: "gameplane-demo" },
+    spec: {
+      templateRef: { name: "cs2-competitive" },
+      idle: { enabled: true, afterMinutes: 60 },
+    },
+    status: {
+      phase: "Running",
+      idle: { reason: "this game reports no player count" },
+      agent: {
+        playersOnline: null,
+        playersMax: 10,
+        lastHeartbeat: "2026-09-06T09:30:00Z",
+        cpuMillicores: 640,
+        cpuLimitMillicores: 2000,
+      },
+      endpoints: [
+        { name: "main", host: "test-server-07.gameplane-demo.local", port: 27015, protocol: "udp" },
+      ],
+      startedAt: "2026-09-04T12:00:00Z",
+    },
+  }),
+  makeServer({
+    metadata: { name: "test-server-08", namespace: "gameplane-demo" },
+    spec: { templateRef: { name: "ark-ascended" } },
+    status: {
+      phase: "Pending",
+      agent: { playersOnline: null, playersMax: 70, lastHeartbeat: undefined },
+      startedAt: undefined,
+      conditions: [
+        {
+          type: "Ready",
+          status: "False",
+          reason: "PVCProvisioningFailed",
+          message: "PVC \"test-server-08-data\": StorageClass 'fast-nvme' not found on cluster.",
+          lastTransitionTime: "2026-09-06T09:00:00Z",
+        },
+      ],
+    },
+  }),
 ];
 
 // ============================================================================

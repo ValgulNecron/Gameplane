@@ -62,8 +62,10 @@ describe("FilesTab", () => {
     });
     renderWithQuery(<FilesTab name="mc-survival" />);
     await waitFor(() => {
-      expect(screen.getByText("config")).toBeInTheDocument();
-      expect(screen.getByText("server.properties")).toBeInTheDocument();
+      const configEl = screen.getByText("config");
+      const propsEl = screen.getByText("server.properties");
+      expect(configEl).toBeInTheDocument();
+      expect(propsEl).toBeInTheDocument();
     });
   });
 
@@ -114,7 +116,8 @@ describe("FilesTab", () => {
     fireEvent.click(await screen.findByText("server.properties"));
     await screen.findByTestId("monaco");
 
-    fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
+    const deleteButtons = screen.getAllByRole("button", { name: /Delete/ });
+    fireEvent.click(deleteButtons[deleteButtons.length - 1]);
     expect(
       await screen.findByText(/Delete server\.properties\?/),
     ).toBeInTheDocument();

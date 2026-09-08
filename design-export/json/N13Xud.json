@@ -5,7 +5,6 @@
   "y": 4500,
   "name": "Screen/App Loading",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,

@@ -1,134 +1,339 @@
 {
-    "id": "DMnEi",
-    "type": "ref",
-    "reusable": true,
-    "ref": "x3beP",
-    "name": "Gameplane/Dialog/Add Module Source",
-    "x": 2640,
-    "y": 29221,
-    "descendants": {
-        "E7Whx": {
-            "content": "Add module source"
-        },
-        "qzcst": {
-            "content": "Equivalent to applying a ModuleSource resource directly."
-        },
-        "Nht52": {
-            "type": "frame",
-            "id": "e8g6GR",
-            "name": "mBody",
-            "width": "fill_container",
-            "layout": "vertical",
-            "gap": 16,
-            "padding": [
-                16,
-                0,
-                0,
-                0
-            ],
-            "children": [
-                {
-                    "type": "frame",
-                    "id": "Dy7HC",
-                    "width": "fill_container",
-                    "layout": "vertical",
-                    "gap": 6,
-                    "children": [
-                        {
-                            "type": "text",
-                            "id": "KgxT0",
-                            "fill": "$c:--muted-foreground",
-                            "content": "Name",
-                            "fontFamily": "$c:--font-secondary",
-                            "fontSize": 12,
-                            "fontWeight": "normal"
-                        },
-                        {
-                            "id": "jV8Vg",
-                            "type": "ref",
-                            "ref": "D0cDM",
-                            "name": "Input",
-                            "width": "fill_container",
-                            "descendants": {
-                                "PJERm": {
-                                    "content": "community",
-                                    "fill": "#5C5C5C"
-                                }
-                            }
-                        },
-                        {
-                            "type": "text",
-                            "id": "oafU1",
-                            "fill": "$c:--muted-foreground",
-                            "content": "DNS label identifying this source.",
-                            "fontFamily": "$c:--font-secondary",
-                            "fontSize": 11,
-                            "fontWeight": "normal"
-                        }
-                    ]
-                },
-                {
-                    "type": "frame",
-                    "id": "johlb",
-                    "width": "fill_container",
-                    "layout": "vertical",
-                    "gap": 6,
-                    "children": [
-                        {
-                            "type": "text",
-                            "id": "NNDZs",
-                            "fill": "$c:--muted-foreground",
-                            "content": "Type",
-                            "fontFamily": "$c:--font-secondary",
-                            "fontSize": 12,
-                            "fontWeight": "normal"
-                        },
-                        {
-                            "id": "JRooL",
-                            "type": "ref",
-                            "ref": "AT7ya",
-                            "name": "Select",
-                            "width": "fill_container",
-                            "descendants": {
-                                "cFsFk": {
-                                    "content": "oci"
-                                }
-                            }
-                        }
-                    ]
-                },
-                {
-                    "type": "frame",
-                    "id": "u6it9",
-                    "width": "fill_container",
-                    "layout": "vertical",
-                    "gap": 6,
-                    "children": [
-                        {
-                            "type": "text",
-                            "id": "K2Lrm",
-                            "fill": "$c:--muted-foreground",
-                            "content": "Registry URL",
-                            "fontFamily": "$c:--font-secondary",
-                            "fontSize": 12,
-                            "fontWeight": "normal"
-                        },
-                        {
-                            "id": "SLiFX",
-                            "type": "ref",
-                            "ref": "D0cDM",
-                            "name": "Input",
-                            "width": "fill_container",
-                            "descendants": {
-                                "PJERm": {
-                                    "content": "ghcr.io/valgulnecron/gameplane-modules",
-                                    "fill": "#5C5C5C"
-                                }
-                            }
-                        }
-                    ]
-                }
-            ]
+  "type": "frame",
+  "id": "DMnEi",
+  "x": -17205,
+  "y": 28535,
+  "name": "Gameplane/Dialog/Add Module Source",
+  "reusable": true,
+  "width": 480,
+  "fill": "$surface/surface",
+  "cornerRadius": "$radius/xl",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000080",
+    "offset": {
+      "x": 0,
+      "y": 12
+    },
+    "blur": 32,
+    "spread": -8
+  },
+  "layout": "vertical",
+  "padding": 20,
+  "children": [
+    {
+      "type": "text",
+      "id": "DMnEi/E7Whx",
+      "name": "mTitle",
+      "fill": "$foreground/foreground",
+      "content": "Add module source",
+      "fontFamily": "$typography/font-sans",
+      "fontSize": 16,
+      "fontWeight": "600"
+    },
+    {
+      "type": "frame",
+      "id": "DMnEi/ABbjS",
+      "name": "mDescWrap",
+      "width": "fill_container",
+      "padding": [
+        4,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "DMnEi/qzcst",
+          "name": "mDesc",
+          "fill": "$muted",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Equivalent to applying a ModuleSource resource directly.",
+          "lineHeight": 1.5,
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
         }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "e8g6GR",
+      "name": "mBody",
+      "width": "fill_container",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": [
+        16,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "Dy7HC",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "KgxT0",
+              "fill": "$muted",
+              "content": "Name",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "jV8Vg",
+              "name": "Input",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "jV8Vg/PJERm",
+                  "name": "inputValue",
+                  "fill": "#5C5C5C",
+                  "content": "community",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "oafU1",
+              "fill": "$muted",
+              "content": "DNS label identifying this source.",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "johlb",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "NNDZs",
+              "fill": "$muted",
+              "content": "Type",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "JRooL",
+              "name": "Select",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "JRooL/cFsFk",
+                  "name": "selectValue",
+                  "fill": "$field/placeholder",
+                  "content": "oci",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "JRooL/mULN8",
+                  "name": "selectChevron",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "chevron-down",
+                  "library": "lucide",
+                  "fill": "$field/placeholder"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "u6it9",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "K2Lrm",
+              "fill": "$muted",
+              "content": "Registry URL",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "SLiFX",
+              "name": "Input",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "SLiFX/PJERm",
+                  "name": "inputValue",
+                  "fill": "#5C5C5C",
+                  "content": "ghcr.io/valgulnecron/gameplane-modules",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "DMnEi/GCwAF",
+      "name": "mFooter",
+      "width": "fill_container",
+      "gap": 8,
+      "padding": [
+        20,
+        0,
+        0,
+        0
+      ],
+      "justifyContent": "end",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "DMnEi/SBdeH",
+          "name": "btnCancel",
+          "height": 32,
+          "cornerRadius": 6,
+          "padding": [
+            0,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "DMnEi/REcmP",
+              "fill": "$foreground/foreground",
+              "content": "Cancel",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "DMnEi/V7HYp",
+          "name": "btnPrimary",
+          "height": 32,
+          "fill": "$accent/accent",
+          "cornerRadius": 6,
+          "padding": [
+            0,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "DMnEi/TZ7Ef",
+              "fill": "$accent/foreground",
+              "content": "Run snapshot",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        }
+      ]
     }
+  ]
 }

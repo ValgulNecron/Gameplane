@@ -1,498 +1,372 @@
 {
-    "type": "frame",
-    "id": "DPrYX",
-    "x": 0,
-    "y": 16315,
-    "name": "Screen/Backups \u2014 Index",
-    "theme": {
-        "c:Mode": "Dark",
-        "semantic": "dark"
+  "type": "frame",
+  "id": "DPrYX",
+  "x": 0,
+  "y": 16315,
+  "name": "Screen/Backups — Index",
+  "theme": {
+    "semantic": "dark"
+  },
+  "clip": true,
+  "width": 1440,
+  "height": 900,
+  "fill": "$background/background",
+  "children": [
+    {
+      "id": "PdJtd",
+      "type": "ref",
+      "ref": "kKFX9",
+      "name": "App Sidebar",
+      "height": "fill_container",
+      "descendants": {
+        "iTbd8": {
+          "fill": "#00000000"
+        },
+        "iTbd8/ghUsw": {
+          "fill": "$foreground/foreground"
+        },
+        "iTbd8/bpSQ7": {
+          "fill": "$foreground/foreground"
+        },
+        "NADGL": {
+          "fill": "$accent/soft"
+        },
+        "NADGL/Sr2Q5": {
+          "fill": "$accent/soft-foreground"
+        },
+        "NADGL/Ra9NK": {
+          "fill": "$accent/soft-foreground"
+        }
+      }
     },
-    "clip": true,
-    "width": 1440,
-    "height": 900,
-    "fill": "$background/background",
-    "children": [
+    {
+      "type": "frame",
+      "id": "vMQ5B",
+      "name": "Main",
+      "width": "fill_container",
+      "height": "fill_container",
+      "fill": "$background/background",
+      "layout": "vertical",
+      "children": [
         {
-            "id": "PdJtd",
-            "type": "ref",
-            "ref": "kKFX9",
-            "name": "App Sidebar",
-            "height": "fill_container",
-            "descendants": {
-                "z8Yor": {
-                    "id": "SMEEq",
-                    "type": "ref",
-                    "ref": "c:X6nwq",
-                    "cornerRadius": 6,
-                    "padding": [
-                        8,
-                        12
-                    ],
-                    "gap": 12,
-                    "height": 36,
-                    "alignItems": "center",
-                    "fill": "#00000000",
-                    "descendants": {
-                        "c:xGT5g": {
-                            "icon": "layout-dashboard",
-                            "width": 18,
-                            "height": 18,
-                            "fill": "$muted",
-                            "library": "lucide"
-                        },
-                        "c:TXca3": {
-                            "content": "Dashboard",
-                            "fontSize": 14,
-                            "fill": "$muted"
-                        }
-                    }
-                },
-                "hwVoP": {
-                    "id": "qNhAI",
-                    "type": "ref",
-                    "ref": "c:dOLzc",
-                    "cornerRadius": 6,
-                    "padding": [
-                        8,
-                        12
-                    ],
-                    "gap": 12,
-                    "height": 36,
-                    "alignItems": "center",
-                    "fill": "$accent/soft",
-                    "descendants": {
-                        "c:xGT5g": {
-                            "icon": "archive",
-                            "width": 18,
-                            "height": 18,
-                            "fill": "$accent/accent",
-                            "library": "lucide"
-                        },
-                        "c:TXca3": {
-                            "content": "Backups",
-                            "fontSize": 14,
-                            "fill": "$accent/accent"
-                        }
-                    }
-                }
+          "id": "G3j7E",
+          "type": "ref",
+          "ref": "gu5WY",
+          "name": "Top Bar",
+          "width": "fill_container",
+          "descendants": {
+            "Gl7AY": {
+              "content": "Backups"
             }
+          }
         },
         {
-            "type": "frame",
-            "id": "vMQ5B",
-            "name": "Main",
-            "width": "fill_container",
-            "height": "fill_container",
-            "fill": "$background/background",
-            "layout": "vertical",
-            "children": [
-                {
-                    "id": "G3j7E",
-                    "type": "ref",
-                    "ref": "gu5WY",
-                    "name": "Top Bar",
-                    "width": "fill_container",
-                    "descendants": {
-                        "GqBm6/c:bT3Mm": {
-                            "content": "Backups"
+          "type": "frame",
+          "id": "dtc83",
+          "name": "Body",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$background/background",
+          "layout": "vertical",
+          "gap": 20,
+          "padding": 24,
+          "children": [
+            {
+              "id": "hQCtf",
+              "type": "ref",
+              "ref": "xCDF7",
+              "name": "Page Header",
+              "width": "fill_container",
+              "descendants": {
+                "spCmk": {
+                  "content": "Backups"
+                },
+                "VbHwU": {
+                  "content": "Snapshots, schedules, and restores across all servers in this cluster."
+                },
+                "TgdLz": {
+                  "type": "frame",
+                  "id": "TFxXl",
+                  "name": "phActions",
+                  "height": 36,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "hCmIr",
+                      "type": "ref",
+                      "ref": "tpKRk",
+                      "name": "Back Up Now Button",
+                      "descendants": {
+                        "q58In/Xpn7K": {
+                          "library": "lucide",
+                          "icon": "plus"
+                        },
+                        "q58In/U6q13B": {
+                          "content": "Back up now"
                         }
+                      }
                     }
+                  ]
+                }
+              }
+            },
+            {
+              "id": "DDRNN",
+              "type": "ref",
+              "ref": "Dx8S8",
+              "name": "tabsBar",
+              "width": "fit_content",
+              "children": [
+                {
+                  "id": "DKAWA",
+                  "type": "ref",
+                  "ref": "CEWo3",
+                  "name": "tabBackups",
+                  "descendants": {
+                    "YUR8N": {
+                      "content": "Backups"
+                    }
+                  }
                 },
                 {
-                    "type": "frame",
-                    "id": "dtc83",
-                    "name": "Body",
-                    "width": "fill_container",
-                    "height": "fill_container",
-                    "fill": "$background/background",
-                    "layout": "vertical",
-                    "gap": 20,
-                    "padding": 24,
-                    "children": [
-                        {
-                            "id": "hQCtf",
-                            "type": "ref",
-                            "ref": "xCDF7",
-                            "name": "Page Header",
-                            "width": "fill_container",
-                            "descendants": {
-                                "spCmk": {
-                                    "content": "Backups"
-                                },
-                                "VbHwU": {
-                                    "content": "Snapshots, schedules, and restores across all servers in this cluster."
-                                },
-                                "TgdLz": {
-                                    "type": "frame",
-                                    "id": "TFxXl",
-                                    "name": "phActions",
-                                    "height": 36,
-                                    "gap": 12,
-                                    "alignItems": "center",
-                                    "children": [
-                                        {
-                                            "id": "hCmIr",
-                                            "type": "ref",
-                                            "ref": "tpKRk",
-                                            "name": "Back Up Now Button",
-                                            "descendants": {
-                                                "q58In/Xpn7K": {
-                                                    "library": "lucide",
-                                                    "icon": "plus"
-                                                },
-                                                "q58In/U6q13B": {
-                                                    "content": "Back up now"
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        },
-                        {
-                            "type": "frame",
-                            "id": "P4cCuE",
-                            "name": "Tabs",
-                            "width": "fill_container",
-                            "stroke": "$border/border",
-                            "strokeWidth": {
-                                "bottom": 1
-                            },
-                            "strokeAlignment": "inner",
-                            "strokeLinejoin": "round",
-                            "gap": 4,
-                            "alignItems": "center",
-                            "children": [
-                                {
-                                    "type": "frame",
-                                    "id": "rIPjg",
-                                    "name": "tabBackups",
-                                    "height": 36,
-                                    "stroke": "$accent/accent",
-                                    "strokeWidth": {
-                                        "bottom": 2
-                                    },
-                                    "strokeAlignment": "inner",
-                                    "strokeLinejoin": "round",
-                                    "padding": [
-                                        0,
-                                        12
-                                    ],
-                                    "justifyContent": "center",
-                                    "alignItems": "center",
-                                    "children": [
-                                        {
-                                            "type": "text",
-                                            "id": "q62DT",
-                                            "fill": "$foreground/foreground",
-                                            "content": "Backups",
-                                            "fontFamily": "$c:--font-secondary",
-                                            "fontSize": 14,
-                                            "fontWeight": "normal"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "type": "frame",
-                                    "id": "X5LlB",
-                                    "name": "tabSchedules",
-                                    "height": 36,
-                                    "padding": [
-                                        0,
-                                        12
-                                    ],
-                                    "justifyContent": "center",
-                                    "alignItems": "center",
-                                    "children": [
-                                        {
-                                            "type": "text",
-                                            "id": "O9Epc",
-                                            "fill": "$muted",
-                                            "content": "Schedules",
-                                            "fontFamily": "$c:--font-secondary",
-                                            "fontSize": 14,
-                                            "fontWeight": "normal"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "type": "frame",
-                                    "id": "iKg6R",
-                                    "name": "tabRestores",
-                                    "height": 36,
-                                    "padding": [
-                                        0,
-                                        12
-                                    ],
-                                    "justifyContent": "center",
-                                    "alignItems": "center",
-                                    "children": [
-                                        {
-                                            "type": "text",
-                                            "id": "jq2WS",
-                                            "fill": "$muted",
-                                            "content": "Restores",
-                                            "fontFamily": "$c:--font-secondary",
-                                            "fontSize": 14,
-                                            "fontWeight": "normal"
-                                        }
-                                    ]
-                                }
-                            ]
-                        },
-                        {
-                            "type": "frame",
-                            "id": "M8yDJc",
-                            "name": "Filter Row",
-                            "width": "fill_container",
-                            "gap": 12,
-                            "justifyContent": "space_between",
-                            "alignItems": "center",
-                            "children": [
-                                {
-                                    "type": "frame",
-                                    "id": "fNpiz",
-                                    "name": "Filters",
-                                    "gap": 8,
-                                    "alignItems": "center",
-                                    "children": [
-                                        {
-                                            "id": "UjvWG",
-                                            "type": "ref",
-                                            "ref": "Lmaf1",
-                                            "name": "Search",
-                                            "width": 320,
-                                            "descendants": {
-                                                "EJMtX": {
-                                                    "content": "Search by name or server..."
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "id": "KY5YM",
-                                            "type": "ref",
-                                            "ref": "AT7ya",
-                                            "name": "Select",
-                                            "width": 176,
-                                            "descendants": {
-                                                "cFsFk": {
-                                                    "content": "All servers"
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "id": "emZuE",
-                                            "type": "ref",
-                                            "ref": "AT7ya",
-                                            "name": "Select",
-                                            "width": 144,
-                                            "descendants": {
-                                                "cFsFk": {
-                                                    "content": "All phases"
-                                                }
-                                            }
-                                        }
-                                    ]
-                                },
-                                {
-                                    "type": "text",
-                                    "id": "MoiQh",
-                                    "name": "Result Count",
-                                    "fill": "$muted",
-                                    "content": "0 of 0 backups",
-                                    "fontFamily": "$c:--font-secondary",
-                                    "fontSize": 12,
-                                    "fontWeight": "normal"
-                                }
-                            ]
-                        },
-                        {
-                            "id": "JQdSh",
-                            "type": "ref",
-                            "ref": "c:pPOgy",
-                            "name": "Backups Table",
-                            "width": "fill_container",
-                            "height": "fit_content",
-                            "cornerRadius": 10,
-                            "fill": "$surface/surface",
-                            "clip": true,
-                            "stroke": "$border/border",
-                            "children": [
-                                {
-                                    "id": "OwOcg",
-                                    "type": "ref",
-                                    "ref": "c:T73Cd",
-                                    "name": "Head Row",
-                                    "fill": "$surface/secondary",
-                                    "stroke": [],
-                                    "children": [
-                                        {
-                                            "id": "UbKOS",
-                                            "type": "ref",
-                                            "ref": "c:tbrR4",
-                                            "name": "HC NAME",
-                                            "width": "fill_container",
-                                            "padding": [
-                                                12,
-                                                16
-                                            ],
-                                            "descendants": {
-                                                "c:XGc4z": {
-                                                    "content": "NAME",
-                                                    "fontFamily": "$c:--font-secondary",
-                                                    "fontSize": 11,
-                                                    "fontWeight": "700",
-                                                    "letterSpacing": 0.55,
-                                                    "fill": "$muted"
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "id": "krHRE",
-                                            "type": "ref",
-                                            "ref": "c:tbrR4",
-                                            "name": "HC SERVER",
-                                            "width": 216,
-                                            "padding": [
-                                                12,
-                                                16
-                                            ],
-                                            "descendants": {
-                                                "c:XGc4z": {
-                                                    "content": "SERVER",
-                                                    "fontFamily": "$c:--font-secondary",
-                                                    "fontSize": 11,
-                                                    "fontWeight": "700",
-                                                    "letterSpacing": 0.55,
-                                                    "fill": "$muted"
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "id": "nIwiD",
-                                            "type": "ref",
-                                            "ref": "c:tbrR4",
-                                            "name": "HC PHASE",
-                                            "width": 196,
-                                            "padding": [
-                                                12,
-                                                16
-                                            ],
-                                            "descendants": {
-                                                "c:XGc4z": {
-                                                    "content": "PHASE",
-                                                    "fontFamily": "$c:--font-secondary",
-                                                    "fontSize": 11,
-                                                    "fontWeight": "700",
-                                                    "letterSpacing": 0.55,
-                                                    "fill": "$muted"
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "id": "urzFA",
-                                            "type": "ref",
-                                            "ref": "c:tbrR4",
-                                            "name": "HC SIZE",
-                                            "width": 160,
-                                            "padding": [
-                                                12,
-                                                16
-                                            ],
-                                            "descendants": {
-                                                "c:XGc4z": {
-                                                    "content": "SIZE",
-                                                    "fontFamily": "$c:--font-secondary",
-                                                    "fontSize": 11,
-                                                    "fontWeight": "700",
-                                                    "letterSpacing": 0.55,
-                                                    "fill": "$muted"
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "id": "F1WwX",
-                                            "type": "ref",
-                                            "ref": "c:tbrR4",
-                                            "name": "HC COMPLETED",
-                                            "width": 288,
-                                            "padding": [
-                                                12,
-                                                16
-                                            ],
-                                            "descendants": {
-                                                "c:XGc4z": {
-                                                    "content": "COMPLETED",
-                                                    "fontFamily": "$c:--font-secondary",
-                                                    "fontSize": 11,
-                                                    "fontWeight": "700",
-                                                    "letterSpacing": 0.55,
-                                                    "fill": "$muted"
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "id": "zppyD",
-                                            "type": "ref",
-                                            "ref": "c:tbrR4",
-                                            "name": "HC ACTIONS",
-                                            "width": 88,
-                                            "padding": [
-                                                12,
-                                                16
-                                            ],
-                                            "descendants": {
-                                                "c:XGc4z": {
-                                                    "content": "",
-                                                    "fontFamily": "$c:--font-secondary",
-                                                    "fontSize": 11,
-                                                    "fontWeight": "700",
-                                                    "letterSpacing": 0.55,
-                                                    "fill": "$muted"
-                                                }
-                                            }
-                                        }
-                                    ]
-                                },
-                                {
-                                    "id": "CGSZz",
-                                    "type": "ref",
-                                    "ref": "c:T73Cd",
-                                    "name": "Empty Row",
-                                    "stroke": [],
-                                    "children": [
-                                        {
-                                            "id": "SBPDU",
-                                            "type": "ref",
-                                            "ref": "c:uKYIj",
-                                            "name": "Empty Cell",
-                                            "width": "fill_container",
-                                            "padding": [
-                                                40,
-                                                16
-                                            ],
-                                            "justifyContent": "center",
-                                            "children": [
-                                                {
-                                                    "type": "text",
-                                                    "id": "LfcZv",
-                                                    "name": "Empty Text",
-                                                    "fill": "$muted",
-                                                    "content": "No backups yet. Use Back up now to create the first one.",
-                                                    "fontFamily": "$c:--font-secondary",
-                                                    "fontSize": 14,
-                                                    "fontWeight": "normal"
-                                                }
-                                            ]
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
+                  "id": "UthoO",
+                  "type": "ref",
+                  "ref": "qAFbJ",
+                  "name": "tabSchedules",
+                  "descendants": {
+                    "VcxMI": {
+                      "content": "Schedules"
+                    }
+                  }
+                },
+                {
+                  "id": "BnUu1",
+                  "type": "ref",
+                  "ref": "qAFbJ",
+                  "name": "tabRestores",
+                  "descendants": {
+                    "VcxMI": {
+                      "content": "Restores"
+                    }
+                  }
                 }
-            ]
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "M8yDJc",
+              "name": "Filter Row",
+              "width": "fill_container",
+              "gap": 12,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fNpiz",
+                  "name": "Filters",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "UjvWG",
+                      "type": "ref",
+                      "ref": "Lmaf1",
+                      "name": "Search",
+                      "width": 320,
+                      "descendants": {
+                        "EJMtX": {
+                          "content": "Search by name or server…"
+                        }
+                      }
+                    },
+                    {
+                      "id": "KY5YM",
+                      "type": "ref",
+                      "ref": "AT7ya",
+                      "name": "Select",
+                      "width": 176,
+                      "descendants": {
+                        "cFsFk": {
+                          "content": "All servers"
+                        }
+                      }
+                    },
+                    {
+                      "id": "emZuE",
+                      "type": "ref",
+                      "ref": "AT7ya",
+                      "name": "Select",
+                      "width": 144,
+                      "descendants": {
+                        "cFsFk": {
+                          "content": "All phases"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "MoiQh",
+                  "name": "Result Count",
+                  "fill": "$muted",
+                  "content": "0 of 0 backups",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "id": "KYn2g",
+              "type": "ref",
+              "ref": "ECbbo",
+              "name": "Backups Table",
+              "width": "fill_container",
+              "height": "fit_content",
+              "children": [
+                {
+                  "id": "O8swk",
+                  "type": "ref",
+                  "ref": "eafUs",
+                  "name": "Head Row",
+                  "width": "fill_container",
+                  "children": [
+                    {
+                      "id": "h45qq6",
+                      "type": "ref",
+                      "ref": "DYYKO",
+                      "name": "HC NAME",
+                      "width": "fill_container",
+                      "descendants": {
+                        "SIu74": {
+                          "content": "NAME",
+                          "fontSize": 11,
+                          "fontWeight": "700",
+                          "letterSpacing": 0.55
+                        }
+                      }
+                    },
+                    {
+                      "id": "pEKZ7",
+                      "type": "ref",
+                      "ref": "DYYKO",
+                      "name": "HC SERVER",
+                      "width": 216,
+                      "descendants": {
+                        "SIu74": {
+                          "content": "SERVER",
+                          "fontSize": 11,
+                          "fontWeight": "700",
+                          "letterSpacing": 0.55
+                        }
+                      }
+                    },
+                    {
+                      "id": "FIahb",
+                      "type": "ref",
+                      "ref": "DYYKO",
+                      "name": "HC PHASE",
+                      "width": 196,
+                      "descendants": {
+                        "SIu74": {
+                          "content": "PHASE",
+                          "fontSize": 11,
+                          "fontWeight": "700",
+                          "letterSpacing": 0.55
+                        }
+                      }
+                    },
+                    {
+                      "id": "oJZzx",
+                      "type": "ref",
+                      "ref": "DYYKO",
+                      "name": "HC SIZE",
+                      "width": 160,
+                      "descendants": {
+                        "SIu74": {
+                          "content": "SIZE",
+                          "fontSize": 11,
+                          "fontWeight": "700",
+                          "letterSpacing": 0.55
+                        }
+                      }
+                    },
+                    {
+                      "id": "i2SHb",
+                      "type": "ref",
+                      "ref": "DYYKO",
+                      "name": "HC COMPLETED",
+                      "width": 288,
+                      "descendants": {
+                        "SIu74": {
+                          "content": "COMPLETED",
+                          "fontSize": 11,
+                          "fontWeight": "700",
+                          "letterSpacing": 0.55
+                        }
+                      }
+                    },
+                    {
+                      "id": "qRhCw",
+                      "type": "ref",
+                      "ref": "DYYKO",
+                      "name": "HC ACTIONS",
+                      "width": 88,
+                      "descendants": {
+                        "SIu74": {
+                          "content": "",
+                          "fontSize": 11,
+                          "fontWeight": "700",
+                          "letterSpacing": 0.55
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "tIfUL",
+                  "type": "ref",
+                  "ref": "GUHQo",
+                  "name": "Body",
+                  "width": "fill_container",
+                  "children": [
+                    {
+                      "id": "hQAfw",
+                      "type": "ref",
+                      "ref": "tDY4O",
+                      "name": "Empty Row",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "AhRTF",
+                          "type": "ref",
+                          "ref": "TDRJE",
+                          "name": "Empty Cell",
+                          "width": "fill_container",
+                          "padding": [
+                            40,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "descendants": {
+                            "HNAOu": {
+                              "content": "No backups yet. Use Back up now to create the first one.",
+                              "fill": "$muted"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
-    ]
+      ]
+    }
+  ]
 }

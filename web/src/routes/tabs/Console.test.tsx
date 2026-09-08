@@ -163,7 +163,8 @@ describe("ConsoleTab", () => {
       ),
     );
     renderWithQuery(<ConsoleTab name="alpha" />);
-    expect(await screen.findByText(/doesn't expose a console/i)).toBeInTheDocument();
+    expect(await screen.findByText("No console available")).toBeInTheDocument();
+    expect(screen.getByText(/doesn't expose a console/i)).toBeInTheDocument();
   });
 
   it("shows loading until both server + template arrive", async () => {
@@ -305,7 +306,7 @@ describe("ConsoleTab", () => {
 
   it("clears the terminal from the toolbar", async () => {
     const { term } = await renderConsole("rcon");
-    await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+    await userEvent.click(screen.getByRole("button", { name: /clear terminal/i }));
     expect(term.clear).toHaveBeenCalled();
   });
 
@@ -316,7 +317,7 @@ describe("ConsoleTab", () => {
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: revokeURL });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     await renderConsole("rcon");
-    await userEvent.click(screen.getByRole("button", { name: /download/i }));
+    await userEvent.click(screen.getByRole("button", { name: /download terminal buffer/i }));
     expect(createURL).toHaveBeenCalledOnce();
     expect(clickSpy).toHaveBeenCalledOnce();
     expect(revokeURL).toHaveBeenCalledWith("blob:test");
@@ -334,11 +335,11 @@ describe("ConsoleTab", () => {
     Object.defineProperty(document, "exitFullscreen", { configurable: true, value: exitFs });
     Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
     await renderConsole("rcon");
-    await userEvent.click(screen.getByRole("button", { name: /fullscreen/i }));
+    await userEvent.click(screen.getByRole("button", { name: /toggle fullscreen/i }));
     expect(reqFs).toHaveBeenCalled();
     // While in fullscreen, toggling exits.
     Object.defineProperty(document, "fullscreenElement", { configurable: true, value: document.body });
-    await userEvent.click(screen.getByRole("button", { name: /fullscreen/i }));
+    await userEvent.click(screen.getByRole("button", { name: /toggle fullscreen/i }));
     expect(exitFs).toHaveBeenCalled();
   });
 

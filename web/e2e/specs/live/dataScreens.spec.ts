@@ -87,8 +87,7 @@ test.describe("live: data screens render real backend data", () => {
     await page.goto(`/servers/${serverName}`);
     await expect(page.getByRole("heading", { name: serverName })).toBeVisible({ timeout: 20_000 });
 
-    const tabNav = page.locator("header nav.scrollbar-thin");
-    await tabNav.getByRole("button", { name: /^Settings$/ }).click();
+    await page.getByRole("tablist", { name: /Server detail tabs/i }).getByRole("tab", { name: /^Settings$/i }).click();
 
     // The General sub-section's disabled Template input carries the
     // templateRef we POSTed — proving the form is bound to the live CR, not a

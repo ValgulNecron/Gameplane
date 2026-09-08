@@ -1,125 +1,334 @@
 {
-    "id": "t3IY3u",
-    "type": "ref",
-    "reusable": true,
-    "ref": "x3beP",
-    "name": "Gameplane/Dialog/Edit User",
-    "x": 4680,
-    "y": 29221,
-    "descendants": {
-        "E7Whx": {
-            "content": "Edit user"
-        },
-        "qzcst": {
-            "enabled": false
-        },
-        "Nht52": {
-            "type": "frame",
-            "id": "Kpqa4",
-            "name": "mBody",
-            "width": "fill_container",
-            "layout": "vertical",
-            "gap": 12,
-            "padding": [
-                16,
-                0,
-                0,
-                0
-            ],
-            "children": [
-                {
-                    "type": "frame",
-                    "id": "LOCNS",
-                    "width": "fill_container",
-                    "layout": "vertical",
-                    "gap": 6,
-                    "children": [
-                        {
-                            "type": "text",
-                            "id": "QTLgc",
-                            "fill": "$c:--foreground",
-                            "content": "Display name",
-                            "fontFamily": "$c:--font-secondary",
-                            "fontSize": 12,
-                            "fontWeight": "500"
-                        },
-                        {
-                            "id": "t3NhbD",
-                            "type": "ref",
-                            "ref": "D0cDM",
-                            "name": "Input",
-                            "width": "fill_container",
-                            "descendants": {
-                                "PJERm": {
-                                    "content": "Smoke Collaborator",
-                                    "fill": "#F5F5F5"
-                                }
-                            }
-                        }
-                    ]
-                },
-                {
-                    "type": "frame",
-                    "id": "HzjxM",
-                    "width": "fill_container",
-                    "layout": "vertical",
-                    "gap": 6,
-                    "children": [
-                        {
-                            "type": "text",
-                            "id": "MmWht",
-                            "fill": "$c:--foreground",
-                            "content": "Email",
-                            "fontFamily": "$c:--font-secondary",
-                            "fontSize": 12,
-                            "fontWeight": "500"
-                        },
-                        {
-                            "id": "u76vDz",
-                            "type": "ref",
-                            "ref": "D0cDM",
-                            "name": "Input",
-                            "width": "fill_container",
-                            "descendants": {
-                                "PJERm": {
-                                    "content": "smoke@example.com",
-                                    "fill": "#F5F5F5"
-                                }
-                            }
-                        }
-                    ]
-                },
-                {
-                    "type": "frame",
-                    "id": "XijpL",
-                    "width": "fill_container",
-                    "layout": "vertical",
-                    "gap": 6,
-                    "children": [
-                        {
-                            "type": "text",
-                            "id": "PhLYl",
-                            "fill": "$c:--foreground",
-                            "content": "Primary role (cluster-wide)",
-                            "fontFamily": "$c:--font-secondary",
-                            "fontSize": 12,
-                            "fontWeight": "500"
-                        },
-                        {
-                            "id": "I2Shpp",
-                            "type": "ref",
-                            "ref": "AT7ya",
-                            "name": "Select",
-                            "width": "fill_container",
-                            "descendants": {
-                                "cFsFk": {
-                                    "content": "viewer"
-                                }
-                            }
-                        }
-                    ]
-                }
-            ]
+  "type": "frame",
+  "id": "t3IY3u",
+  "x": -16505,
+  "y": 29203,
+  "name": "Gameplane/Dialog/Edit User",
+  "reusable": true,
+  "width": 480,
+  "fill": "$surface/surface",
+  "cornerRadius": "$radius/xl",
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000080",
+    "offset": {
+      "x": 0,
+      "y": 12
+    },
+    "blur": 32,
+    "spread": -8
+  },
+  "layout": "vertical",
+  "padding": 20,
+  "children": [
+    {
+      "type": "text",
+      "id": "t3IY3u/E7Whx",
+      "name": "mTitle",
+      "fill": "$foreground/foreground",
+      "content": "Edit user",
+      "fontFamily": "$typography/font-sans",
+      "fontSize": 16,
+      "fontWeight": "600"
+    },
+    {
+      "type": "frame",
+      "id": "t3IY3u/ABbjS",
+      "name": "mDescWrap",
+      "width": "fill_container",
+      "height": "fit_content(0)",
+      "padding": [
+        4,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "t3IY3u/qzcst",
+          "x": 0,
+          "y": 4,
+          "name": "mDesc",
+          "enabled": false,
+          "fill": "$muted",
+          "textGrowth": "fixed-width",
+          "width": "fill_container(440)",
+          "content": "Run a one-off snapshot outside any schedule.",
+          "lineHeight": 1.5,
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 14,
+          "fontWeight": "normal"
         }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Kpqa4",
+      "name": "mBody",
+      "width": "fill_container",
+      "layout": "vertical",
+      "gap": 12,
+      "padding": [
+        16,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "LOCNS",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "QTLgc",
+              "fill": "$foreground/foreground",
+              "content": "Display name",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "t3NhbD",
+              "name": "Input",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "t3NhbD/PJERm",
+                  "name": "inputValue",
+                  "fill": "#F5F5F5",
+                  "content": "Smoke Collaborator",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "HzjxM",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "MmWht",
+              "fill": "$foreground/foreground",
+              "content": "Email",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "u76vDz",
+              "name": "Input",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "u76vDz/PJERm",
+                  "name": "inputValue",
+                  "fill": "#F5F5F5",
+                  "content": "smoke@example.com",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "XijpL",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "PhLYl",
+              "fill": "$foreground/foreground",
+              "content": "Primary role (cluster-wide)",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "I2Shpp",
+              "name": "Select",
+              "width": "fill_container",
+              "height": 36,
+              "fill": "$field/background",
+              "cornerRadius": "$radius/xl",
+              "stroke": "$field/border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#0000000F",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 2
+              },
+              "padding": [
+                8,
+                12
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "I2Shpp/cFsFk",
+                  "name": "selectValue",
+                  "fill": "$field/placeholder",
+                  "content": "viewer",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon",
+                  "id": "I2Shpp/mULN8",
+                  "name": "selectChevron",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "chevron-down",
+                  "library": "lucide",
+                  "fill": "$field/placeholder"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "t3IY3u/GCwAF",
+      "name": "mFooter",
+      "width": "fill_container",
+      "gap": 8,
+      "padding": [
+        20,
+        0,
+        0,
+        0
+      ],
+      "justifyContent": "end",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "t3IY3u/SBdeH",
+          "name": "btnCancel",
+          "height": 32,
+          "cornerRadius": 6,
+          "padding": [
+            0,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "t3IY3u/REcmP",
+              "fill": "$foreground/foreground",
+              "content": "Cancel",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "t3IY3u/V7HYp",
+          "name": "btnPrimary",
+          "height": 32,
+          "fill": "$accent/accent",
+          "cornerRadius": 6,
+          "padding": [
+            0,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "t3IY3u/TZ7Ef",
+              "fill": "$accent/foreground",
+              "content": "Run snapshot",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        }
+      ]
     }
+  ]
 }

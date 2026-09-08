@@ -3,9 +3,8 @@
   "id": "ugDSa",
   "x": 6560,
   "y": 10375,
-  "name": "Screen/Server Detail \u2014 Settings \u00b7 Environment",
+  "name": "Screen/Server Detail — Settings · Environment",
   "theme": {
-    "c:Mode": "Dark",
     "semantic": "dark"
   },
   "clip": true,
@@ -17,69 +16,7 @@
       "id": "GvTSF",
       "type": "ref",
       "ref": "kKFX9",
-      "height": "fill_container",
-      "descendants": {
-        "z8Yor": {
-          "id": "s8Jvz3",
-          "type": "ref",
-          "ref": "c:X6nwq",
-          "name": "navDashboard",
-          "width": "fill_container",
-          "cornerRadius": 6,
-          "padding": [
-            8,
-            12
-          ],
-          "gap": 12,
-          "height": 36,
-          "alignItems": "center",
-          "fill": "#00000000",
-          "descendants": {
-            "c:xGT5g": {
-              "icon": "layout-dashboard",
-              "library": "lucide",
-              "width": 18,
-              "height": 18,
-              "fill": "$muted"
-            },
-            "c:TXca3": {
-              "content": "Dashboard",
-              "fontSize": 14,
-              "fill": "$muted"
-            }
-          }
-        },
-        "wUkZr": {
-          "id": "lBUA8",
-          "type": "ref",
-          "ref": "c:dOLzc",
-          "name": "navServers",
-          "width": "fill_container",
-          "cornerRadius": 6,
-          "padding": [
-            8,
-            12
-          ],
-          "gap": 12,
-          "height": 36,
-          "alignItems": "center",
-          "fill": "$accent/soft",
-          "descendants": {
-            "c:xGT5g": {
-              "icon": "server",
-              "library": "lucide",
-              "width": 18,
-              "height": 18,
-              "fill": "$accent/accent"
-            },
-            "c:TXca3": {
-              "content": "Servers",
-              "fontSize": 14,
-              "fill": "$accent/accent"
-            }
-          }
-        }
-      }
+      "height": "fill_container"
     },
     {
       "type": "frame",
@@ -94,12 +31,7 @@
           "id": "GXGSb",
           "type": "ref",
           "ref": "gu5WY",
-          "width": "fill_container",
-          "descendants": {
-            "GqBm6/c:bT3Mm": {
-              "content": "mc-survival"
-            }
-          }
+          "width": "fill_container"
         },
         {
           "type": "frame",
@@ -130,48 +62,7 @@
                 0,
                 0,
                 24
-              ],
-              "descendants": {
-                "N37AkT": {
-                  "stroke": "#00000000"
-                },
-                "F2aQhk": {
-                  "fill": "$muted"
-                },
-                "oVyjI": {
-                  "fill": "$muted"
-                },
-                "nr19d": {
-                  "fill": "$muted"
-                },
-                "ZFqdG": {
-                  "fill": "$muted"
-                },
-                "vSZtk": {
-                  "fill": "$muted"
-                },
-                "bSVUu": {
-                  "fill": "$muted"
-                },
-                "ki4l6": {
-                  "fill": "$muted"
-                },
-                "yS1Dt": {
-                  "fill": "$muted"
-                },
-                "P1zGbN": {
-                  "fill": "$muted"
-                },
-                "R4v48": {
-                  "fill": "$muted"
-                },
-                "Jilsi": {
-                  "stroke": "$accent/accent"
-                },
-                "nS5Qg": {
-                  "fill": "$foreground/foreground"
-                }
-              }
+              ]
             },
             {
               "type": "frame",
@@ -222,7 +113,7 @@
                           "id": "PWp7a",
                           "fill": "$muted",
                           "content": "General",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -253,7 +144,7 @@
                           "id": "ByOBb",
                           "fill": "$muted",
                           "content": "Version",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -284,7 +175,7 @@
                           "id": "TFrxo",
                           "fill": "$muted",
                           "content": "Resources",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -315,7 +206,7 @@
                           "id": "RZzQX",
                           "fill": "$muted",
                           "content": "Networking",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -347,7 +238,7 @@
                           "id": "ucUQZ",
                           "fill": "$foreground/foreground",
                           "content": "Environment",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -378,7 +269,7 @@
                           "id": "bisM9",
                           "fill": "$muted",
                           "content": "Lifecycle",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -409,7 +300,7 @@
                           "id": "XOefM",
                           "fill": "$muted",
                           "content": "Scheduled backups",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -440,7 +331,7 @@
                           "id": "M3GE2",
                           "fill": "$muted",
                           "content": "Placement",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -471,7 +362,7 @@
                           "id": "L38BjC",
                           "fill": "$muted",
                           "content": "RBAC & access",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -502,7 +393,7 @@
                           "id": "aIuEs",
                           "fill": "$muted",
                           "content": "Share links",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -533,7 +424,7 @@
                           "id": "YdY5n",
                           "fill": "#DC2828",
                           "content": "Danger zone",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "$typography/font-sans",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -573,7 +464,7 @@
                               "name": "empty",
                               "fill": "$muted",
                               "content": "No environment variables. Click below to add one.",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "$typography/font-sans",
                               "fontSize": 14,
                               "fontWeight": "normal"
                             },

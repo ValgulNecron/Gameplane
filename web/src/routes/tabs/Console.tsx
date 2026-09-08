@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import "@xterm/xterm/css/xterm.css";
 
+import { LoadingCard } from "@/components/hero/LoadingCard";
+import { ErrorCard } from "@/components/hero/ErrorCard";
 import { api } from "@/lib/api";
 import { resolveConsoleMode } from "@/lib/capabilities";
 import type { GameServer, GameTemplate } from "@/types";
@@ -21,12 +23,19 @@ export function ConsoleTab({ name, ns }: { name: string; ns?: string }) {
   const mode = resolveConsoleMode(tmpl);
 
   if (!gs || !tmpl) {
-    return <div className="p-4 text-sm text-muted">Loading console…</div>;
+    return (
+      <div className="p-4">
+        <LoadingCard message="Loading console…" />
+      </div>
+    );
   }
   if (mode === "none") {
     return (
-      <div className="p-4 text-sm text-muted">
-        This game template doesn&apos;t expose a console.
+      <div className="p-4">
+        <ErrorCard
+          title="No console available"
+          message="This game template doesn't expose a console."
+        />
       </div>
     );
   }
