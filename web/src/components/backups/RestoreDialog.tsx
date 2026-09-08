@@ -81,9 +81,9 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
 
   return (
     <Modal isOpen={open} onOpenChange={(o) => !o && onClose()}>
-      <ModalBackdrop isDismissable={!create.isPending} isKeyboardDismissDisabled={create.isPending} />
-      <ModalContainer>
-        <ModalDialog>
+      <ModalBackdrop isDismissable={!create.isPending} isKeyboardDismissDisabled={create.isPending}>
+        <ModalContainer>
+          <ModalDialog>
           <ModalHeader>
             <ModalHeading>Restore backup</ModalHeading>
           </ModalHeader>
@@ -206,8 +206,9 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                   : "Restore"}
             </Button>
           </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }
