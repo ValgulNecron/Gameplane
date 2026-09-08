@@ -678,7 +678,7 @@ describe("CaptureWidget", () => {
         // the default http.delete("/servers/:name") stub, which returns 204,
         // api() maps 204 to undefined, and deleteMut *succeeds* instantly —
         // closing the dialog before the pending assertion below runs.
-        http.delete(/\/servers\/alpha:capture(\?.*)?$/, async () => {
+        http.delete(/.*servers.*alpha.*capture/, async () => {
           await deleteGate;
           return HttpResponse.json({ deleted: true, captureId: "cap-1" });
         }),
