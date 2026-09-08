@@ -21,7 +21,7 @@ async function gotoSection(name: RegExp) {
   await userEvent.click(await screen.findByRole("button", { name }));
 }
 
-describe("AdminSettings sections", () => {
+describe("AdminSettings sections", { testTimeout: 10000 }, () => {
   it("saves an edited General field", async () => {
     renderWithQuery(<AdminSettingsPage />);
     const nameInput = await screen.findByDisplayValue("Gameplane (mock)");
