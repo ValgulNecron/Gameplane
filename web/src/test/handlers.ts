@@ -1140,6 +1140,7 @@ export function buildScreenshotHandlers() {
           "X-Gameplane-Pod": "gameplane-api-6f9c8d5b7-x2k9p",
         },
       }),
+    ),
     // Share links: list, create, revoke, resolve (public), start (public)
     http.get(/\/servers\/[^/]+:shares$/, () => {
       // Return mock share links for testing
