@@ -227,7 +227,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onPress={() => refetch()} isDisabled={isFetching} aria-label="Refresh">
+          <Button variant="ghost" size="sm" onPress={() => void refetch()} isDisabled={isFetching} aria-label="Refresh">
             <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
           </Button>
           {canInstall && (
@@ -256,7 +256,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
               the Button's aria-label) so the button's accessible name
               stays its visible text, "Install mod", for role queries and
               assistive tech alike. */}
-          <span title={canManage ? undefined : "Requires operator role"}>
+          <span title={canManage ? undefined : "Requires operator role"} tabIndex={0}>
             <Button
               size="sm"
               onPress={() => setBrowsing(true)}
@@ -289,7 +289,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
       {isError && !mods && (
         <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           {errMsg(listError)} ·{" "}
-          <Button variant="ghost" size="sm" className="underline" onPress={() => refetch()} aria-label="retry">
+          <Button variant="ghost" size="sm" className="underline" onPress={() => void refetch()} aria-label="retry">
             retry
           </Button>
         </div>
@@ -583,7 +583,7 @@ function ModsByIdTab({
           isIconOnly
           variant="ghost"
           size="sm"
-          onPress={() => refetch()}
+          onPress={() => void refetch()}
           isDisabled={isFetching}
           aria-label="Refresh"
           className="h-auto w-auto"
@@ -621,7 +621,7 @@ function ModsByIdTab({
       {isError && !saved && (
         <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           {errMsg(listError)} ·{" "}
-          <Button variant="ghost" size="sm" className="underline" onPress={() => refetch()} aria-label="retry">
+          <Button variant="ghost" size="sm" className="underline" onPress={() => void refetch()} aria-label="retry">
             retry
           </Button>
         </div>

@@ -119,6 +119,7 @@ export function RegistryBrowser({
               size="sm"
               variant={p.provider === provider ? "primary" : "outline"}
               onPress={() => setPicked(p.provider)}
+              aria-pressed={p.provider === provider}
             >
               {providerLabel(p.provider)}
             </Button>
@@ -172,6 +173,7 @@ export function RegistryBrowser({
                 onClick={() => setCategory(c.value)}
                 role="button"
                 tabIndex={0}
+                aria-pressed={active}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
