@@ -50,7 +50,7 @@ test.describe("restore from backup", () => {
     // Pick the target server from the HeroUI Popover + ListBox. MSW seeds
     // two servers, alpha and beta — we restore alpha→alpha (the typical case).
     // RestoreDialog.tsx lines 135-146 (PopoverTrigger with id="target-server").
-    await dialog.getByLabel("Target game server").click();
+    await dialog.locator("#target-server").click();
     await page.getByRole("option", { name: "alpha" }).click();
 
     const created = page.waitForRequest(
