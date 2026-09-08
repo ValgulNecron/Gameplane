@@ -455,36 +455,37 @@ export function CaptureWidget({ name, ns, gs }: Props) {
           if (!o) setDeleteTarget(null);
         }}
       >
-        <AlertDialogBackdrop />
-        <AlertDialogContainer>
-          <AlertDialogDialog className="max-w-md">
-            <AlertDialogHeader className="flex flex-col gap-1">
-              <AlertDialogHeading>Delete capture?</AlertDialogHeading>
-            </AlertDialogHeader>
-            <AlertDialogBody>
-              <p className="text-sm">
-                This permanently deletes capture{" "}
-                <span className="font-mono">{deleteTarget?.captureId}</span> and its
-                recorded packets. This cannot be undone.
-              </p>
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button
-                variant="ghost"
-                onPress={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                isDisabled={deleteMut.isPending}
-                onPress={() => deleteTarget && deleteMut.mutate(deleteTarget.captureId)}
-              >
-                {deleteMut.isPending ? "Working…" : "Delete capture"}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogDialog>
-        </AlertDialogContainer>
+        <AlertDialogBackdrop>
+          <AlertDialogContainer>
+            <AlertDialogDialog className="max-w-md">
+              <AlertDialogHeader className="flex flex-col gap-1">
+                <AlertDialogHeading>Delete capture?</AlertDialogHeading>
+              </AlertDialogHeader>
+              <AlertDialogBody>
+                <p className="text-sm">
+                  This permanently deletes capture{" "}
+                  <span className="font-mono">{deleteTarget?.captureId}</span> and its
+                  recorded packets. This cannot be undone.
+                </p>
+              </AlertDialogBody>
+              <AlertDialogFooter>
+                <Button
+                  variant="ghost"
+                  onPress={() => setDeleteTarget(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  isDisabled={deleteMut.isPending}
+                  onPress={() => deleteTarget && deleteMut.mutate(deleteTarget.captureId)}
+                >
+                  {deleteMut.isPending ? "Working…" : "Delete capture"}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogDialog>
+          </AlertDialogContainer>
+        </AlertDialogBackdrop>
       </AlertDialog>
     </div>
   );
@@ -539,182 +540,183 @@ function StartCaptureModal({
 
   return (
     <Modal isOpen={open} onOpenChange={onClose}>
-      <ModalBackdrop />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader className="flex flex-col gap-1">
-            <ModalHeading>Start Capture</ModalHeading>
-          </ModalHeader>
-          <ModalBody>
-            <p className="text-sm text-default-500">
-              Records raw network traffic on this server&rsquo;s advertised ports (or a custom
-              filter) for later download.
-            </p>
-
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                start.mutate();
-              }}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="packet-filter">Packet Filter</Label>
-                <div className="relative">
-                  <Input
-                    id="packet-filter"
-                    aria-label="Packet Filter"
-                    value={filter}
-                    onChange={(e) => handleFilterChange(e.target.value)}
-                    placeholder="tcp port 25565"
-                    spellCheck={false}
-                    aria-invalid={!!filterError}
-                  />
-                  {filter && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {filterError ? (
-                        <CircleX className="h-[18px] w-[18px] shrink-0 text-danger" aria-hidden="true" />
-                      ) : (
-                        <CircleCheckBig className="h-[18px] w-[18px] shrink-0 text-success" aria-hidden="true" />
-                      )}
-                    </div>
+      <ModalBackdrop>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader className="flex flex-col gap-1">
+              <ModalHeading>Start Capture</ModalHeading>
+            </ModalHeader>
+            <ModalBody>
+              <p className="text-sm text-default-500">
+                Records raw network traffic on this server&rsquo;s advertised ports (or a custom
+                filter) for later download.
+              </p>
+  
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  start.mutate();
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="packet-filter">Packet Filter</Label>
+                  <div className="relative">
+                    <Input
+                      id="packet-filter"
+                      aria-label="Packet Filter"
+                      value={filter}
+                      onChange={(e) => handleFilterChange(e.target.value)}
+                      placeholder="tcp port 25565"
+                      spellCheck={false}
+                      aria-invalid={!!filterError}
+                    />
+                    {filter && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {filterError ? (
+                          <CircleX className="h-[18px] w-[18px] shrink-0 text-danger" aria-hidden="true" />
+                        ) : (
+                          <CircleCheckBig className="h-[18px] w-[18px] shrink-0 text-success" aria-hidden="true" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <Description>
+                    Optional. Use pcap-filter syntax (e.g. &quot;tcp port 8080&quot;, &quot;host
+                    192.168.1.5&quot;). Leave blank to capture only on this server&rsquo;s game
+                    ports.
+                  </Description>
+                  {filterError && (
+                    <p role="alert" className="text-xs text-danger">
+                      {filterError}
+                    </p>
                   )}
                 </div>
-                <Description>
-                  Optional. Use pcap-filter syntax (e.g. &quot;tcp port 8080&quot;, &quot;host
-                  192.168.1.5&quot;). Leave blank to capture only on this server&rsquo;s game
-                  ports.
-                </Description>
-                {filterError && (
-                  <p role="alert" className="text-xs text-danger">
-                    {filterError}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="duration-value">Max Duration *</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="duration-value"
-                    type="number"
-                    min={1}
-                    max={durationUnit === "minutes" ? 60 : 3600}
-                    value={String(durationValue)}
-                    onChange={(e) => setDurationValue(Number(e.target.value))}
-                    className="w-[140px]"
-                    aria-label="Max duration value"
-                    required
-                  />
-                  <Select
-                    value={durationUnit}
-                    onChange={(v) => setDurationUnit(String(v) as "seconds" | "minutes")}
-                    className="w-[140px]"
-                  >
-                    <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Max duration unit">
-                      <Select.Value />
-                      <Select.Indicator className="ml-auto h-4 w-4" />
-                    </Select.Trigger>
-                    <Select.Popover className="rounded border border-default-200">
-                      <ListBox>
-                        <ListBoxItem key="seconds" id="seconds">seconds</ListBoxItem>
-                        <ListBoxItem key="minutes" id="minutes">minutes</ListBoxItem>
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
+  
+                <div className="space-y-2">
+                  <Label htmlFor="duration-value">Max Duration *</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="duration-value"
+                      type="number"
+                      min={1}
+                      max={durationUnit === "minutes" ? 60 : 3600}
+                      value={String(durationValue)}
+                      onChange={(e) => setDurationValue(Number(e.target.value))}
+                      className="w-[140px]"
+                      aria-label="Max duration value"
+                      required
+                    />
+                    <Select
+                      value={durationUnit}
+                      onChange={(v) => setDurationUnit(String(v) as "seconds" | "minutes")}
+                      className="w-[140px]"
+                    >
+                      <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Max duration unit">
+                        <Select.Value />
+                        <Select.Indicator className="ml-auto h-4 w-4" />
+                      </Select.Trigger>
+                      <Select.Popover className="rounded border border-default-200">
+                        <ListBox>
+                          <ListBoxItem key="seconds" id="seconds">seconds</ListBoxItem>
+                          <ListBoxItem key="minutes" id="minutes">minutes</ListBoxItem>
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </div>
+                  <Description>
+                    How long the capture runs before auto-stopping. Range 1–3600 seconds.
+                  </Description>
                 </div>
-                <Description>
-                  How long the capture runs before auto-stopping. Range 1–3600 seconds.
-                </Description>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="size-value">Max Size *</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="size-value"
-                    type="number"
-                    min={1}
-                    value={String(sizeValue)}
-                    onChange={(e) => setSizeValue(Number(e.target.value))}
-                    className="w-[140px]"
-                    aria-label="Max size value"
-                    required
-                  />
-                  <Select
-                    value={sizeUnit}
-                    onChange={(v) => setSizeUnit(String(v) as "MB" | "GB")}
-                    className="w-[140px]"
-                  >
-                    <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Max size unit">
-                      <Select.Value />
-                      <Select.Indicator className="ml-auto h-4 w-4" />
-                    </Select.Trigger>
-                    <Select.Popover className="rounded border border-default-200">
-                      <ListBox>
-                        <ListBoxItem key="MB" id="MB">MB</ListBoxItem>
-                        <ListBoxItem key="GB" id="GB">GB</ListBoxItem>
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
+  
+                <div className="space-y-2">
+                  <Label htmlFor="size-value">Max Size *</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="size-value"
+                      type="number"
+                      min={1}
+                      value={String(sizeValue)}
+                      onChange={(e) => setSizeValue(Number(e.target.value))}
+                      className="w-[140px]"
+                      aria-label="Max size value"
+                      required
+                    />
+                    <Select
+                      value={sizeUnit}
+                      onChange={(v) => setSizeUnit(String(v) as "MB" | "GB")}
+                      className="w-[140px]"
+                    >
+                      <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Max size unit">
+                        <Select.Value />
+                        <Select.Indicator className="ml-auto h-4 w-4" />
+                      </Select.Trigger>
+                      <Select.Popover className="rounded border border-default-200">
+                        <ListBox>
+                          <ListBoxItem key="MB" id="MB">MB</ListBoxItem>
+                          <ListBoxItem key="GB" id="GB">GB</ListBoxItem>
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </div>
+                  <Description>
+                    Maximum file size. Capture stops when reached.
+                  </Description>
                 </div>
-                <Description>
-                  Maximum file size. Capture stops when reached.
-                </Description>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="retention-value">Retention</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="retention-value"
-                    type="number"
-                    min={1}
-                    value={String(retentionValue)}
-                    onChange={(e) => setRetentionValue(Number(e.target.value))}
-                    className="w-[140px]"
-                    aria-label="Retention value"
-                  />
-                  <Select
-                    value={retentionUnit}
-                    onChange={(v) => setRetentionUnit(String(v) as "hours" | "days")}
-                    className="w-[140px]"
-                  >
-                    <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Retention unit">
-                      <Select.Value />
-                      <Select.Indicator className="ml-auto h-4 w-4" />
-                    </Select.Trigger>
-                    <Select.Popover className="rounded border border-default-200">
-                      <ListBox>
-                        <ListBoxItem key="hours" id="hours">hours</ListBoxItem>
-                        <ListBoxItem key="days" id="days">days</ListBoxItem>
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
+  
+                <div className="space-y-2">
+                  <Label htmlFor="retention-value">Retention</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="retention-value"
+                      type="number"
+                      min={1}
+                      value={String(retentionValue)}
+                      onChange={(e) => setRetentionValue(Number(e.target.value))}
+                      className="w-[140px]"
+                      aria-label="Retention value"
+                    />
+                    <Select
+                      value={retentionUnit}
+                      onChange={(v) => setRetentionUnit(String(v) as "hours" | "days")}
+                      className="w-[140px]"
+                    >
+                      <Select.Trigger className="rounded border border-default-200 bg-default-50 px-3 py-2 text-sm" aria-label="Retention unit">
+                        <Select.Value />
+                        <Select.Indicator className="ml-auto h-4 w-4" />
+                      </Select.Trigger>
+                      <Select.Popover className="rounded border border-default-200">
+                        <ListBox>
+                          <ListBoxItem key="hours" id="hours">hours</ListBoxItem>
+                          <ListBoxItem key="days" id="days">days</ListBoxItem>
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </div>
+                  <Description>
+                    How long the capture is retained before auto-delete.
+                  </Description>
                 </div>
-                <Description>
-                  How long the capture is retained before auto-delete.
-                </Description>
-              </div>
-
-              {start.error && !filterError && <ErrorBanner err={start.error} />}
-            </form>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" onPress={onClose} isDisabled={start.isPending}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              isPending={start.isPending}
-              isDisabled={!!filterError || durationValue < 1 || sizeValue < 1}
-              onPress={() => start.mutate()}
-            >
-              {start.isPending ? "Starting…" : "Start Capture"}
-            </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+  
+                {start.error && !filterError && <ErrorBanner err={start.error} />}
+              </form>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" onPress={onClose} isDisabled={start.isPending}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                isPending={start.isPending}
+                isDisabled={!!filterError || durationValue < 1 || sizeValue < 1}
+                onPress={() => start.mutate()}
+              >
+                {start.isPending ? "Starting…" : "Start Capture"}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }
