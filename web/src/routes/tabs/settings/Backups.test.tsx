@@ -15,7 +15,7 @@ describe("BackupsSection", () => {
       <BackupsSection draft={baseDraft} onChange={() => {}} />,
     );
     const sw = screen.getByRole("switch", { name: /Enable scheduled backups/i });
-    expect(sw).toHaveAttribute("aria-checked", "false");
+    expect(sw).not.toBeChecked();
   });
 
   it("shows 'Disabled' text when backupPolicy is not set", () => {

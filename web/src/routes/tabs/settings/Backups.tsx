@@ -7,8 +7,8 @@ import {
   PopoverContent,
   ListBox,
   ListBoxItem,
+  Switch,
 } from "@heroui/react";
-import { Switch } from "@/components/hero/Switch";
 import { RetentionFields, buildRetention, type RetentionForm } from "@/components/backups/RetentionFields";
 import { useBackupDestinations } from "@/lib/destinations";
 import type { InlineBackupPolicy } from "@/types";
@@ -73,7 +73,13 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
               }
             }}
             aria-label="Enable scheduled backups"
-          />
+          >
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Content>
+          </Switch>
           <span className="text-sm text-muted">
             {policy ? "Enabled" : "Disabled"}
           </span>
@@ -145,7 +151,13 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
                 isSelected={policy.suspend ?? false}
                 onChange={(v) => setPolicyField("suspend", v)}
                 aria-label="Suspend schedule"
-              />
+              >
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Content>
+              </Switch>
               <span className="text-sm text-muted">
                 {policy.suspend ? "Suspended" : "Active"}
               </span>

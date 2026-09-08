@@ -1,6 +1,6 @@
 import { AlertTriangle, Info } from "lucide-react";
 
-import { Button, Chip } from "@heroui/react";
+import { RadioGroup, Radio, Button, Chip } from "@heroui/react";
 import type { SectionProps } from "./types";
 
 // VersionSection lets an existing server switch to another entry of the
@@ -38,30 +38,12 @@ export function VersionSection({ draft, onChange, template }: SectionProps) {
         </p>
       </div>
 
-      <div role="radiogroup" aria-label="Game version" className="space-y-2">
-        {versions.map((v) => {
-          const active = selectedId === v.id;
-          return (
-            <button
-              key={v.id}
-              role="radio"
-              aria-checked={active}
-              onClick={() => pick(v.id)}
-              className="flex w-full items-start gap-3 rounded-lg border border-border px-3 py-3 transition-colors hover:bg-surface/60 data-[selected]:border-primary data-[selected]:bg-primary/5"
-              style={{
-                borderColor: active ? "var(--heroui-primary)" : undefined,
-                backgroundColor: active ? "var(--heroui-primary-opacity-5)" : undefined,
-              }}
-            >
-              <span
-                className="h-4 w-4 shrink-0 rounded-full border border-border transition-all"
-                style={{
-                  borderWidth: active ? "5px" : "1px",
-                  borderColor: active ? "var(--heroui-primary)" : undefined,
-                  marginTop: "0.125rem",
-                }}
-              />
-              <div className="min-w-0 flex-1 text-left">
+      <RadioGroup value={selectedId} onChange={pick} aria-label="Game version" className="space-y-2">
+        {versions.map((v) => (
+          <Radio key={v.id} value={v.id}>
+            <Radio.Content className="flex w-full items-start gap-3 rounded-lg border border-border px-3 py-3 transition-colors hover:bg-surface/60 data-[selected]:border-primary data-[selected]:bg-primary/5">
+              <Radio.Control className="shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">{v.displayName}</span>
                   {v.default && (
@@ -79,10 +61,10 @@ export function VersionSection({ draft, onChange, template }: SectionProps) {
                     .join(" · ") || v.id}
                 </p>
               </div>
-            </button>
-          );
-        })}
-      </div>
+            </Radio.Content>
+          </Radio>
+        ))}
+      </RadioGroup>
 
       {hasLoaderVolumes && (
         <div className="flex items-start gap-2 rounded-lg border border-border bg-surface/40 px-3 py-2.5">

@@ -7,9 +7,10 @@ import {
   Label,
   Description,
   FieldError,
+  TextField,
+  Switch,
 } from "@heroui/react";
 import { useMe, can } from "@/lib/auth";
-import { Switch } from "@/components/hero/Switch";
 import type { CaptureConfiguration } from "@/types";
 import type { SectionProps } from "./types";
 
@@ -120,7 +121,13 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
               isDisabled={disabled}
               onChange={(v) => setCaptureField("enabled", v)}
               aria-label="Enable Capture"
-            />
+            >
+              <Switch.Content>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch.Content>
+            </Switch>
             <span className="text-sm text-default-500">{enabled ? "Enabled" : "Disabled"}</span>
           </div>
 
@@ -156,7 +163,7 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
           </Description>
         </div>
 
-        <div className="space-y-3">
+        <TextField isInvalid={retentionError !== null} className="space-y-3">
           <div className="flex items-center gap-2">
             <Input
               type="text"
@@ -209,7 +216,7 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
               — a storage-limitation-informed default, not a legal requirement.
             </p>
           )}
-        </div>
+        </TextField>
       </div>
     </div>
   );

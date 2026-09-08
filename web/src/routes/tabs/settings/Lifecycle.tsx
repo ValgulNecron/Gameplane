@@ -1,5 +1,4 @@
-import { Input, Button } from "@heroui/react";
-import { Switch } from "@/components/hero/Switch";
+import { Input, Button, Switch } from "@heroui/react";
 import type { IdleSpec, Probe, ProbeKind, ProbeSet } from "@/types";
 import { Field } from "./Field";
 import { GRACE_PERIOD_ANNOTATION, type SectionProps } from "./types";
@@ -177,11 +176,13 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
         hint="When off, the StatefulSet is scaled to zero (Suspended). Data is preserved."
       >
         <div className="flex items-center gap-3 pt-1">
-          <Switch
-            isSelected={autoRestart}
-            onChange={(v) => setSuspend(!v)}
-            aria-label="Auto-restart"
-          />
+          <Switch isSelected={autoRestart} onChange={(v) => setSuspend(!v)} aria-label="Auto-restart">
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Content>
+          </Switch>
           <span className="text-sm text-muted">
             {autoRestart ? "Pod is desired Running" : "Pod is suspended"}
           </span>
@@ -275,7 +276,13 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
               isSelected={draft.spec.idle?.enabled ?? false}
               onChange={setIdleEnabled}
               aria-label="Enable idle auto-sleep"
-            />
+            >
+              <Switch.Content>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch.Content>
+            </Switch>
             <span className="text-sm text-muted">
               {draft.spec.idle?.enabled ? "Idle auto-sleep enabled" : "Disabled"}
             </span>

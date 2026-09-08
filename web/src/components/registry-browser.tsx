@@ -139,7 +139,7 @@ export function RegistryBrowser({
           selectedKey={sort}
           onSelectionChange={(key) => setSort(key as RegistrySort)}
           isDisabled={!!debounced}
-          aria-label="Sort"
+          aria-label={debounced ? "Sort (disabled, sorted by relevance while searching)" : "Sort"}
           className="max-w-xs"
         >
           <SelectTrigger>
@@ -151,7 +151,7 @@ export function RegistryBrowser({
               items={SORTS}
             >
               {(s) => (
-                <ListBoxItem key={s.value} textValue={`Sort: ${s.label}`}>
+                <ListBoxItem key={s.value} id={s.value} textValue={`Sort: ${s.label}`}>
                   Sort: {s.label}
                 </ListBoxItem>
               )}

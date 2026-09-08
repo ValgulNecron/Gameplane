@@ -145,15 +145,20 @@ export function ModpacksTab({
                     .join(" · ")}
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="primary"
-                isDisabled={!canManage || busy !== null}
-                aria-label="Install modpack"
-                onPress={() => install(p, provider)}
-              >
-                {busy === p.id ? "Installing…" : "Install"}
-              </Button>
+              {/* The disabled reason lives on a wrapping element's title
+                  (not the Button's aria-label) so the button's accessible
+                  name stays its visible text ("Install"/"Installing…") for
+                  role queries and assistive tech alike. */}
+              <span title={canManage ? undefined : "Requires operator role"}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  isDisabled={!canManage || busy !== null}
+                  onPress={() => install(p, provider)}
+                >
+                  {busy === p.id ? "Installing…" : "Install"}
+                </Button>
+              </span>
             </Card>
           )}
         />

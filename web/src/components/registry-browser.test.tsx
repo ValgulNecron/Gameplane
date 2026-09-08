@@ -185,15 +185,16 @@ describe("RegistryBrowser", () => {
       />,
     );
 
-    const sortSelect = screen.getByRole("combobox", { name: /sort/i });
-    expect(sortSelect).not.toBeDisabled();
+    const sortTrigger = screen.getByRole("button", { name: /sort/i });
+    expect(sortTrigger).not.toHaveAttribute("aria-disabled", "true");
+    expect(sortTrigger).not.toBeDisabled();
 
     const input = screen.getByRole("textbox");
     await userEvent.type(input, "test");
 
     // Sort should become disabled while searching
     await waitFor(() => {
-      expect(sortSelect).toBeDisabled();
+      expect(sortTrigger).toBeDisabled();
     });
   });
 

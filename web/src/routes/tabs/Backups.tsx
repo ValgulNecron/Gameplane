@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, CalendarClock, Clock, HardDrive } from "lucide-react";
 import { Button, Chip, Table } from "@heroui/react";
@@ -18,7 +18,6 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState<Backup | null>(null);
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
-  const backupNowButtonRef = useRef<HTMLButtonElement>(null);
 
   const { data: backups } = useQuery({
     queryKey: ["backups"],
@@ -56,17 +55,6 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
       : destinations.length > 1
         ? "Multiple destinations configured — use the Backups page to pick one."
         : undefined;
-
-  // Add title attribute to the button for testing/accessibility
-  useLayoutEffect(() => {
-    if (backupNowButtonRef.current) {
-      if (backupNowHint) {
-        backupNowButtonRef.current.setAttribute("title", backupNowHint);
-      } else {
-        backupNowButtonRef.current.removeAttribute("title");
-      }
-    }
-  }, [backupNowHint]);
 
   const serverBackups = backups?.items.filter((b) => b.spec.serverRef.name === name) ?? [];
   const serverSchedules = schedules?.items.filter((s) => s.spec.serverRef.name === name) ?? [];
@@ -188,15 +176,18 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
       <section>
         <div className="flex items-center justify-between pb-3">
           <h2 className="text-sm text-foreground/60">Backups</h2>
-          <Button
-            ref={backupNowButtonRef}
-            size="sm"
-            onPress={() => createNow.mutate()}
-            isDisabled={backupNowDisabled}
-            aria-label={backupNowHint}
-          >
-            {createNow.isPending ? "Starting…" : "Back up now"}
-          </Button>
+          {/* The disabled reason lives on a wrapping element's title
+              (react-aria's Button strips a bare `title` prop) so the
+              button's accessible name stays its visible text. */}
+          <span title={backupNowHint}>
+            <Button
+              size="sm"
+              onPress={() => createNow.mutate()}
+              isDisabled={backupNowDisabled}
+            >
+              {createNow.isPending ? "Starting…" : "Back up now"}
+            </Button>
+          </span>
         </div>
         {createNow.error && <ErrorBanner err={createNow.error} />}
         <Table.Root>
@@ -216,16 +207,10 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
                   return (
                     <Table.Row
                       key={b.metadata.name}
+                      className="cursor-pointer"
+                      onAction={() => setSelectedBackup(b.metadata.name)}
                     >
-                      <Table.Cell className="font-mono">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedBackup(b.metadata.name)}
-                          className="cursor-pointer text-primary hover:underline"
-                        >
-                          {b.metadata.name}
-                        </button>
-                      </Table.Cell>
+                      <Table.Cell className="font-mono">{b.metadata.name}</Table.Cell>
                       <Table.Cell>
                         <PhaseChip phase={b.status?.phase} />
                       </Table.Cell>

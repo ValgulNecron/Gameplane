@@ -1,4 +1,4 @@
-import { Input, Button, Chip, Table } from "@heroui/react";
+import { Input, Button, Chip, Table, TextField, FieldError } from "@heroui/react";
 import { Lock, Plus, Type, Trash2 } from "lucide-react";
 import type { EnvVar } from "@/types";
 import type { SectionProps } from "./types";
@@ -89,9 +89,8 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
                         </Chip>
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="space-y-1">
+                        <TextField isInvalid={nameInvalid || dup} className="space-y-1">
                           <Input
-
                             value={v.name}
                             onChange={(e) => update(idx, { ...v, name: e.target.value })}
                             placeholder="VAR_NAME"
@@ -99,23 +98,22 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
                             className="text-xs"
                           />
                           {nameInvalid && (
-                            <div className="text-xs text-danger">
+                            <FieldError className="text-xs">
                               Must match [A-Z_][A-Z0-9_]*
-                            </div>
+                            </FieldError>
                           )}
                           {dup && (
-                            <div className="text-xs text-danger">
+                            <FieldError className="text-xs">
                               Duplicate name
-                            </div>
+                            </FieldError>
                           )}
-                        </div>
+                        </TextField>
                       </Table.Cell>
                       <Table.Cell>
                         {isSecret ? (
                           <div className="space-y-2">
                             <div className="flex gap-2">
                               <Input
-                               
                                 value={v.valueFrom?.secretKeyRef?.name ?? ""}
                                 onChange={(e) =>
                                   update(idx, {
@@ -133,7 +131,6 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
                                 className="text-xs flex-1"
                               />
                               <Input
-                               
                                 value={v.valueFrom?.secretKeyRef?.key ?? ""}
                                 onChange={(e) =>
                                   update(idx, {
@@ -154,7 +151,6 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
                           </div>
                         ) : (
                           <Input
-                           
                             value={v.value ?? ""}
                             onChange={(e) => update(idx, { ...v, value: e.target.value })}
                             placeholder="value"

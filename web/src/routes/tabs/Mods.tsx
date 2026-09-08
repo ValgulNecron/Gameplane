@@ -252,14 +252,19 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
               {updateAll.isPending ? "Updating…" : `Update all (${updateByName.size})`}
             </Button>
           )}
-          <Button
-            size="sm"
-            onPress={() => setBrowsing(true)}
-            isDisabled={!canManage}
-            aria-label="Install mod"
-          >
-            <Plus className="h-4 w-4" /> Install mod
-          </Button>
+          {/* The disabled reason lives on a wrapping element's title (not
+              the Button's aria-label) so the button's accessible name
+              stays its visible text, "Install mod", for role queries and
+              assistive tech alike. */}
+          <span title={canManage ? undefined : "Requires operator role"}>
+            <Button
+              size="sm"
+              onPress={() => setBrowsing(true)}
+              isDisabled={!canManage}
+            >
+              <Plus className="h-4 w-4" /> Install mod
+            </Button>
+          </span>
         </div>
       </header>
 
@@ -1197,15 +1202,19 @@ function ModCard({
               {file?.requiresAuth ? (
                 // Portal files (e.g. Factorio) download only with the
                 // player's own credentials — hand off to the URL form so
-                // the user can append them; never one-click install.
-                <Button
-                  size="sm"
-                  variant="outline"
-                  aria-label="This registry's downloads need your own account credentials appended to the URL"
-                  onPress={() => onUseUrl(file.downloadUrl)}
-                >
-                  Use URL form
-                </Button>
+                // the user can append them; never one-click install. The
+                // hint lives on a wrapping element's title (not the
+                // Button's aria-label) so the button's accessible name
+                // stays its visible text, "Use URL form".
+                <span title="This registry's downloads need your own account credentials appended to the URL">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onPress={() => onUseUrl(file.downloadUrl)}
+                  >
+                    Use URL form
+                  </Button>
+                </span>
               ) : (
                 <Button
                   size="sm"

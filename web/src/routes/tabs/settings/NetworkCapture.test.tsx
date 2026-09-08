@@ -10,32 +10,11 @@ import { makeServer, makeUser } from "@/test/factories";
 
 const baseDraft = makeServer();
 
-// HeroUI v3 Input wraps the actual input element. This helper finds the real input.
-function getInputElement(label: string): HTMLInputElement {
-  const el = screen.getByLabelText(label);
-  if (el instanceof HTMLInputElement && el.type !== "hidden") {
-    return el;
-  }
-  // Try to find input by traversing parents and siblings
-  const input = el.querySelector('input[type="text"], input[type="number"], input:not([type="hidden"])');
-  if (input) {
-    return input as HTMLInputElement;
-  }
-  // If not found in children, try siblings and parents
-  let current: Element | null = el;
-  while (current) {
-    const found = current.querySelector('input[type="text"], input[type="number"], input:not([type="hidden"])');
-    if (found) return found as HTMLInputElement;
-    current = current.parentElement;
-  }
-  throw new Error(`Could not find input element for label "${label}". Element type: ${el.tagName}`);
-}
-
 describe("NetworkCaptureSection", () => {
   it("reflects spec.capture.enabled = false as an unchecked switch", async () => {
     renderWithQuery(<NetworkCaptureSection draft={baseDraft} onChange={() => {}} />);
     const sw = await screen.findByRole("switch", { name: /Enable Capture/i });
-    expect(sw).toHaveAttribute("aria-checked", "false");
+    expect(sw).not.toBeChecked();
     expect(screen.getByText("Disabled")).toBeInTheDocument();
   });
 
@@ -46,7 +25,7 @@ describe("NetworkCaptureSection", () => {
     };
     renderWithQuery(<NetworkCaptureSection draft={draft} onChange={() => {}} />);
     const sw = await screen.findByRole("switch", { name: /Enable Capture/i });
-    expect(sw).toHaveAttribute("aria-checked", "true");
+    expect(sw).toBeChecked();
     expect(screen.getByText("Enabled")).toBeInTheDocument();
   });
 
@@ -131,7 +110,7 @@ describe("NetworkCaptureSection", () => {
     const daysOption = await screen.findByRole("option", { name: /days/i });
     await userEvent.click(daysOption);
 
-    const value = getInputElement("Retention window value");
+    const value = await screen.findByLabelText("Retention window value");
     await userEvent.clear(value);
     await userEvent.type(value, "2");
 
@@ -155,7 +134,7 @@ describe("NetworkCaptureSection", () => {
     const daysOption = await screen.findByRole("option", { name: /days/i });
     await userEvent.click(daysOption);
 
-    const value = getInputElement("Retention window value");
+    const value = await screen.findByLabelText("Retention window value");
     await userEvent.clear(value);
     await userEvent.type(value, "8"); // 8 days > 7-day cluster max
 
@@ -180,7 +159,8 @@ describe("NetworkCaptureSection", () => {
     };
     const onChange = vi.fn();
     renderWithQuery(<NetworkCaptureSection draft={draft} onChange={onChange} />);
-    const value = getInputElement("Retention window value");
+    const value = await screen.findByLabelText("Retention window value");
+    await waitFor(() => expect(value).not.toBeDisabled());
     await userEvent.clear(value);
 
     const lastCall = onChange.mock.calls.at(-1)![0];
@@ -249,7 +229,8 @@ describe("NetworkCaptureSection", () => {
     renderWithQuery(
       <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
     );
-    const value = getInputElement("Retention window value");
+    const value = await screen.findByLabelText("Retention window value");
+    await waitFor(() => expect(value).not.toBeDisabled());
     await userEvent.clear(value);
     await userEvent.type(value, "0");
 
@@ -275,7 +256,8 @@ describe("NetworkCaptureSection", () => {
     renderWithQuery(
       <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
     );
-    const value = getInputElement("Retention window value");
+    const value = await screen.findByLabelText("Retention window value");
+    await waitFor(() => expect(value).not.toBeDisabled());
     await userEvent.clear(value);
     await userEvent.type(value, "-5");
 
@@ -301,7 +283,8 @@ describe("NetworkCaptureSection", () => {
     renderWithQuery(
       <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
     );
-    const value = getInputElement("Retention window value");
+    const value = await screen.findByLabelText("Retention window value");
+    await waitFor(() => expect(value).not.toBeDisabled());
     await userEvent.clear(value);
     await userEvent.type(value, "not-a-number");
 

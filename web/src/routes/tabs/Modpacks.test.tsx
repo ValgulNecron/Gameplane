@@ -144,7 +144,11 @@ describe("ModpacksTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tech" }));
     await waitFor(() => expect(urls.some((u) => u.includes("category=technology"))).toBe(true));
 
-    fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "updated" } });
+    // HeroUI v3's Select trigger is a role=button (aria-haspopup=listbox);
+    // its options render in a portal-mounted listbox once opened — a plain
+    // fireEvent.change on a hidden native <select> never reaches it.
+    fireEvent.click(screen.getByRole("button", { name: /sort/i }));
+    fireEvent.click(screen.getByRole("option", { name: /recently updated/i }));
     await waitFor(() => expect(urls.some((u) => u.includes("sort=updated"))).toBe(true));
     expect(urls.every((u) => u.includes("type=modpack"))).toBe(true);
   });

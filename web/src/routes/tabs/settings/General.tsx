@@ -81,18 +81,24 @@ export function GeneralSection({ draft, onChange }: SectionProps) {
               <span className="font-mono text-xs text-muted">{k}</span>
               <span className="text-muted">=</span>
               <span className="font-mono text-xs text-fg">{v}</span>
-              <button
-                className="ml-auto inline-flex items-center justify-center rounded px-1 py-1 text-muted hover:bg-surface/40"
-                aria-label="Remove label"
-                title="Remove label"
-                onClick={() => {
-                  const next = { ...labels };
-                  delete next[k];
-                  setLabels(next);
-                }}
-              >
-                <X className="h-3 w-3" />
-              </button>
+              {/* The tooltip lives on a wrapping element's title (react-aria's
+                  Button strips a bare `title` prop) so the button keeps its
+                  aria-label as the accessible name for role queries. */}
+              <span title="Remove label" className="ml-auto">
+                <Button
+                  isIconOnly
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Remove label"
+                  onPress={() => {
+                    const next = { ...labels };
+                    delete next[k];
+                    setLabels(next);
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </span>
             </div>
           ))}
           <div className="flex items-center gap-2">
