@@ -85,7 +85,7 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
         <ModalContainer>
           <ModalDialog>
           <ModalHeader>
-            <ModalHeading>Restore from backup</ModalHeading>
+            <ModalHeading>Restore backup</ModalHeading>
           </ModalHeader>
 
           <ModalBody className="gap-4">
