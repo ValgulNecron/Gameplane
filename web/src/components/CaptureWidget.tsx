@@ -477,7 +477,7 @@ export function CaptureWidget({ name, ns, gs }: Props) {
               </Button>
               <Button
                 variant="danger"
-                isPending={deleteMut.isPending}
+                isDisabled={deleteMut.isPending}
                 onPress={() => deleteTarget && deleteMut.mutate(deleteTarget.captureId)}
               >
                 {deleteMut.isPending ? "Working…" : "Delete capture"}
