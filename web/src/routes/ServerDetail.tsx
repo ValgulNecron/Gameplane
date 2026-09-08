@@ -266,7 +266,7 @@ export function ServerDetailPage() {
           )}
           {tab === "files"    && <FilesTab   name={name} ns={ns} />}
           {tab === "mods"     && <ModsTab    name={name} ns={ns} tmpl={tmpl} gs={gs} />}
-          {tab === "modpacks" && <ModpacksTab name={name} ns={ns} tmpl={tmpl} gs={gs} />}
+          {tab === "modpacks" && <ModpacksTab name={name} ns={ns} tmpl={tmpl} />}
           {tab === "players"  && <PlayersTab name={name} ns={ns} />}
           {tab === "backups"  && <BackupsTab name={name} ns={ns} />}
           {tab === "capture"  && <CaptureWidget name={name} ns={ns} gs={gs} />}
