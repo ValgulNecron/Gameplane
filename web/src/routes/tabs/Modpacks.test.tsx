@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
 import { ModpacksTab } from "./Modpacks";
-import type { GameServer, GameTemplate, RegistryProject } from "@/types";
+import type { GameTemplate, RegistryProject } from "@/types";
 
 const fetchMock = vi.fn();
 beforeEach(() => vi.stubGlobal("fetch", fetchMock));
@@ -69,10 +69,6 @@ function tmpl(modpacks: Modpacks, provider = "modrinth"): GameTemplate {
 
 const providersOf = (provider: string) => [{ provider, available: true, modpacks: true }];
 
-function gs(env?: { name: string; value?: string }[]): GameServer {
-  return { metadata: { name: "s1" }, spec: { templateRef: { name: "t" }, ...(env ? { env } : {}) } };
-}
-
 const pack: RegistryProject = {
   id: "cobblemon", slug: "cobblemon", title: "Cobblemon", author: "cobblemon",
   downloads: 9_100_000, provider: "modrinth",
@@ -82,7 +78,7 @@ describe("ModpacksTab", () => {
   it("env-mode: installs by setting the modpack ref", async () => {
     const calls: { ref: string }[] = [];
     route({ packs: [pack], onModpack: (b) => calls.push(b) });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     await screen.findByText("Cobblemon");
     const install = await screen.findByRole("button", { name: /install/i });
@@ -91,13 +87,12 @@ describe("ModpacksTab", () => {
     expect(await screen.findByText(/Set modpack Cobblemon/)).toBeInTheDocument();
   });
 
-  it("env-mode: shows the active modpack banner", async () => {
+  it("env-mode: does not show active modpack", async () => {
     route({ packs: [] });
     renderWithQuery(
-      <ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs([{ name: "MODRINTH_MODPACK", value: "cobblemon" }])} />,
+      <ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />,
     );
-    expect(await screen.findByText("Active modpack:")).toBeInTheDocument();
-    expect(screen.getByText("cobblemon")).toBeInTheDocument();
+    expect(screen.queryByText("Active modpack:")).not.toBeInTheDocument();
   });
 
   it("deps-mode: resolves and installs each dependency", async () => {
@@ -111,7 +106,7 @@ describe("ModpacksTab", () => {
       ],
       onInstallMod: (b) => installed.push(b),
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({}, "thunderstore")} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({}, "thunderstore")} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
     await waitFor(() => expect(installed).toHaveLength(2));
@@ -121,7 +116,7 @@ describe("ModpacksTab", () => {
 
   it("disables install for viewers", async () => {
     route({ me: viewer, packs: [pack] });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
     await screen.findByText("Cobblemon");
     expect(screen.getByRole("button", { name: /install/i })).toBeDisabled();
   });
@@ -138,7 +133,7 @@ describe("ModpacksTab", () => {
       }
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
     await screen.findByText("Cobblemon");
 
     fireEvent.click(screen.getByRole("button", { name: "Tech" }));
@@ -170,7 +165,7 @@ describe("ModpacksTab", () => {
       }
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
     await screen.findByText("Cobblemon");
     await waitFor(() => expect(urls.some((u) => u.includes("provider=modrinth"))).toBe(true));
 
@@ -190,7 +185,7 @@ describe("ModpacksTab", () => {
       }
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
     await screen.findByText("Pack 0");
     fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
     expect(await screen.findByText("Last Pack")).toBeInTheDocument();
@@ -203,7 +198,7 @@ describe("ModpacksTab", () => {
       if (url.includes("/mods/registry/providers")) return Promise.resolve(jsonRes([]));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({})} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({})} />);
     expect(await screen.findByText(/isn’t available/)).toBeInTheDocument();
   });
 
@@ -215,7 +210,7 @@ describe("ModpacksTab", () => {
       if (url.includes("/mods/registry/search")) return Promise.resolve(jsonRes({ error: "boom" }, 502));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({})} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({})} />);
     expect(await screen.findByText("boom")).toBeInTheDocument();
   });
 
@@ -229,7 +224,7 @@ describe("ModpacksTab", () => {
         return Promise.resolve(jsonRes({ error: "failed to restart server" }, 500));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     await screen.findByText("Cobblemon");
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
@@ -254,7 +249,7 @@ describe("ModpacksTab", () => {
         return Promise.resolve(jsonRes({ error: "network timeout" }, 500));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({}, "thunderstore")} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({}, "thunderstore")} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
     expect(await screen.findByText("network timeout")).toBeInTheDocument();
@@ -270,7 +265,7 @@ describe("ModpacksTab", () => {
         return Promise.resolve(jsonRes({ error: "install failed" }, 500));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     await screen.findByText("Cobblemon");
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
@@ -296,7 +291,7 @@ describe("ModpacksTab", () => {
         return delayedPromise.then(() => jsonRes({ ok: true }));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     await screen.findByText("Cobblemon");
     const buttons = screen.getAllByRole("button", { name: /install/i });
@@ -314,7 +309,7 @@ describe("ModpacksTab", () => {
 
   it("shows active modpack when none is set", async () => {
     route({ packs: [] });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     // The active modpack banner should not appear
     expect(screen.queryByText("Active modpack:")).not.toBeInTheDocument();
@@ -330,7 +325,7 @@ describe("ModpacksTab", () => {
         return Promise.resolve(jsonRes({ error: "specific error from API" }, 500));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     await screen.findByText("Cobblemon");
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
@@ -347,7 +342,7 @@ describe("ModpacksTab", () => {
         return Promise.resolve(new Response("forbidden", { status: 403 }));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     await screen.findByText("Cobblemon");
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
@@ -356,7 +351,7 @@ describe("ModpacksTab", () => {
 
   it("shows success banner for env-mode install", async () => {
     route({ packs: [pack] });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     await screen.findByText("Cobblemon");
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
@@ -369,7 +364,7 @@ describe("ModpacksTab", () => {
       packs: [{ ...pack, title: "Single Mod", id: "packer-Single" }],
       deps: [{ filename: "mod.zip", downloadUrl: "https://cdn/mod.zip" }],
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({}, "thunderstore")} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({}, "thunderstore")} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
     expect(await screen.findByText(/Installed Single Mod — 1 mod\./)).toBeInTheDocument();
@@ -385,7 +380,7 @@ describe("ModpacksTab", () => {
         { filename: "c.zip", downloadUrl: "https://cdn/c.zip" },
       ],
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({}, "thunderstore")} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({}, "thunderstore")} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /install/i }));
     expect(await screen.findByText(/Installed Multi — 3 mods\./)).toBeInTheDocument();
@@ -406,7 +401,7 @@ describe("ModpacksTab", () => {
         return delayedPromise.then(() => jsonRes({ ok: true }));
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} />);
 
     const button = await screen.findByRole("button", { name: /install/i });
     fireEvent.click(button);

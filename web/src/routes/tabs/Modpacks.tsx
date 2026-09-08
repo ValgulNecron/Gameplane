@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, PackageCheck, X } from "lucide-react";
+import { Package, X } from "lucide-react";
 import { Button, Card, Alert } from "@heroui/react";
 
-import type { GameServer, GameTemplate, RegistryProject } from "@/types";
+import type { GameTemplate, RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
@@ -29,12 +29,10 @@ const MODPACK_CATEGORIES: { value: string; label: string }[] = [
 export function ModpacksTab({
   name,
   tmpl,
-  gs,
   ns,
 }: {
   name: string;
   tmpl?: GameTemplate;
-  gs?: GameServer;
   ns?: string;
 }) {
   const qc = useQueryClient();
@@ -43,18 +41,6 @@ export function ModpacksTab({
 
   const providers = tmpl?.spec.capabilities?.mods?.registry?.providers ?? [];
   const declFor = (p: string) => providers.find((x) => x.provider === p);
-
-  // Show whichever env-mode pack is currently pinned (provider-agnostic).
-  const active = (() => {
-    for (const p of providers) {
-      const refEnv = p.modpacks?.refEnv;
-      if (refEnv) {
-        const v = gs?.spec.env?.find((e) => e.name === refEnv)?.value;
-        if (v) return v;
-      }
-    }
-    return undefined;
-  })();
 
   const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // project id being installed
@@ -104,17 +90,6 @@ export function ModpacksTab({
         </p>
       </header>
 
-      {active && (
-        <Alert status="default" className="flex items-start gap-3">
-          <Alert.Indicator>
-            <PackageCheck className="h-4 w-4" />
-          </Alert.Indicator>
-          <Alert.Content className="flex flex-1 flex-col gap-0.5">
-            <Alert.Title className="font-semibold text-sm">Active modpack:</Alert.Title>
-            <Alert.Description className="font-mono text-sm">{active}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      )}
 
       {banner && (
         <Alert status={banner.kind === "ok" ? "success" : "danger"} className="flex items-start justify-between gap-3">
@@ -149,7 +124,7 @@ export function ModpacksTab({
                   (not the Button's aria-label) so the button's accessible
                   name stays its visible text ("Install"/"Installing…") for
                   role queries and assistive tech alike. */}
-              <span title={canManage ? undefined : "Requires operator role"}>
+              <span title={canManage ? undefined : "Requires operator role"} tabIndex={0}>
                 <Button
                   size="sm"
                   variant="primary"
