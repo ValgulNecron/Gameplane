@@ -271,7 +271,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Fill in credentials and server address
@@ -329,7 +329,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Select Tailscale provider
