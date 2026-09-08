@@ -399,7 +399,7 @@ Each Settings sub-section independently owns its form state (no shared parent pr
 
 Every file in slice 2b imports **only** from `@heroui/react` and `@/components/hero/` (no `@radix-ui/*`, no `@/components/ui/*`):
 
-- ✅ Verified by `grep -rl '@/components/ui/|@radix-ui' web/src/routes/tabs/{Mods,Modpacks,Backups,Settings}.tsx web/src/routes/tabs/settings/ web/src/components/{CaptureWidget,registry-browser}.tsx web/src/components/modules/{InstallDialog,UploadModuleDialog}.tsx 2>/dev/null` must return **zero results** (task T120)
+- ✅ Verified by `grep -rl -e '@/components/ui/' -e '@radix-ui' web/src/routes/tabs/{Mods,Modpacks,Backups,Settings}.tsx web/src/routes/tabs/settings/ web/src/components/{CaptureWidget,registry-browser}.tsx web/src/components/modules/{InstallDialog,UploadModuleDialog}.tsx 2>/dev/null` must return **zero results** (task T120)
 
 ### Test Count Rule (FR-010)
 

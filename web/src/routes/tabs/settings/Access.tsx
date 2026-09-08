@@ -122,15 +122,17 @@ export function AccessSection({ gs }: Props) {
                     >
                       <span>{name}</span>
                       {canEditCollaborators && (
-                        <button
-                          onClick={() => handleRemoveCollaborator(idx)}
-                          disabled={setCollab.isPending}
-                          className="ml-0.5 hover:text-danger disabled:opacity-40"
-                          title="Remove"
+                        <Button
+                          isIconOnly
+                          variant="ghost"
+                          size="sm"
+                          className="ml-0.5 text-danger"
+                          onPress={() => handleRemoveCollaborator(idx)}
+                          isDisabled={setCollab.isPending}
                           aria-label={`Remove ${name}`}
                         >
                           <X className="h-3 w-3" />
-                        </button>
+                        </Button>
                       )}
                     </Chip>
                   ))}
