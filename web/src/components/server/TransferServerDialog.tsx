@@ -63,84 +63,83 @@ export function TransferServerDialog({ name, ns, open, onOpenChange, onTransferr
 
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange}>
-      <ModalBackdrop isDismissable={!transfer.isPending} isKeyboardDismissDisabled={transfer.isPending}>
-        <ModalContainer>
-          <ModalDialog>
-            <ModalHeader>
-              <ModalHeading>Transfer {name}</ModalHeading>
-            </ModalHeader>
+      <ModalBackdrop isDismissable={!transfer.isPending} isKeyboardDismissDisabled={transfer.isPending} />
+      <ModalContainer>
+        <ModalDialog>
+          <ModalHeader>
+            <ModalHeading>Transfer {name}</ModalHeading>
+          </ModalHeader>
 
-            <ModalBody>
-              <div className="space-y-4">
-                <div className="text-sm text-muted">
-                  Current owner: {currentOwner || "unassigned"}.
-                </div>
-
-                {usersError ? (
-                  <div className="text-xs text-danger">
-                    You need permission to list users to pick a recipient.
-                  </div>
-                ) : (
-                  <Popover isOpen={popoverOpen} onOpenChange={setPopoverOpen}>
-                    <PopoverTrigger
-                      className={cn(
-                        "flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
-                        "hover:bg-surface transition-colors cursor-pointer",
-                      )}
-                    >
-                      <span className={selectedUser ? "text-fg" : "text-muted"}>
-                        {selectedUser?.username || "Select a user…"}
-                      </span>
-                      <ChevronDown className="h-4 w-4 text-muted shrink-0" />
-                    </PopoverTrigger>
-                    <PopoverContent className="min-w-[200px]">
-                      <ListBox
-                        aria-label="Transfer to"
-                        selectionMode="single"
-                        onSelectionChange={(selected) => {
-                          const [id] = selected === "all" ? [] : selected;
-                          if (id !== undefined) setUserId(String(id));
-                          setPopoverOpen(false);
-                        }}
-                      >
-                        {users.map((u) => (
-                          <ListBoxItem key={u.id} id={String(u.id)}>
-                            {u.username}
-                          </ListBoxItem>
-                        ))}
-                      </ListBox>
-                    </PopoverContent>
-                  </Popover>
-                )}
-
-                {transfer.isError && (
-                  <div className="text-xs text-danger">
-                    {errorText(transfer.error, "transfer failed")}
-                  </div>
-                )}
+          <ModalBody>
+            <div className="space-y-4">
+              <div className="text-sm text-muted">
+                Current owner: {currentOwner || "unassigned"}.
               </div>
-            </ModalBody>
 
-            <ModalFooter className="flex items-center justify-end gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                isDisabled={transfer.isPending}
-                onPress={() => onOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                isDisabled={!userId || transfer.isPending}
-                onPress={() => transfer.mutate()}
-              >
-                {transfer.isPending ? "Transferring…" : "Transfer"}
-              </Button>
-            </ModalFooter>
-          </ModalDialog>
-        </ModalContainer>
-      </ModalBackdrop>
+              {usersError ? (
+                <div className="text-xs text-danger">
+                  You need permission to list users to pick a recipient.
+                </div>
+              ) : (
+                <Popover isOpen={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
+                      "hover:bg-surface transition-colors cursor-pointer",
+                    )}
+                  >
+                    <span className={selectedUser ? "text-fg" : "text-muted"}>
+                      {selectedUser?.username || "Select a user…"}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted shrink-0" />
+                  </PopoverTrigger>
+                  <PopoverContent className="min-w-[200px]">
+                    <ListBox
+                      aria-label="Transfer to"
+                      selectionMode="single"
+                      onSelectionChange={(selected) => {
+                        const [id] = selected === "all" ? [] : selected;
+                        if (id !== undefined) setUserId(String(id));
+                        setPopoverOpen(false);
+                      }}
+                    >
+                      {users.map((u) => (
+                        <ListBoxItem key={u.id} id={String(u.id)}>
+                          {u.username}
+                        </ListBoxItem>
+                      ))}
+                    </ListBox>
+                  </PopoverContent>
+                </Popover>
+              )}
+
+              {transfer.isError && (
+                <div className="text-xs text-danger">
+                  {errorText(transfer.error, "transfer failed")}
+                </div>
+              )}
+            </div>
+          </ModalBody>
+
+          <ModalFooter className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={transfer.isPending}
+              onPress={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              isDisabled={!userId || transfer.isPending}
+              onPress={() => transfer.mutate()}
+            >
+              {transfer.isPending ? "Transferring…" : "Transfer"}
+            </Button>
+          </ModalFooter>
+        </ModalDialog>
+      </ModalContainer>
     </Modal>
   );
 }

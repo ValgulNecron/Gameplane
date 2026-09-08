@@ -75,14 +75,14 @@ export function ResetPasswordDialog({
 
   return (
     <Modal isOpen={open} onOpenChange={handleClose}>
-      <ModalBackdrop isDismissable={!isLoading} isKeyboardDismissDisabled={isLoading} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>Reset password for {username}</ModalHeading>
-          </ModalHeader>
+      <ModalBackdrop isDismissable={!isLoading} isKeyboardDismissDisabled={isLoading}>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader>
+              <ModalHeading>Reset password for {username}</ModalHeading>
+            </ModalHeader>
 
-          <ModalBody className="gap-4">
+            <ModalBody className="gap-4">
             <Description>They will need to sign in again with the new password.</Description>
             <div>
               <Label htmlFor="reset-password" className="text-xs">
@@ -116,9 +116,10 @@ export function ResetPasswordDialog({
             >
               {isLoading ? "Resetting…" : submitLabel}
             </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }

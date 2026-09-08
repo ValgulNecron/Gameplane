@@ -129,14 +129,14 @@ export function InviteUserDialog({
 
   return (
     <Modal isOpen={open} onOpenChange={handleClose}>
-      <ModalBackdrop isDismissable={!isLoading} isKeyboardDismissDisabled={isLoading} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>Invite user</ModalHeading>
-          </ModalHeader>
+      <ModalBackdrop isDismissable={!isLoading} isKeyboardDismissDisabled={isLoading}>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader>
+              <ModalHeading>Invite user</ModalHeading>
+            </ModalHeader>
 
-          <ModalBody className="gap-4">
+            <ModalBody className="gap-4">
             {contactFieldsOptional && (
               <Description>
                 Create a local account. Leave password blank to send an OIDC invite later.
@@ -247,9 +247,10 @@ export function InviteUserDialog({
             >
               {isLoading ? "Inviting…" : submitLabel}
             </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }

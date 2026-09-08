@@ -441,46 +441,47 @@ function DeleteUserDialog({
 
   return (
     <AlertDialog isOpen onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogBackdrop isDismissable={!remove.isPending} isKeyboardDismissDisabled={remove.isPending} />
-      <AlertDialogContainer>
-        <Modal>
-          <ModalDialog role="alertdialog" className="max-w-md">
-            <ModalHeader>
-              <ModalHeading>Delete {user.username}?</ModalHeading>
-            </ModalHeader>
-            <ModalBody>
-              {isMe ? (
-                <p className="text-sm text-danger">You can&apos;t delete your own account.</p>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    Their sessions will be revoked and they&apos;ll lose access immediately. This cannot be undone.
-                  </p>
-                  <ErrorLine error={remove.error} />
-                </div>
-              )}
-            </ModalBody>
-            <ModalFooter className="flex items-center justify-end gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onPress={onClose}
-                isDisabled={remove.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                isDisabled={isMe || remove.isPending}
-                onPress={() => remove.mutate()}
-              >
-                {isMe ? "Cannot delete" : "Delete user"}
-              </Button>
-            </ModalFooter>
-          </ModalDialog>
-        </Modal>
-      </AlertDialogContainer>
+      <AlertDialogBackdrop isDismissable={!remove.isPending} isKeyboardDismissDisabled={remove.isPending}>
+        <AlertDialogContainer>
+          <Modal>
+            <ModalDialog role="alertdialog" className="max-w-md">
+              <ModalHeader>
+                <ModalHeading>Delete {user.username}?</ModalHeading>
+              </ModalHeader>
+              <ModalBody>
+                {isMe ? (
+                  <p className="text-sm text-danger">You can&apos;t delete your own account.</p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm">
+                      Their sessions will be revoked and they&apos;ll lose access immediately. This cannot be undone.
+                    </p>
+                    <ErrorLine error={remove.error} />
+                  </div>
+                )}
+              </ModalBody>
+              <ModalFooter className="flex items-center justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={onClose}
+                  isDisabled={remove.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  isDisabled={isMe || remove.isPending}
+                  onPress={() => remove.mutate()}
+                >
+                  {isMe ? "Cannot delete" : "Delete user"}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </Modal>
+        </AlertDialogContainer>
+      </AlertDialogBackdrop>
     </AlertDialog>
   );
 }
@@ -597,42 +598,43 @@ function DeleteRoleDialog({
 
   return (
     <AlertDialog isOpen onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogBackdrop isDismissable={!remove.isPending} isKeyboardDismissDisabled={remove.isPending} />
-      <AlertDialogContainer>
-        <Modal>
-          <ModalDialog role="alertdialog" className="max-w-md">
-            <ModalHeader>
-              <ModalHeading>Delete role {role.name}?</ModalHeading>
-            </ModalHeader>
-            <ModalBody>
-              <div className="space-y-2">
-                <p className="text-sm">
-                  This can&apos;t be undone. Roles assigned to a user can&apos;t be deleted.
-                </p>
-                <ErrorLine error={remove.error} />
-              </div>
-            </ModalBody>
-            <ModalFooter className="flex items-center justify-end gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onPress={onClose}
-                isDisabled={remove.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                isDisabled={remove.isPending}
-                onPress={() => remove.mutate()}
-              >
-                Delete role
-              </Button>
-            </ModalFooter>
-          </ModalDialog>
-        </Modal>
-      </AlertDialogContainer>
+      <AlertDialogBackdrop isDismissable={!remove.isPending} isKeyboardDismissDisabled={remove.isPending}>
+        <AlertDialogContainer>
+          <Modal>
+            <ModalDialog role="alertdialog" className="max-w-md">
+              <ModalHeader>
+                <ModalHeading>Delete role {role.name}?</ModalHeading>
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-2">
+                  <p className="text-sm">
+                    This can&apos;t be undone. Roles assigned to a user can&apos;t be deleted.
+                  </p>
+                  <ErrorLine error={remove.error} />
+                </div>
+              </ModalBody>
+              <ModalFooter className="flex items-center justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={onClose}
+                  isDisabled={remove.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  isDisabled={remove.isPending}
+                  onPress={() => remove.mutate()}
+                >
+                  Delete role
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </Modal>
+        </AlertDialogContainer>
+      </AlertDialogBackdrop>
     </AlertDialog>
   );
 }

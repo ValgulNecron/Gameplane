@@ -103,14 +103,14 @@ export function EditUserDialog({
 
   return (
     <Modal isOpen={open} onOpenChange={handleClose}>
-      <ModalBackdrop isDismissable={!isLoading} isKeyboardDismissDisabled={isLoading} />
-      <ModalContainer>
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>Edit user</ModalHeading>
-          </ModalHeader>
+      <ModalBackdrop isDismissable={!isLoading} isKeyboardDismissDisabled={isLoading}>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader>
+              <ModalHeading>Edit user</ModalHeading>
+            </ModalHeader>
 
-          <ModalBody className="gap-4">
+            <ModalBody className="gap-4">
             {username && <Description>{username}</Description>}
 
             <div>
@@ -198,9 +198,10 @@ export function EditUserDialog({
             >
               {isLoading ? "Saving…" : "Save changes"}
             </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }

@@ -70,14 +70,14 @@ export function RoleEditorModal({
 
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange} key={role?.name ?? "new"}>
-      <ModalBackdrop isDismissable={!save.isPending} isKeyboardDismissDisabled={save.isPending} />
-      <ModalContainer size="lg">
-        <ModalDialog>
-          <ModalHeader>
-            <ModalHeading>{role ? `Edit role: ${role.name}` : "New role"}</ModalHeading>
-          </ModalHeader>
+      <ModalBackdrop isDismissable={!save.isPending} isKeyboardDismissDisabled={save.isPending}>
+        <ModalContainer size="lg">
+          <ModalDialog>
+            <ModalHeader>
+              <ModalHeading>{role ? `Edit role: ${role.name}` : "New role"}</ModalHeading>
+            </ModalHeader>
 
-          <ModalBody className="gap-4">
+            <ModalBody className="gap-4">
             <Description className="text-sm text-muted">
               Grant a curated set of permissions.
             </Description>
@@ -154,9 +154,10 @@ export function RoleEditorModal({
             >
               {save.isPending ? "Saving…" : creating ? "Create role" : "Save role"}
             </Button>
-          </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }
