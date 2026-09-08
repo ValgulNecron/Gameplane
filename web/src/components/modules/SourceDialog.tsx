@@ -220,9 +220,9 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
 
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange}>
-      <ModalBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy} />
-      <ModalContainer>
-        <ModalDialog>
+      <ModalBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy}>
+        <ModalContainer>
+          <ModalDialog>
           <ModalHeader>
             <ModalHeading>
               {editing ? `Edit source ${source.metadata.name}` : "Add module source"}
@@ -610,8 +610,9 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
               {editing ? "Save" : "Add source"}
             </Button>
           </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }
