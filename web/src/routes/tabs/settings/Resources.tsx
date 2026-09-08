@@ -2,20 +2,22 @@ import { useState } from "react";
 import { Input } from "@heroui/react";
 import type { ResourceRequirements } from "@/types";
 import { isValidQuantity } from "@/lib/validation";
-import { formatCpuQuantity, formatMemQuantity, parseCpuQuantity, parseMemQuantity } from "@/lib/quantity";
+import { convertMem, formatCpuQuantity, formatMemQuantity, parseCpuQuantity, parseMemQuantity } from "@/lib/quantity";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
 
 function getCpuDisplayValue(quantity: string): string {
   const parsed = parseCpuQuantity(quantity);
   if (!parsed) return quantity;
-  return String(parsed.value);
+  const cores = parsed.unit === "cores" ? parsed.value : parsed.value / 1000;
+  return String(cores);
 }
 
 function getMemoryDisplayValue(quantity: string): string {
   const parsed = parseMemQuantity(quantity);
   if (!parsed) return quantity;
-  return String(parsed.value);
+  const gib = convertMem(parsed, "Gi");
+  return String(gib.value);
 }
 
 export function ResourcesSection({ draft, onChange }: SectionProps) {
