@@ -15,6 +15,7 @@ import type {
 import type { AllConfig } from "@/lib/config";
 import {
   makeAudit,
+  makeClusterStats,
   makeClusterView,
   makeConfig,
   makeRestore,
@@ -37,6 +38,81 @@ export const screenshotTemplates: GameTemplate[] = [
       version: "1.21",
       description: "Official Minecraft Java Edition server",
       image: "ghcr.io/valgulnecron/gameplane/minecraft:1.21",
+      rcon: { protocol: "minecraft" },
+      capabilities: {
+        rcon: { protocol: "minecraft" },
+        status: {
+          metrics: [
+            { id: "world-seed", displayName: "World seed" },
+            { id: "difficulty", displayName: "Difficulty" },
+          ],
+        },
+        actions: [
+          {
+            id: "set-time",
+            displayName: "Set time",
+            icon: "clock",
+            group: "WORLD",
+          },
+          {
+            id: "set-weather",
+            displayName: "Set weather",
+            icon: "cloud",
+            group: "WORLD",
+          },
+          {
+            id: "save-world",
+            displayName: "Save world",
+            description: "Flush the world to disk now.",
+            icon: "save",
+            group: "WORLD",
+          },
+          {
+            id: "broadcast",
+            displayName: "Broadcast message",
+            description: "Send a chat message to everyone on the server.",
+            icon: "megaphone",
+            group: "SERVER",
+          },
+          {
+            id: "reload-config",
+            displayName: "Reload config",
+            description: "Reapply server.properties without a restart.",
+            icon: "refresh-cw",
+            group: "SERVER",
+          },
+          {
+            id: "announce-restart",
+            displayName: "Announce restart",
+            icon: "rotate-ccw",
+            danger: true,
+            group: "SERVER",
+          },
+          {
+            id: "toggle-pvp",
+            displayName: "Toggle PvP",
+            description: "Enable or disable player-versus-player combat.",
+            icon: "gamepad-2",
+            group: "PLAYERS",
+          },
+        ],
+        mods: {
+          path: "mods",
+          registry: {
+            providers: [{ provider: "modrinth", modpacks: {} }],
+          },
+        },
+      },
+    },
+  }),
+  makeTemplate({
+    metadata: { name: "satisfactory" },
+    spec: {
+      displayName: "Satisfactory",
+      game: "satisfactory",
+      version: "1.0",
+      description: "Satisfactory dedicated server",
+      image: "ghcr.io/valgulnecron/gameplane/satisfactory:1.0",
     },
   }),
   makeTemplate({
@@ -126,205 +202,125 @@ export const screenshotTemplates: GameTemplate[] = [
 export const screenshotServers: GameServer[] = [
   makeServer({
     metadata: {
-      name: "test-server-01",
-      namespace: "default",
-      annotations: { "gameplane.local/node": "node-01" },
+      name: "mc-survival",
+      namespace: "gameplane-games",
+      annotations: { "gameplane.local/node": "kubelab-control" },
+    },
+    spec: {
+      templateRef: { name: "minecraft-java" },
+      idle: {
+        enabled: true,
+        afterMinutes: 30,
+        wakeWindows: ["0 17 * * *", "0 9 * * 6,0"],
+        wakeOnConnect: true,
+      },
+    },
+    status: {
+      phase: "Running",
+      agent: {
+        gameVersion: "1.21.4-fabric",
+        playersOnline: 0,
+        playersMax: 20,
+        lastHeartbeat: new Date(Date.now() - 15 * 1000).toISOString(),
+        cpuMillicores: 0,
+        cpuLimitMillicores: 2000,
+        memoryBytes: 1_520_000_000,
+        memoryLimitBytes: 4_000_000_000,
+        diskUsedBytes: 3_770_000_000,
+        diskTotalBytes: 29_000_000_000,
+      },
+      endpoints: [
+        {
+          name: "frp",
+          host: "mc.frp.gameplane.dev:25565",
+          tunnelProvider: "FRP",
+        },
+        {
+          name: "external",
+          host: "172.18.255.203",
+          pool: "pool-us-west",
+        },
+        {
+          name: "cluster",
+          host: "10.107.129.42",
+          port: 30812,
+        },
+      ],
+      startedAt: new Date(Date.now() - 185 * 1000).toISOString(),
+    },
+  }),
+  makeServer({
+    metadata: {
+      name: "mc-test",
+      namespace: "gameplane-games",
+      annotations: { "gameplane.local/node": "kubelab-worker-2" },
     },
     spec: { templateRef: { name: "minecraft-java" } },
     status: {
-      phase: "Running",
-      agent: {
-        playersOnline: 5,
-        playersMax: 20,
-        lastHeartbeat: "2026-09-02T15:45:30Z",
-        cpuMillicores: 1420,
-        cpuLimitMillicores: 4000,
-        memoryBytes: 5_100_000_000,
-        memoryLimitBytes: 8_000_000_000,
-        diskUsedBytes: 12_400_000_000,
-        diskTotalBytes: 50_000_000_000,
-      },
-      endpoints: [
-        {
-          name: "main",
-          host: "test-server-01.gameplane-demo.local",
-          port: 25565,
-          protocol: "tcp",
-        },
-      ],
-      startedAt: "2026-08-28T10:30:00Z",
-    },
-  }),
-  makeServer({
-    metadata: {
-      name: "test-server-02",
-      namespace: "default",
-      annotations: { "gameplane.local/node": "node-02" },
-    },
-    spec: { templateRef: { name: "valheim-default" } },
-    status: {
-      phase: "Running",
-      agent: {
-        playersOnline: 2,
-        playersMax: 10,
-        lastHeartbeat: "2026-09-02T15:44:15Z",
-        cpuMillicores: 860,
-        cpuLimitMillicores: 2000,
-        memoryBytes: 2_900_000_000,
-        memoryLimitBytes: 4_000_000_000,
-        diskUsedBytes: 6_100_000_000,
-        diskTotalBytes: 20_000_000_000,
-      },
-      endpoints: [
-        {
-          name: "main",
-          host: "test-server-02.gameplane-demo.local",
-          port: 2456,
-          protocol: "udp",
-        },
-      ],
-      startedAt: "2026-08-01T00:00:00Z",
-    },
-  }),
-  makeServer({
-    metadata: { name: "test-server-03", namespace: "gameplane-demo" },
-    spec: { templateRef: { name: "terraria-vanilla" } },
-    status: {
-      phase: "Pending",
-      agent: { playersOnline: null, playersMax: 16, lastHeartbeat: "2026-09-02T15:42:00Z" },
-      startedAt: "2026-09-02T15:40:00Z",
-    },
-  }),
-  makeServer({
-    metadata: { name: "test-server-04", namespace: "gameplane-demo" },
-    spec: { templateRef: { name: "rust-vanilla" } },
-    status: {
       phase: "Failed",
-      agent: { playersOnline: null, playersMax: 128, lastHeartbeat: undefined },
-      startedAt: undefined,
-    },
-  }),
-  makeServer({
-    metadata: {
-      name: "test-server-05",
-      namespace: "default",
-      annotations: { "gameplane.local/node": "node-03" },
-    },
-    spec: { templateRef: { name: "palworld-default" }, suspend: true },
-    status: {
-      phase: "Suspended",
-      idle: { asleep: true, asleepSince: "2026-09-01T00:00:00Z", reason: "No players for 24 hours" },
-      agent: { playersOnline: 0, playersMax: 32, lastHeartbeat: "2026-09-01T00:00:00Z" },
-      startedAt: "2026-08-15T18:30:00Z",
-    },
-  }),
-  // T086 (specs/014-heroui-web-rebuild): three additional Overview state
-  // variants with no prior fixture — idle armed (counting down, not yet
-  // asleep), never sleeps (game reports no player count, so the sleep
-  // trigger can never fire — see ServerSleepCard's `neverSleeps` check),
-  // and PVC provisioning failed (operator's checkPVCProvisioningFailure,
-  // gameserver_status.go — phase stays Pending, not Failed).
-  makeServer({
-    metadata: {
-      name: "test-server-06",
-      namespace: "default",
-      annotations: { "gameplane.local/node": "node-01" },
-    },
-    spec: {
-      templateRef: { name: "factorio-vanilla" },
-      idle: { enabled: true, afterMinutes: 30, wakeOnConnect: true },
-    },
-    status: {
-      phase: "Running",
-      idle: { emptySince: "2026-09-06T09:15:00Z", reason: "counting down" },
-      agent: {
-        playersOnline: 0,
-        playersMax: 16,
-        lastHeartbeat: "2026-09-06T09:30:00Z",
-        cpuMillicores: 210,
-        cpuLimitMillicores: 2000,
-        memoryBytes: 900_000_000,
-        memoryLimitBytes: 2_000_000_000,
-      },
-      endpoints: [
-        { name: "main", host: "test-server-06.gameplane-demo.local", port: 34197, protocol: "udp" },
-      ],
-      startedAt: "2026-09-05T08:00:00Z",
-    },
-  }),
-  makeServer({
-    metadata: { name: "test-server-07", namespace: "gameplane-demo" },
-    spec: {
-      templateRef: { name: "cs2-competitive" },
-      idle: { enabled: true, afterMinutes: 60 },
-    },
-    status: {
-      phase: "Running",
-      idle: { reason: "this game reports no player count" },
       agent: {
         playersOnline: null,
-        playersMax: 10,
-        lastHeartbeat: "2026-09-06T09:30:00Z",
-        cpuMillicores: 640,
+        playersMax: 0,
+        cpuMillicores: 0,
         cpuLimitMillicores: 2000,
+        memoryBytes: 0,
+        memoryLimitBytes: 4_000_000_000,
       },
-      endpoints: [
-        { name: "main", host: "test-server-07.gameplane-demo.local", port: 27015, protocol: "udp" },
-      ],
-      startedAt: "2026-09-04T12:00:00Z",
+      startedAt: undefined,
     },
   }),
   makeServer({
-    metadata: { name: "test-server-08", namespace: "gameplane-demo" },
-    spec: { templateRef: { name: "ark-ascended" } },
+    metadata: {
+      name: "user-server-test",
+      namespace: "gameplane-games",
+    },
+    spec: { templateRef: { name: "satisfactory" }, suspend: true },
     status: {
-      phase: "Pending",
-      agent: { playersOnline: null, playersMax: 70, lastHeartbeat: undefined },
+      phase: "Suspended",
+      idle: {
+        asleep: true,
+        asleepSince: new Date(Date.now() - 21600 * 1000).toISOString(),
+      },
+      agent: {
+        playersOnline: null,
+        playersMax: 0,
+      },
       startedAt: undefined,
-      conditions: [
-        {
-          type: "Ready",
-          status: "False",
-          reason: "PVCProvisioningFailed",
-          message: "PVC \"test-server-08-data\": StorageClass 'fast-nvme' not found on cluster.",
-          lastTransitionTime: "2026-09-06T09:00:00Z",
-        },
-      ],
     },
   }),
 ];
 
 // ============================================================================
-// Cluster Nodes: 3 nodes with varying resource usage
+// Cluster Nodes: 3 nodes matching 12 vCPUs cluster core capacity
 // ============================================================================
 
 export const screenshotNodes = [
   {
-    name: "node-01",
+    name: "kubelab-control",
     roles: ["control-plane", "worker"],
     status: "Ready" as const,
     startedAt: "2026-08-01T00:00:00Z",
-    cpu: { used: 3.2, capacity: 8 },
-    memory: { used: 6_400_000_000, capacity: 16_000_000_000 },
-    pods: { used: 28, capacity: 110 },
+    cpu: { used: 0.5, capacity: 4 },
+    memory: { used: 2_000_000_000, capacity: 8_000_000_000 },
+    pods: { used: 12, capacity: 110 },
   },
   {
-    name: "node-02",
+    name: "kubelab-worker-1",
     roles: ["worker"],
     status: "Ready" as const,
     startedAt: "2026-08-10T12:00:00Z",
-    cpu: { used: 5.8, capacity: 8 },
-    memory: { used: 10_200_000_000, capacity: 16_000_000_000 },
-    pods: { used: 35, capacity: 110 },
+    cpu: { used: 1.2, capacity: 4 },
+    memory: { used: 4_000_000_000, capacity: 8_000_000_000 },
+    pods: { used: 18, capacity: 110 },
   },
   {
-    name: "node-03",
+    name: "kubelab-worker-2",
     roles: ["worker"],
     status: "Ready" as const,
     startedAt: "2026-07-20T08:15:00Z",
-    cpu: { used: 1.1, capacity: 8 },
-    memory: { used: 3_600_000_000, capacity: 16_000_000_000 },
-    pods: { used: 12, capacity: 110 },
+    cpu: { used: 0.8, capacity: 4 },
+    memory: { used: 3_000_000_000, capacity: 8_000_000_000 },
+    pods: { used: 15, capacity: 110 },
   },
 ];
 
@@ -338,110 +334,69 @@ export function screenshotClusterView(): ClusterView {
   });
 }
 
+export function screenshotClusterStats() {
+  return makeClusterStats({
+    nodes: 3,
+    readyNodes: 3,
+    totalStorageBytes: 86 * 1024 ** 3,
+    usedStorageBytes: 77 * 1024 ** 3,
+  });
+}
+
 // ============================================================================
-// Kubernetes Events: realistic lifecycle events for test-server-04 (Failed)
+// Kubernetes Events: realistic lifecycle events for mc-survival
 // ============================================================================
 
 export const screenshotEvents: ServerEvent[] = [
   {
-    id: "evt-ts1-001",
-    time: "2026-08-28T10:29:15Z",
-    type: "Normal",
-    reason: "Scheduled",
-    message: 'Successfully assigned default/test-server-01 to node-01',
-    source: "default-scheduler",
-    object: "test-server-01",
-    count: 1,
-  },
-  {
-    id: "evt-ts1-002",
-    time: "2026-08-28T10:29:30Z",
+    id: "evt-001",
+    time: new Date(Date.now() - 170 * 1000).toISOString(),
     type: "Normal",
     reason: "Pulled",
-    message: 'Successfully pulled image "ghcr.io/valgulnecron/gameplane/minecraft:1.21" in 48s',
+    message: 'Successfully pulled image "itzg/minecraft-server:java21" ... 321 MB',
     source: "kubelet",
-    object: "test-server-01",
-    count: 1,
-  },
-  {
-    id: "evt-ts1-003",
-    time: "2026-08-28T10:30:00Z",
-    type: "Normal",
-    reason: "Started",
-    message: 'Started container minecraft-server',
-    source: "kubelet",
-    object: "test-server-01",
-    count: 1,
-  },
-  {
-    id: "evt-001",
-    time: "2026-09-02T15:35:00Z",
-    type: "Normal",
-    reason: "Scheduled",
-    message: 'Successfully assigned gameplane-demo/test-server-04 to node-01',
-    source: "default-scheduler",
-    object: "test-server-04",
+    object: "mc-survival",
     count: 1,
   },
   {
     id: "evt-002",
-    time: "2026-09-02T15:36:15Z",
+    time: new Date(Date.now() - 175 * 1000).toISOString(),
     type: "Normal",
-    reason: "Pulling",
-    message: 'Pulling image "ghcr.io/valgulnecron/gameplane/rust:2026.01"',
+    reason: "Created",
+    message: "Container created",
     source: "kubelet",
-    object: "test-server-04",
+    object: "mc-survival",
     count: 1,
   },
   {
     id: "evt-003",
-    time: "2026-09-02T15:37:30Z",
+    time: new Date(Date.now() - 178 * 1000).toISOString(),
     type: "Normal",
-    reason: "Pulled",
-    message: 'Successfully pulled image "ghcr.io/valgulnecron/gameplane/rust:2026.01" in 1m15s',
+    reason: "Started",
+    message: "Container started",
     source: "kubelet",
-    object: "test-server-04",
+    object: "mc-survival",
     count: 1,
   },
   {
     id: "evt-004",
-    time: "2026-09-02T15:37:45Z",
+    time: new Date(Date.now() - 180 * 1000).toISOString(),
     type: "Normal",
-    reason: "Created",
-    message: 'Created container rust-server',
-    source: "kubelet",
-    object: "test-server-04",
+    reason: "Scheduled",
+    message: "Successfully assigned gameplane-games/mc-survival-0 to kubelab-control",
+    source: "default-scheduler",
+    object: "mc-survival",
     count: 1,
   },
   {
     id: "evt-005",
-    time: "2026-09-02T15:37:50Z",
+    time: new Date(Date.now() - 182 * 1000).toISOString(),
     type: "Normal",
-    reason: "Started",
-    message: 'Started container rust-server',
-    source: "kubelet",
-    object: "test-server-04",
+    reason: "SuccessfulCreate",
+    message: "Create Pod mc-survival-0 ...",
+    source: "statefulset-controller",
+    object: "mc-survival",
     count: 1,
-  },
-  {
-    id: "evt-006",
-    time: "2026-09-02T15:40:22Z",
-    type: "Warning",
-    reason: "ImagePullBackOff",
-    message: 'Back-off pulling image "ghcr.io/valgulnecron/gameplane/rust:2026.01"',
-    source: "kubelet",
-    object: "test-server-04",
-    count: 3,
-  },
-  {
-    id: "evt-007",
-    time: "2026-09-02T15:41:45Z",
-    type: "Warning",
-    reason: "CrashLoopBackOff",
-    message: 'Back-off restarting failed container rust-server',
-    source: "kubelet",
-    object: "test-server-04",
-    count: 12,
   },
 ];
 
@@ -609,8 +564,8 @@ export const screenshotAuditEvents: AuditEvent[] = [
 export const screenshotUsers: User[] = [
   makeUser({
     id: 1,
-    username: "admin-demo",
-    displayName: "Demo Admin",
+    username: "admin",
+    displayName: "admin",
     email: "admin@gameplane-demo.local",
     role: "admin",
   }),
@@ -688,65 +643,27 @@ export function screenshotConfig(): AllConfig {
 }
 
 // ============================================================================
-// Game Server Log Lines (~30 lines, Minecraft-style format)
+// Game Server Log Lines (exact lines matching Pencil design kPmoo)
 // ============================================================================
 
 export const screenshotLogLines = [
-  "[12:00:01] [Server thread/INFO]: Starting minecraft server version 1.21",
-  "[12:00:02] [Server thread/INFO]: Loading properties",
-  "[12:00:03] [Server thread/INFO]: Default game type: SURVIVAL",
-  "[12:00:04] [Server thread/INFO]: Generating keypair",
-  "[12:00:05] [Server thread/INFO]: Starting Minecraft server on 0.0.0.0:25565",
-  "[12:00:06] [Server thread/INFO]: Using default channel type",
-  "[12:00:07] [Worker-Main-1/INFO]: Preparing level \"world\"",
-  "[12:00:08] [Worker-Main-1/INFO]: Preparing spawn area: 0%",
-  "[12:00:09] [Worker-Main-1/INFO]: Preparing spawn area: 50%",
-  "[12:00:10] [Worker-Main-1/INFO]: Preparing spawn area: 100%",
-  "[12:00:11] [Server thread/INFO]: Done (2.534s)! For help, type \"help\"",
-  "[12:00:12] [Server thread/INFO]: All players logged in without incident",
-  "[12:05:15] [Server thread/INFO]: Player-01 joined the game",
-  "[12:05:16] [Server thread/INFO]: Player-01 logged in with entity id 123",
-  "[12:06:22] [Server thread/INFO]: Player-02 joined the game",
-  "[12:06:23] [Server thread/INFO]: Player-02 logged in with entity id 124",
-  "[12:15:30] [Server thread/INFO]: Player-03 joined the game",
-  "[12:15:31] [Server thread/INFO]: Player-03 logged in with entity id 125",
-  "[12:30:45] [Server thread/WARN]: Memory usage high: 78% (7.8 GB / 10 GB)",
-  "[12:45:20] [Server thread/INFO]: Player-01 left the game",
-  "[12:45:21] [Server thread/INFO]: Saving and pausing game...",
-  "[12:45:22] [Server thread/INFO]: Saving chunks for level 'minecraft:overworld'",
-  "[12:45:23] [Server thread/INFO]: Saved the game",
-  "[12:45:24] [Server thread/INFO]: Resuming game",
-  "[13:00:00] [Server thread/INFO]: CPU usage: 45% | Memory: 68% | Disk: 12%",
-  "[13:15:10] [Server thread/INFO]: Automatic save triggered",
-  "[13:15:11] [Server thread/INFO]: Saving chunks for level 'minecraft:overworld'",
-  "[13:15:12] [Server thread/INFO]: Saved the game",
-  "[13:30:05] [Server thread/INFO]: Player-02 left the game",
-  "[14:00:00] [Server thread/INFO]: Server running normally with 2 players online",
+  "[17:50:57] [Server thread/INFO]: Starting minecraft server version 1.21.4",
+  "[17:50:57] [Server thread/INFO]: Preparing level 'world'",
+  "[17:51:06] [Worker-Main-2/INFO]: Preparing spawn area: 2%",
+  "[17:51:07] [Worker-Main-2/INFO]: Preparing spawn area: 26%",
+  "[17:51:08] [Worker-Main-2/INFO]: Preparing spawn area: 52%",
+  "[17:51:09] [Worker-Main-2/INFO]: Preparing spawn area: 78%",
+  "[17:51:11] [Server thread/INFO]: Done (14.618s)! For help, type 'help'",
+  "[17:51:11] [Server thread/INFO]: RCON running on 0.0.0.0:25575",
+  "[17:52:11] [Server thread/INFO]: Server empty for 60 seconds, pausing",
 ];
 
 // ============================================================================
 // Console Output Lines for RCON/PTY Console WebSocket demonstrations
+// (Empty array so terminal shows only "— connected —" matching Pencil design Xn5ns)
 // ============================================================================
 
-export const screenshotConsoleOutput = [
-  "Starting server initialization...",
-  "Loading configuration files",
-  "[INFO] Server version: Minecraft 1.21",
-  "[INFO] Loading world 'world'",
-  "[INFO] Preparing spawn area: 0%",
-  "[INFO] Preparing spawn area: 50%",
-  "[INFO] Preparing spawn area: 100%",
-  "[INFO] Done! Server is ready for connections",
-  "[WARN] No players connected",
-  "[INFO] Player-01 joined the game",
-  "[INFO] Player-02 joined the game",
-  "[INFO] Running auto-save...",
-  "[DEBUG] Saved world in 2.34 seconds",
-  "[INFO] Player-03 joined the game",
-  "[WARN] High memory usage: 78%",
-  "[INFO] Player-01 executed: /say Hello everyone!",
-  "[INFO] 3 players online, 0 players idle",
-];
+export const screenshotConsoleOutput: string[] = [];
 
 // ============================================================================
 // Installed Mods for test-server-02 (Valheim)
@@ -928,6 +845,7 @@ export function getScreenshotData() {
     servers: screenshotServers,
     nodes: screenshotNodes,
     clusterView: screenshotClusterView,
+    clusterStats: screenshotClusterStats,
     events: screenshotEvents,
     auditEvents: screenshotAuditEvents,
     users: screenshotUsers,

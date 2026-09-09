@@ -31,7 +31,8 @@ const WEB_ROOT = path.resolve(__dirname, '..');
 const DEFAULT_REF_DIR = path.join(REPO_ROOT, 'design-export/screenshots');
 const DEFAULT_CURR_DIR = path.join(WEB_ROOT, 'e2e/screenshots');
 const DEFAULT_OUT_DIR = path.join(WEB_ROOT, 'test-results/visual-diff');
-const DEFAULT_MAX_DIFF_FACTOR = 0.04; // 4.0% maximum allowed difference
+const DEFAULT_MAX_DIFF_FACTOR = 0.04; // 4.0% maximum allowed global difference
+const DEFAULT_MAX_BLOCK_DIFF_FACTOR = 0.16; // 16.0% maximum allowed difference in any 4x4 regional block
 const DEFAULT_PIXEL_THRESHOLD = 0.15; // Color delta sensitivity (0 to 1)
 
 // Per-screen threshold overrides where text density, terminal streams, or
@@ -43,6 +44,13 @@ const SCREEN_THRESHOLD_OVERRIDES = {
   FtdkI: 0.06, // Server Detail — Logs (Failed)
   // Mobile responsive layout (narrow 390px viewport with condensed cards)
   tooKB: 0.06, // Servers — Mobile
+};
+
+const SCREEN_BLOCK_THRESHOLD_OVERRIDES = {
+  Xn5ns: 0.25,
+  kPmoo: 0.25,
+  FtdkI: 0.25,
+  tooKB: 0.25,
 };
 
 // Screens currently expected to be captured by shipped slices (Slice 1 + Slice 2a per contracts/screen-verification.md).
@@ -84,6 +92,7 @@ function parseArgs() {
     currDir: DEFAULT_CURR_DIR,
     outDir: DEFAULT_OUT_DIR,
     maxDiffFactor: DEFAULT_MAX_DIFF_FACTOR,
+    maxBlockDiffFactor: DEFAULT_MAX_BLOCK_DIFF_FACTOR,
     pixelThreshold: DEFAULT_PIXEL_THRESHOLD,
     allowMissing: false,
     checkExpected: false,
@@ -99,6 +108,8 @@ function parseArgs() {
       options.outDir = path.resolve(process.cwd(), arg.slice('--out-dir='.length));
     } else if (arg.startsWith('--threshold=')) {
       options.maxDiffFactor = parseRatio(arg.slice('--threshold='.length), '--threshold');
+    } else if (arg.startsWith('--block-threshold=')) {
+      options.maxBlockDiffFactor = parseRatio(arg.slice('--block-threshold='.length), '--block-threshold');
     } else if (arg.startsWith('--pixel-threshold=')) {
       options.pixelThreshold = parseRatio(arg.slice('--pixel-threshold='.length), '--pixel-threshold');
     } else if (arg === '--allow-missing') {
@@ -114,6 +125,9 @@ function parseArgs() {
   // Environment variable overrides
   if (process.env.VISUAL_DIFF_THRESHOLD) {
     options.maxDiffFactor = parseRatio(process.env.VISUAL_DIFF_THRESHOLD, 'VISUAL_DIFF_THRESHOLD');
+  }
+  if (process.env.VISUAL_DIFF_BLOCK_THRESHOLD) {
+    options.maxBlockDiffFactor = parseRatio(process.env.VISUAL_DIFF_BLOCK_THRESHOLD, 'VISUAL_DIFF_BLOCK_THRESHOLD');
   }
 
   return options;
@@ -263,13 +277,54 @@ async function run() {
       }
     );
 
+    // Compute regional 4x4 block diff ratios to protect against dark-canvas dilution
+    const cols = 4;
+    const rows = 4;
+    const numBlocks = cols * rows;
+    const blockDiffPixels = new Uint32Array(numBlocks);
+    const blockTotalPixels = new Uint32Array(numBlocks);
+
+    const blockWidth = Math.ceil(maxWidth / cols);
+    const blockHeight = Math.ceil(maxHeight / rows);
+
+    for (let y = 0; y < maxHeight; y++) {
+      const blockRow = Math.min(rows - 1, Math.floor(y / blockHeight));
+      const rowOffset = y * maxWidth * 4;
+      for (let x = 0; x < maxWidth; x++) {
+        const blockCol = Math.min(cols - 1, Math.floor(x / blockWidth));
+        const blockIdx = blockRow * cols + blockCol;
+        blockTotalPixels[blockIdx]++;
+        const pxIdx = rowOffset + x * 4;
+        if (diffData[pxIdx] === 255 && diffData[pxIdx + 1] === 0 && diffData[pxIdx + 2] === 100) {
+          blockDiffPixels[blockIdx]++;
+        }
+      }
+    }
+
+    let maxBlockDiffRatio = 0;
+    for (let b = 0; b < numBlocks; b++) {
+      if (blockTotalPixels[b] > 0) {
+        const ratio = blockDiffPixels[b] / blockTotalPixels[b];
+        if (ratio > maxBlockDiffRatio) {
+          maxBlockDiffRatio = ratio;
+        }
+      }
+    }
+
     const totalPixels = maxWidth * maxHeight;
     const diffRatio = numDiffPixels / totalPixels;
     const diffPercentage = (diffRatio * 100).toFixed(2);
 
     const allowedThreshold = SCREEN_THRESHOLD_OVERRIDES[screenId] ?? options.maxDiffFactor;
     const allowedPercentage = (allowedThreshold * 100).toFixed(2);
-    const passed = diffRatio <= allowedThreshold;
+    const globalPassed = diffRatio <= allowedThreshold;
+
+    const allowedBlockThreshold = SCREEN_BLOCK_THRESHOLD_OVERRIDES[screenId] ?? options.maxBlockDiffFactor;
+    const allowedBlockPercentage = (allowedBlockThreshold * 100).toFixed(2);
+    const maxBlockPercentage = (maxBlockDiffRatio * 100).toFixed(2);
+    const blockPassed = maxBlockDiffRatio <= allowedBlockThreshold;
+
+    const passed = globalPassed && blockPassed;
 
     if (!passed) {
       hasFailure = true;
@@ -319,7 +374,8 @@ async function run() {
 
     const statusStr = passed ? '✅ PASS' : '❌ FAIL';
     console.log(
-      `${statusStr} [${screenId.padEnd(8)}] Diff: ${diffPercentage.padStart(6)}% (max: ${allowedPercentage}%) | ` +
+      `${statusStr} [${screenId.padEnd(8)}] Global: ${diffPercentage.padStart(6)}% (max: ${allowedPercentage}%) | ` +
+      `Block: ${maxBlockPercentage.padStart(6)}% (max: ${allowedBlockPercentage}%) | ` +
       `Pixels: ${numDiffPixels.toLocaleString().padStart(9)} / ${totalPixels.toLocaleString()} | Size: ${maxWidth}x${maxHeight}`
     );
 
@@ -329,6 +385,9 @@ async function run() {
       diffRatio,
       diffPercentage,
       threshold: allowedPercentage,
+      maxBlockDiffRatio,
+      maxBlockDiffPercentage: maxBlockPercentage,
+      blockThreshold: allowedBlockPercentage,
       totalPixels,
       diffPixels: numDiffPixels,
       dimensions: `${maxWidth}x${maxHeight}`,
@@ -361,14 +420,16 @@ async function run() {
       markdown += `Total screens evaluated: **${results.length}** | `;
       markdown += `Passed: **${results.filter((r) => r.status === 'PASS').length}** | `;
       markdown += `Failed: **${results.filter((r) => r.status === 'FAIL').length}**\n\n`;
-      markdown += '| Screen ID | Status | Diff % | Max Allowed | Diff Pixels | Canvas Size |\n';
-      markdown += '| :--- | :---: | :---: | :---: | :---: | :---: |\n';
+      markdown += '| Screen ID | Status | Global Diff % | Max Global % | Max Block % | Max Block % Allowed | Diff Pixels | Canvas Size |\n';
+      markdown += '| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n';
 
       for (const r of results) {
         const icon = r.status === 'PASS' ? '✅' : '❌';
         const diffText = r.status === 'PASS' || r.status === 'FAIL' ? `**${r.diffPercentage}%**` : `*${r.diffPercentage}*`;
         const thresholdText = r.threshold === 'N/A' ? 'N/A' : `${r.threshold}%`;
-        markdown += `| \`${r.id}\` | ${icon} ${r.status} | ${diffText} | ${thresholdText} | ${r.diffPixels.toLocaleString()} | ${r.dimensions} |\n`;
+        const blockText = r.maxBlockDiffPercentage ? `**${r.maxBlockDiffPercentage}%**` : 'N/A';
+        const blockThresholdText = r.blockThreshold ? `${r.blockThreshold}%` : 'N/A';
+        markdown += `| \`${r.id}\` | ${icon} ${r.status} | ${diffText} | ${thresholdText} | ${blockText} | ${blockThresholdText} | ${r.diffPixels.toLocaleString()} | ${r.dimensions} |\n`;
       }
 
       markdown += '\n> Diff highlighting: Baseline design (left) vs Current browser (center) vs Diff highlight (right, magenta).\n';

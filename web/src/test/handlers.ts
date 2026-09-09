@@ -629,7 +629,8 @@ export function buildScreenshotHandlers() {
       HttpResponse.json({
         providers: [
           { kind: "local", label: "Local account" },
-          { kind: "oidc", label: "OIDC" },
+          { kind: "oidc", label: "Keycloak" },
+          { kind: "oidc", label: "Google" },
         ],
       }),
     ),
@@ -651,7 +652,7 @@ export function buildScreenshotHandlers() {
     }),
     http.get("/cluster", () => HttpResponse.json(data.clusterView())),
     http.get("/cluster/info", () => HttpResponse.json(makeClusterInfo())),
-    http.get("/cluster/stats", () => HttpResponse.json(makeClusterStats())),
+    http.get("/cluster/stats", () => HttpResponse.json(data.clusterStats())),
     http.get("/clusters", () =>
       HttpResponse.json({
         items: [{ name: "local", displayName: "local", phase: "Healthy" as const }],
@@ -676,10 +677,113 @@ export function buildScreenshotHandlers() {
         items: data.servers,
       }),
     ),
-    http.get("/servers/:name([^:/]+)", ({ params }) => {
+    http.get("/servers/:name([^:/]+)", ({ params, cookies }) => {
       const name = String(params.name);
       const server = data.servers.find((s) => s.metadata.name === name);
-      return HttpResponse.json(server ?? makeServer({ metadata: { name } }));
+      if (!server) {
+        return HttpResponse.json(makeServer({ metadata: { name } }));
+      }
+      if (name === "mc-survival" && cookies.e2e_server_variant) {
+        const variant = cookies.e2e_server_variant;
+        if (variant === "idle") {
+          return HttpResponse.json({
+            ...server,
+            spec: {
+              ...server.spec,
+              idle: { enabled: true, afterMinutes: 15 },
+            },
+            status: {
+              ...server.status,
+              idle: {
+                reason: "counting down",
+                emptySince: new Date(Date.now() - 150 * 1000).toISOString(),
+              },
+            },
+          });
+        }
+        if (variant === "asleep") {
+          return HttpResponse.json({
+            ...server,
+            spec: {
+              ...server.spec,
+              suspend: true,
+            },
+            status: {
+              ...server.status,
+              phase: "Suspended",
+              idle: {
+                asleep: true,
+                asleepSince: new Date(Date.now() - 21600 * 1000).toISOString(),
+              },
+              agent: {
+                ...server.status?.agent,
+                playersOnline: null,
+                playersMax: 0,
+              },
+              startedAt: undefined,
+            },
+          });
+        }
+        if (variant === "never-sleeps") {
+          return HttpResponse.json({
+            ...server,
+            spec: {
+              ...server.spec,
+              idle: { enabled: true, afterMinutes: 60 },
+            },
+            status: {
+              ...server.status,
+              idle: { reason: "this game reports no player count" },
+            },
+          });
+        }
+        if (variant === "pvc-failed") {
+          return HttpResponse.json({
+            ...server,
+            status: {
+              ...server.status,
+              phase: "Pending",
+              conditions: [
+                {
+                  type: "Ready",
+                  status: "False",
+                  reason: "PVCProvisioningFailed",
+                  message: 'PVC "mc-survival-data": StorageClass \'fast-nvme\' not found on cluster.',
+                  lastTransitionTime: new Date(Date.now() - 1800 * 1000).toISOString(),
+                },
+              ],
+              agent: {
+                playersOnline: null,
+                playersMax: 0,
+                cpuMillicores: 0,
+                cpuLimitMillicores: 2000,
+                memoryBytes: 0,
+                memoryLimitBytes: 4_000_000_000,
+              },
+              startedAt: undefined,
+            },
+          });
+        }
+        if (variant === "failed") {
+          return HttpResponse.json({
+            ...server,
+            status: {
+              ...server.status,
+              phase: "Failed",
+              agent: {
+                playersOnline: null,
+                playersMax: 0,
+                cpuMillicores: 0,
+                cpuLimitMillicores: 2000,
+                memoryBytes: 0,
+                memoryLimitBytes: 4_000_000_000,
+              },
+              startedAt: undefined,
+            },
+          });
+        }
+      }
+      return HttpResponse.json(server);
     }),
     http.post("/servers", async ({ request }) => {
       const body = (await request.json().catch(() => null)) as {
@@ -933,7 +1037,12 @@ export function buildScreenshotHandlers() {
 
     // Servers (additional endpoints)
     http.get("/users/me/servers", () => HttpResponse.json({ items: data.servers })),
-    http.get("/servers/:name/status", () => HttpResponse.json([])),
+    http.get("/servers/:name/status", () =>
+      HttpResponse.json([
+        { id: "world-seed", value: "3825002917346286791" },
+        { id: "difficulty", value: "Easy" },
+      ]),
+    ),
 
     // Mods
     http.get("/servers/:name/mods/registry/providers", () =>
@@ -950,16 +1059,14 @@ export function buildScreenshotHandlers() {
     http.get("/servers/:name/mods", () => HttpResponse.json(data.installedMods)),
 
     // Players
-    http.get("/servers/:name/players", () => HttpResponse.json(makePlayers())),
-    http.get("/servers/:name/players/banned", () =>
-      HttpResponse.json([makeBannedPlayer()]),
+    http.get("/servers/:name/players", () =>
+      HttpResponse.json(makePlayers({ online: 0, players: [] })),
     ),
+    http.get("/servers/:name/players/banned", () => HttpResponse.json([])),
     http.post(/\/servers\/[^/]+\/players\/(kick|ban|unban)$/, () =>
       HttpResponse.json({ ok: true }),
     ),
-    http.get("/servers/:name/players/whitelist", () =>
-      HttpResponse.json(["alice", "carol"]),
-    ),
+    http.get("/servers/:name/players/whitelist", () => HttpResponse.json(["alice"])),
     http.post(/\/servers\/[^/]+\/players\/whitelist\/(add|remove)$/, () =>
       HttpResponse.json({ ok: true }),
     ),
@@ -967,8 +1074,22 @@ export function buildScreenshotHandlers() {
     // Files
     http.get("/servers/:name/files/list", () =>
       HttpResponse.json([
-        makeFileEntry({ name: "server.properties", path: "/data/server.properties", size: 412 }),
+        makeFileEntry({ name: ".cache", path: "/data/.cache", size: 0, dir: true }),
+        makeFileEntry({ name: ".fabric", path: "/data/.fabric", size: 0, dir: true }),
+        makeFileEntry({ name: "libraries", path: "/data/libraries", size: 0, dir: true }),
+        makeFileEntry({ name: "logs", path: "/data/logs", size: 0, dir: true }),
+        makeFileEntry({ name: "mods", path: "/data/mods", size: 0, dir: true }),
+        makeFileEntry({ name: "versions", path: "/data/versions", size: 0, dir: true }),
         makeFileEntry({ name: "world", path: "/data/world", size: 0, dir: true }),
+        makeFileEntry({ name: ".fabric-manifest.json", path: "/data/.fabric-manifest.json", size: 1024 }),
+        makeFileEntry({ name: ".rcon-cli.yaml", path: "/data/.rcon-cli.yaml", size: 128 }),
+        makeFileEntry({ name: "banned-ips.json", path: "/data/banned-ips.json", size: 2 }),
+        makeFileEntry({ name: "eula.txt", path: "/data/eula.txt", size: 68 }),
+        makeFileEntry({ name: "fabric-server-mc.1.21.4-loader.jar", path: "/data/fabric-server-mc.1.21.4-loader.jar", size: 4_500_000 }),
+        makeFileEntry({ name: "ops.json", path: "/data/ops.json", size: 2 }),
+        makeFileEntry({ name: "server.properties", path: "/data/server.properties", size: 1024 }),
+        makeFileEntry({ name: "usercache.json", path: "/data/usercache.json", size: 512 }),
+        makeFileEntry({ name: "whitelist.json", path: "/data/whitelist.json", size: 2 }),
       ]),
     ),
     http.get("/servers/:name/files/read", () => new HttpResponse("# mock file body\n", { status: 200 })),
@@ -1176,6 +1297,7 @@ export function buildScreenshotHandlers() {
 
     // WebSocket: Pod Logs
     ws.link(`${wsOrigin}/ws/servers/*/logs/pod*`).addEventListener("connection", ({ client }) => {
+      if (typeof document !== "undefined" && document.cookie.includes("e2e_server_variant=failed")) return;
       // Send log lines at intervals
       data.logLines.forEach((line, index) => {
         setTimeout(() => {
@@ -1189,6 +1311,7 @@ export function buildScreenshotHandlers() {
       // Wildcard /* matches across path segments, so /logs/pod also matches /logs*; skip if more specific handler should handle this
       const url = new URL(client.url);
       if (url.pathname.endsWith("/logs/pod")) return;
+      if (typeof document !== "undefined" && document.cookie.includes("e2e_server_variant=failed")) return;
 
       // Send log lines at intervals (same as pod logs for demo)
       data.logLines.forEach((line, index) => {
