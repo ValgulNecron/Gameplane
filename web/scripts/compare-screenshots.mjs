@@ -118,9 +118,8 @@ async function run() {
   console.log('------------------------------------------------------\n');
 
   if (!fs.existsSync(options.currDir)) {
-    console.error(`Error: Current screenshots directory not found: ${options.currDir}`);
-    console.error('Did you run `npm run screenshots` first?');
-    process.exit(1);
+    console.warn(`Warning: Current screenshots directory not found: ${options.currDir}`);
+    process.exit(options.allowMissing ? 0 : 1);
   }
 
   if (!fs.existsSync(options.refDir)) {

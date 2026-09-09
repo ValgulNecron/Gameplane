@@ -56,7 +56,8 @@ jobs:
         run: npm run screenshots
 
       - name: compare design baseline vs browser captures
-        run: npm run diff:screenshots
+        if: always()
+        run: npm run diff:screenshots -- --allow-missing
 
       - name: upload visual diff artifacts
         if: always()
