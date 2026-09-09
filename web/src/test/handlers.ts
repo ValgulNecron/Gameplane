@@ -579,7 +579,7 @@ export function buildSsoOnlyHandlers() {
   return [
     http.get("/auth/providers", () =>
       HttpResponse.json({
-        providers: [{ kind: "oidc", label: "OIDC" }],
+        providers: [{ name: "corp", kind: "oidc", label: "Acme SSO" }],
       }),
     ),
     ...handlers,

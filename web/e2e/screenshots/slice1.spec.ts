@@ -76,14 +76,11 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
   });
 
   test("ljdA5: Login — SSO Only", async ({ page }) => {
-    // Route /auth/providers to return a real SSO provider so Login.tsx renders
-    // the SSO-only branch (no username/password form, only provider buttons).
-    await page.route("**/auth/providers", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ providers: [{ name: "corp", kind: "oidc", label: "Acme SSO" }] }),
-      });
+    // Mock-mode MSW reads this flag (src/test/browser-msw.ts) and swaps in
+    // buildSsoOnlyHandlers(), which reports no local-login provider so
+    // Login.tsx renders its SSO-only branch (no username/password form).
+    await page.addInitScript(() => {
+      localStorage.setItem("gameplane-e2e-dataset", "sso-only");
     });
 
     await page.goto("/login");
