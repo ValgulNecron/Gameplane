@@ -579,7 +579,10 @@ export function buildSsoOnlyHandlers() {
   return [
     http.get("/auth/providers", () =>
       HttpResponse.json({
-        providers: [{ kind: "oidc", label: "OIDC" }],
+        providers: [
+          { kind: "oidc", label: "Keycloak" },
+          { kind: "oidc", label: "Google" },
+        ],
       }),
     ),
     ...handlers,

@@ -76,19 +76,11 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
   });
 
   test("ljdA5: Login — SSO Only", async ({ page }) => {
-    // Route /auth/providers to return Keycloak and Google so Login.tsx renders
-    // the SSO-only branch matching design ljdA5.
-    await page.route("**/auth/providers", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          providers: [
-            { kind: "oidc", label: "Keycloak" },
-            { kind: "oidc", label: "Google" },
-          ],
-        }),
-      });
+    // Mock-mode MSW reads this flag (src/test/browser-msw.ts) and swaps in
+    // buildSsoOnlyHandlers(), which reports no local-login provider so
+    // Login.tsx renders its SSO-only branch (Keycloak + Google SSO buttons).
+    await page.addInitScript(() => {
+      localStorage.setItem("gameplane-e2e-dataset", "sso-only");
     });
 
     await page.goto("/login");
