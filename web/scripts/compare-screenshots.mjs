@@ -43,6 +43,16 @@ const SCREEN_THRESHOLD_OVERRIDES = {
   FtdkI: 0.06, // Server Detail — Logs (Failed)
 };
 
+// Screens currently expected to be captured by shipped slices (Slice 1 + Slice 2a per contracts/screen-verification.md).
+// Reconciled against current captures when --check-expected is enabled.
+const DEFAULT_EXPECTED_SCREENS = [
+  // Slice 1: Shell + Login (7 screens)
+  'N1GkB', 'jmoi3', 'ljdA5', 'N13Xud', 'j24cXg', 'tooKB', 'SeizD',
+  // Slice 2a: Servers list + Server Detail core tabs (12 screens)
+  'F9pUrx', 'EZFW0', 'Hy9r0', 'TE2jI', 'IzuY2', 'o4LH8W',
+  'P08Uw', 'Xn5ns', 'kPmoo', 'FtdkI', 'Burtr', 'dPP50',
+];
+
 function parseRatio(valStr, name) {
   const trimmed = valStr.trim();
   const num = Number(trimmed);
@@ -63,6 +73,8 @@ function parseArgs() {
     maxDiffFactor: DEFAULT_MAX_DIFF_FACTOR,
     pixelThreshold: DEFAULT_PIXEL_THRESHOLD,
     allowMissing: false,
+    checkExpected: false,
+    expectedScreens: null,
   };
 
   for (const arg of args) {
@@ -78,6 +90,11 @@ function parseArgs() {
       options.pixelThreshold = parseRatio(arg.slice('--pixel-threshold='.length), '--pixel-threshold');
     } else if (arg === '--allow-missing') {
       options.allowMissing = true;
+    } else if (arg === '--check-expected') {
+      options.checkExpected = true;
+    } else if (arg.startsWith('--expected-screens=')) {
+      options.checkExpected = true;
+      options.expectedScreens = arg.slice('--expected-screens='.length).split(',').map((s) => s.trim()).filter(Boolean);
     }
   }
 
@@ -150,6 +167,32 @@ async function run() {
 
   const results = [];
   let hasFailure = false;
+
+  // Reconcile expected screens when --check-expected is enabled
+  if (options.checkExpected) {
+    const expectedList = options.expectedScreens || DEFAULT_EXPECTED_SCREENS;
+    for (const expectedId of expectedList) {
+      const expectedFile = `${expectedId}.png`;
+      if (!currFiles.includes(expectedFile)) {
+        console.warn(`❌ [${expectedId.padEnd(8)}] Missing current browser capture in ${path.relative(REPO_ROOT, options.currDir)}`);
+        if (!options.allowMissing) {
+          hasFailure = true;
+        }
+        results.push({
+          id: expectedId,
+          status: 'MISSING_CAPTURE',
+          diffRatio: 1,
+          diffPercentage: 'MISSING',
+          threshold: 'N/A',
+          totalPixels: 0,
+          diffPixels: 0,
+          dimensions: 'N/A',
+          diffImage: null,
+          compositeImage: null,
+        });
+      }
+    }
+  }
 
   for (const file of currFiles) {
     const screenId = path.basename(file, '.png');
@@ -304,7 +347,9 @@ async function run() {
 
       for (const r of results) {
         const icon = r.status === 'PASS' ? '✅' : '❌';
-        markdown += `| \`${r.id}\` | ${icon} ${r.status} | **${r.diffPercentage}%** | ${r.threshold}% | ${r.diffPixels.toLocaleString()} | ${r.dimensions} |\n`;
+        const diffText = r.status === 'PASS' || r.status === 'FAIL' ? `**${r.diffPercentage}%**` : `*${r.diffPercentage}*`;
+        const thresholdText = r.threshold === 'N/A' ? 'N/A' : `${r.threshold}%`;
+        markdown += `| \`${r.id}\` | ${icon} ${r.status} | ${diffText} | ${thresholdText} | ${r.diffPixels.toLocaleString()} | ${r.dimensions} |\n`;
       }
 
       markdown += '\n> Diff highlighting: Baseline design (left) vs Current browser (center) vs Diff highlight (right, magenta).\n';
