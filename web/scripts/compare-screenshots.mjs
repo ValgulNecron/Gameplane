@@ -17,6 +17,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import process from 'node:process';
+import { Buffer } from 'node:buffer';
 import sharp from 'sharp';
 import pixelmatch from 'pixelmatch';
 
