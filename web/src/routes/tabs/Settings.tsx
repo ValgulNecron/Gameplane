@@ -6,6 +6,7 @@ import {
   CalendarClock,
   HardDrive,
   Layers,
+  Link2,
   MapPin,
   Network,
   RadioTower,
@@ -29,6 +30,7 @@ import { LifecycleSection } from "./settings/Lifecycle";
 import { BackupsSection } from "./settings/Backups";
 import { NetworkCaptureSection } from "./settings/NetworkCapture";
 import { AccessSection } from "./settings/Access";
+import { ShareLinksSection } from "./settings/ShareLinks";
 import { DangerSection } from "./settings/Danger";
 const PlacementSection = lazy(() =>
   import("./settings/Placement").then((m) => ({ default: m.PlacementSection })),
@@ -45,6 +47,7 @@ type SectionKey =
   | "capture"
   | "placement"
   | "access"
+  | "sharelinks"
   | "danger";
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] = [
@@ -58,6 +61,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] 
   { key: "capture",    label: "Network capture", icon: RadioTower },
   { key: "placement",  label: "Placement",     icon: MapPin },
   { key: "access",     label: "RBAC & access", icon: ShieldCheck },
+  { key: "sharelinks", label: "Share links",   icon: Link2 },
   { key: "danger",     label: "Danger zone",   icon: AlertTriangle },
 ];
 
@@ -221,10 +225,11 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
             </Suspense>
           )}
           {section === "access"     && <AccessSection     gs={gs} />}
+          {section === "sharelinks" && <ShareLinksSection name={name} ns={ns} />}
           {section === "danger"     && <DangerSection     name={name} ns={ns} />}
         </div>
 
-        {section !== "danger" && section !== "access" && (
+        {section !== "danger" && section !== "access" && section !== "sharelinks" && (
           <footer className="flex items-center justify-between gap-4 border-t border-border bg-surface/30 px-6 py-3">
             <div className="min-w-0 text-xs">
               {conflict && (
