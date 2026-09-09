@@ -1,0 +1,400 @@
+#!/usr/bin/env node
+
+/**
+ * Visual regression comparison script for Gameplane dashboard.
+ *
+ * Compares Playwright browser captures (web/e2e/screenshots/*.png) against
+ * reference baseline screenshots exported from Pencil (design-export/screenshots/*.png).
+ *
+ * Key features:
+ * - Dimension normalization via sharp padding (anchored at top-left, no distorting stretch)
+ * - Subpixel & anti-aliasing tolerance via pixelmatch ({ threshold: 0.15, includeAA: false })
+ * - Generation of visual diff highlighting (magenta) and 3-panel composite previews
+ * - Configurable global & per-screen diff factor thresholds
+ * - Output to console, JSON summary, and GitHub Step Summary ($GITHUB_STEP_SUMMARY)
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import process from 'node:process';
+import { Buffer } from 'node:buffer';
+import sharp from 'sharp';
+import pixelmatch from 'pixelmatch';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const REPO_ROOT = path.resolve(__dirname, '../..');
+const WEB_ROOT = path.resolve(__dirname, '..');
+
+// Default configurations
+const DEFAULT_REF_DIR = path.join(REPO_ROOT, 'design-export/screenshots');
+const DEFAULT_CURR_DIR = path.join(WEB_ROOT, 'e2e/screenshots');
+const DEFAULT_OUT_DIR = path.join(WEB_ROOT, 'test-results/visual-diff');
+const DEFAULT_MAX_DIFF_FACTOR = 0.04; // 4.0% maximum allowed difference
+const DEFAULT_PIXEL_THRESHOLD = 0.15; // Color delta sensitivity (0 to 1)
+
+// Per-screen threshold overrides where text density, terminal streams, or
+// specific layouts have justified rendering variance.
+const SCREEN_THRESHOLD_OVERRIDES = {
+  // Console/Logs have high text density and live terminal streaming
+  Xn5ns: 0.06, // Server Detail — Console
+  kPmoo: 0.06, // Server Detail — Logs
+  FtdkI: 0.06, // Server Detail — Logs (Failed)
+  // Mobile responsive layout (narrow 390px viewport with condensed cards)
+  tooKB: 0.06, // Servers — Mobile
+};
+
+// Screens currently expected to be captured by shipped slices (Slice 1 + Slice 2a per contracts/screen-verification.md).
+// Reconciled against current captures when --check-expected is enabled.
+const DEFAULT_EXPECTED_SCREENS = [
+  // Slice 1: Shell + Login (7 screens)
+  'N1GkB', 'jmoi3', 'ljdA5', 'N13Xud', 'j24cXg', 'tooKB', 'SeizD',
+  // Slice 2a: Servers list + Server Detail core tabs (12 screens)
+  'F9pUrx', 'EZFW0', 'Hy9r0', 'TE2jI', 'IzuY2', 'o4LH8W',
+  'P08Uw', 'Xn5ns', 'kPmoo', 'FtdkI', 'Burtr', 'dPP50',
+];
+
+/**
+ * Parses and validates a ratio/percentage argument ensuring it is a finite number between 0 and 1.
+ *
+ * @param {string} valStr Raw string value from CLI argument or environment variable
+ * @param {string} name Flag or environment variable name for error reporting
+ * @returns {number} Parsed float ratio in range [0, 1]
+ */
+function parseRatio(valStr, name) {
+  const trimmed = valStr.trim();
+  const num = Number(trimmed);
+  if (!Number.isFinite(num) || num < 0 || num > 1) {
+    console.error(`Error: Invalid ${name}: "${valStr}". Expected a finite number from 0 through 1 (e.g. 0.04 for 4%).`);
+    process.exit(1);
+  }
+  return num;
+}
+
+/**
+ * Parses command line arguments and environment variables into comparison options.
+ *
+ * @returns {object} Configured comparison options
+ */
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = {
+    refDir: DEFAULT_REF_DIR,
+    currDir: DEFAULT_CURR_DIR,
+    outDir: DEFAULT_OUT_DIR,
+    maxDiffFactor: DEFAULT_MAX_DIFF_FACTOR,
+    pixelThreshold: DEFAULT_PIXEL_THRESHOLD,
+    allowMissing: false,
+    checkExpected: false,
+    expectedScreens: null,
+  };
+
+  for (const arg of args) {
+    if (arg.startsWith('--ref-dir=')) {
+      options.refDir = path.resolve(process.cwd(), arg.slice('--ref-dir='.length));
+    } else if (arg.startsWith('--curr-dir=')) {
+      options.currDir = path.resolve(process.cwd(), arg.slice('--curr-dir='.length));
+    } else if (arg.startsWith('--out-dir=')) {
+      options.outDir = path.resolve(process.cwd(), arg.slice('--out-dir='.length));
+    } else if (arg.startsWith('--threshold=')) {
+      options.maxDiffFactor = parseRatio(arg.slice('--threshold='.length), '--threshold');
+    } else if (arg.startsWith('--pixel-threshold=')) {
+      options.pixelThreshold = parseRatio(arg.slice('--pixel-threshold='.length), '--pixel-threshold');
+    } else if (arg === '--allow-missing') {
+      options.allowMissing = true;
+    } else if (arg === '--check-expected') {
+      options.checkExpected = true;
+    } else if (arg.startsWith('--expected-screens=')) {
+      options.checkExpected = true;
+      options.expectedScreens = arg.slice('--expected-screens='.length).split(',').map((s) => s.trim()).filter(Boolean);
+    }
+  }
+
+  // Environment variable overrides
+  if (process.env.VISUAL_DIFF_THRESHOLD) {
+    options.maxDiffFactor = parseRatio(process.env.VISUAL_DIFF_THRESHOLD, 'VISUAL_DIFF_THRESHOLD');
+  }
+
+  return options;
+}
+
+/**
+ * Normalizes an image to target dimensions by padding at bottom and right (top-left aligned)
+ * and returns raw RGBA pixel buffer.
+ */
+async function loadAndPadImage(filePath, targetWidth, targetHeight) {
+  const meta = await sharp(filePath).metadata();
+  const padRight = Math.max(0, targetWidth - (meta.width || 0));
+  const padBottom = Math.max(0, targetHeight - (meta.height || 0));
+
+  let pipeline = sharp(filePath).ensureAlpha();
+  if (padRight > 0 || padBottom > 0) {
+    pipeline = pipeline.extend({
+      top: 0,
+      left: 0,
+      right: padRight,
+      bottom: padBottom,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    });
+  }
+
+  const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height };
+}
+
+/**
+ * Main execution routine for comparing reference design exports against current browser screenshots.
+ *
+ * Discovers current screenshots, verifies them against expected screens and reference baselines,
+ * executes pixelmatch diffing, saves diff and composite preview artifacts, and writes summaries.
+ */
+async function run() {
+  const options = parseArgs();
+
+  console.log('\n======================================================');
+  console.log('   Gameplane Visual Regression Comparison Engine');
+  console.log('======================================================');
+  console.log(`Reference Directory : ${path.relative(REPO_ROOT, options.refDir)}`);
+  console.log(`Current Directory   : ${path.relative(REPO_ROOT, options.currDir)}`);
+  console.log(`Output Directory    : ${path.relative(REPO_ROOT, options.outDir)}`);
+  console.log(`Default Threshold   : ${(options.maxDiffFactor * 100).toFixed(2)}%`);
+  console.log(`Pixel Sensitivity   : ${options.pixelThreshold}`);
+  console.log('------------------------------------------------------\n');
+
+  if (!fs.existsSync(options.currDir)) {
+    console.warn(`Warning: Current screenshots directory not found: ${options.currDir}`);
+    process.exit(options.allowMissing ? 0 : 1);
+  }
+
+  if (!fs.existsSync(options.refDir)) {
+    console.error(`Error: Reference screenshots directory not found: ${options.refDir}`);
+    process.exit(1);
+  }
+
+  fs.mkdirSync(options.outDir, { recursive: true });
+
+  // Discover captured screens in currDir
+  const currFiles = fs
+    .readdirSync(options.currDir)
+    .filter((file) => file.endsWith('.png') && !file.includes('-diff') && !file.includes('-composite'));
+
+  if (currFiles.length === 0) {
+    console.warn(`Warning: No PNG screenshots found in ${options.currDir}`);
+    process.exit(options.allowMissing ? 0 : 1);
+  }
+
+  const results = [];
+  let hasFailure = false;
+
+  // Reconcile expected screens when --check-expected is enabled
+  if (options.checkExpected) {
+    const expectedList = options.expectedScreens || DEFAULT_EXPECTED_SCREENS;
+    for (const expectedId of expectedList) {
+      const expectedFile = `${expectedId}.png`;
+      if (!currFiles.includes(expectedFile)) {
+        console.warn(`❌ [${expectedId.padEnd(8)}] Missing current browser capture in ${path.relative(REPO_ROOT, options.currDir)}`);
+        if (!options.allowMissing) {
+          hasFailure = true;
+        }
+        results.push({
+          id: expectedId,
+          status: 'MISSING_CAPTURE',
+          diffRatio: 1,
+          diffPercentage: 'MISSING',
+          threshold: 'N/A',
+          totalPixels: 0,
+          diffPixels: 0,
+          dimensions: 'N/A',
+          diffImage: null,
+          compositeImage: null,
+        });
+      }
+    }
+  }
+
+  for (const file of currFiles) {
+    const screenId = path.basename(file, '.png');
+    const currPath = path.join(options.currDir, file);
+    const refPath = path.join(options.refDir, `${screenId}.png`);
+
+    if (!fs.existsSync(refPath)) {
+      console.warn(`⚠️  [${screenId}] Reference image missing at ${refPath}`);
+      if (!options.allowMissing) {
+        hasFailure = true;
+        results.push({
+          id: screenId,
+          status: 'MISSING_REF',
+          diffPercentage: 'N/A',
+          threshold: 'N/A',
+          totalPixels: 0,
+          diffPixels: 0,
+          dimensions: 'N/A',
+        });
+      }
+      continue;
+    }
+
+    // Read metadata of both to determine maximum canvas dimensions
+    const refMeta = await sharp(refPath).metadata();
+    const currMeta = await sharp(currPath).metadata();
+
+    const maxWidth = Math.max(refMeta.width || 0, currMeta.width || 0);
+    const maxHeight = Math.max(refMeta.height || 0, currMeta.height || 0);
+
+    // Standardize both onto maxWidth × maxHeight raw RGBA buffers
+    const paddedRef = await loadAndPadImage(refPath, maxWidth, maxHeight);
+    const paddedCurr = await loadAndPadImage(currPath, maxWidth, maxHeight);
+
+    const diffData = Buffer.alloc(maxWidth * maxHeight * 4);
+
+    // Run pixelmatch
+    const numDiffPixels = pixelmatch(
+      paddedRef.data,
+      paddedCurr.data,
+      diffData,
+      maxWidth,
+      maxHeight,
+      {
+        threshold: options.pixelThreshold,
+        includeAA: false, // Disregard anti-aliasing subpixel differences
+        diffColor: [255, 0, 100], // Highlight diffs in magenta
+        aaColor: [255, 255, 0],   // AA pixels in yellow (if detected)
+      }
+    );
+
+    const totalPixels = maxWidth * maxHeight;
+    const diffRatio = numDiffPixels / totalPixels;
+    const diffPercentage = (diffRatio * 100).toFixed(2);
+
+    const allowedThreshold = SCREEN_THRESHOLD_OVERRIDES[screenId] ?? options.maxDiffFactor;
+    const allowedPercentage = (allowedThreshold * 100).toFixed(2);
+    const passed = diffRatio <= allowedThreshold;
+
+    if (!passed) {
+      hasFailure = true;
+    }
+
+    // Save individual diff image
+    const diffFileName = `${screenId}-diff.png`;
+    const diffFilePath = path.join(options.outDir, diffFileName);
+    const diffPngBuffer = await sharp(diffData, {
+      raw: { width: maxWidth, height: maxHeight, channels: 4 },
+    })
+      .png()
+      .toBuffer();
+    await fs.promises.writeFile(diffFilePath, diffPngBuffer);
+
+    // Create 3-panel composite preview: [ Reference | Current Browser | Diff ]
+    const compositeFileName = `${screenId}-composite.png`;
+    const compositeFilePath = path.join(options.outDir, compositeFileName);
+
+    const paddedRefPng = await sharp(paddedRef.data, {
+      raw: { width: maxWidth, height: maxHeight, channels: 4 },
+    })
+      .png()
+      .toBuffer();
+
+    const paddedCurrPng = await sharp(paddedCurr.data, {
+      raw: { width: maxWidth, height: maxHeight, channels: 4 },
+    })
+      .png()
+      .toBuffer();
+
+    await sharp({
+      create: {
+        width: maxWidth * 3,
+        height: maxHeight,
+        channels: 4,
+        background: { r: 18, g: 18, b: 20, alpha: 1 },
+      },
+    })
+      .composite([
+        { input: paddedRefPng, left: 0, top: 0 },
+        { input: paddedCurrPng, left: maxWidth, top: 0 },
+        { input: diffPngBuffer, left: maxWidth * 2, top: 0 },
+      ])
+      .png()
+      .toFile(compositeFilePath);
+
+    const statusStr = passed ? '✅ PASS' : '❌ FAIL';
+    console.log(
+      `${statusStr} [${screenId.padEnd(8)}] Diff: ${diffPercentage.padStart(6)}% (max: ${allowedPercentage}%) | ` +
+      `Pixels: ${numDiffPixels.toLocaleString().padStart(9)} / ${totalPixels.toLocaleString()} | Size: ${maxWidth}x${maxHeight}`
+    );
+
+    results.push({
+      id: screenId,
+      status: passed ? 'PASS' : 'FAIL',
+      diffRatio,
+      diffPercentage,
+      threshold: allowedPercentage,
+      totalPixels,
+      diffPixels: numDiffPixels,
+      dimensions: `${maxWidth}x${maxHeight}`,
+      diffImage: path.relative(WEB_ROOT, diffFilePath),
+      compositeImage: path.relative(WEB_ROOT, compositeFilePath),
+    });
+  }
+
+  // Write summary JSON
+  const summaryJsonPath = path.join(options.outDir, 'summary.json');
+  fs.writeFileSync(
+    summaryJsonPath,
+    JSON.stringify(
+      {
+        totalScreens: results.length,
+        passed: results.filter((r) => r.status === 'PASS').length,
+        failed: results.filter((r) => r.status === 'FAIL').length,
+        timestamp: new Date().toISOString(),
+        results,
+      },
+      null,
+      2
+    )
+  );
+
+  // Write GitHub Step Summary if environment variable exists
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    try {
+      let markdown = '## 🎨 Visual Regression Test Summary\n\n';
+      markdown += `Total screens evaluated: **${results.length}** | `;
+      markdown += `Passed: **${results.filter((r) => r.status === 'PASS').length}** | `;
+      markdown += `Failed: **${results.filter((r) => r.status === 'FAIL').length}**\n\n`;
+      markdown += '| Screen ID | Status | Diff % | Max Allowed | Diff Pixels | Canvas Size |\n';
+      markdown += '| :--- | :---: | :---: | :---: | :---: | :---: |\n';
+
+      for (const r of results) {
+        const icon = r.status === 'PASS' ? '✅' : '❌';
+        const diffText = r.status === 'PASS' || r.status === 'FAIL' ? `**${r.diffPercentage}%**` : `*${r.diffPercentage}*`;
+        const thresholdText = r.threshold === 'N/A' ? 'N/A' : `${r.threshold}%`;
+        markdown += `| \`${r.id}\` | ${icon} ${r.status} | ${diffText} | ${thresholdText} | ${r.diffPixels.toLocaleString()} | ${r.dimensions} |\n`;
+      }
+
+      markdown += '\n> Diff highlighting: Baseline design (left) vs Current browser (center) vs Diff highlight (right, magenta).\n';
+      fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
+    } catch (err) {
+      console.error('Failed to append to GITHUB_STEP_SUMMARY:', err);
+    }
+  }
+
+  console.log('\n------------------------------------------------------');
+  const passCount = results.filter((r) => r.status === 'PASS').length;
+  const failCount = results.filter((r) => r.status === 'FAIL').length;
+  console.log(`Summary: ${passCount} passed, ${failCount} failed, ${results.length} total.`);
+  console.log(`Artifacts saved in: ${path.relative(REPO_ROOT, options.outDir)}/`);
+  console.log('======================================================\n');
+
+  if (hasFailure) {
+    console.error('❌ Visual diff check failed: one or more screens exceeded allowed diff threshold.');
+    process.exit(1);
+  } else {
+    console.log('✅ Visual diff check passed: all screens within allowed diff thresholds.');
+    process.exit(0);
+  }
+}
+
+run().catch((err) => {
+  console.error('Fatal error during visual comparison:', err);
+  process.exit(1);
+});

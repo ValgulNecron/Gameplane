@@ -1,6 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
-import path from "path";
-import { fileURLToPath } from "node:url";
+import { test, expect } from "@playwright/test";
+import { capture } from "./capture";
 
 // Slice 1: Shell + Login Screens — Screenshot verification tests for HeroUI rebuild
 // These tests capture the 6 design frames from slice 1 at precise viewports with MSW mocks.
@@ -20,17 +19,6 @@ import { fileURLToPath } from "node:url";
 //       path: web/e2e/screenshots/*.png
 //       retention-days: 30
 //       if-no-files-found: ignore
-
-/**
- * Capture a full-page screenshot and save it to web/e2e/screenshots/<id>.png
- * @param page The Playwright page object
- * @param id The design frame id for naming the screenshot
- */
-async function capture(page: Page, id: string): Promise<void> {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const screenshotPath = path.join(here, `${id}.png`);
-  await page.screenshot({ path: screenshotPath, fullPage: true });
-}
 
 test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () => {
   // Desktop viewport for all tests in this describe block

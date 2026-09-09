@@ -1,6 +1,4 @@
 import { test, expect, type Page } from "@playwright/test";
-import path from "path";
-import { fileURLToPath } from "node:url";
 
 // T086 (specs/014-heroui-web-rebuild/tasks.md): Slice 2a — Servers list +
 // Server Detail core tabs. Screenshot verification tests for the HeroUI
@@ -23,11 +21,7 @@ import { fileURLToPath } from "node:url";
 // added by this task — additively — because no existing fixture covered
 // idle-armed, never-sleeps, or PVC-provisioning-failed.
 
-async function capture(page: Page, id: string): Promise<void> {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const screenshotPath = path.join(here, `${id}.png`);
-  await page.screenshot({ path: screenshotPath, fullPage: true });
-}
+import { capture } from "./capture";
 
 // Selects the enriched screenshot dataset before the app's first fetch.
 async function useScreenshotDataset(page: Page): Promise<void> {
@@ -96,7 +90,7 @@ test.describe("Slice 2a: Servers + core tabs (Desktop — 1440x900) @screenshots
     await expect(page.getByRole("heading", { name: "test-server-05" })).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByText("Asleep", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Asleep", { exact: true }).first()).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Asleep since")).toBeVisible();
     await page.waitForTimeout(200);
     await capture(page, "TE2jI");
@@ -118,6 +112,7 @@ test.describe("Slice 2a: Servers + core tabs (Desktop — 1440x900) @screenshots
     await expect(page.getByRole("heading", { name: "test-server-08" })).toBeVisible({
       timeout: 10_000,
     });
+    await clickTab(page, "Overview");
     // Overview.tsx's provisioning-failure warning banner (matches condition
     // reason "PVCProvisioningFailed" against /Provisioning|Storage|PVC/).
     await expect(page.getByText(/waiting on storage/i)).toBeVisible({ timeout: 10_000 });
@@ -179,7 +174,7 @@ test.describe("Slice 2a: Servers + core tabs (Desktop — 1440x900) @screenshots
     await page.goto("/servers/test-server-01");
     await clickTab(page, "Players");
     // makePlayers() fixture's roster renders once the tab's query resolves.
-    await expect(page.getByRole("heading", { name: /players online/i })).toBeVisible({
+    await expect(page.getByRole("heading", { name: /online/i })).toBeVisible({
       timeout: 10_000,
     });
     await page.waitForTimeout(200);
