@@ -40,7 +40,6 @@ export const screenshotTemplates: GameTemplate[] = [
       image: "ghcr.io/valgulnecron/gameplane/minecraft:1.21",
       rcon: { protocol: "minecraft" },
       capabilities: {
-        rcon: { protocol: "minecraft" },
         status: {
           metrics: [
             { id: "world-seed", displayName: "World seed" },
@@ -232,12 +231,14 @@ export const screenshotServers: GameServer[] = [
       endpoints: [
         {
           name: "frp",
-          host: "mc.frp.gameplane.dev:25565",
+          host: "mc.frp.gameplane.dev",
+          port: 25565,
           tunnelProvider: "FRP",
         },
         {
           name: "external",
           host: "172.18.255.203",
+          port: 25565,
           pool: "pool-us-west",
         },
         {
@@ -337,7 +338,6 @@ export function screenshotClusterView(): ClusterView {
 export function screenshotClusterStats() {
   return makeClusterStats({
     nodes: 3,
-    readyNodes: 3,
     totalStorageBytes: 86 * 1024 ** 3,
     usedStorageBytes: 77 * 1024 ** 3,
   });
