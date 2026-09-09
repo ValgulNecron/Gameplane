@@ -64,7 +64,7 @@ export function LoginPage() {
   return (
     <div className="grid h-full grid-cols-1 md:grid-cols-2">
       <section className="flex items-center justify-center bg-background p-8">
-        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8">
+        <div className="w-full max-w-[420px] rounded-xl border border-border bg-card p-8">
           <div className="mb-8 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/15">
               <ShieldCheck className="h-5 w-5 text-primary" />
@@ -111,6 +111,7 @@ export function LoginPage() {
                   onChange={(e) => setU(e.target.value)}
                   autoFocus
                   autoComplete="username"
+                  fullWidth
                 />
               </div>
 
@@ -142,6 +143,7 @@ export function LoginPage() {
                     value={p}
                     onChange={(e) => setP(e.target.value)}
                     autoComplete="current-password"
+                    fullWidth
                   />
                   <Button
                     isIconOnly
@@ -188,7 +190,7 @@ export function LoginPage() {
               </Button>
 
               {sso.length > 0 && (
-                <div className="relative py-2 text-center text-[11px] uppercase tracking-widest text-muted">
+                <div className="relative py-2 text-center text-[11px] text-muted">
                   <span className="relative z-10 bg-background px-2">or</span>
                   <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
                 </div>
