@@ -5,7 +5,7 @@ import type { AuditEvent, AuditVerifyResult } from "@/types";
 import { Audit, type AuditExportFilter } from "@/lib/endpoints";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, Tabs, Tab as TabComponent } from "@heroui/react";
 import { Input } from "@/components/ui/input";
 import { cn, formatRelative } from "@/lib/utils";
 
@@ -109,22 +109,15 @@ export function AuditLogPage() {
       {renderIntegrityBanner(verifyQuery)}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
-          {(["all", "2xx", "4xx", "5xx"] as StatusClass[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusClass(s)}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                statusClass === s
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
-            >
-              {labelFor(s)} · {totals[s] ?? 0}
-            </button>
-          ))}
-        </div>
+        <Tabs selectedKey={statusClass} onSelectionChange={(key) => setStatusClass(key as StatusClass)} variant="secondary" aria-label="Status filter">
+          <Tabs.List>
+            {(["all", "2xx", "4xx", "5xx"] as StatusClass[]).map((s) => (
+              <TabComponent key={s} id={s} className="text-xs">
+                {labelFor(s)} · {totals[s] ?? 0}
+              </TabComponent>
+            ))}
+          </Tabs.List>
+        </Tabs>
 
         <select
           value={methodFilter}
