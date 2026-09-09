@@ -135,6 +135,7 @@ export function AuditLogPage() {
           value={actorQ}
           onChange={(e) => setActorQ(e.target.value)}
           className="w-64"
+          variant="primary"
         />
 
         <div className="ml-auto text-xs text-muted">
@@ -235,18 +236,17 @@ function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactN
   if (data.ok) {
     return (
       <div className="flex items-center justify-between rounded-md border border-success bg-success/5 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-5 w-5 text-success" />
-          <span className="text-sm font-medium text-success">Audit chain verified — no tampering detected</span>
+        <div className="flex items-center gap-2 text-sm font-medium text-success">
+          <ShieldCheck className="h-4 w-4" />
+          Audit chain verified — no tampering detected
         </div>
         <Button
           size="sm"
-          variant="ghost"
-          onClick={() => {
-            void query.refetch();
-          }}
-          disabled={query.isFetching}
+          variant="outline"
+          onPress={() => void query.refetch()}
+          isDisabled={query.isFetching}
         >
+          <RefreshCw className="h-4 w-4" />
           Re-check
         </Button>
       </div>
