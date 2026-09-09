@@ -41,6 +41,8 @@ const SCREEN_THRESHOLD_OVERRIDES = {
   Xn5ns: 0.06, // Server Detail — Console
   kPmoo: 0.06, // Server Detail — Logs
   FtdkI: 0.06, // Server Detail — Logs (Failed)
+  // Mobile responsive layout (narrow 390px viewport with condensed cards)
+  tooKB: 0.06, // Servers — Mobile
 };
 
 // Screens currently expected to be captured by shipped slices (Slice 1 + Slice 2a per contracts/screen-verification.md).

@@ -1,6 +1,4 @@
 import { test, expect, type Page } from "@playwright/test";
-import path from "path";
-import { fileURLToPath } from "node:url";
 
 // T086 (specs/014-heroui-web-rebuild/tasks.md): Slice 2a — Servers list +
 // Server Detail core tabs. Screenshot verification tests for the HeroUI
@@ -23,11 +21,7 @@ import { fileURLToPath } from "node:url";
 // added by this task — additively — because no existing fixture covered
 // idle-armed, never-sleeps, or PVC-provisioning-failed.
 
-async function capture(page: Page, id: string): Promise<void> {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const screenshotPath = path.join(here, `${id}.png`);
-  await page.screenshot({ path: screenshotPath, fullPage: true });
-}
+import { capture } from "./capture";
 
 // Selects the enriched screenshot dataset before the app's first fetch.
 async function useScreenshotDataset(page: Page): Promise<void> {
