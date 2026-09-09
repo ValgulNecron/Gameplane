@@ -53,11 +53,11 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: capture browser screenshots
-        run: npm run screenshots
+        run: npm run screenshots:design
 
       - name: compare design baseline vs browser captures
         if: always()
-        run: npm run diff:screenshots -- --check-expected --allow-missing
+        run: npm run diff:screenshots -- --check-expected
 
       - name: upload visual diff artifacts
         if: always()

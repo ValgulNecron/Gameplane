@@ -15,6 +15,7 @@
     "test:e2e:live": "GAMEPLANE_E2E_TARGET=live playwright test",
     "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json",
     "screenshots": "GAMEPLANE_E2E_TARGET=mock GAMEPLANE_SCREENSHOTS=1 playwright test",
+    "screenshots:design": "GAMEPLANE_E2E_TARGET=mock GAMEPLANE_SCREENSHOTS=1 playwright test e2e/screenshots",
     "diff:screenshots": "node scripts/compare-screenshots.mjs"
   },
   "dependencies": {
