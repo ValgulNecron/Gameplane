@@ -50,7 +50,7 @@ export const handlers = [
       username?: string;
       password?: string;
     } | null;
-    if (!body?.username || !body?.password) {
+    if (!body?.username || !body?.password || body.password.startsWith("wrong") || body.password === "invalid") {
       return new HttpResponse("invalid credentials\n", { status: 401 });
     }
     return HttpResponse.json(
@@ -613,7 +613,7 @@ export function buildScreenshotHandlers() {
         username?: string;
         password?: string;
       } | null;
-      if (!body?.username || !body?.password) {
+      if (!body?.username || !body?.password || body.password.startsWith("wrong") || body.password === "invalid") {
         return new HttpResponse("invalid credentials\n", { status: 401 });
       }
       // Return matching user from screenshot set, or admin-demo fallback
@@ -773,6 +773,15 @@ export function buildScreenshotHandlers() {
             status: {
               ...server.status,
               phase: "Failed",
+              conditions: [
+                {
+                  type: "Ready",
+                  status: "False",
+                  reason: "ImagePullBackOff",
+                  message: 'Back-off pulling image "itzg/minecraft-server:bad-tag"',
+                  lastTransitionTime: new Date(Date.now() - 300 * 1000).toISOString(),
+                },
+              ],
               agent: {
                 playersOnline: null,
                 playersMax: 0,

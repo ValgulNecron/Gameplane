@@ -168,7 +168,7 @@ test.describe("Slice 2a: Servers + core tabs (Desktop — 1440x900) @screenshots
       timeout: 10_000,
     });
     await clickTab(page, "Logs");
-    await expect(page.getByText(/The server failed to start/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/The server failed to start/i).first()).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(500);
     await capture(page, "FtdkI");
   });

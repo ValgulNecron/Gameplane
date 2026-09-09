@@ -44,6 +44,7 @@ const SCREEN_THRESHOLD_OVERRIDES = {
   FtdkI: 0.06, // Server Detail — Logs (Failed)
   // Mobile responsive layout (narrow 390px viewport with condensed cards)
   tooKB: 0.06, // Servers — Mobile
+  SeizD: 0.06, // Navigation Drawer — Mobile
 };
 
 const SCREEN_BLOCK_THRESHOLD_OVERRIDES = {
@@ -51,6 +52,7 @@ const SCREEN_BLOCK_THRESHOLD_OVERRIDES = {
   kPmoo: 0.25,
   FtdkI: 0.25,
   tooKB: 0.25,
+  SeizD: 0.25,
 };
 
 // Screens currently expected to be captured by shipped slices (Slice 1 + Slice 2a per contracts/screen-verification.md).
