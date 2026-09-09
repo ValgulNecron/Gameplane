@@ -43,6 +43,16 @@ const SCREEN_THRESHOLD_OVERRIDES = {
   FtdkI: 0.06, // Server Detail — Logs (Failed)
 };
 
+function parseRatio(valStr, name) {
+  const trimmed = valStr.trim();
+  const num = Number(trimmed);
+  if (!Number.isFinite(num) || num < 0 || num > 1) {
+    console.error(`Error: Invalid ${name}: "${valStr}". Expected a finite number from 0 through 1 (e.g. 0.04 for 4%).`);
+    process.exit(1);
+  }
+  return num;
+}
+
 // Parse command line options: --key=value or --flag
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -57,15 +67,15 @@ function parseArgs() {
 
   for (const arg of args) {
     if (arg.startsWith('--ref-dir=')) {
-      options.refDir = path.resolve(process.cwd(), arg.split('=')[1]);
+      options.refDir = path.resolve(process.cwd(), arg.slice('--ref-dir='.length));
     } else if (arg.startsWith('--curr-dir=')) {
-      options.currDir = path.resolve(process.cwd(), arg.split('=')[1]);
+      options.currDir = path.resolve(process.cwd(), arg.slice('--curr-dir='.length));
     } else if (arg.startsWith('--out-dir=')) {
-      options.outDir = path.resolve(process.cwd(), arg.split('=')[1]);
+      options.outDir = path.resolve(process.cwd(), arg.slice('--out-dir='.length));
     } else if (arg.startsWith('--threshold=')) {
-      options.maxDiffFactor = parseFloat(arg.split('=')[1]);
+      options.maxDiffFactor = parseRatio(arg.slice('--threshold='.length), '--threshold');
     } else if (arg.startsWith('--pixel-threshold=')) {
-      options.pixelThreshold = parseFloat(arg.split('=')[1]);
+      options.pixelThreshold = parseRatio(arg.slice('--pixel-threshold='.length), '--pixel-threshold');
     } else if (arg === '--allow-missing') {
       options.allowMissing = true;
     }
@@ -73,8 +83,7 @@ function parseArgs() {
 
   // Environment variable overrides
   if (process.env.VISUAL_DIFF_THRESHOLD) {
-    const envVal = parseFloat(process.env.VISUAL_DIFF_THRESHOLD);
-    if (!isNaN(envVal)) options.maxDiffFactor = envVal;
+    options.maxDiffFactor = parseRatio(process.env.VISUAL_DIFF_THRESHOLD, 'VISUAL_DIFF_THRESHOLD');
   }
 
   return options;
