@@ -55,6 +55,13 @@ const DEFAULT_EXPECTED_SCREENS = [
   'P08Uw', 'Xn5ns', 'kPmoo', 'FtdkI', 'Burtr', 'dPP50',
 ];
 
+/**
+ * Parses and validates a ratio/percentage argument ensuring it is a finite number between 0 and 1.
+ *
+ * @param {string} valStr Raw string value from CLI argument or environment variable
+ * @param {string} name Flag or environment variable name for error reporting
+ * @returns {number} Parsed float ratio in range [0, 1]
+ */
 function parseRatio(valStr, name) {
   const trimmed = valStr.trim();
   const num = Number(trimmed);
@@ -65,7 +72,11 @@ function parseRatio(valStr, name) {
   return num;
 }
 
-// Parse command line options: --key=value or --flag
+/**
+ * Parses command line arguments and environment variables into comparison options.
+ *
+ * @returns {object} Configured comparison options
+ */
 function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
@@ -132,6 +143,12 @@ async function loadAndPadImage(filePath, targetWidth, targetHeight) {
   return { data, width: info.width, height: info.height };
 }
 
+/**
+ * Main execution routine for comparing reference design exports against current browser screenshots.
+ *
+ * Discovers current screenshots, verifies them against expected screens and reference baselines,
+ * executes pixelmatch diffing, saves diff and composite preview artifacts, and writes summaries.
+ */
 async function run() {
   const options = parseArgs();
 

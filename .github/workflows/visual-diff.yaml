@@ -25,6 +25,8 @@ jobs:
   visual-diff:
     name: design vs browser visual diff
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 20
     defaults:
       run:
@@ -48,6 +50,8 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-${{ runner.arch }}-
 
       - name: install chromium
         run: npx playwright install --with-deps chromium
