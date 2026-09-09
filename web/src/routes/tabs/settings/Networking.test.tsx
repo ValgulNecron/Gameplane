@@ -40,7 +40,10 @@ describe("NetworkingSection", () => {
   it("changing expose persists the new value", () => {
     const onChange = vi.fn();
     renderWithQuery(<NetworkingSection draft={baseDraft} onChange={onChange} />);
-    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "NodePort" } });
+    const exposeButton = screen.getByRole("button", { name: /ClusterIP/ }) as HTMLButtonElement;
+    fireEvent.click(exposeButton);
+    const nodePortOption = screen.getByRole("option", { name: /NodePort/ });
+    fireEvent.click(nodePortOption);
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         spec: expect.objectContaining({
@@ -66,6 +69,8 @@ describe("NetworkingSection", () => {
 
   it("renders all four expose options", () => {
     renderWithQuery(<NetworkingSection draft={baseDraft} onChange={() => {}} />);
+    const exposeButton = screen.getByRole("button", { name: /ClusterIP/ });
+    fireEvent.click(exposeButton);
     for (const label of ["ClusterIP", "NodePort", "LoadBalancer", "Hostport"]) {
       expect(screen.getByRole("option", { name: new RegExp(label) })).toBeInTheDocument();
     }
@@ -85,9 +90,6 @@ describe("NetworkingSection", () => {
       ...baseDraft,
       spec: { ...baseDraft.spec, networking: { expose: "NodePort" as const } },
     };
-    // rerender() replaces the whole tree passed to render(), so the
-    // QueryClientProvider wrapper must be reapplied here too — otherwise
-    // NetworkingSection's useQuery call loses its client mid-test.
     rerender(
       <QueryClientProvider client={client}>
         <NetworkingSection draft={np} onChange={() => {}} />
@@ -516,9 +518,10 @@ describe("NetworkingSection", () => {
       renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
 
       // Change expose to LoadBalancer
-      fireEvent.change(screen.getAllByRole("combobox")[0], {
-        target: { value: "LoadBalancer" },
-      });
+      const exposeButton = screen.getByRole("button", { name: /NodePort/ });
+      fireEvent.click(exposeButton);
+      const loadBalancerOption = screen.getByRole("option", { name: /LoadBalancer/ });
+      fireEvent.click(loadBalancerOption);
 
       const lastCall = onChange.mock.calls.at(-1)![0];
       expect(lastCall.spec.networking.addressPool).toEqual("pool-us-west");

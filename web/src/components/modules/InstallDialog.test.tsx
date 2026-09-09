@@ -30,9 +30,10 @@ describe("InstallDialog", () => {
     expect(screen.getByRole("heading", { name: /Install / })).toBeInTheDocument();
     // Single source renders as static text; two versions render a select.
     expect(screen.getByText("upstream (oci)")).toBeInTheDocument();
-    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    const selects = screen.getAllByRole("button", { name: /version/i });
     expect(selects).toHaveLength(1);
-    expect(selects[0].value).toBe("1.21");
+    // HeroUI Select displays selected value via Select.Value component
+    expect(screen.getByText("1.21")).toBeInTheDocument();
   });
 
   it("Install button submits source/version/name", async () => {
@@ -109,7 +110,7 @@ describe("InstallDialog", () => {
         onConfirm={() => {}}
       />,
     );
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /version|source/i })).not.toBeInTheDocument();
     expect(screen.getByText("only (upload)")).toBeInTheDocument();
     expect(screen.getByText("1.0")).toBeInTheDocument();
   });
@@ -137,14 +138,14 @@ describe("InstallDialog", () => {
         onConfirm={() => {}}
       />,
     );
-    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    const selects = screen.getAllByRole("button", { name: /version/i });
     // Should have 1 select for versions
     expect(selects.length).toBeGreaterThan(0);
-    const versionSelect = selects[selects.length - 1];
-    expect(versionSelect.value).toBe("2.0");
+    // HeroUI Select displays selected value via Select.Value component
+    expect(screen.getByText("2.0")).toBeInTheDocument();
   });
 
-  it("shows multiple source options in a select when available", () => {
+  it("shows multiple source options in a select when available", async () => {
     render(
       <InstallDialog
         open
@@ -160,11 +161,11 @@ describe("InstallDialog", () => {
         onConfirm={() => {}}
       />,
     );
-    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-    // Should have 1 select for sources
-    expect(selects.length).toBeGreaterThan(0);
+    const triggers = screen.getAllByRole("button", { name: /source/i });
+    expect(triggers.length).toBeGreaterThan(0);
     expect(screen.getByText(/upstream.*oci/)).toBeInTheDocument();
-    expect(screen.getByText(/community.*git/)).toBeInTheDocument();
+    await userEvent.click(triggers[0]);
+    expect(await screen.findByRole("option", { name: /community.*git/i })).toBeInTheDocument();
   });
 
   it("resets form when entry changes", async () => {
@@ -208,7 +209,7 @@ describe("InstallDialog", () => {
       />,
     );
     expect(screen.getByText("1.0")).toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: /Version/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /version/i })).not.toBeInTheDocument();
   });
 
   it("clears error when dialog re-opens", async () => {
@@ -254,9 +255,12 @@ describe("InstallDialog", () => {
         onConfirm={onConfirm}
       />,
     );
-    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-    const versionSelect = selects[selects.length - 1];
-    fireEvent.change(versionSelect, { target: { value: "1.0" } });
+    const versionSelect = screen.getByRole("button", { name: /version/i });
+    // Click the version select trigger to open the popover
+    await userEvent.click(versionSelect);
+    // Click the "1.0" option
+    const option = screen.getByRole("option", { name: "1.0" });
+    await userEvent.click(option);
 
     await userEvent.click(screen.getByRole("button", { name: /Install/i }));
     await waitFor(() =>

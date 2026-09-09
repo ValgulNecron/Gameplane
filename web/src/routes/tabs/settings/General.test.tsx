@@ -72,7 +72,7 @@ describe("GeneralSection", () => {
     const onChange = vi.fn();
     render(<GeneralSection draft={draft} onChange={onChange} />);
     expect(screen.getByText("team")).toBeInTheDocument();
-    const remove = screen.getByTitle(/Remove label/i);
+    const remove = screen.getByLabelText(/Remove label/i);
     await userEvent.click(remove);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.metadata.labels).toBeUndefined();
@@ -198,7 +198,7 @@ describe("GeneralSection", () => {
     // each onChange's draft back in.
     const { rerender } = render(<GeneralSection draft={draft} onChange={onChange} />);
 
-    const removeButtons = screen.getAllByTitle(/Remove label/i);
+    const removeButtons = screen.getAllByLabelText(/Remove label/i);
     await userEvent.click(removeButtons[0]);
     const lastCall = onChange.mock.calls.at(-1)![0];
     // After removing one, we should have one left
@@ -207,7 +207,7 @@ describe("GeneralSection", () => {
     rerender(<GeneralSection draft={lastCall} onChange={onChange} />);
 
     // Remove the last one
-    const lastRemoveBtn = screen.getByTitle(/Remove label/i);
+    const lastRemoveBtn = screen.getByLabelText(/Remove label/i);
     await userEvent.click(lastRemoveBtn);
 
     const finalCall = onChange.mock.calls.at(-1)![0];

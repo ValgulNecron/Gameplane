@@ -71,7 +71,7 @@ describe("NetworkingSection KVEditor (service annotations)", () => {
     renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
     expect(screen.getByText("team")).toBeInTheDocument();
     // Two Remove buttons exist (KV remove, plus per-port remove if any).
-    const removes = screen.getAllByTitle(/Remove/i);
+    const removes = screen.getAllByLabelText(/Remove/i);
     await userEvent.click(removes[0]);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.networking).toBeUndefined();

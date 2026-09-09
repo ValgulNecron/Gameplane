@@ -7,15 +7,16 @@ describe("ResourcesSection", () => {
   it("renders default CPU and memory values when no resources set", () => {
     render(<ResourcesSection draft={makeServer()} onChange={() => {}} />);
     // Defaults are 2 CPU / 4 Gi.
-    expect(screen.getByLabelText("CPU cores value")).toHaveValue(2);
-    expect(screen.getByLabelText("Memory (GiB) value")).toHaveValue(4);
+    expect(screen.getByLabelText("CPU cores value")).toHaveValue("2");
+    expect(screen.getByLabelText("Memory (GiB) value")).toHaveValue("4");
   });
 
   it("changing CPU slider updates draft to a quantity", () => {
     const onChange = vi.fn();
     render(<ResourcesSection draft={makeServer()} onChange={onChange} />);
-    const cpuSlider = screen.getAllByRole("slider")[0];
-    fireEvent.change(cpuSlider, { target: { value: "4" } });
+    const cpuInput = screen.getByLabelText("CPU cores value");
+    fireEvent.change(cpuInput, { target: { value: "4" } });
+    fireEvent.blur(cpuInput);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.resources.requests.cpu).toBe("4");
     expect(lastCall.spec.resources.limits.cpu).toBe("4");
@@ -24,8 +25,9 @@ describe("ResourcesSection", () => {
   it("fractional CPU produces a milli-string", () => {
     const onChange = vi.fn();
     render(<ResourcesSection draft={makeServer()} onChange={onChange} />);
-    const cpuSlider = screen.getAllByRole("slider")[0];
-    fireEvent.change(cpuSlider, { target: { value: "0.5" } });
+    const cpuInput = screen.getByLabelText("CPU cores value");
+    fireEvent.change(cpuInput, { target: { value: "0.5" } });
+    fireEvent.blur(cpuInput);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.resources.requests.cpu).toBe("500m");
   });
@@ -33,8 +35,9 @@ describe("ResourcesSection", () => {
   it("memory slider sets memory limits", () => {
     const onChange = vi.fn();
     render(<ResourcesSection draft={makeServer()} onChange={onChange} />);
-    const memSlider = screen.getAllByRole("slider")[1];
-    fireEvent.change(memSlider, { target: { value: "8" } });
+    const memInput = screen.getByLabelText("Memory (GiB) value");
+    fireEvent.change(memInput, { target: { value: "8" } });
+    fireEvent.blur(memInput);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.resources.requests.memory).toBe("8Gi");
   });
@@ -143,11 +146,12 @@ describe("ResourcesSection", () => {
   it("CPU slider to 0 clamps to the 100m floor", () => {
     const onChange = vi.fn();
     render(<ResourcesSection draft={makeServer()} onChange={onChange} />);
-    const cpuSlider = screen.getAllByRole("slider")[0];
+    const cpuInput = screen.getByLabelText("CPU cores value");
     // ResourceInput's CPU_DEFAULTS floors the slider at 0.1 cores (100m) —
     // a raw DOM value of "0" (below the slider's own min) still gets
     // clamped there by emitBase, it never reaches true zero.
-    fireEvent.change(cpuSlider, { target: { value: "0" } });
+    fireEvent.change(cpuInput, { target: { value: "0" } });
+    fireEvent.blur(cpuInput);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.resources.requests.cpu).toBe("100m");
   });
@@ -155,8 +159,9 @@ describe("ResourcesSection", () => {
   it("memory slider min value", () => {
     const onChange = vi.fn();
     render(<ResourcesSection draft={makeServer()} onChange={onChange} />);
-    const memSlider = screen.getAllByRole("slider")[1];
-    fireEvent.change(memSlider, { target: { value: "1" } });
+    const memInput = screen.getByLabelText("Memory (GiB) value");
+    fireEvent.change(memInput, { target: { value: "1" } });
+    fireEvent.blur(memInput);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.resources.requests.memory).toBe("1Gi");
   });
@@ -175,8 +180,9 @@ describe("ResourcesSection", () => {
         onChange={onChange}
       />,
     );
-    const cpuSlider = screen.getAllByRole("slider")[0];
-    fireEvent.change(cpuSlider, { target: { value: "8" } });
+    const cpuInput = screen.getByLabelText("CPU cores value");
+    fireEvent.change(cpuInput, { target: { value: "8" } });
+    fireEvent.blur(cpuInput);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.storage.size).toBe("10Gi");
     expect(lastCall.spec.resources.requests.cpu).toBe("8");

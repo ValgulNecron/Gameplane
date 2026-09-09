@@ -35,7 +35,7 @@ describe("AccessSection", () => {
     });
     renderWithQuery(<AccessSection gs={gs} />);
     expect(screen.getByText("alice")).toBeInTheDocument();
-    expect(screen.getByText(/None yet/i)).toBeInTheDocument();
+    expect(screen.getByText("None yet")).toBeInTheDocument();
   });
 
   it("renders owner and collaborators list", () => {
@@ -111,7 +111,7 @@ describe("AccessSection", () => {
 
     expect(screen.queryByPlaceholderText(/Add collaborator/i)).not.toBeInTheDocument();
     // Remove buttons should not be visible
-    const removeButtons = screen.queryAllByTitle("Remove");
+    const removeButtons = screen.queryAllByLabelText(/Remove/);
     expect(removeButtons).toHaveLength(0);
   });
 
@@ -139,7 +139,7 @@ describe("AccessSection", () => {
     });
     renderWithQuery(<AccessSection gs={gs} />);
 
-    const removeButtons = screen.getAllByTitle("Remove");
+    const removeButtons = screen.getAllByLabelText(/Remove/);
     expect(removeButtons).toHaveLength(2);
     await userEvent.click(removeButtons[0]);
 
@@ -266,9 +266,9 @@ describe("AccessSection", () => {
     });
     renderWithQuery(<AccessSection gs={gs} />);
 
-    expect(screen.getByText(/Collaborators were modified outside the dashboard/i)).toBeInTheDocument();
+    expect(screen.getByText("Collaborators were modified outside the dashboard.")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/Add collaborator/i)).not.toBeInTheDocument();
-    const removeButtons = screen.queryAllByTitle("Remove");
+    const removeButtons = screen.queryAllByLabelText(/Remove/);
     expect(removeButtons).toHaveLength(0);
   });
 

@@ -1,8 +1,21 @@
-import { useRef, useState, type ReactNode } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { FileArchive, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
+import { useRef, useState } from "react";
+import {
+  Modal,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalHeading,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Select,
+  Label,
+  Description,
+  ListBox,
+  ListBoxItem,
+} from "@heroui/react";
+import { Upload, Loader2 } from "lucide-react";
 import { APIError } from "@/lib/api";
 import { ModuleSources, type UploadedModule } from "@/lib/endpoints";
 
@@ -77,26 +90,43 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">Upload module</Dialog.Title>
-          <Dialog.Description className="pt-1 text-xs text-muted">
-            A .tar.gz or .zip holding one module directory (module.yaml +
-            template.yaml). Stored in the cluster; the catalog indexes it
-            immediately.
-          </Dialog.Description>
+    <Modal isOpen={open} onOpenChange={onOpenChange}>
+      <ModalBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy} />
+      <ModalContainer>
+        <ModalDialog>
+          <ModalHeader>
+            <ModalHeading>Upload module</ModalHeading>
+          </ModalHeader>
 
-          <div className="space-y-3 pt-4">
+          <ModalBody className="gap-4">
+            <Description className="text-sm text-muted">
+              A .tar.gz or .zip holding one module directory (module.yaml +
+              template.yaml). Stored in the cluster; the catalog indexes it
+              immediately.
+            </Description>
+
             {sources.length > 1 && (
-              <Field label="Upload to">
+              <div className="space-y-1">
                 <Select
-                  value={source}
-                  onValueChange={setSource}
-                  options={sources.map((s) => ({ value: s, label: s }))}
-                />
-              </Field>
+                  selectedKey={source}
+                  onSelectionChange={(v) => setSource(String(v))}
+                >
+                  <Label className="text-xs">Upload to</Label>
+                  <Select.Trigger className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
+                    <Select.Value />
+                    <Select.Indicator className="ml-auto h-4 w-4" />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded border border-border">
+                    <ListBox className="p-0" aria-label="Upload to" items={sources.map(src => ({ id: src, name: src }))}>
+                      {sources.map((src) => (
+                        <ListBoxItem key={src} id={src}>
+                          {src}
+                        </ListBoxItem>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
             )}
 
             <input
@@ -107,14 +137,14 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
               data-testid="bundle-file-input"
               onChange={(e) => void pick(e.target.files?.[0] ?? null)}
             />
-            <button
-              type="button"
-              onClick={() => fileInput.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-sm text-muted transition-colors hover:border-primary hover:text-fg"
+            <Button
+              variant="ghost"
+              className="w-full flex-col gap-2 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-sm text-muted hover:border-primary hover:text-fg"
+              onPress={() => fileInput.current?.click()}
             >
-              <FileArchive className="h-4 w-4" />
+              <Upload className="h-4 w-4" />
               {file ? file.name : "Choose a bundle archive…"}
-            </button>
+            </Button>
 
             {preview && (
               <div className="rounded border border-border bg-card/40 px-3 py-2 text-xs">
@@ -128,34 +158,35 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
                 </div>
               </div>
             )}
-          </div>
 
-          {error && (
-            <div className="mt-3 rounded border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
-              {error}
-            </div>
-          )}
+            {error && (
+              <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger" role="alert">
+                {error}
+              </div>
+            )}
+          </ModalBody>
 
-          <div className="mt-5 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+          <ModalFooter className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => onOpenChange(false)}
+              isDisabled={busy}
+            >
               Cancel
             </Button>
-            <Button onClick={submit} disabled={busy || !preview}>
+            <Button
+              size="sm"
+              variant="primary"
+              isDisabled={busy || !preview}
+              onPress={submit}
+            >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Upload
             </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block">
-      <div className="pb-1 text-xs text-muted">{label}</div>
-      {children}
-    </label>
+          </ModalFooter>
+        </ModalDialog>
+      </ModalContainer>
+    </Modal>
   );
 }

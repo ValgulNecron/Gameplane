@@ -1,10 +1,8 @@
-import type React from "react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import type { GameServer } from "@/types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button, Input, Label, Chip, Card, CardContent } from "@heroui/react";
 import { Servers } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
 import { useMe, can } from "@/lib/auth";
@@ -40,7 +38,7 @@ export function AccessSection({ gs }: Props) {
   });
 
   if (!gs) {
-    return <div className="p-6 text-sm text-muted">Loading…</div>;
+    return <div className="p-6 text-sm text-default-500">Loading…</div>;
   }
 
   const ann = gs.metadata.annotations ?? {};
@@ -89,81 +87,88 @@ export function AccessSection({ gs }: Props) {
 
   return (
     <div className="space-y-3">
-      <Card>
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-fg">Owner</div>
-            <div className="pt-1 font-mono text-sm text-muted">{ownerName}</div>
-          </div>
-        </div>
+      <Card className="border border-divider bg-default/40">
+        <CardContent className="gap-0 px-4 py-4">
+          <Label className="text-sm font-medium">Owner</Label>
+          <div className="pt-1 font-mono text-sm text-default-500">{ownerName}</div>
+        </CardContent>
       </Card>
 
-      <Card>
-        <div className="space-y-3">
-          <div>
-            <div className="text-sm font-medium text-fg">Collaborators</div>
-            <div className="pt-1 text-xs text-muted">
-              Collaborators get full control of this server (console, files, settings). They
-              can&apos;t transfer ownership or edit this list.
+      <Card className="border border-divider bg-default/40">
+        <CardContent className="gap-0 px-4 py-4">
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm font-medium">Collaborators</Label>
+              <p className="pt-1 text-xs text-default-500">
+                Collaborators get full control of this server (console, files, settings). They
+                can&apos;t transfer ownership or edit this list.
+              </p>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            {!isAligned && (
-              <div className="rounded border border-amber-400/40 bg-amber-50/10 px-2 py-1 text-xs text-amber-600 dark:text-amber-500">
-                Collaborators were modified outside the dashboard.
+            <div className="space-y-2">
+              {!isAligned && (
+                <div className="rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning-600 dark:text-warning-400">
+                  Collaborators were modified outside the dashboard.
+                </div>
+              )}
+              {collaboratorNames.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {collaboratorNames.map((name, idx) => (
+                    <Chip
+                      key={idx}
+                      variant="soft"
+                      color="default"
+                      className="flex items-center gap-1"
+                    >
+                      <span>{name}</span>
+                      {canEditCollaborators && (
+                        <Button
+                          isIconOnly
+                          variant="ghost"
+                          size="sm"
+                          className="ml-0.5 text-danger"
+                          onPress={() => handleRemoveCollaborator(idx)}
+                          isDisabled={setCollab.isPending}
+                          aria-label={`Remove ${name}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </Chip>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-default-500">None yet</div>
+              )}
+            </div>
+
+            {canEditCollaborators && (
+              <div className="flex items-center gap-2 pt-1">
+                <Input
+                  value={addInput}
+                  onChange={(e) => setAddInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleAddCollaborator();
+                    }
+                  }}
+                  placeholder="Add collaborator by username…"
+                  className="flex-1"
+                  disabled={setCollab.isPending}
+                  type="text"
+                />
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onPress={() => handleAddCollaborator()}
+                  isDisabled={!addInput.trim() || setCollab.isPending}
+                >
+                  Add
+                </Button>
               </div>
             )}
-            {collaboratorNames.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {collaboratorNames.map((name, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-1 rounded-full border border-border bg-surface/60 px-2 py-1 text-xs"
-                  >
-                    <span>{name}</span>
-                    {canEditCollaborators && (
-                      <button
-                        onClick={() => handleRemoveCollaborator(idx)}
-                        disabled={setCollab.isPending}
-                        className="ml-0.5 hover:text-danger disabled:opacity-40"
-                        title="Remove"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-muted">None yet</div>
-            )}
           </div>
-
-          {canEditCollaborators && (
-            <div className="flex items-center gap-2 pt-1">
-              <Input
-                value={addInput}
-                onChange={(e) => setAddInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleAddCollaborator();
-                  }
-                }}
-                placeholder="Add collaborator by username…"
-                className="flex-1"
-                disabled={setCollab.isPending}
-              />
-              <Button
-                size="sm"
-                onClick={() => handleAddCollaborator()}
-                disabled={!addInput.trim() || setCollab.isPending}
-              >
-                Add
-              </Button>
-            </div>
-          )}
-        </div>
+        </CardContent>
       </Card>
 
       {error && (
@@ -171,14 +176,6 @@ export function AccessSection({ gs }: Props) {
           {error}
         </div>
       )}
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded border border-border bg-surface/30 p-4">
-      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

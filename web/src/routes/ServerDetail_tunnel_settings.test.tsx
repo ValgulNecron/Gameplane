@@ -50,12 +50,12 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(settingsButton);
 
     // Click Networking tab
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Check for tunnel toggle
     expect(
-      await screen.findByRole("checkbox", { name: /Enable tunnel/i }),
+      await screen.findByRole("switch", { name: /Enable tunnel/i }),
     ).toBeInTheDocument();
   });
 
@@ -66,16 +66,18 @@ describe("NetworkingSection tunnel configuration", () => {
     // Navigate to networking settings
     const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
-    // Select Tailscale provider (a native <select>, not a button)
-    const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
-    await user.selectOptions(providerSelect, "Tailscale");
+    // Select Tailscale provider
+    const providerTrigger = await screen.findByRole("button", { name: /frp/ });
+    await user.click(providerTrigger);
+    const tailscaleOption = await screen.findByRole("option", { name: /Tailscale/ });
+    await user.click(tailscaleOption);
 
     // Check for warning
     await waitFor(() => {
@@ -95,11 +97,11 @@ describe("NetworkingSection tunnel configuration", () => {
     // Navigate to networking settings
     const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Enable tunnel (defaults to frp)
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Check for frp-specific fields
@@ -117,16 +119,18 @@ describe("NetworkingSection tunnel configuration", () => {
     // Navigate to networking settings
     const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
-    // Select playit provider (a native <select>, not a button)
-    const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
-    await user.selectOptions(providerSelect, "playit.gg");
+    // Select playit provider
+    const providerTrigger = await screen.findByRole("button", { name: /frp/ });
+    await user.click(providerTrigger);
+    const playitOption = await screen.findByRole("option", { name: /playit.gg/ });
+    await user.click(playitOption);
 
     // Check for playit-specific note
     await waitFor(() => {
@@ -143,11 +147,11 @@ describe("NetworkingSection tunnel configuration", () => {
     // Navigate to networking settings
     const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Check for credentials input field
@@ -170,16 +174,18 @@ describe("NetworkingSection tunnel configuration", () => {
     // Navigate to networking settings
     const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Select Tailscale so we only need to worry about credentials
-    const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
-    await user.selectOptions(providerSelect, "Tailscale");
+    const providerTrigger = await screen.findByRole("button", { name: /frp/ });
+    await user.click(providerTrigger);
+    const tailscaleOption = await screen.findByRole("option", { name: /Tailscale/ });
+    await user.click(tailscaleOption);
 
     // Check that validation error is shown when no credentials are configured or entered
     await waitFor(() => {
@@ -208,11 +214,11 @@ describe("NetworkingSection tunnel configuration", () => {
     // Navigate to networking settings
     const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Enable tunnel (defaults to frp)
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Fill in credentials and server address
@@ -261,11 +267,11 @@ describe("NetworkingSection tunnel configuration", () => {
     // Navigate to networking settings
     const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Fill in credentials and server address
@@ -319,16 +325,18 @@ describe("NetworkingSection tunnel configuration", () => {
     // Navigate to networking settings
     const settingsButton = await screen.findByRole("tab", { name: /Settings/i });
     await user.click(settingsButton);
-    const networkingButton = await screen.findByRole("button", { name: /Networking/i });
+    const networkingButton = await screen.findByRole("tab", { name: /Networking/i });
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
-    // Select Tailscale provider (a native <select>, not a button)
-    const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
-    await user.selectOptions(providerSelect, "Tailscale");
+    // Select Tailscale provider
+    const providerTrigger = await screen.findByRole("button", { name: /frp/ });
+    await user.click(providerTrigger);
+    const tailscaleOption = await screen.findByRole("option", { name: /Tailscale/ });
+    await user.click(tailscaleOption);
 
     // Fill in credentials secret only
     const secretInput = screen.getByPlaceholderText("Tailscale auth key");

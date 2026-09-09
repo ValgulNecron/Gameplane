@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, PackageCheck } from "lucide-react";
+import { Package, X } from "lucide-react";
+import { Button, Card, Alert } from "@heroui/react";
 
-import type { GameServer, GameTemplate, RegistryProject } from "@/types";
+import type { GameTemplate, RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
 import { useMe, can } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
 import { RegistryBrowser, RegistryIcon, compactNum } from "@/components/registry-browser";
-import { cn } from "@/lib/utils";
 
 type Banner = { kind: "ok" | "err"; text: string };
 
@@ -30,12 +29,10 @@ const MODPACK_CATEGORIES: { value: string; label: string }[] = [
 export function ModpacksTab({
   name,
   tmpl,
-  gs,
   ns,
 }: {
   name: string;
   tmpl?: GameTemplate;
-  gs?: GameServer;
   ns?: string;
 }) {
   const qc = useQueryClient();
@@ -44,18 +41,6 @@ export function ModpacksTab({
 
   const providers = tmpl?.spec.capabilities?.mods?.registry?.providers ?? [];
   const declFor = (p: string) => providers.find((x) => x.provider === p);
-
-  // Show whichever env-mode pack is currently pinned (provider-agnostic).
-  const active = (() => {
-    for (const p of providers) {
-      const refEnv = p.modpacks?.refEnv;
-      if (refEnv) {
-        const v = gs?.spec.env?.find((e) => e.name === refEnv)?.value;
-        if (v) return v;
-      }
-    }
-    return undefined;
-  })();
 
   const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // project id being installed
@@ -105,30 +90,16 @@ export function ModpacksTab({
         </p>
       </header>
 
-      {active && (
-        <div className="flex items-center gap-2 rounded border border-border bg-surface/40 px-3 py-2 text-sm">
-          <PackageCheck className="h-4 w-4 text-primary" />
-          <span className="text-muted">Active modpack:</span>
-          <span className="font-mono text-fg">{active}</span>
-        </div>
-      )}
 
       {banner && (
-        <div
-          className={cn(
-            "rounded border px-3 py-2 text-sm",
-            banner.kind === "ok"
-              ? "border-border bg-surface/40 text-fg"
-              : "border-danger/40 bg-danger/10 text-danger",
-          )}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <span className="break-all">{banner.text}</span>
-            <button onClick={() => setBanner(null)} className="shrink-0 text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
-          </div>
-        </div>
+        <Alert status={banner.kind === "ok" ? "success" : "danger"} className="flex items-start justify-between gap-3">
+          <Alert.Content className="flex flex-1 flex-col gap-0.5">
+            <Alert.Description className="text-sm">{banner.text}</Alert.Description>
+          </Alert.Content>
+          <Button variant="ghost" size="sm" onPress={() => setBanner(null)} isIconOnly aria-label="dismiss">
+            <X className="h-3 w-3" />
+          </Button>
+        </Alert>
       )}
 
       <div className="min-h-0 flex-1">
@@ -137,8 +108,10 @@ export function ModpacksTab({
           type="modpack"
           categories={MODPACK_CATEGORIES}
           renderItem={(p, provider) => (
-            <div className="flex items-center gap-3 rounded border border-border bg-surface/30 p-2.5">
-              <RegistryIcon url={p.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
+            <Card className="flex flex-row items-center gap-3 p-4">
+              <div className="shrink-0">
+                <RegistryIcon url={p.iconUrl} fallback={<Package className="h-9 w-9 rounded p-2 text-muted" />} />
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{p.title}</div>
                 <div className="truncate text-xs text-muted">
@@ -147,15 +120,21 @@ export function ModpacksTab({
                     .join(" · ")}
                 </div>
               </div>
-              <Button
-                size="sm"
-                disabled={!canManage || busy !== null}
-                title={canManage ? undefined : "Requires operator role"}
-                onClick={() => install(p, provider)}
-              >
-                {busy === p.id ? "Installing…" : "Install"}
-              </Button>
-            </div>
+              {/* The disabled reason lives on a wrapping element's title
+                  (not the Button's aria-label) so the button's accessible
+                  name stays its visible text ("Install"/"Installing…") for
+                  role queries and assistive tech alike. */}
+              <span title={canManage ? undefined : "Requires operator role"} tabIndex={0}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  isDisabled={!canManage || busy !== null}
+                  onPress={() => install(p, provider)}
+                >
+                  {busy === p.id ? "Installing…" : "Install"}
+                </Button>
+              </span>
+            </Card>
           )}
         />
       </div>

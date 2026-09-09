@@ -27,7 +27,7 @@ describe("LifecycleSection", () => {
     render(
       <LifecycleSection draft={baseDraft} onChange={onChange} />,
     );
-    const sw = screen.getByRole("switch", { name: /Auto-restart/i });
+    const sw = screen.getByRole("switch", { name: "Auto-restart" });
     await userEvent.click(sw);
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ spec: expect.objectContaining({ suspend: true }) }),
@@ -127,7 +127,7 @@ describe("LifecycleSection", () => {
     render(
       <LifecycleSection draft={baseDraft} onChange={onChange} />,
     );
-    const sw = screen.getByRole("switch", { name: /Enable idle auto-sleep/i });
+    const sw = screen.getByRole("switch", { name: "Enable idle auto-sleep" });
     await userEvent.click(sw);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.idle?.enabled).toBe(true);
@@ -151,7 +151,7 @@ describe("LifecycleSection", () => {
     render(
       <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
     );
-    const sw = screen.getByRole("switch", { name: /Enable idle auto-sleep/i });
+    const sw = screen.getByRole("switch", { name: "Enable idle auto-sleep" });
     await userEvent.click(sw);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.idle?.enabled).toBe(false);
@@ -171,7 +171,7 @@ describe("LifecycleSection", () => {
     render(
       <LifecycleSection draft={draftDisabled} onChange={onChange} />,
     );
-    const sw = screen.getByRole("switch", { name: /Enable idle auto-sleep/i });
+    const sw = screen.getByRole("switch", { name: "Enable idle auto-sleep" });
     await userEvent.click(sw);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.idle?.enabled).toBe(true);
