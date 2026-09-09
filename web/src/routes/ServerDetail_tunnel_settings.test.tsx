@@ -55,7 +55,7 @@ describe("NetworkingSection tunnel configuration", () => {
 
     // Check for tunnel toggle
     expect(
-      await screen.findByRole("checkbox", { name: /Enable tunnel/i }),
+      await screen.findByRole("switch", { name: /Enable tunnel/i }),
     ).toBeInTheDocument();
   });
 
@@ -70,7 +70,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Select Tailscale provider
@@ -101,7 +101,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(networkingButton);
 
     // Enable tunnel (defaults to frp)
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Check for frp-specific fields
@@ -123,7 +123,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Select playit provider
@@ -151,7 +151,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Check for credentials input field
@@ -178,7 +178,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(networkingButton);
 
     // Enable tunnel
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Select Tailscale so we only need to worry about credentials
@@ -218,7 +218,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(networkingButton);
 
     // Enable tunnel (defaults to frp)
-    const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
+    const tunnelToggle = await screen.findByRole("switch", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
     // Fill in credentials and server address
