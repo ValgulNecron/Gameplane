@@ -147,8 +147,10 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                     <PopoverContent className="min-w-[200px]">
                       <ListBox
                         aria-label="Select target server"
+                        selectionMode="single"
                         onSelectionChange={(selected) => {
-                          setTarget(String(selected));
+                          const [id] = selected;
+                          if (id !== undefined) setTarget(String(id));
                           setPopoverOpen(false);
                         }}
                       >
