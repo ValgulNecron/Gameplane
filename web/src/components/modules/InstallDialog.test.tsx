@@ -145,7 +145,7 @@ describe("InstallDialog", () => {
     expect(screen.getByText("2.0")).toBeInTheDocument();
   });
 
-  it("shows multiple source options in a select when available", () => {
+  it("shows multiple source options in a select when available", async () => {
     render(
       <InstallDialog
         open
@@ -161,11 +161,11 @@ describe("InstallDialog", () => {
         onConfirm={() => {}}
       />,
     );
-    const selects = screen.getAllByRole("button", { name: /source/i });
-    // Should have 1 select for sources
-    expect(selects.length).toBeGreaterThan(0);
+    const triggers = screen.getAllByRole("button", { name: /source/i });
+    expect(triggers.length).toBeGreaterThan(0);
     expect(screen.getByText(/upstream.*oci/)).toBeInTheDocument();
-    expect(screen.getByText(/community.*git/)).toBeInTheDocument();
+    await userEvent.click(triggers[0]);
+    expect(await screen.findByRole("option", { name: /community.*git/i })).toBeInTheDocument();
   });
 
   it("resets form when entry changes", async () => {
