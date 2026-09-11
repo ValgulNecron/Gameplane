@@ -1,12 +1,12 @@
 # Implementation Plan: Dedicated Server Modules for Top Steam Games
 
-**Branch**: `014-top-steam-game-modules` | **Date**: 2026-09-03 | **Spec**: [./spec.md](./spec.md)
+**Branch**: `015-top-steam-game-modules` | **Date**: 2026-09-03 | **Spec**: [./spec.md](./spec.md)
 
-**Input**: Feature specification from `specs/014-top-steam-game-modules/spec.md`
+**Input**: Feature specification from `specs/015-top-steam-game-modules/spec.md`
 
 ## Summary
 
-Expand Gameplane's first-party game module catalog to support all 26 top-played multiplayer games from the Steam top 100 that support user-hosted dedicated servers. The implementation will author 13 new modules (`fivem`, `team-fortress-2`, `farming-simulator-25`, `euro-truck-simulator-2`, `mount-and-blade-2-bannerlord`, `tmodloader`, `beammp`, `left-4-dead-2`, `the-isle`, `ark-survival-evolved`, `arma-reforger`, `hell-let-loose`, `squad`) and standardize the 13 existing modules (`cs2`, `palworld`, `rust`, `project-zomboid`, `dayz`, `garrys-mod`, `terraria`, `7-days-to-die`, `ark-survival-ascended`, `factorio`, `dont-starve-together`, `valheim`, `satisfactory`). Each module will deliver a complete package (`module.yaml`, `template.yaml`, `README.md`, `specs.md`, `samples/server.yaml`) meeting all static preflight checks in `modules/validate.py` and complying with Gameplane Constitution Principles I, III, and IV.
+Expand Gameplane's first-party game module catalog to support all 26 top-played multiplayer games from the Steam top 100 that support user-hosted dedicated servers. The implementation will author 13 new modules (`fivem`, `team-fortress-2`, `farming-simulator-25`, `euro-truck-simulator-2`, `mount-and-blade-2-bannerlord`, `tmodloader`, `beammp`, `left-4-dead-2`, `the-isle`, `ark-survival-evolved`, `arma-reforger`, `hell-let-loose`, `squad`) and standardize the 13 existing modules (`cs2`, `palworld`, `rust`, `project-zomboid`, `dayz`, `garrys-mod`, `terraria`, `7-days-to-die`, `ark-survival-ascended`, `factorio`, `dont-starve-together`, `valheim`, `satisfactory`). Each module will deliver a complete package (`module.yaml`, `template.yaml`, `README.md`, `specs.md`, `samples/gameserver.yaml`) meeting all static preflight checks in `modules/validate.py` and complying with Gameplane Constitution Principles I, III, and IV.
 
 ---
 
@@ -54,7 +54,7 @@ Expand Gameplane's first-party game module catalog to support all 26 top-played 
 ### Documentation (this feature)
 
 ```text
-specs/014-top-steam-game-modules/
+specs/015-top-steam-game-modules/
 ├── plan.md                      # This file
 ├── research.md                  # Phase 0 research output (complete 26-game matrix)
 ├── data-model.md                # Phase 1 data model (entity schemas & lifecycle states)
@@ -111,7 +111,7 @@ modules/
         ├── README.md
         ├── specs.md
         └── samples/
-            └── server.yaml
+            └── gameserver.yaml
 
 test/e2e/
 ├── buckets.sh                   # CI test bucket assignments & heavy exclusions
