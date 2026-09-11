@@ -43,6 +43,15 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   stored in `helmOverride.roleMappings` on the auth config; changes take effect
   on next login (no API restart). Reset via `DELETE /admin/config/auth/role-mappings/{role}`.
   Helm upgrades don't clobber overridden roles.
+- **agent / CRD:** two new remote-console protocols behind the agent's existing
+  `Exec` interface, so console / players / quiesce / lifecycle / actions work
+  over them: `rest` (generic HTTP REST client for games with HTTP administration APIs like FiveM's txAdmin and Farming Simulator 25's web admin) and `cli` (local process execution console interface). The `rcon.protocol` enum is now
+  `source;telnet;websocket;battleye;satisfactory;palworld;rest;cli;none`.
+- **images:** four Gameplane-owned container images built, published, and signed with Cosign keyless signatures:
+  `ghcr.io/valgulnecron/gameplane/fivem` (FiveM with txAdmin and embedded database),
+  `ghcr.io/valgulnecron/gameplane/farming-simulator-25` (Farming Simulator 25 dedicated server runner with headless Wine/Xvfb),
+  `ghcr.io/valgulnecron/gameplane/euro-truck-simulator-2` (Euro Truck Simulator 2 dedicated server runner), and
+  `ghcr.io/valgulnecron/gameplane/beammp` (BeamMP dedicated server runner with non-crashing FR-013 diagnostic idle).
 
 ## [0.2.0-beta.8] — 2026-08-22
 
