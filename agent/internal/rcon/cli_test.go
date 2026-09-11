@@ -2,7 +2,6 @@ package rcon
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
