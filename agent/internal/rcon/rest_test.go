@@ -1,6 +1,7 @@
 package rcon
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -384,5 +385,105 @@ func TestREST_Options(t *testing.T) {
 	}
 	if client.customPath != "/custom/api" {
 		t.Errorf("expected /custom/api, got %s", client.customPath)
+	}
+}
+
+func TestAdapters_ParseResponse_And_CustomPath(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. TxAdminAdapter
+	tx := &TxAdminAdapter{CustomPath: "/custom/fxserver"}
+	req, err := tx.BuildRequest(ctx, "http://localhost:40120", "status", "secret")
+	if err != nil || !strings.Contains(req.URL.Path, "/custom/fxserver") {
+		t.Fatalf("txadmin custom path failed: req=%v err=%v", req, err)
+	}
+
+	// Empty / NoContent
+	res204 := &http.Response{StatusCode: http.StatusNoContent}
+	out, err := tx.ParseResponse(res204, nil)
+	if err != nil || out != "" {
+		t.Fatalf("expected empty string on 204, got %q, %v", out, err)
+	}
+	out, err = tx.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte{})
+	if err != nil || out != "" {
+		t.Fatalf("expected empty string on empty body, got %q, %v", out, err)
+	}
+
+	// Result field
+	out, err = tx.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"result":"tx-result"}`))
+	if err != nil || out != "tx-result" {
+		t.Fatalf("expected tx-result, got %q, %v", out, err)
+	}
+
+	// Message field
+	out, err = tx.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"message":"tx-message"}`))
+	if err != nil || out != "tx-message" {
+		t.Fatalf("expected tx-message, got %q, %v", out, err)
+	}
+
+	// Data string field
+	out, err = tx.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"data":"tx-data"}`))
+	if err != nil || out != "tx-data" {
+		t.Fatalf("expected tx-data, got %q, %v", out, err)
+	}
+
+	// 2. FarmingSimulatorAdapter
+	fs := &FarmingSimulatorAdapter{CustomPath: "/custom/fs25"}
+	req, err = fs.BuildRequest(ctx, "http://localhost:8080", "help", "pass")
+	if err != nil || !strings.Contains(req.URL.Path, "/custom/fs25") {
+		t.Fatalf("fs25 custom path failed: req=%v err=%v", req, err)
+	}
+
+	out, err = fs.ParseResponse(res204, nil)
+	if err != nil || out != "" {
+		t.Fatalf("expected empty string on 204, got %q, %v", out, err)
+	}
+	out, err = fs.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte{})
+	if err != nil || out != "" {
+		t.Fatalf("expected empty string on empty body, got %q, %v", out, err)
+	}
+	out, err = fs.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"result":"fs-result"}`))
+	if err != nil || out != "fs-result" {
+		t.Fatalf("expected fs-result, got %q, %v", out, err)
+	}
+	out, err = fs.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"message":"fs-message"}`))
+	if err != nil || out != "fs-message" {
+		t.Fatalf("expected fs-message, got %q, %v", out, err)
+	}
+	out, err = fs.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"data":"fs-data"}`))
+	if err != nil || out != "fs-data" {
+		t.Fatalf("expected fs-data, got %q, %v", out, err)
+	}
+
+	// 3. DefaultRESTAdapter
+	def := &DefaultRESTAdapter{CustomPath: "/custom/generic"}
+	req, err = def.BuildRequest(ctx, "http://localhost:8080", "help", "user:pass")
+	if err != nil || !strings.Contains(req.URL.Path, "/custom/generic") {
+		t.Fatalf("generic custom path failed: req=%v err=%v", req, err)
+	}
+
+	out, err = def.ParseResponse(res204, nil)
+	if err != nil || out != "" {
+		t.Fatalf("expected empty string on 204, got %q, %v", out, err)
+	}
+	out, err = def.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte{})
+	if err != nil || out != "" {
+		t.Fatalf("expected empty string on empty body, got %q, %v", out, err)
+	}
+	out, err = def.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"result":"def-result"}`))
+	if err != nil || out != "def-result" {
+		t.Fatalf("expected def-result, got %q, %v", out, err)
+	}
+	out, err = def.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"message":"def-message"}`))
+	if err != nil || out != "def-message" {
+		t.Fatalf("expected def-message, got %q, %v", out, err)
+	}
+	out, err = def.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"commandResult":"def-cmd-result"}`))
+	if err != nil || out != "def-cmd-result" {
+		t.Fatalf("expected def-cmd-result, got %q, %v", out, err)
+	}
+	out, err = def.ParseResponse(&http.Response{StatusCode: http.StatusOK}, []byte(`{"data":"def-data"}`))
+	if err != nil || out != "def-data" {
+		t.Fatalf("expected def-data, got %q, %v", out, err)
 	}
 }

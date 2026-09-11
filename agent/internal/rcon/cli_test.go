@@ -87,3 +87,22 @@ func TestCLI_NoPipeOrRunner(t *testing.T) {
 		t.Errorf("expected missing config error, got %v", err)
 	}
 }
+
+func TestCLI_EnvPipe(t *testing.T) {
+	t.Setenv("GAMEPLANE_CLI_PIPE", "/tmp/test-env.pipe")
+	c := NewCLI("127.0.0.1", 0, nil)
+	defer c.Close()
+
+	if c.pipePath != "/tmp/test-env.pipe" {
+		t.Errorf("expected pipe /tmp/test-env.pipe, got %s", c.pipePath)
+	}
+}
+
+func TestCLI_WithExecTimeout(t *testing.T) {
+	c := NewCLI("127.0.0.1", 0, nil, WithExecTimeout(42*time.Second))
+	defer c.Close()
+
+	if c.timeout != 42*time.Second {
+		t.Errorf("expected timeout 42s, got %v", c.timeout)
+	}
+}
