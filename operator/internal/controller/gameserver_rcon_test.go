@@ -77,6 +77,28 @@ func TestResolveRCON(t *testing.T) {
 			t.Fatalf("PasswordSecretRef should win over PasswordFile: %+v", rc)
 		}
 	})
+
+	t.Run("cli protocol without passwordEnv does not generate secret", func(t *testing.T) {
+		rc := resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+			Protocol: "cli",
+		}))
+		if !rc.enabled {
+			t.Fatal("expected enabled for cli")
+		}
+		if rc.secretName != "" || rc.secretKey != "" {
+			t.Fatalf("cli without passwordEnv should not set secretName/secretKey: %+v", rc)
+		}
+	})
+
+	t.Run("cli protocol with passwordEnv generates secret", func(t *testing.T) {
+		rc := resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+			Protocol:    "cli",
+			PasswordEnv: "CLI_PASSWORD",
+		}))
+		if !rc.enabled || rc.secretName != "smp-rcon" || rc.secretKey != "password" {
+			t.Fatalf("cli with passwordEnv should set secretName: %+v", rc)
+		}
+	})
 }
 
 func TestRCONGameEnv(t *testing.T) {
@@ -126,6 +148,15 @@ func TestAgentVolumeMounts(t *testing.T) {
 	for _, m := range withFile {
 		if m.Name == "rcon-password" {
 			t.Fatalf("passwordFile mode should not mount rcon-password volume: %+v", withFile)
+		}
+	}
+	// Passwordless CLI mode should not mount rcon-password volume
+	withCLI := agentVolumeMounts(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+		Protocol: "cli",
+	}), nil, "/data")
+	for _, m := range withCLI {
+		if m.Name == "rcon-password" {
+			t.Fatalf("passwordless cli should not mount rcon-password volume: %+v", withCLI)
 		}
 	}
 }

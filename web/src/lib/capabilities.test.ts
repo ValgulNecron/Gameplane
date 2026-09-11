@@ -34,6 +34,10 @@ describe("resolveConsoleMode", () => {
     expect(resolveConsoleMode(tmpl({ rcon: { protocol: "source" } }))).toBe("rcon");
   });
 
+  it("derives pty for cli protocol when consoleMode is unset", () => {
+    expect(resolveConsoleMode(tmpl({ rcon: { protocol: "cli" } }))).toBe("pty");
+  });
+
   it("is none when there is no console and no usable rcon", () => {
     expect(resolveConsoleMode(tmpl({ rcon: { protocol: "none" } }))).toBe("none");
     expect(resolveConsoleMode(tmpl({}))).toBe("none");
@@ -41,8 +45,10 @@ describe("resolveConsoleMode", () => {
 });
 
 describe("rconAvailable", () => {
-  it("is true only for a non-none rcon protocol", () => {
+  it("is true only for a non-none and non-cli rcon protocol", () => {
     expect(rconAvailable(tmpl({ rcon: { protocol: "source" } }))).toBe(true);
+    expect(rconAvailable(tmpl({ rcon: { protocol: "rest" } }))).toBe(true);
+    expect(rconAvailable(tmpl({ rcon: { protocol: "cli" } }))).toBe(false);
     expect(rconAvailable(tmpl({ rcon: { protocol: "none" } }))).toBe(false);
     expect(rconAvailable(tmpl({}))).toBe(false);
     expect(rconAvailable(undefined)).toBe(false);

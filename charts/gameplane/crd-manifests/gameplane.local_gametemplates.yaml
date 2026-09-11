@@ -592,7 +592,9 @@ spec:
                                                 description: Selects a key of a ConfigMap.
                                                 properties:
                                                   key:
-                                                    description: The key to select.
+                                                    description: |-
+                                                      The key to select from the ConfigMap's Data field.
+                                                      Keys in the BinaryData field are not currently propagated to container env vars.
                                                     type: string
                                                   name:
                                                     default: ""
@@ -1203,7 +1205,9 @@ spec:
                           description: Selects a key of a ConfigMap.
                           properties:
                             key:
-                              description: The key to select.
+                              description: |-
+                                The key to select from the ConfigMap's Data field.
+                                Keys in the BinaryData field are not currently propagated to container env vars.
                               type: string
                             name:
                               default: ""
@@ -1445,6 +1449,13 @@ spec:
                       grpc:
                         description: GRPC specifies a GRPC HealthCheckRequest.
                         properties:
+                          mode:
+                            description: |-
+                              mode specifies the connection mode for the gRPC health probe.
+                              Set to "TLS" to use TLS without certificate verification.
+                              Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                              If not specified, the probe uses a plaintext (insecure) connection.
+                            type: string
                           port:
                             description: Port number of the gRPC service. Number must
                               be in the range 1 to 65535.
@@ -1502,6 +1513,11 @@ spec:
                               Number must be in the range 1 to 65535.
                               Name must be an IANA_SVC_NAME.
                             x-kubernetes-int-or-string: true
+                          protocol:
+                            description: |-
+                              Protocol selects the wire protocol for the probe connection.
+                              Nil defaults to HTTP/1.1.
+                            type: string
                           scheme:
                             description: |-
                               Scheme to use for connecting to the host.
@@ -1598,6 +1614,13 @@ spec:
                       grpc:
                         description: GRPC specifies a GRPC HealthCheckRequest.
                         properties:
+                          mode:
+                            description: |-
+                              mode specifies the connection mode for the gRPC health probe.
+                              Set to "TLS" to use TLS without certificate verification.
+                              Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                              If not specified, the probe uses a plaintext (insecure) connection.
+                            type: string
                           port:
                             description: Port number of the gRPC service. Number must
                               be in the range 1 to 65535.
@@ -1655,6 +1678,11 @@ spec:
                               Number must be in the range 1 to 65535.
                               Name must be an IANA_SVC_NAME.
                             x-kubernetes-int-or-string: true
+                          protocol:
+                            description: |-
+                              Protocol selects the wire protocol for the probe connection.
+                              Nil defaults to HTTP/1.1.
+                            type: string
                           scheme:
                             description: |-
                               Scheme to use for connecting to the host.
@@ -1751,6 +1779,13 @@ spec:
                       grpc:
                         description: GRPC specifies a GRPC HealthCheckRequest.
                         properties:
+                          mode:
+                            description: |-
+                              mode specifies the connection mode for the gRPC health probe.
+                              Set to "TLS" to use TLS without certificate verification.
+                              Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                              If not specified, the probe uses a plaintext (insecure) connection.
+                            type: string
                           port:
                             description: Port number of the gRPC service. Number must
                               be in the range 1 to 65535.
@@ -1808,6 +1843,11 @@ spec:
                               Number must be in the range 1 to 65535.
                               Name must be an IANA_SVC_NAME.
                             x-kubernetes-int-or-string: true
+                          protocol:
+                            description: |-
+                              Protocol selects the wire protocol for the probe connection.
+                              Nil defaults to HTTP/1.1.
+                            type: string
                           scheme:
                             description: |-
                               Scheme to use for connecting to the host.
@@ -1941,6 +1981,11 @@ spec:
                       username "admin" sent on every request, no token or session) — the
                       official replacement for Palworld's now-deprecated source RCON, and
                       likewise not a socket protocol, so Port is a TCP port carrying HTTP.
+                      "nuclearoption" is Nuclear Option's JSON-RPC 2.0 TCP socket protocol.
+                      "rest" is a generic HTTP/JSON console API (POST-per-command, bearer-
+                      or basic-auth, distinct from the bespoke satisfactory/palworld clients).
+                      "cli" is console access over the container's stdin/PTY, enabling
+                      agent-driven console commands without requiring an exposed network port.
                       "none" means the game has no usable remote console (see consoleMode:
                       pty for stdin-driven games instead).
                     enum:
@@ -1951,6 +1996,8 @@ spec:
                     - satisfactory
                     - palworld
                     - nuclearoption
+                    - rest
+                    - cli
                     - none
                     type: string
                 type: object
@@ -2208,7 +2255,9 @@ spec:
                                 description: Selects a key of a ConfigMap.
                                 properties:
                                   key:
-                                    description: The key to select.
+                                    description: |-
+                                      The key to select from the ConfigMap's Data field.
+                                      Keys in the BinaryData field are not currently propagated to container env vars.
                                     type: string
                                   name:
                                     default: ""

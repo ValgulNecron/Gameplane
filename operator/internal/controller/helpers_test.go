@@ -41,6 +41,13 @@ func TestEffectiveConsoleMode(t *testing.T) {
 			want: "rcon",
 		},
 		{
+			name: "default with rcon cli → pty",
+			spec: gameplanev1alpha1.GameTemplateSpec{
+				RCON: &gameplanev1alpha1.RCONSpec{Protocol: "cli"},
+			},
+			want: "pty",
+		},
+		{
 			name: "default with rcon protocol=none → none",
 			spec: gameplanev1alpha1.GameTemplateSpec{
 				RCON: &gameplanev1alpha1.RCONSpec{Protocol: "none"},

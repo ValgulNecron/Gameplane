@@ -1442,7 +1442,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		// template's referenced Secret) so the agent sidecar can read it
 		// via --rcon-password-file. Added only when the game exposes RCON
 		// and doesn't use a game-managed password file.
-		if rc := resolveRCON(gs, tmpl); rc.enabled && rc.passwordFile == "" {
+		if rc := resolveRCON(gs, tmpl); rc.enabled && rc.passwordFile == "" && rc.secretName != "" {
 			volumes = append(volumes, corev1.Volume{
 				Name: "rcon-password",
 				VolumeSource: corev1.VolumeSource{
@@ -2112,7 +2112,7 @@ func buildAgentContainer(
 	if rc.enabled {
 		if rc.passwordFile != "" {
 			args = append(args, "--rcon-password-file="+path.Join(mountPath, rc.passwordFile))
-		} else {
+		} else if rc.secretName != "" {
 			args = append(args, "--rcon-password-file="+rconAuthMountPath+"/password")
 		}
 		args = append(args, "--rcon-port="+strconv.FormatInt(int64(rc.port), 10))

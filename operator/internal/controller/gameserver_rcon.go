@@ -56,6 +56,10 @@ func resolveRCON(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameT
 	} else if tmpl.Spec.RCON.PasswordFile != "" {
 		r.passwordFile = tmpl.Spec.RCON.PasswordFile
 		r.passwordEnv = ""
+	} else if tmpl.Spec.RCON.Protocol == "cli" && tmpl.Spec.RCON.PasswordEnv == "" {
+		// "cli" protocol without passwordEnv or passwordSecretRef does not require a generated secret.
+		r.secretName = ""
+		r.secretKey = ""
 	} else {
 		r.secretName = rconSecretName(gs)
 		r.secretKey = "password"
@@ -123,7 +127,7 @@ func agentVolumeMounts(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1
 		{Name: "agent-tls", MountPath: "/etc/gameplane/agent-tls", ReadOnly: true},
 	}
 	rc := resolveRCON(gs, tmpl)
-	if rc.enabled && rc.passwordFile == "" {
+	if rc.enabled && rc.passwordFile == "" && rc.secretName != "" {
 		mounts = append(mounts, corev1.VolumeMount{
 			Name: "rcon-password", MountPath: rconAuthMountPath, ReadOnly: true,
 		})
