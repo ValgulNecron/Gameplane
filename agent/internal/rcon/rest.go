@@ -1,7 +1,6 @@
 // Package rcon implements remote console clients for dedicated game servers.
 // rest.go implements a generic HTTP/JSON REST client for games exposing web
 // or REST administrative console APIs (e.g. FiveM's txAdmin, Farming Simulator 25).
-
 package rcon
 
 import (
@@ -78,8 +77,10 @@ type TxAdminAdapter struct {
 	CustomPath string
 }
 
+// Name returns the identifier of the txadmin adapter.
 func (a *TxAdminAdapter) Name() string { return "txadmin" }
 
+// BuildRequest constructs the HTTP request for FiveM txAdmin commands.
 func (a *TxAdminAdapter) BuildRequest(ctx context.Context, baseURL, cmd, credential string) (*http.Request, error) {
 	path := "/fxserver/commands"
 	if a.CustomPath != "" {
@@ -109,6 +110,7 @@ func (a *TxAdminAdapter) BuildRequest(ctx context.Context, baseURL, cmd, credent
 	return req, nil
 }
 
+// ParseResponse parses the txAdmin HTTP response payload.
 func (a *TxAdminAdapter) ParseResponse(resp *http.Response, body []byte) (string, error) {
 	if resp.StatusCode == http.StatusNoContent || len(body) == 0 {
 		return "", nil
@@ -143,8 +145,10 @@ type FarmingSimulatorAdapter struct {
 	CustomPath string
 }
 
+// Name returns the identifier of the farming simulator adapter.
 func (a *FarmingSimulatorAdapter) Name() string { return "farming-simulator-25" }
 
+// BuildRequest constructs the HTTP request for Farming Simulator 25 web admin commands.
 func (a *FarmingSimulatorAdapter) BuildRequest(ctx context.Context, baseURL, cmd, credential string) (*http.Request, error) {
 	path := "/api/console"
 	if a.CustomPath != "" {
@@ -175,6 +179,7 @@ func (a *FarmingSimulatorAdapter) BuildRequest(ctx context.Context, baseURL, cmd
 	return req, nil
 }
 
+// ParseResponse parses the Farming Simulator 25 HTTP response payload.
 func (a *FarmingSimulatorAdapter) ParseResponse(resp *http.Response, body []byte) (string, error) {
 	if resp.StatusCode == http.StatusNoContent || len(body) == 0 {
 		return "", nil
@@ -208,8 +213,10 @@ type DefaultRESTAdapter struct {
 	CustomPath string
 }
 
+// Name returns the identifier of the default REST adapter.
 func (a *DefaultRESTAdapter) Name() string { return "generic" }
 
+// BuildRequest constructs the HTTP request for generic REST commands.
 func (a *DefaultRESTAdapter) BuildRequest(ctx context.Context, baseURL, cmd, credential string) (*http.Request, error) {
 	path := "/api/command"
 	if a.CustomPath != "" {
@@ -241,6 +248,7 @@ func (a *DefaultRESTAdapter) BuildRequest(ctx context.Context, baseURL, cmd, cre
 	return req, nil
 }
 
+// ParseResponse parses the generic REST HTTP response payload.
 func (a *DefaultRESTAdapter) ParseResponse(resp *http.Response, body []byte) (string, error) {
 	if resp.StatusCode == http.StatusNoContent || len(body) == 0 {
 		return "", nil
@@ -380,7 +388,7 @@ func (c *REST) Exec(cmd string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("rest rcon request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		c.mu.Lock()

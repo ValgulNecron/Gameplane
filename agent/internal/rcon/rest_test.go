@@ -260,7 +260,7 @@ func TestREST_PortBasedDefaultAdapters(t *testing.T) {
 
 func TestREST_AuthFailure_Cooldown(t *testing.T) {
 	var callCount int
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		callCount++
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte("Unauthorized"))
@@ -317,7 +317,7 @@ func TestREST_HTTPErrorStatuses(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(fmt.Sprintf("status %d", tc.status), func(t *testing.T) {
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(tc.body))
 			}))
@@ -352,7 +352,7 @@ func TestREST_PassFnError(t *testing.T) {
 }
 
 func TestREST_LargeResponseCap(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		// Write 2 MiB of data
 		chunk := strings.Repeat("A", 1024)

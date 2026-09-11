@@ -12,7 +12,7 @@ import (
 
 func TestCLI_Runner(t *testing.T) {
 	called := false
-	runner := func(ctx context.Context, cmd string) (string, error) {
+	runner := func(_ context.Context, cmd string) (string, error) {
 		called = true
 		if cmd != "say hello" {
 			t.Errorf("expected cmd 'say hello', got %q", cmd)
@@ -32,45 +32,6 @@ func TestCLI_Runner(t *testing.T) {
 	}
 	if out != "hello from runner" {
 		t.Errorf("expected 'hello from runner', got %q", out)
-	}
-}
-
-func TestCLI_ProcessExec_Success(t *testing.T) {
-	client := NewCLI("127.0.0.1", 0, nil, WithExecTimeout(5*time.Second))
-	defer client.Close()
-
-	out, err := client.Exec("echo 'server ready'")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if out != "server ready" {
-		t.Errorf("expected 'server ready', got %q", out)
-	}
-}
-
-func TestCLI_ProcessExec_ErrorExit(t *testing.T) {
-	client := NewCLI("127.0.0.1", 0, nil, WithExecTimeout(5*time.Second))
-	defer client.Close()
-
-	_, err := client.Exec("echo 'something broke' >&2; exit 1")
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !strings.Contains(err.Error(), "something broke") {
-		t.Errorf("expected stderr in error message, got: %v", err)
-	}
-}
-
-func TestCLI_ProcessExec_Timeout(t *testing.T) {
-	client := NewCLI("127.0.0.1", 0, nil, WithExecTimeout(50*time.Millisecond))
-	defer client.Close()
-
-	_, err := client.Exec("sleep 1")
-	if err == nil {
-		t.Fatal("expected timeout error, got nil")
-	}
-	if !strings.Contains(err.Error(), "timed out") && !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("expected timeout error, got: %v", err)
 	}
 }
 
@@ -115,39 +76,15 @@ func TestCLI_PipeExec_MissingFile(t *testing.T) {
 	}
 }
 
-func TestCLI_LimitedWriter(t *testing.T) {
-	var buf strings.Builder
-	lw := &limitedWriter{w: &buf, limit: 10}
-
-	n, err := lw.Write([]byte("12345"))
-	if err != nil || n != 5 {
-		t.Fatalf("Write(5) = (%d, %v), want (5, nil)", n, err)
-	}
-
-	n, err = lw.Write([]byte("6789012345"))
-	if err != nil || n != 10 {
-		t.Fatalf("Write(10) = (%d, %v), want (10, nil)", n, err)
-	}
-
-	if buf.String() != "1234567890" {
-		t.Errorf("buf = %q, want '1234567890'", buf.String())
-	}
-
-	// Further writes are dropped without error
-	n, err = lw.Write([]byte("extra"))
-	if err != nil || n != 5 {
-		t.Fatalf("Write(5) = (%d, %v), want (5, nil)", n, err)
-	}
-	if buf.String() != "1234567890" {
-		t.Errorf("buf = %q, want '1234567890'", buf.String())
-	}
-}
-
-func TestCLI_WithShellOption(t *testing.T) {
-	client := NewCLI("127.0.0.1", 0, nil, WithShell("/bin/bash", "-c"))
+func TestCLI_NoPipeOrRunner(t *testing.T) {
+	client := NewCLI("127.0.0.1", 0, nil)
 	defer client.Close()
 
-	if client.shell != "/bin/bash" {
-		t.Errorf("expected /bin/bash, got %s", client.shell)
+	_, err := client.Exec("status")
+	if err == nil {
+		t.Fatal("expected error when neither pipe nor runner is configured, got nil")
+	}
+	if !strings.Contains(err.Error(), "requires a configured stdin pipe or runner") {
+		t.Errorf("expected missing config error, got %v", err)
 	}
 }
