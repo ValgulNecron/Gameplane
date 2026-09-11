@@ -91,7 +91,7 @@ func probeFiveM(ctx context.Context, addr string) (joindepth.JoinDepth, string, 
 			// Fallback: try UDP ping or txAdmin port
 			return doErr
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 		if readErr != nil {

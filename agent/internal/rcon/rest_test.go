@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func parseHostPort(t *testing.T, s string) (string, int) {
+func parseRESTHostPort(t *testing.T, s string) (string, int) {
 	t.Helper()
 	host, portStr, err := net.SplitHostPort(s)
 	if err != nil {
@@ -136,7 +136,7 @@ func TestREST_GenericAdapter_SuccessCases(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			host, port := parseHostPort(t, ts.Listener.Addr().String())
+			host, port := parseRESTHostPort(t, ts.Listener.Addr().String())
 			client := NewREST(host, port, staticPass(tc.credential), WithAdapter(&DefaultRESTAdapter{}))
 			defer client.Close()
 
@@ -177,7 +177,7 @@ func TestREST_TxAdminAdapter(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	host, port := parseHostPort(t, ts.Listener.Addr().String())
+	host, port := parseRESTHostPort(t, ts.Listener.Addr().String())
 
 	// Test using WithGame("fivem")
 	client := NewREST(host, port, staticPass("secret-cfx-token"), WithGame("fivem"))
@@ -222,7 +222,7 @@ func TestREST_FarmingSimulatorAdapter(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	host, port := parseHostPort(t, ts.Listener.Addr().String())
+	host, port := parseRESTHostPort(t, ts.Listener.Addr().String())
 
 	// Test passing credential without "admin:" prefix, verifying auto-prefixing
 	client := NewREST(host, port, staticPass("fs25-secret"), WithGame("farming-simulator-25"))
@@ -267,7 +267,7 @@ func TestREST_AuthFailure_Cooldown(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	host, port := parseHostPort(t, ts.Listener.Addr().String())
+	host, port := parseRESTHostPort(t, ts.Listener.Addr().String())
 	client := NewREST(host, port, staticPass("bad-pass"))
 	defer client.Close()
 
@@ -323,7 +323,7 @@ func TestREST_HTTPErrorStatuses(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			host, port := parseHostPort(t, ts.Listener.Addr().String())
+			host, port := parseRESTHostPort(t, ts.Listener.Addr().String())
 			client := NewREST(host, port, staticPass("token"))
 			defer client.Close()
 
@@ -362,7 +362,7 @@ func TestREST_LargeResponseCap(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	host, port := parseHostPort(t, ts.Listener.Addr().String())
+	host, port := parseRESTHostPort(t, ts.Listener.Addr().String())
 	client := NewREST(host, port, staticPass("token"))
 	defer client.Close()
 

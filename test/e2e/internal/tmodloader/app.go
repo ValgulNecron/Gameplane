@@ -79,7 +79,7 @@ func probeTModLoader(ctx context.Context, addr string) (joindepth.JoinDepth, str
 		if err != nil {
 			return err
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		evidence = fmt.Sprintf("tModLoader handshake accepted on slot %d (version %s)", res.Slot, res.Version)
 		return nil
 	})

@@ -75,7 +75,7 @@ func probeBeamMP(ctx context.Context, addr string) (joindepth.JoinDepth, string,
 		if dialErr != nil {
 			return dialErr
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		// Write initial BeamMP bridge handshake or check connection
 		_ = conn.SetDeadline(time.Now().Add(3 * time.Second))

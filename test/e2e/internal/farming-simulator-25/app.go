@@ -88,7 +88,7 @@ func probeFS25(ctx context.Context, addr string) (joindepth.JoinDepth, string, e
 		if doErr != nil {
 			return doErr
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 16*1024))
 		if readErr != nil {
@@ -107,13 +107,6 @@ func probeFS25(ctx context.Context, addr string) (joindepth.JoinDepth, string, e
 		return joindepth.JoinDepth(-1), "", fmt.Errorf("fs25 probe failed: %w", err)
 	}
 	return joindepth.QUERY, evidence, nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func retryWithContext(ctx context.Context, opName string, perAttemptTimeout time.Duration, fn func(context.Context) error) error {
