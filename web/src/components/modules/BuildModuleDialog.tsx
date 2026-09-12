@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from "react";
+import { useState, useId } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   CheckCircle2,
@@ -126,7 +126,12 @@ export function BuildModuleDialog({
   const storageSizeInputId = useId();
   const storageMountPathInputId = useId();
 
-  useEffect(() => {
+  const [resetFor, setResetFor] = useState<{ open: boolean; sources: string[] }>({
+    open: false,
+    sources,
+  });
+  if (open !== resetFor.open || sources !== resetFor.sources) {
+    setResetFor({ open, sources });
     if (open) {
       setStep(1);
       setArchetype("steamcmd");
@@ -143,7 +148,7 @@ export function BuildModuleDialog({
       setPreviewResult(null);
       setTargetSource(sources[0] ?? "");
     }
-  }, [open, sources]);
+  }
 
   function handleSelectArchetype(archId: string) {
     setArchetype(archId);
@@ -231,7 +236,7 @@ export function BuildModuleDialog({
       ]);
       setValidationResult(valRes);
       setPreviewResult(prevRes);
-    } catch (err) {
+    } catch {
       // Ignored for live preview
     }
   }
@@ -638,10 +643,10 @@ export function BuildModuleDialog({
                         const val = e.target.value;
                         if (activeTab === "module.yaml") {
                           setModuleYaml(val);
-                          revalidate(val, templateYaml, simMemory);
+                          void revalidate(val, templateYaml, simMemory);
                         } else if (activeTab === "template.yaml") {
                           setTemplateYaml(val);
-                          revalidate(moduleYaml, val, simMemory);
+                          void revalidate(moduleYaml, val, simMemory);
                         } else {
                           setReadmeMd(val);
                         }
@@ -709,7 +714,7 @@ export function BuildModuleDialog({
                           type="button"
                           onClick={() => {
                             setSimMemory(mem);
-                            revalidate(moduleYaml, templateYaml, mem);
+                            void revalidate(moduleYaml, templateYaml, mem);
                           }}
                           className={`flex-1 rounded py-1 text-center font-mono text-[11px] border transition-colors ${
                             simMemory === mem
