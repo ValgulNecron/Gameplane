@@ -93,21 +93,16 @@ export function TopBar({
 
         {/* User avatar dropdown menu */}
         <Dropdown>
-          <DropdownTrigger>
-            <Button
-              isIconOnly
-              variant="ghost"
+          <DropdownTrigger
+            aria-label="User menu"
+            className="cursor-pointer"
+          >
+            <Avatar
               size="sm"
-              aria-label="User menu"
-              className="cursor-pointer"
+              color="default"
             >
-              <Avatar
-                size="sm"
-                color="default"
-              >
-                <Avatar.Fallback className="bg-accent text-accent-foreground">{initials}</Avatar.Fallback>
-              </Avatar>
-            </Button>
+              <Avatar.Fallback className="bg-accent text-accent-foreground">{initials}</Avatar.Fallback>
+            </Avatar>
           </DropdownTrigger>
           <DropdownPopover placement="bottom end" className="rounded-md">
             <div className="flex items-center gap-2 px-2 py-2">
