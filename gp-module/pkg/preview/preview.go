@@ -5,13 +5,24 @@ import (
 	internalprev "github.com/ValgulNecron/gameplane/gp-module/internal/preview"
 )
 
-type PreviewOptions = internalprev.PreviewOptions
+// Options defines inputs for generating a dry-run preview.
+type Options = internalprev.Options
+
+// PortPreview represents an exposed network port.
 type PortPreview = internalprev.PortPreview
+
+// StoragePreview represents module storage settings.
 type StoragePreview = internalprev.StoragePreview
+
+// ConfigFieldPreview describes a resolved configuration field with its provenance.
 type ConfigFieldPreview = internalprev.ConfigFieldPreview
-type PreviewResult = internalprev.PreviewResult
+
+// Result holds the synthesized runtime configuration.
+type Result = internalprev.Result
 
 var (
-	GeneratePreview     = internalprev.GeneratePreview
+	// GeneratePreview evaluates template.yaml against inputs and resolves effective runtime config.
+	GeneratePreview = internalprev.GeneratePreview
+	// CalculateAutoMemory determines automatic memory allocation.
 	CalculateAutoMemory = internalprev.CalculateAutoMemory
 )

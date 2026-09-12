@@ -14,7 +14,7 @@ func TestValidate_ValidScaffoldedModule(t *testing.T) {
 	tempDir := t.TempDir()
 	modDir := filepath.Join(tempDir, "my-game")
 
-	opts := scaffold.ScaffoldOptions{
+	opts := scaffold.Options{
 		Name:        "my-game",
 		DisplayName: "My Game",
 		Archetype:   "steamcmd",

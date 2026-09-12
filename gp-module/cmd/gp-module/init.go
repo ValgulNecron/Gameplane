@@ -163,7 +163,7 @@ Options:
 		outDir = filepath.Join("modules", name)
 	}
 
-	opts := scaffold.ScaffoldOptions{
+	opts := scaffold.Options{
 		Name:        name,
 		DisplayName: displayName,
 		Archetype:   arch.ID,

@@ -37,7 +37,7 @@ func TestModule_ScaffoldAndPackage(t *testing.T) {
 	)
 
 	// Step 1: Scaffold using gp-module
-	opts := scaffold.ScaffoldOptions{
+	opts := scaffold.Options{
 		Name:        moduleName,
 		DisplayName: "E2E Toolkit Game",
 		Archetype:   "generic",

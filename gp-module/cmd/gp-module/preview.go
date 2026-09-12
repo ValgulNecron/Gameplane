@@ -96,7 +96,7 @@ Options:
 		userConfig[k] = v
 	}
 
-	opts := preview.PreviewOptions{
+	opts := preview.Options{
 		ModuleDir:   modulePath,
 		VersionID:   flagVersionID,
 		MemoryLimit: flagMemory,

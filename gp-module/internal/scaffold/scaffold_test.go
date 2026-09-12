@@ -18,7 +18,7 @@ func TestScaffoldArchetypes(t *testing.T) {
 		moduleName := "test-" + arch
 		outDir := filepath.Join(tmpDir, moduleName)
 
-		res, err := Scaffold(ScaffoldOptions{
+		res, err := Scaffold(Options{
 			Name:      moduleName,
 			Archetype: arch,
 			OutputDir: outDir,
@@ -60,7 +60,7 @@ func TestScaffoldOverwriteProtection(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	outDir := filepath.Join(tmpDir, "my-game")
-	opts := ScaffoldOptions{
+	opts := Options{
 		Name:      "my-game",
 		OutputDir: outDir,
 	}
@@ -83,7 +83,7 @@ func TestScaffoldOverwriteProtection(t *testing.T) {
 }
 
 func TestScaffoldInvalidName(t *testing.T) {
-	_, err := Scaffold(ScaffoldOptions{
+	_, err := Scaffold(Options{
 		Name: "Invalid_Name!",
 	})
 	if err == nil {

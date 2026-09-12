@@ -16,7 +16,7 @@ func TestPackageArchive_ValidModule(t *testing.T) {
 	tempDir := t.TempDir()
 	modDir := filepath.Join(tempDir, "test-pkg")
 
-	opts := scaffold.ScaffoldOptions{
+	opts := scaffold.Options{
 		Name:        "test-pkg",
 		DisplayName: "Test Package",
 		Archetype:   "steamcmd",
@@ -111,7 +111,7 @@ func TestPackageToFile(t *testing.T) {
 	modDir := filepath.Join(tempDir, "file-pkg")
 	outFile := filepath.Join(tempDir, "bundle.tar.gz")
 
-	opts := scaffold.ScaffoldOptions{
+	opts := scaffold.Options{
 		Name:        "file-pkg",
 		DisplayName: "File Package",
 		Archetype:   "generic",

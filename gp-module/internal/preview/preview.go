@@ -12,8 +12,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// PreviewOptions defines inputs for generating a dry-run preview.
-type PreviewOptions struct {
+// Options defines inputs for generating a dry-run preview.
+type Options struct {
 	ModuleDir    string            `json:"moduleDir,omitempty"`
 	TemplateYAML []byte            `json:"templateYaml,omitempty"`
 	VersionID    string            `json:"versionId,omitempty"`
@@ -42,8 +42,8 @@ type ConfigFieldPreview struct {
 	Source string `json:"source"`
 }
 
-// PreviewResult holds the synthesized runtime configuration.
-type PreviewResult struct {
+// Result holds the synthesized runtime configuration.
+type Result struct {
 	Game             string               `json:"game"`
 	DisplayName      string               `json:"displayName"`
 	VersionID        string               `json:"versionId,omitempty"`
@@ -58,7 +58,7 @@ type PreviewResult struct {
 }
 
 // GeneratePreview evaluates template.yaml against inputs and resolves effective runtime config.
-func GeneratePreview(opts PreviewOptions) (*PreviewResult, error) {
+func GeneratePreview(opts Options) (*Result, error) {
 	yamlBytes := opts.TemplateYAML
 	if len(yamlBytes) == 0 && opts.ModuleDir != "" {
 		path := filepath.Join(opts.ModuleDir, "template.yaml")
@@ -243,7 +243,7 @@ func GeneratePreview(opts PreviewOptions) (*PreviewResult, error) {
 		storage.MountPath, _ = storMap["mountPath"].(string)
 	}
 
-	return &PreviewResult{
+	return &Result{
 		Game:            game,
 		DisplayName:     displayName,
 		VersionID:       selectedVer,
@@ -258,12 +258,12 @@ func GeneratePreview(opts PreviewOptions) (*PreviewResult, error) {
 }
 
 // ToJSON returns indented JSON representation.
-func (p *PreviewResult) ToJSON() ([]byte, error) {
+func (p *Result) ToJSON() ([]byte, error) {
 	return json.MarshalIndent(p, "", "  ")
 }
 
 // FormatHuman returns a formatted terminal representation.
-func (p *PreviewResult) FormatHuman() string {
+func (p *Result) FormatHuman() string {
 	var sb strings.Builder
 
 	title := p.DisplayName

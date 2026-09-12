@@ -136,7 +136,7 @@ func (h modulesHandler) builderScaffold(w http.ResponseWriter, req *http.Request
 		}
 	}
 
-	opts := scaffold.ScaffoldOptions{
+	opts := scaffold.Options{
 		Name:        body.Name,
 		DisplayName: body.DisplayName,
 		Archetype:   body.Archetype,
@@ -224,7 +224,7 @@ func (h modulesHandler) builderPreview(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	opts := preview.PreviewOptions{
+	opts := preview.Options{
 		TemplateYAML: []byte(body.TemplateYaml),
 		VersionID:    body.VersionId,
 		MemoryLimit:  body.Memory,

@@ -12,8 +12,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ScaffoldOptions defines inputs for module scaffolding.
-type ScaffoldOptions struct {
+// Options defines inputs for module scaffolding.
+type Options struct {
 	Name             string
 	DisplayName      string
 	Archetype        string
@@ -36,15 +36,15 @@ type GeneratedFiles struct {
 	IconBase64   string `json:"iconBase64,omitempty"`
 }
 
-// ScaffoldResult holds the result of scaffolding a module to disk.
-type ScaffoldResult struct {
+// Result holds the result of scaffolding a module to disk.
+type Result struct {
 	Dir          string
 	Files        GeneratedFiles
 	CreatedFiles []string
 }
 
 // GenerateFiles generates the module files in-memory from options and archetype defaults.
-func GenerateFiles(opts ScaffoldOptions) (*GeneratedFiles, error) {
+func GenerateFiles(opts Options) (*GeneratedFiles, error) {
 	if err := common.ValidateModuleName(opts.Name); err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func GenerateFiles(opts ScaffoldOptions) (*GeneratedFiles, error) {
 }
 
 // Scaffold generates and writes module files to target directory.
-func Scaffold(opts ScaffoldOptions) (*ScaffoldResult, error) {
+func Scaffold(opts Options) (*Result, error) {
 	outDir := opts.OutputDir
 	if outDir == "" {
 		outDir = filepath.Join("modules", opts.Name)
@@ -235,7 +235,7 @@ func Scaffold(opts ScaffoldOptions) (*ScaffoldResult, error) {
 	}
 	created = append(created, iconPath)
 
-	return &ScaffoldResult{
+	return &Result{
 		Dir:          outDir,
 		Files:        *files,
 		CreatedFiles: created,

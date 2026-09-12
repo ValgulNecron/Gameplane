@@ -74,7 +74,7 @@ spec:
           value: "1.20.4"
 `
 
-	opts := PreviewOptions{
+	opts := Options{
 		TemplateYAML: []byte(tmplYAML),
 		VersionID:    "1.20.4",
 		MemoryLimit:  "4Gi",

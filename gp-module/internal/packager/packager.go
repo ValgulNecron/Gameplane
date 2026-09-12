@@ -5,6 +5,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -248,8 +249,7 @@ func PushOCI(opts PackageOptions) ([]PackageWarning, error) {
 		return nil, fmt.Errorf("module.yaml is missing version and no --tag was provided")
 	}
 
-	orasPath, err := exec.LookPath("oras")
-	if err != nil {
+	if _, err := exec.LookPath("oras"); err != nil {
 		return warnings, fmt.Errorf("oras binary not found in PATH; install ORAS (https://oras.land) or use --output <path> to generate a local .tar.gz bundle")
 	}
 
@@ -277,7 +277,7 @@ func PushOCI(opts PackageOptions) ([]PackageWarning, error) {
 	}
 	cmdArgs = append(cmdArgs, layerArgs...)
 
-	cmd := exec.Command(orasPath, cmdArgs...)
+	cmd := exec.CommandContext(context.Background(), "oras", cmdArgs...)
 	cmd.Dir = opts.ModuleDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -288,7 +288,7 @@ func PushOCI(opts PackageOptions) ([]PackageWarning, error) {
 
 	if opts.TagLatest {
 		latestRef := fmt.Sprintf("%s/%s:latest", strings.TrimRight(opts.Registry, "/"), modName)
-		cmdLatest := exec.Command(orasPath, "tag")
+		cmdLatest := exec.CommandContext(context.Background(), "oras", "tag")
 		if opts.PlainHTTP {
 			cmdLatest.Args = append(cmdLatest.Args, "--plain-http")
 		}

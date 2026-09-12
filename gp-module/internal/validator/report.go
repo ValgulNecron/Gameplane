@@ -11,6 +11,7 @@ import (
 // Severity indicates finding severity level.
 type Severity string
 
+// Finding severity level constants.
 const (
 	SeverityError Severity = "ERROR"
 	SeverityWarn  Severity = "WARN"
