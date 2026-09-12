@@ -395,7 +395,12 @@ export function CreateServerWizard() {
     : ({ ok: false } as const);
 
   return (
-    <div className="flex min-h-full flex-col items-center bg-background p-6">
+    // A dimmed backdrop over the surrounding app chrome (design W8idqY:
+    // 960×760 centered card at 12px radius over a #000000B3 backdrop) —
+    // this route is a plain child of app-layout's outlet (no portal/modal
+    // primitive), so the dim color lives directly on the content area's own
+    // background rather than a separate overlay layer.
+    <div className="flex min-h-full flex-col items-center bg-black/70 p-6">
       {/* my-auto centers the card when it fits and top-aligns it (keeping it
           fully scrollable) when its content is taller than the viewport —
           grid place-items-center would clip and strand the top instead. */}
@@ -410,7 +415,7 @@ export function CreateServerWizard() {
           <Button
             isIconOnly
             variant="ghost"
-            onPress={() => nav({ to: "/" })}
+            onPress={() => nav({ to: "/servers" })}
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -453,7 +458,7 @@ export function CreateServerWizard() {
               </span>
             )}
             {stepIndex === 0 ? (
-              <Button variant="ghost" onPress={() => nav({ to: "/" })}>
+              <Button variant="ghost" onPress={() => nav({ to: "/servers" })}>
                 Cancel
               </Button>
             ) : (
@@ -475,6 +480,7 @@ export function CreateServerWizard() {
             ) : (
               <Button
                 variant="primary"
+                className="rounded-full"
                 onPress={() => create.mutate()}
                 isDisabled={create.isPending || !finalCheck.ok}
               >
@@ -577,6 +583,11 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
               variant={activeCat === c ? "primary" : "ghost"}
               onPress={() => setCat(c)}
               aria-pressed={activeCat === c}
+              // No radius class needed: globals.css's unlayered
+              // `.button:not(.rounded-full) { border-radius: 6px }` already
+              // pins every HeroUI Button — these category chips included —
+              // to the design's 6px, and wins over any Tailwind utility
+              // class added here anyway.
             >
               {c === "all" ? "All" : c}
             </Button>
@@ -1259,7 +1270,11 @@ ${state.version ? `  version: ${state.version}\n` : ""}  resources:
           </div>
         </div>
       </div>
-      <pre className="min-w-0 max-h-72 overflow-auto px-4 py-3 font-mono text-[11px] leading-relaxed text-fg scrollbar-thin">
+      {/* whitespace-pre-wrap + break-words: wrap long lines (e.g. a long
+          server/template name) instead of growing a horizontal scrollbar —
+          the pane must fit its column at any width. overflow-auto is still
+          needed for vertical scroll past max-h-72. */}
+      <pre className="min-w-0 max-h-72 overflow-auto whitespace-pre-wrap break-words px-4 py-3 font-mono text-[11px] leading-relaxed text-fg scrollbar-thin">
 {yaml}
       </pre>
       <div className="min-w-0 border-t border-border px-4 py-3 text-[11px] text-muted">
