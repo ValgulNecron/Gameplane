@@ -109,7 +109,7 @@ export function AuditLogPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <Tabs selectedKey={statusClass} onSelectionChange={(key) => setStatusClass(key as StatusClass)} variant="secondary" aria-label="Status filter">
-          <Tabs.List>
+          <Tabs.List className="w-fit">
             {(["all", "2xx", "4xx", "5xx"] as StatusClass[]).map((s) => (
               <TabComponent key={s} id={s} className="text-xs">
                 {labelFor(s)} · {totals[s] ?? 0}
