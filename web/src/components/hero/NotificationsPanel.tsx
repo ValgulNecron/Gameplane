@@ -3,7 +3,6 @@ import type { JSX } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Popover,
-  Button,
   Card,
 } from "@heroui/react";
 import { Bell } from "lucide-react";
@@ -64,11 +63,9 @@ export function NotificationsPanel(): JSX.Element {
       }}
     >
       <Popover.Trigger>
-        <Button
-          isIconOnly
-          variant="ghost"
+        <div
           aria-label="Notifications"
-          className="relative"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-lg hover:bg-default-100 cursor-pointer transition-colors relative"
         >
           <Bell className="h-[18px] w-[18px]" />
           {unread > 0 && (
@@ -76,7 +73,7 @@ export function NotificationsPanel(): JSX.Element {
               {unread > 9 ? "9+" : unread}
             </span>
           )}
-        </Button>
+        </div>
       </Popover.Trigger>
       <Popover.Content className="w-72 p-0">
         <Card className="border-none shadow-lg">
