@@ -397,9 +397,9 @@ export function CreateServerWizard() {
   return (
     // Fixed inset-0 backdrop over the surrounding app chrome (design W8idqY:
     // 960×760 centered card at 12px radius over a #000000B3 backdrop).
-    <div className="fixed inset-0 flex items-center justify-center bg-black/70">
+    <div className="fixed inset-0 flex items-center justify-center overflow-auto bg-black/70">
       <div role="dialog" aria-modal="true" className="w-[960px] max-h-[760px] overflow-hidden rounded-[12px] border border-border bg-card shadow-2xl flex flex-col">
-        <div className="flex items-start justify-between border-b border-border px-7 py-5">
+        <div className="flex shrink-0 items-start justify-between border-b border-border px-7 py-5">
           <div>
             <div className="text-lg font-semibold">New game server</div>
             <div className="pt-0.5 text-xs text-muted">
@@ -418,7 +418,7 @@ export function CreateServerWizard() {
 
         <StepBar steps={steps} stepIndex={stepIndex} />
 
-        <div className="grid gap-6 px-6 py-6 md:grid-cols-[1fr_260px]">
+        <div className="grid flex-1 min-h-0 overflow-auto gap-6 px-6 py-6 md:grid-cols-[1fr_260px]">
           <div className="min-w-0">
             {currentKey === "template" && <PickTemplate state={state} setState={setState} />}
             {currentKey === "version" && <PickVersion state={state} setState={setState} />}
@@ -441,7 +441,7 @@ export function CreateServerWizard() {
           <ErrorAlert {...errorMessage(create.error, state.name)} />
         )}
 
-        <div className="flex items-center justify-between border-t border-border px-7 py-4">
+        <div className="flex shrink-0 items-center justify-between border-t border-border px-7 py-4">
           <a href={DOCS_CREATE_SERVER_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
             <ExternalLink className="h-3 w-3" /> Docs: Creating game servers
           </a>
