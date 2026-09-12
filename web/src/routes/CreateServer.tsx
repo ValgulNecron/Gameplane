@@ -395,17 +395,11 @@ export function CreateServerWizard() {
     : ({ ok: false } as const);
 
   return (
-    // A dimmed backdrop over the surrounding app chrome (design W8idqY:
-    // 960×760 centered card at 12px radius over a #000000B3 backdrop) —
-    // this route is a plain child of app-layout's outlet (no portal/modal
-    // primitive), so the dim color lives directly on the content area's own
-    // background rather than a separate overlay layer.
-    <div className="flex min-h-full flex-col items-center bg-black/70 p-6">
-      {/* my-auto centers the card when it fits and top-aligns it (keeping it
-          fully scrollable) when its content is taller than the viewport —
-          grid place-items-center would clip and strand the top instead. */}
-      <div className="my-auto w-full max-w-[960px] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-        <div className="flex items-start justify-between border-b border-border px-6 py-4">
+    // Fixed inset-0 backdrop over the surrounding app chrome (design W8idqY:
+    // 960×760 centered card at 12px radius over a #000000B3 backdrop).
+    <div className="fixed inset-0 flex items-center justify-center bg-black/70">
+      <div role="dialog" aria-modal="true" className="w-[960px] max-h-[760px] overflow-hidden rounded-[12px] border border-border bg-card shadow-2xl flex flex-col">
+        <div className="flex items-start justify-between border-b border-border px-7 py-5">
           <div>
             <div className="text-lg font-semibold">New game server</div>
             <div className="pt-0.5 text-xs text-muted">
@@ -447,7 +441,7 @@ export function CreateServerWizard() {
           <ErrorAlert {...errorMessage(create.error, state.name)} />
         )}
 
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
+        <div className="flex items-center justify-between border-t border-border px-7 py-4">
           <a href={DOCS_CREATE_SERVER_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
             <ExternalLink className="h-3 w-3" /> Docs: Creating game servers
           </a>
