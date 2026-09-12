@@ -856,8 +856,8 @@ describe("ServerActionsCard", () => {
     const stop = screen.getByRole("button", { name: /Stop/i });
     // Running: Start is hidden, Restart/Stop are available.
     expect(screen.queryByRole("button", { name: /^Start$/i })).not.toBeInTheDocument();
-    expect(restart).not.toBeDisabled();
-    expect(stop).not.toBeDisabled();
+    await waitFor(() => expect(restart).not.toBeDisabled());
+    await waitFor(() => expect(stop).not.toBeDisabled());
     fireEvent.click(screen.getByRole("button", { name: /Open console/i }));
     expect(onOpenConsole).toHaveBeenCalled();
   });

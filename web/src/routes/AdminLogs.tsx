@@ -243,6 +243,7 @@ export function AdminLogsPage() {
       <div
         ref={scrollerRef}
         onScroll={onScroll}
+        data-testid="log-scroller"
         className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-[#0b0b0d] font-mono text-xs scrollbar-thin"
       >
         {text ? (

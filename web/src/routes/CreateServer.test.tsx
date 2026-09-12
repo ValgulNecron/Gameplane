@@ -364,7 +364,7 @@ describe("CreateServerWizard", () => {
     expect(preview?.className).toContain("min-w-0");
 
     // Verify the modal doesn't have overflow by checking the outer container
-    const modal = screen.getByText(/New game server/).closest("div[class*='max-w']");
+    const modal = screen.getByRole("dialog");
     expect(modal).toBeTruthy();
     if (modal) {
       // The modal must have overflow-hidden to bound content and prevent clipping.

@@ -104,7 +104,7 @@ test.describe("Slice 5: Share links — public page (mock mode)", () => {
     await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByText("Online")).toBeVisible();
+    await expect(page.getByText("Online", { exact: true })).toBeVisible();
     await expect(page.getByText("play.gameplane.example:25565")).toBeVisible();
     await expect(page.getByText("3 players online")).toBeVisible();
     await expectNoPrivacyLeak(page);
