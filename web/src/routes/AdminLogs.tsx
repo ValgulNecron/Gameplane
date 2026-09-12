@@ -252,29 +252,43 @@ export function AdminLogsPage() {
               let timestamp = "";
               let level = "";
               let message = line;
+              let parsed: Record<string, unknown> = {};
 
               try {
-                const parsed = JSON.parse(line);
-                if (parsed.ts) timestamp = parsed.ts;
-                if (parsed.level) level = parsed.level;
-                if (parsed.msg) message = parsed.msg;
+                parsed = JSON.parse(line);
+                if (parsed.ts) timestamp = String(parsed.ts);
+                if (parsed.level) level = String(parsed.level);
+                if (parsed.msg) message = String(parsed.msg);
               } catch {
                 // Not JSON, use raw line
               }
 
+              const lvl = String(level ?? "").toUpperCase();
               const levelColor =
-                level === "WARN" ? "text-[var(--warning)]" :
-                level === "ERROR" ? "text-[var(--danger)]" :
+                lvl === "WARN" ? "text-[var(--warning)]" :
+                lvl === "ERROR" ? "text-[var(--danger)]" :
                 "text-foreground";
+
+              // Collect structured fields (all keys except ts, level, msg)
+              const structuredFields = Object.entries(parsed).filter(
+                ([key]) => !["ts", "level", "msg"].includes(key),
+              );
 
               return (
                 <div key={idx} className="flex gap-3 leading-[18px]">
                   {timestamp && (
                     <span className="shrink-0 text-muted">{timestamp}</span>
                   )}
-                  <span className={`break-words ${levelColor}`}>
-                    {message}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className={`break-words ${levelColor}`}>
+                      {message}
+                    </span>
+                    {structuredFields.length > 0 && (
+                      <span className="text-xs text-muted/60">
+                        {structuredFields.map(([key, val]) => `${key}=${val}`).join(" ")}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}

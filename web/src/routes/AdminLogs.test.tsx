@@ -192,7 +192,7 @@ describe("AdminLogsPage", () => {
 
     stream.push("first chunk\n");
     const pre = await screen.findByText(/first chunk/);
-    const scroller = pre.parentElement?.parentElement?.parentElement as HTMLDivElement;
+    const scroller = pre.parentElement?.parentElement?.parentElement?.parentElement as HTMLDivElement;
 
     // Give the panel scrollable geometry (jsdom does no layout) and a
     // plain-value scrollTop so the component's writes are observable.
