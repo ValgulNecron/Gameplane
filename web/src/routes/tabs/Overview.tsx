@@ -189,17 +189,18 @@ export function OverviewTab({
               <h3 className="text-lg font-semibold text-foreground">Connection</h3>
             </CardHeader>
             <CardContent className="space-y-3 px-4 py-3 text-sm">
-              {/* Tunnel row */}
-              <EndpointRow label="Tunnel">
-                {primary?.tunnelProvider ? (
-                  primary?.host ? (
+              {/* Tunnel row — only when a tunnel endpoint actually exists;
+                  per design (EZFW0) this row doesn't appear at all otherwise. */}
+              {primary?.tunnelProvider && (
+                <EndpointRow label="Tunnel">
+                  {primary.host ? (
                     <>
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         <span className="truncate font-mono text-foreground">
                           {primary.host}
                           {primary.port !== undefined ? `:${primary.port}` : ""}
                         </span>
-                        {primary?.private && (
+                        {primary.private && (
                           <span className="shrink-0 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-medium text-warning">
                             Tailnet only
                           </span>
@@ -217,25 +218,22 @@ export function OverviewTab({
                     <span className="text-muted italic">
                       {tunnelReady?.message ?? "Waiting for tunnel address…"}
                     </span>
-                  )
-                ) : (
-                  <span className="text-muted italic">—</span>
-                )}
-              </EndpointRow>
+                  )}
+                </EndpointRow>
+              )}
 
-              {/* External Address row */}
+              {/* External Address row — bare host, no port; a "pool: <name>"
+                  annotation underneath when the address was allocated from a
+                  pool (EZFW0: "Address 172.18.255.203" / "pool: pool-us-west"). */}
               <EndpointRow label="External Address">
                 {primary?.host ? (
                   <>
-                    <span className="truncate font-mono text-foreground">
-                      {primary.host}
-                      {primary.port !== undefined ? `:${primary.port}` : ""}
-                    </span>
-                    {primary?.pool && (
-                      <span className="text-xs text-muted">
-                        from pool &apos;{primary.pool}&apos;
-                      </span>
-                    )}
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-mono text-foreground">{primary.host}</span>
+                      {primary.pool && (
+                        <span className="text-xs text-muted">pool: {primary.pool}</span>
+                      )}
+                    </div>
                     <button
                       className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
                       onClick={() => navigator.clipboard?.writeText(primary.host)}
@@ -249,14 +247,17 @@ export function OverviewTab({
                 )}
               </EndpointRow>
 
-              {/* Cluster Address row */}
-              <EndpointRow label="Cluster Address">
-                {clusterEndpoint?.host ? (
-                  <>
-                    <span className="truncate font-mono text-foreground">
-                      {clusterEndpoint.host}
-                      {clusterEndpoint.port !== undefined ? `:${clusterEndpoint.port}` : ""}
-                    </span>
+              {/* Cluster Address — separate Host/Port fields (EZFW0). Omitted
+                  entirely when clusterEndpoint resolves to the same endpoint
+                  object as primary (no tunnel present): re-showing the
+                  External Address's own host/port under a second label would
+                  just repeat it, and there is no separate cluster-internal
+                  service address in status to fall back to yet. */}
+              {clusterEndpoint && clusterEndpoint !== primary && clusterEndpoint.host && (
+                <div className="space-y-2">
+                  <div className="px-1 text-xs font-medium text-muted">Cluster Address</div>
+                  <EndpointRow label="Host">
+                    <span className="truncate font-mono text-foreground">{clusterEndpoint.host}</span>
                     <button
                       className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
                       onClick={() => navigator.clipboard?.writeText(clusterEndpoint.host)}
@@ -264,11 +265,14 @@ export function OverviewTab({
                     >
                       <Copy className="h-3.5 w-3.5" />
                     </button>
-                  </>
-                ) : (
-                  <span className="text-muted italic">—</span>
-                )}
-              </EndpointRow>
+                  </EndpointRow>
+                  {clusterEndpoint.port !== undefined && (
+                    <EndpointRow label="Port">
+                      <span className="truncate font-mono text-foreground">{clusterEndpoint.port}</span>
+                    </EndpointRow>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -180,9 +180,15 @@ describe("OverviewTab endpoint rendering", () => {
         { name: "game", host: "172.18.255.203", port: 25565, pool: "pool-us-west" },
       ],
     })} name="s1" />);
-    // The address appears exactly once — no duplicate external/cluster rows.
+    // The address appears exactly once — no duplicate external/cluster rows,
+    // and no port suffix (design EZFW0: bare host + "pool: <name>" annotation).
     expect(await screen.findAllByText("172.18.255.203")).toHaveLength(1);
-    expect(screen.getByText("from pool 'pool-us-west'")).toBeInTheDocument();
+    expect(screen.getByText("pool: pool-us-west")).toBeInTheDocument();
+    // No tunnel endpoint → no Tunnel row at all.
+    expect(screen.queryByText("Tunnel")).not.toBeInTheDocument();
+    // clusterEndpoint resolves to the same object as primary (no tunnel) →
+    // Cluster Address is omitted rather than repeating the same value.
+    expect(screen.queryByText("Cluster Address")).not.toBeInTheDocument();
   });
 
   it("renders the address cleanly when no pool is assigned", async () => {
@@ -196,21 +202,34 @@ describe("OverviewTab endpoint rendering", () => {
     // SC-008: the address stays visible even without a pool…
     expect(await screen.findByText("10.107.129.42")).toBeInTheDocument();
     // …with no dangling pool label and no "undefined" leaking into the markup.
-    expect(screen.queryByText(/from pool/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/pool:/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument();
+    // Still no tunnel and no separate Cluster Address (same endpoint as primary).
+    expect(screen.queryByText("Tunnel")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cluster Address")).not.toBeInTheDocument();
   });
 
   it("renders tunnel, external address, and cluster address rows for the bound endpoint", async () => {
     fetchMock.mockImplementation(() =>
       Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    // A tunnel endpoint plus a distinct cluster-native endpoint: primary is
+    // the tunnel (operator prepends it), clusterEndpoint is the first
+    // non-tunnel entry after it — a different object from primary, so all
+    // three rows render (design EZFW0: separate Host/Port fields under
+    // Cluster Address, not a combined "host:port" string).
     renderWithQuery(<OverviewTab gs={gs({
       endpoints: [
+        { name: "tunnel", host: "mc.frp.gameplane.dev", port: 25565, tunnelProvider: "frp" },
         { name: "game", host: "10.107.129.42", port: 30812 },
       ],
     })} name="s1" />);
     expect(await screen.findByText("Tunnel")).toBeInTheDocument();
+    expect(screen.getByText("mc.frp.gameplane.dev:25565")).toBeInTheDocument();
     expect(screen.getByText("External Address")).toBeInTheDocument();
     expect(screen.getByText("Cluster Address")).toBeInTheDocument();
-    expect(screen.getByText("10.107.129.42:30812")).toBeInTheDocument();
+    expect(screen.getByText("Host")).toBeInTheDocument();
+    expect(screen.getByText("Port")).toBeInTheDocument();
+    expect(screen.getByText("10.107.129.42")).toBeInTheDocument();
+    expect(screen.getByText("30812")).toBeInTheDocument();
   });
 });
