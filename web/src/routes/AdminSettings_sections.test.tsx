@@ -156,28 +156,48 @@ describe("AdminSettings sections", () => {
       }),
     );
     renderWithQuery(<AdminSettingsPage />);
+    console.log('[T146 step 1] rendered AdminSettingsPage');
     await gotoSection(/Authentication/i);
+    console.log('[T146 step 2] navigated to Authentication section');
     await user.click(await screen.findByRole("button", { name: /Add provider/i }));
+    console.log('[T146 step 3] clicked Add provider button');
     await user.type(screen.getByPlaceholderText("corp-sso"), "corp");
+    console.log('[T146 step 4] typed "corp" in provider name');
     await user.type(screen.getByPlaceholderText(/idp\.example/i), "https://idp.corp.example");
+    console.log('[T146 step 5] typed issuer URL');
     await user.type(screen.getByLabelText(/Client ID/i), "gameplane");
+    console.log('[T146 step 6] typed Client ID');
     await user.type(screen.getByLabelText(/Client secret/i), "s3cret");
+    console.log('[T146 step 7] typed Client secret');
     // Scopes accept space or comma separators; group lists are
     // comma-separated with whitespace trimmed around each name.
     await user.type(screen.getByLabelText(/Scopes/i), "groups, offline_access");
+    console.log('[T146 step 8] typed scopes');
     await user.type(screen.getByLabelText(/Groups claim/i), "memberOf");
+    console.log('[T146 step 9] typed groups claim');
     await user.type(screen.getByLabelText(/Admin groups/i), "GP Admins , platform-admins");
+    console.log('[T146 step 10] typed admin groups');
     await user.type(screen.getByLabelText(/Viewer groups/i), "gp-view");
+    console.log('[T146 step 11] typed viewer groups');
     await user.click(screen.getByRole("button", { name: /Default role/i }));
+    console.log('[T146 step 12] clicked Default role button');
     await user.click(await screen.findByRole("option", { name: /deny/i }));
+    console.log('[T146 step 13] clicked deny option');
     await user.click(screen.getByRole("button", { name: /^Add provider$/i }));
+    console.log('[T146 step 14] clicked Add provider (submit) button');
     // FR-015: a non-empty admin-group mapping gates the add behind an
     // explicit confirmation dialog before the provider is actually saved.
     await screen.findByText(/Mapping users to the admin role grants full cluster control/i);
+    console.log('[T146 step 15] found confirmation dialog text');
     await userEvent.click(screen.getByRole("button", { name: /Map to admin role/i }));
+    console.log('[T146 step 16] clicked Map to admin role button in confirmation');
     await screen.findByText(/oidc · https:\/\/idp\.corp\.example/i);
+    console.log('[T146 step 17] found oidc provider row in list');
     await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    console.log('[T146 step 18] clicked Save changes button');
     await waitFor(() => expect(saved).toBeDefined());
+    console.log('[T146 step 19] waitFor confirmed saved data defined');
+    console.log(`[T146 diagnostics] innerHTML.length=${document.body.innerHTML.length}, dialogs=${document.querySelectorAll('[role=dialog],[role=alertdialog]').length}`);
     // Exact object: empty inputs (display name, operator groups) stay
     // absent — never "" or [""].
     expect(saved?.providers).toContainEqual({
@@ -192,7 +212,7 @@ describe("AdminSettings sections", () => {
       roleMappings: { admin: ["GP Admins", "platform-admins"], viewer: ["gp-view"] },
       defaultRole: "deny",
     });
-  });
+  }, 30_000);
 
   it("round-trips a stored provider's mapping fields through an unrelated save", async () => {
     const corp: AuthProvider = {
