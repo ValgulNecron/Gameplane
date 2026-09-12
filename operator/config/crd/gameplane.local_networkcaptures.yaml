@@ -60,7 +60,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: NetworkCaptureSpec is the desired state of a packet capture session.
+            description: NetworkCaptureSpec is the desired state of a packet capture
+              session.
             properties:
               filter:
                 description: |-
@@ -87,7 +88,8 @@ spec:
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
               serverRef:
-                description: ServerRef is the GameServer being captured. Immutable once created. Required.
+                description: ServerRef is the GameServer being captured. Immutable
+                  once created. Required.
                 properties:
                   name:
                     default: ""
@@ -119,7 +121,8 @@ spec:
             - serverRef
             type: object
           status:
-            description: NetworkCaptureStatus is the observed state of a packet capture session.
+            description: NetworkCaptureStatus is the observed state of a packet capture
+              session.
             properties:
               bytesWritten:
                 anyOf:
@@ -137,9 +140,11 @@ spec:
                 format: date-time
                 type: string
               conditions:
-                description: Conditions contains structured reasons for current phase state.
+                description: Conditions contains structured reasons for current phase
+                  state.
                 items:
-                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -180,12 +185,9 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        Many .condition.type values are consistent across resources like Ready or Available, but some might be
-                        domain-specific. Consider the stability of the condition's behavior when you define them.
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
                       maxLength: 316
-                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Z]|[a-z0-9])([-A-Z0-9_a-z]*[A-Z0-9a-z])?|[A-Z]{2,})$
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string
                   required:
                   - lastTransitionTime
@@ -195,9 +197,6 @@ spec:
                   - type
                   type: object
                 type: array
-                x-kubernetes-list-map-keys:
-                - type
-                x-kubernetes-list-type: map
               message:
                 description: Message is a human-readable status or error message.
                 maxLength: 512
@@ -209,15 +208,22 @@ spec:
                 format: int64
                 type: integer
               phase:
+                allOf:
+                - enum:
+                  - Pending
+                  - Running
+                  - Completed
+                  - Failed
+                  - Expired
+                - enum:
+                  - Pending
+                  - Running
+                  - Completed
+                  - Failed
+                  - Expired
                 description: |-
                   Phase is the current lifecycle phase of the capture.
                   Valid values: Pending, Running, Completed, Failed, Expired.
-                enum:
-                - Pending
-                - Running
-                - Completed
-                - Failed
-                - Expired
                 type: string
               startTime:
                 description: |-

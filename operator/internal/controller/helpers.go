@@ -70,6 +70,9 @@ func EffectiveConsoleMode(tmpl *gameplanev1alpha1.GameTemplate) string {
 		return tmpl.Spec.ConsoleMode
 	}
 	if tmpl.Spec.RCON != nil && tmpl.Spec.RCON.Protocol != "" && tmpl.Spec.RCON.Protocol != "none" {
+		if tmpl.Spec.RCON.Protocol == "cli" {
+			return "pty"
+		}
 		return "rcon"
 	}
 	return "none"

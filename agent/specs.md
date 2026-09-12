@@ -46,7 +46,7 @@ agent/
 │   ├── mods/                # Mod list, install, uninstall (manifest tracking, SSRF guard)
 │   ├── players/             # Player count, names, ban lists, moderation (kick, ban, unban)
 │   ├── quiesce/             # Pause auto-saves and flush state before snapshots
-│   ├── rcon/                # RCON wire protocols (source, telnet, websocket, battleye, satisfactory, palworld)
+│   ├── rcon/                # RCON wire protocols (source, telnet, websocket, battleye, satisfactory, palworld, nuclearoption, rest, cli)
 │   ├── status/              # Live metrics extraction via RCON + regex
 │   └── usage/               # Resource usage reader (/proc or cgroups; disk via statfs)
 ├── openapi.yaml             # Partial machine-readable HTTP contract (subset of routes)
@@ -66,7 +66,7 @@ Per-package roles:
 - **`mods`**: Tracks installed mods in a per-volume manifest (`.gameplane-mods.json`); downloads from registry with strict egress validation via `netguard.IsPublic`.
 - **`players`**: Queries player count, names, ban lists, and runs moderation actions over RCON; game-specific `commander` implementations (Minecraft, Satisfactory, Palworld, etc.) report capabilities.
 - **`quiesce`**: Runs module-declared sequences (e.g., Minecraft's `save-off` + `save-all flush`) over RCON; responds `quiesced: false` + reason when unsupported (not an error).
-- **`rcon`**: Factory pattern for wire-protocol clients (`Valve/Source`, `Telnet`, `WebSocket`, `BattlEye`, `Satisfactory`, `Palworld`, `Disabled`); `Exec(cmd) (string, error)` interface.
+- **`rcon`**: Factory pattern for wire-protocol clients (`Valve/Source`, `Telnet`, `WebSocket`, `BattlEye`, `Satisfactory`, `Palworld`, `NuclearOption`, `REST`, `CLI`, `Disabled`); `Exec(cmd) (string, error)` interface.
 - **`status`**: Runs module-declared metrics queries over RCON; each metric specifies a command and a regex with named group `"value"` for extraction.
 - **`usage`**: Reads CPU/memory from `/proc` (proc mode, default) or cgroup v2; disk via `statfs`; exposes `Sample` with `Known` flags so callers distinguish "unknown" from "zero".
 
@@ -87,7 +87,7 @@ Mode: In-pod HTTP/HTTPS sidecar (runs as a container sidecar or as a pod share-p
 | `--rcon-port` | `25575` | — | RCON server port (game-specific default) |
 | `--rcon-password-file` | `` | — | Path to file holding the RCON password |
 | `--rcon-enabled` | `true` (from env) | `GAMEPLANE_RCON_ENABLED` | Whether the game exposes RCON; `false` degrades RCON-backed endpoints gracefully |
-| `--rcon-protocol` | `source` (from env) | `GAMEPLANE_RCON_PROTOCOL` | RCON wire protocol: `source` (Valve/Minecraft), `telnet` (7 Days to Die), `websocket` (Rust), `battleye` (DayZ/Arma), `satisfactory` (Satisfactory), `palworld` (Palworld); unrecognized falls back to `source` |
+| `--rcon-protocol` | `source` (from env) | `GAMEPLANE_RCON_PROTOCOL` | RCON wire protocol: `source` (Valve/Minecraft), `telnet` (7 Days to Die), `websocket` (Rust), `battleye` (DayZ/Arma), `satisfactory` (Satisfactory), `palworld` (Palworld), `nuclearoption` (Nuclear Option), `rest` (generic HTTP/JSON admin API, e.g. FiveM txAdmin or Farming Simulator 25), `cli` (container stdin/PTY); unrecognized falls back to `source` |
 | `--game-log-path` | `` | — | Path to the game container's log file for `/logs/tail` |
 | `--tls-cert` | `` | — | Server TLS cert (PEM); if set, requires `--tls-key` and enables HTTPS + mTLS |
 | `--tls-key` | `` | — | Server TLS key (PEM) |
@@ -182,9 +182,16 @@ All endpoints (except `/healthz` and `/metrics`) return `401 Unauthorized` if th
 
 - **Game data volume** (`--data-root`, typically `/data`): A PVC mounted read-write. The agent's file I/O operations are confined here; no access to system paths or other volumes.
 - **GameServer status**: Patched periodically by the `heartbeat` goroutine via the Kubernetes API. The agent holds no local copy; the operator is the source of truth.
-- **Mod install manifest** (`.gameplane-mods.json`): Stored per-volume under `--data-root`. Tracks metadata for each installed mod (name, version, registry source, checksum, etc.). Unmarshaled on startup and written on install/uninstall.
-- **RCON sessions**: In-memory only. Each RCON protocol implementation holds a connection pool or singleton (e.g., Source uses a single TCP stream with request ID sequencing; BattlEye uses UDP).
-- **WebSocket streams** (console, logs): In-memory buffering. No replay; clients reconnect to resume.
+- **RCON sessions**: In-memory only. Each RCON protocol implementation holds a connection pool or singleton:
+  - `source`: Single TCP stream with Valve request ID sequencing.
+  - `telnet`: Line-based TCP console.
+  - `websocket`: Rust WebRcon protocol.
+  - `battleye`: UDP-based CRC32 packet framing.
+  - `satisfactory`: HTTPS JSON function-call API with session token.
+  - `palworld`: HTTP Basic REST admin API.
+  - `nuclearoption`: Dedicated TCP stream for Nuclear Option remote command protocol.
+  - `rest`: Generic HTTP/JSON REST console client with lazy auth (`PassFn`), 1 MiB bounded body read, configurable timeouts, auth failure cooldown, and loopback TLS protection. Provides adapters for FiveM (txAdmin: `POST /fxserver/commands`, bearer/X-TxAdmin-Token, `{"action":"console","parameter":"<cmd>"}`), Farming Simulator 25 (`POST /api/console`, Basic auth, `{"command":"<cmd>"}`), and generic REST (`POST /api/command`).
+  - `cli`: Container stdin/PTY / local execution client (Option A in OPEN-DECISIONS.md). Drives commands via named FIFO pipe (`GAMEPLANE_CLI_PIPE`) or local process shell execution without requiring remote TCP networking or password secrets, while web console continues to attach via pod-attach PTY.
 
 ## Security considerations
 

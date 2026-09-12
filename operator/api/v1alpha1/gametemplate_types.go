@@ -986,10 +986,15 @@ type RCONSpec struct {
 	// username "admin" sent on every request, no token or session) — the
 	// official replacement for Palworld's now-deprecated source RCON, and
 	// likewise not a socket protocol, so Port is a TCP port carrying HTTP.
+	// "nuclearoption" is Nuclear Option's JSON-RPC 2.0 TCP socket protocol.
+	// "rest" is a generic HTTP/JSON console API (POST-per-command, bearer-
+	// or basic-auth, distinct from the bespoke satisfactory/palworld clients).
+	// "cli" is console access over the container's stdin/PTY, enabling
+	// agent-driven console commands without requiring an exposed network port.
 	// "none" means the game has no usable remote console (see consoleMode:
 	// pty for stdin-driven games instead).
 	// +kubebuilder:default=source
-	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;satisfactory;palworld;nuclearoption;none
+	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;satisfactory;palworld;nuclearoption;rest;cli;none
 	// +optional
 	Protocol string `json:"protocol,omitempty"`
 
@@ -1211,6 +1216,7 @@ type GameTemplateList struct {
 	Items           []GameTemplate `json:"items"`
 }
 
+// init registers GameTemplate types with the scheme builder.
 func init() {
 	SchemeBuilder.Register(&GameTemplate{}, &GameTemplateList{})
 }

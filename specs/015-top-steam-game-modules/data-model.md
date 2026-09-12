@@ -1,6 +1,6 @@
 # Data Model: Dedicated Server Modules for Top Steam Games
 
-**Feature**: `014-top-steam-game-modules`  
+**Feature**: `015-top-steam-game-modules`  
 **Date**: 2026-09-03  
 **Status**: Completed  
 
@@ -41,7 +41,6 @@ classDiagram
         +StorageDefinition storage
         +SecurityDefinition security
         +RconDefinition rcon
-        +LifecycleDefinition lifecycle
         +CapabilitiesDefinition capabilities
         +ActionDefinition[] actions
     }
@@ -61,15 +60,17 @@ classDiagram
     }
 
     class StorageDefinition {
+        +String size
         +String mountPath
-        +String defaultSize
-        +VolumeSubpath[] subPaths
+        +String storageClassName
+        +VolumeDataSource dataSource
+        +ExtraVolume[] extra
     }
 
     class SecurityDefinition {
         +Int runAsUser
+        +Int runAsGroup
         +Int fsGroup
-        +Boolean readOnlyRootFilesystem
     }
 
     class RconDefinition {
@@ -78,14 +79,15 @@ classDiagram
         +String passwordEnv
     }
 
-    class LifecycleDefinition {
-        +StopAction stop
+    class CapabilitiesDefinition {
+        +LifecycleDefinition lifecycle
+        +ModsDefinition mods
+        +Boolean backups
+        +Boolean players
     }
 
-    class StopAction {
-        +String type
-        +String command
-        +Int timeoutSeconds
+    class LifecycleDefinition {
+        +String[] stop
     }
 
     GameModuleManifest --> GameTemplateSpec : defines
@@ -94,7 +96,8 @@ classDiagram
     GameTemplateSpec *-- StorageDefinition : storage
     GameTemplateSpec *-- SecurityDefinition : security
     GameTemplateSpec *-- RconDefinition : rcon
-    GameTemplateSpec *-- LifecycleDefinition : lifecycle
+    GameTemplateSpec *-- CapabilitiesDefinition : capabilities
+    CapabilitiesDefinition *-- LifecycleDefinition : lifecycle
 ```
 
 ---
@@ -111,11 +114,11 @@ Defined under `.schema/module.schema.json`:
 | `displayName` | string | Yes | Human-readable game title | `Team Fortress 2` |
 | `version` | string | Yes | Semver module revision | `1.0.0` |
 | `game` | string | Yes | Canonical game identifier | `tf2` |
-| `categories` | string[] | Yes | Genre and playstyle tags | `[Shooter, PvP, Class-Based]` |
+| `categories` | string[] | No | Genre and playstyle tags | `[Shooter, PvP, Class-Based]` |
 | `summary` | string | Yes | Short one-line summary | `Team Fortress 2 dedicated server (Source Engine)` |
-| `homepage` | string | Yes | Official game or community URL | `https://www.teamfortress.com` |
-| `license` | string | Yes | Module metadata license | `MIT` |
-| `gameplaneMinVersion` | string | Yes | Minimum compatible Gameplane version | `0.2.0-beta.7` |
+| `homepage` | string | No | Official game or community URL | `https://www.teamfortress.com` |
+| `license` | string | No | Module metadata license | `MIT` |
+| `gameplaneMinVersion` | string | No | Minimum compatible Gameplane version | `0.2.0-beta.7` |
 
 ---
 
@@ -127,18 +130,18 @@ Defined under `.schema/gametemplate.schema.json`:
 | `spec.displayName` | string | Yes | Human-readable template name |
 | `spec.game` | string | Yes | Target game identifier matching `module.yaml` |
 | `spec.version` | string | Yes | Template semver |
-| `spec.categories` | string[] | Yes | List of category classifications |
-| `spec.accentColor` | string | Yes | Hex color code for UI cards (e.g. `#BD3B3B`) |
-| `spec.description` | string | Yes | Markdown description of server capabilities |
 | `spec.image` | string | Yes | Default fallback container image with `@sha256:` digest |
-| `spec.versions` | Version[] | Yes | Curated array of selectable version images with digest pins |
-| `spec.ports` | Port[] | Yes | Named port definitions with `UDP` or `TCP` protocol |
+| `spec.categories` | string[] | No | List of category classifications |
+| `spec.accentColor` | string | No | Hex color code for UI cards (e.g. `#BD3B3B`) |
+| `spec.description` | string | No | Markdown description of server capabilities |
+| `spec.versions` | Version[] | No | Curated array of selectable version images with digest pins |
+| `spec.ports` | Port[] | No | Named port definitions with `UDP` or `TCP` protocol |
 | `spec.env` | EnvVar[] | No | Configurable environment variables and defaults |
-| `spec.storage` | Storage | Yes | Persistent volume mount point and sizing |
-| `spec.security` | Security | Yes | User UID, GID, and filesystem permissions matching image |
+| `spec.storage` | Storage | No | Persistent volume mount point (`size`, `mountPath`, `storageClassName`, `dataSource`, `extra`) |
+| `spec.security` | Security | No | User UID, GID, and filesystem permissions matching image (`runAsUser`, `runAsGroup`, `fsGroup`) |
 | `spec.rcon` | Rcon | No | RCON protocol type, port, and password env key |
-| `spec.lifecycle` | Lifecycle | Yes | Pre-stop command sequences for graceful world saves |
-| `spec.capabilities`| Caps | No | Supported features (mods, backups, player list, logs) |
+| `spec.capabilities`| Caps | No | Supported features (mods, backups, player list, logs, lifecycle) |
+| `spec.capabilities.lifecycle.stop` | string[] | No | Pre-stop command sequence (1-16 command strings) for graceful world saves |
 
 ---
 
@@ -166,4 +169,4 @@ stateDiagram-v2
 1. **Digest Immutability**: Every concrete version in `spec.versions` MUST specify an immutable image digest (`@sha256:...`).
 2. **Mount Safety**: `spec.storage.mountPath` MUST NOT match or be an ancestor of the image's `ENTRYPOINT` or `CMD` executable path.
 3. **SteamCMD User Invariant**: When `spec.security.runAsUser` is set, `spec.env` MUST include `HOME` pointing to a writable directory if not baked into the image.
-4. **Pre-Stop Integrity**: When an engine supports persistence, `spec.lifecycle.stop.command` MUST execute a valid world-save command with a timeout of at least 30 seconds.
+4. **Pre-Stop Integrity**: When the engine supports persistence, `capabilities.lifecycle.stop` must contain a valid world-save command sequence.

@@ -1,6 +1,6 @@
 # Quickstart: Validating & Deploying Top Steam Game Modules
 
-**Feature**: `014-top-steam-game-modules`  
+**Feature**: `015-top-steam-game-modules`  
 **Date**: 2026-09-03  
 **Status**: Completed  
 
@@ -62,7 +62,7 @@ echo "All module specifications present and valid."
 kubectl apply -f modules/team-fortress-2/template.yaml
 
 # Create a GameServer instance from the sample manifest
-kubectl apply -f modules/team-fortress-2/samples/server.yaml
+kubectl apply -f modules/team-fortress-2/samples/gameserver.yaml
 
 # Verify pod scheduling, persistent volume mount, and port readiness
 kubectl get gameservers

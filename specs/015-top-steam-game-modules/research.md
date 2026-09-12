@@ -1,6 +1,6 @@
 # Research: Dedicated Server Modules for Top Steam Games
 
-**Feature**: `014-top-steam-game-modules`  
+**Feature**: `015-top-steam-game-modules`  
 **Date**: 2026-09-03  
 **Status**: Completed  
 
@@ -45,12 +45,13 @@ This research defines the architectural foundation, container configurations, pr
 
 ## 2. Key Decisions & Rationales
 
-### Decision 1: Upstream OCI Container Image Selection Strategy
+### Decision 1: Upstream OCI Container Image Selection Strategy & Gameplane-Owned Images Reversal
 
-- **Decision**: Prioritize official vendor images (e.g. Valve/CitizenFX/Factorio/BeamMP) or established, single-purpose community images (e.g., `cm2network`, `thijsvanloef`, `ich777`, `sprits`) pinned with immutable sha256 digests.
-- **Rationale**: Game server images must be reproducible, security-audited, and statically verifiable via `modules/validate.py`. Pinned digests prevent upstream mutable tag breakage.
+- **Decision**: Gameplane builds, publishes, and cosign-signs purpose-built container images for four auxiliary-service / token-diagnostic games: `fivem`, `farming-simulator-25`, `euro-truck-simulator-2`, and `beammp`. For the remaining 22 modules, prioritize official vendor images (e.g. Valve/Factorio) or established, single-purpose community images (e.g., `cm2network`, `thijsvanloef`, `ich777`, `sprits`) pinned with immutable sha256 digests.
+- **Rationale**: Reversal of the original purely-community image strategy for `fivem`, `farming-simulator-25`, `euro-truck-simulator-2`, and `beammp` is required because only a Gameplane-owned entrypoint can guarantee FR-012's auxiliary-process supervision (bundling txAdmin + embedded database in FiveM, web management portal + dummy X11 in FS25) and FR-013's non-crashing diagnostic idle on a missing token/key (CFX key, BeamMP auth key, ETS2 logon token). The other 22 modules are unaffected and continue to use community images.
 - **Alternatives Considered**:
-  - *Building custom Gameplane base images for all 26 games*: Rejected because maintaining 26 bespoke upstream SteamCMD game downloaders and build pipelines introduces massive maintenance overhead compared to curated, community-standard images.
+  - *Sourcing community images for all 26 games*: Rejected for the four auxiliary-service games because community images crash-loop when credentials are missing (violating FR-013) or fail to co-supervise required companion services in a single pod (violating FR-012).
+  - *Building custom Gameplane base images for all 26 games*: Rejected because maintaining 26 bespoke upstream SteamCMD game downloaders introduces unnecessary maintenance overhead for standard games.
 
 ### Decision 2: Single-Pod Auxiliary Service Supervision (Clarification Q1)
 
