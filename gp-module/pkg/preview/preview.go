@@ -1,3 +1,4 @@
+// Package preview provides public preview exports.
 package preview
 
 import (

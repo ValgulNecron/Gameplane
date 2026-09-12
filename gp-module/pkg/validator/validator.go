@@ -1,3 +1,4 @@
+// Package validator provides public validator exports.
 package validator
 
 import (

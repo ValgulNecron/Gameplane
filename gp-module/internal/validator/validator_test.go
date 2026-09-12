@@ -295,8 +295,8 @@ spec:
 		rulesFound[f.RuleID] = true
 	}
 
-	if !rulesFound[RuleCredentialFieldNotPassword] {
-		t.Errorf("expected credential-field-not-password error")
+	if !rulesFound[RuleInsecureAuthField] {
+		t.Errorf("missing expected rule %s", RuleInsecureAuthField)
 	}
 	if !rulesFound[RuleInvalidConfigType] {
 		t.Errorf("expected invalid-config-type error")

@@ -1,3 +1,4 @@
+// Package scaffold provides public scaffold exports.
 package scaffold
 
 import (

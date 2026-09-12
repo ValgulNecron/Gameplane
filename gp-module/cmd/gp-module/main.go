@@ -1,3 +1,4 @@
+// Package main implements the gp-module CLI entrypoint.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Package main implements the gp-module CLI.
 package main
 
 import (
@@ -81,7 +82,7 @@ Options:
 		}
 		var parsed map[string]any
 		if err := yaml.Unmarshal(data, &parsed); err != nil {
-			if errJson := json.Unmarshal(data, &parsed); errJson != nil {
+			if errJSON := json.Unmarshal(data, &parsed); errJSON != nil {
 				fmt.Fprintf(os.Stderr, "error parsing config file %q: %v\n", flagConfigFile, err)
 				os.Exit(1)
 			}

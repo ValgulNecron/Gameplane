@@ -1,3 +1,4 @@
+// Package validator provides offline static validation and linting of module manifests.
 package validator
 
 import (

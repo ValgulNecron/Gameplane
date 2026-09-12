@@ -1,3 +1,4 @@
+// Package scaffold generates schema-compliant starter module directories.
 package scaffold
 
 import (

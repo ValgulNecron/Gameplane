@@ -1,3 +1,4 @@
+// Package packager provides public packager exports.
 package packager
 
 import (

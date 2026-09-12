@@ -1,3 +1,4 @@
+// Package packager bundles and distributes game module OCI artifacts.
 package packager
 
 import (
@@ -13,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// OCI artifact and media types for module bundles.
 const (
 	ArtifactType  = "application/vnd.gameplane.module.v1+json"
 	MediaMetadata = "application/vnd.gameplane.module.metadata.v1+yaml"

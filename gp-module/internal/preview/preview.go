@@ -1,3 +1,4 @@
+// Package preview evaluates runtime manifests and dynamic memory calculations.
 package preview
 
 import (

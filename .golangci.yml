@@ -102,6 +102,12 @@ linters:
       - path: (^|/)internal/satisfactory/app\.go$
         linters: [gosec]
         text: "G402"
+      # The packager invokes the `oras` CLI to push module bundles and tag OCI
+      # artifacts. The arguments are constructed from validated module metadata
+      # and trusted CLI flags. G204 remains active everywhere else.
+      - path: (^|/)internal/packager/packager\.go$
+        linters: [gosec]
+        text: "G204"
 
 formatters:
   enable:

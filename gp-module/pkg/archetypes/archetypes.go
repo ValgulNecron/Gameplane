@@ -1,3 +1,4 @@
+// Package archetypes provides public archetypes definitions.
 package archetypes
 
 import (

@@ -1,3 +1,4 @@
+// Package common provides shared utilities for validation, parsing, and AST navigation.
 package common
 
 import (

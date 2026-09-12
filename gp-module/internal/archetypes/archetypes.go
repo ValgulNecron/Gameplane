@@ -1,3 +1,4 @@
+// Package archetypes provides starter module templates and presets.
 package archetypes
 
 import (

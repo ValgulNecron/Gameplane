@@ -1,3 +1,4 @@
+// Package validator provides offline static validation and linting of module manifests.
 package validator
 
 import (
@@ -266,7 +267,7 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 		if isCred && fieldType != "password" && fieldType != "" {
 			findings = append(findings, Finding{
 				Level:       SeverityError,
-				RuleID:      RuleCredentialFieldNotPassword,
+				RuleID:      RuleInsecureAuthField,
 				File:        "template.yaml",
 				Line:        nameLine,
 				Field:       fmt.Sprintf("spec.configSchema[%d].name", i),
