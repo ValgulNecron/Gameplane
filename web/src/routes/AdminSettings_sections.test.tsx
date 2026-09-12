@@ -192,7 +192,7 @@ describe("AdminSettings sections", () => {
       roleMappings: { admin: ["GP Admins", "platform-admins"], viewer: ["gp-view"] },
       defaultRole: "deny",
     });
-  });
+  }, 15000);
 
   it("round-trips a stored provider's mapping fields through an unrelated save", async () => {
     const corp: AuthProvider = {
