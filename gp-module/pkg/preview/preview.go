@@ -11,6 +11,6 @@ type ConfigFieldPreview = internalprev.ConfigFieldPreview
 type PreviewResult = internalprev.PreviewResult
 
 var (
-	GeneratePreview      = internalprev.GeneratePreview
+	GeneratePreview     = internalprev.GeneratePreview
 	CalculateAutoMemory = internalprev.CalculateAutoMemory
 )

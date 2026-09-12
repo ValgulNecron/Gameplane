@@ -61,7 +61,7 @@ func GeneratePreview(opts PreviewOptions) (*PreviewResult, error) {
 	yamlBytes := opts.TemplateYAML
 	if len(yamlBytes) == 0 && opts.ModuleDir != "" {
 		path := filepath.Join(opts.ModuleDir, "template.yaml")
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read %s: %w", path, err)
 		}

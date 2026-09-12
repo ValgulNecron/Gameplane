@@ -43,7 +43,7 @@ func ValidateDirectory(dirPath string, opts ValidateOptions) (*ModuleReport, err
 			continue
 		}
 		path := filepath.Join(absPath, entry.Name())
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read file %q: %w", path, err)
 		}

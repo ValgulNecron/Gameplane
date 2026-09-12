@@ -20,7 +20,7 @@ const (
 	MediaReadme   = "application/vnd.gameplane.module.readme.v1+md"
 	MediaIcon     = "image/png"
 
-	DefaultMaxIconSize   = 512 * 1024   // 512 KiB
+	DefaultMaxIconSize   = 512 * 1024  // 512 KiB
 	DefaultMaxBundleSize = 1024 * 1024 // 1 MiB
 )
 
@@ -151,12 +151,13 @@ func ExportArchiveToFile(dirPath string, outFile string, limits PackageLimits) (
 		return nil, err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(outFile), 0755); err != nil {
-		return nil, fmt.Errorf("failed to create directory for %s: %w", outFile, err)
+	cleanedOutFile := filepath.Clean(outFile)
+	if err := os.MkdirAll(filepath.Dir(cleanedOutFile), 0750); err != nil {
+		return nil, fmt.Errorf("failed to create directory for %s: %w", cleanedOutFile, err)
 	}
 
-	if err := os.WriteFile(outFile, archiveBytes, 0644); err != nil {
-		return nil, fmt.Errorf("failed to write archive to %s: %w", outFile, err)
+	if err := os.WriteFile(cleanedOutFile, archiveBytes, 0600); err != nil {
+		return nil, fmt.Errorf("failed to write archive to %s: %w", cleanedOutFile, err)
 	}
 
 	return warnings, nil
@@ -179,7 +180,8 @@ func ReadModuleFiles(dirPath string) (map[string][]byte, error) {
 		if entry.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(absPath, entry.Name()))
+		filePath := filepath.Clean(filepath.Join(absPath, entry.Name()))
+		data, err := os.ReadFile(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read %s: %w", entry.Name(), err)
 		}

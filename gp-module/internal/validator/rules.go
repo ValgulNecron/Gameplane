@@ -302,7 +302,7 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 func validateAssetSizes(iconSize int64, totalSize int64) []Finding {
 	var findings []Finding
 
-	const maxIconSize = 512 * 1024   // 512 KiB
+	const maxIconSize = 512 * 1024    // 512 KiB
 	const maxBundleSize = 1024 * 1024 // 1 MiB
 
 	if iconSize > maxIconSize {

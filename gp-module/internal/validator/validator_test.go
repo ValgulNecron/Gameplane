@@ -390,4 +390,3 @@ func TestValidate_DirectoryErrors(t *testing.T) {
 		t.Errorf("expected error when path is not a directory")
 	}
 }
-

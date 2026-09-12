@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/ValgulNecron/gameplane/gp-module/internal/preview"
@@ -73,7 +74,7 @@ Options:
 	userConfig := make(map[string]string)
 
 	if flagConfigFile != "" {
-		data, err := os.ReadFile(flagConfigFile)
+		data, err := os.ReadFile(filepath.Clean(flagConfigFile))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading config file %q: %v\n", flagConfigFile, err)
 			os.Exit(1)

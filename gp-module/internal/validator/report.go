@@ -17,19 +17,19 @@ const (
 
 // Rule ID constants matching contracts/diagnostics-contract.md.
 const (
-	RuleMissingRequiredFile         = "missing-required-file"
-	RuleInvalidModuleName           = "invalid-module-name"
-	RuleMetadataSchemaViolation     = "metadata-schema-violation"
-	RuleTemplateSchemaViolation     = "template-schema-violation"
-	RuleImageUnpinned               = "image-unpinned"
-	RuleUnrecognizedCategory        = "unrecognized-category"
-	RuleInvalidPortNumber           = "invalid-port-number"
-	RuleInvalidPortProtocol         = "invalid-port-protocol"
-	RuleDuplicatePortCollision      = "duplicate-port-collision"
-	RuleInvalidConfigType           = "invalid-config-type"
-	RuleInvalidMemoryPercent        = "invalid-memory-percent"
-	RuleCredentialFieldNotPassword  = "credential-field-not-password"
-	RuleExcessiveAssetSize          = "excessive-asset-size"
+	RuleMissingRequiredFile        = "missing-required-file"
+	RuleInvalidModuleName          = "invalid-module-name"
+	RuleMetadataSchemaViolation    = "metadata-schema-violation"
+	RuleTemplateSchemaViolation    = "template-schema-violation"
+	RuleImageUnpinned              = "image-unpinned"
+	RuleUnrecognizedCategory       = "unrecognized-category"
+	RuleInvalidPortNumber          = "invalid-port-number"
+	RuleInvalidPortProtocol        = "invalid-port-protocol"
+	RuleDuplicatePortCollision     = "duplicate-port-collision"
+	RuleInvalidConfigType          = "invalid-config-type"
+	RuleInvalidMemoryPercent       = "invalid-memory-percent"
+	RuleCredentialFieldNotPassword = "credential-field-not-password"
+	RuleExcessiveAssetSize         = "excessive-asset-size"
 )
 
 // Finding represents a single diagnostic finding.

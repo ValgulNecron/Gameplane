@@ -204,32 +204,32 @@ func Scaffold(opts ScaffoldOptions) (*ScaffoldResult, error) {
 		return nil, err
 	}
 
-	if err := os.MkdirAll(outDir, 0755); err != nil {
+	if err := os.MkdirAll(outDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create directory %q: %w", outDir, err)
 	}
 
 	created := []string{}
 
 	modulePath := filepath.Join(outDir, "module.yaml")
-	if err := os.WriteFile(modulePath, []byte(files.ModuleYAML), 0644); err != nil {
+	if err := os.WriteFile(modulePath, []byte(files.ModuleYAML), 0600); err != nil {
 		return nil, fmt.Errorf("failed to write %s: %w", modulePath, err)
 	}
 	created = append(created, modulePath)
 
 	templatePath := filepath.Join(outDir, "template.yaml")
-	if err := os.WriteFile(templatePath, []byte(files.TemplateYAML), 0644); err != nil {
+	if err := os.WriteFile(templatePath, []byte(files.TemplateYAML), 0600); err != nil {
 		return nil, fmt.Errorf("failed to write %s: %w", templatePath, err)
 	}
 	created = append(created, templatePath)
 
 	readmePath := filepath.Join(outDir, "README.md")
-	if err := os.WriteFile(readmePath, []byte(files.ReadmeMD), 0644); err != nil {
+	if err := os.WriteFile(readmePath, []byte(files.ReadmeMD), 0600); err != nil {
 		return nil, fmt.Errorf("failed to write %s: %w", readmePath, err)
 	}
 	created = append(created, readmePath)
 
 	iconPath := filepath.Join(outDir, "icon.png")
-	if err := os.WriteFile(iconPath, files.IconBytes, 0644); err != nil {
+	if err := os.WriteFile(iconPath, files.IconBytes, 0600); err != nil {
 		return nil, fmt.Errorf("failed to write %s: %w", iconPath, err)
 	}
 	created = append(created, iconPath)

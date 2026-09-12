@@ -209,4 +209,3 @@ func TestPushOCI_ValidationErrors(t *testing.T) {
 		t.Errorf("expected error for missing version")
 	}
 }
-

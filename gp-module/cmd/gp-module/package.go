@@ -88,13 +88,13 @@ Options:
 
 	// Registry push mode
 	opts := packager.PackageOptions{
-		ModuleDir:  modulePath,
-		Registry:   flagRegistry,
-		Tag:        flagTag,
-		TagLatest:  flagTagLatest,
-		PlainHTTP:  flagPlainHTTP,
-		Insecure:   flagInsecure,
-		Limits:     limits,
+		ModuleDir: modulePath,
+		Registry:  flagRegistry,
+		Tag:       flagTag,
+		TagLatest: flagTagLatest,
+		PlainHTTP: flagPlainHTTP,
+		Insecure:  flagInsecure,
+		Limits:    limits,
 	}
 
 	warnings, err := packager.PushOCI(opts)
