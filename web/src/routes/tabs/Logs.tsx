@@ -146,7 +146,7 @@ export function LogsTab({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
         {logPath ? (
           <Tabs selectedKey={source} onSelectionChange={(key) => setSource(key as LogSource)} variant="secondary" aria-label="Log source">
             <Tabs.List>
@@ -166,10 +166,10 @@ export function LogsTab({
           placeholder="filter…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="w-full sm:w-64 font-mono text-xs"
+          className="w-64 font-mono text-xs"
         />
         <Tabs selectedKey={level} onSelectionChange={(key) => setLevel(key as "all" | LogLevel)} variant="secondary" aria-label="Log level">
-          <Tabs.List>
+          <Tabs.List className="w-fit">
             {(["all", ...LEVELS] as const).map((lv) => (
               <TabComponent key={lv} id={lv}>
                 {lv === "all" ? "All" : `${lv[0]}${lv.slice(1).toLowerCase()}`}{lv !== "all" && ` ${counts[lv]}`}
