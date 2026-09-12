@@ -1,6 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
-import path from "path";
-import { fileURLToPath } from "node:url";
+import { test, expect } from "@playwright/test";
+import { capture } from "./capture";
 
 // Slice 0 Foundation: Screenshot verification tests for HeroUI component library atoms
 // These are placeholder tests for the design export comparison workflow.
@@ -13,17 +12,6 @@ test.use({
   deviceScaleFactor: 2,
   colorScheme: "dark",
 });
-
-/**
- * Capture a full-page screenshot and save it to web/e2e/screenshots/<id>.png
- * @param page The Playwright page object
- * @param id The design frame id for naming the screenshot
- */
-async function capture(page: Page, id: string): Promise<void> {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const screenshotPath = path.join(here, `${id}.png`);
-  await page.screenshot({ path: screenshotPath, fullPage: true });
-}
 
 test.describe("Slice 0: HeroUI Foundation (Desktop) @screenshots", () => {
   test.skip(true, "slice 1 rebuilds this screen - N1GkB Login Default");

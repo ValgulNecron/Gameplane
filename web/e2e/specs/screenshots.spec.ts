@@ -51,7 +51,9 @@ test.describe("@screenshots dashboard gallery", () => {
 
   // Helper to click a tab/section button with visibility assertion
   async function clickTab(page: Page, name: string): Promise<void> {
-    const tab = page.getByRole("button", { name, exact: true });
+    const tab = page
+      .getByRole("tab", { name: new RegExp(`^${name}$`, "i") })
+      .or(page.getByRole("button", { name, exact: true }));
     await expect(tab).toBeVisible({ timeout: 10_000 });
     await tab.click();
   }
