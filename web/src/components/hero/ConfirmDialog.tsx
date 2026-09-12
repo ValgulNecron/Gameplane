@@ -52,7 +52,7 @@ export function ConfirmDialog({
 
   return (
     <AlertDialog isOpen={open} onOpenChange={onOpenChange}>
-      <AlertDialogBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy}>
+      <AlertDialogBackdrop isDismissable={!busy} isKeyboardDismissDisabled={!!busy}>
         <AlertDialogContainer>
           <AlertDialogDialog>
             <AlertDialogHeader>
