@@ -557,6 +557,7 @@ function ModsByIdTab({
           <RegistryBrowser
             name={name}
             type="mod"
+            categories={MOD_CATEGORIES}
             renderItem={(p) => (
               <IdModCard
                 project={p}
@@ -767,7 +768,7 @@ function IdModCard({
   onAdd: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded border border-border bg-surface/30 p-2.5">
+    <div className="flex items-center gap-3 rounded-md border border-border bg-surface/30 p-2.5">
       <RegistryIcon url={project.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{project.title}</div>
@@ -1159,7 +1160,7 @@ function ModCard({
   const file = chosen?.files.find((f) => f.primary) ?? chosen?.files[0];
 
   return (
-    <div className="rounded border border-border bg-surface/30">
+    <div className="rounded-md border border-border bg-surface/30">
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 p-2.5 text-left">
         <RegistryIcon url={project.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
         <div className="min-w-0 flex-1">
