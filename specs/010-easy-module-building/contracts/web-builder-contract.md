@@ -126,7 +126,7 @@ Bundles the authored files into a valid `.tar.gz` OCI bundle archive.
 ```
 
 **Behavior**:
-- If `targetSource` is supplied: Writes the `.tar.gz` bundle directly into the named `upload`-type `ModuleSource` ConfigMap/directory. Returns `201 Created` with `{ "installed": true, "moduleName": "my-game" }`.
+- If `targetSource` is supplied: Writes the bundle files directly into the named `upload`-type `ModuleSource` ConfigMap (`module-upload-{name}`). The operator's upload source controller discovers the module, registers it in the catalog, and materializes the corresponding `Module` and `GameTemplate` CRs. Returns `201 Created` with `{ "installed": true, "moduleName": "my-game" }`.
 - If `targetSource` is omitted: Returns `200 OK` with binary `application/gzip` stream and `Content-Disposition: attachment; filename="my-game.tar.gz"`.
 
 ---

@@ -1,4 +1,4 @@
-import { useState, useId } from "react";
+import { useState, useId, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   CheckCircle2,
@@ -35,17 +35,16 @@ interface BuildModuleDialogProps {
 
 const CANONICAL_CATEGORIES = [
   "Survival",
-  "Shooter",
-  "Co-op",
   "Sandbox",
-  "RPG",
-  "Strategy",
-  "Action",
+  "Shooter",
   "Simulation",
-  "PvP",
-  "Tactical",
+  "Building",
+  "Adventure",
   "Horror",
-  "Puzzle",
+  "Co-op",
+  "PvP",
+  "Modded",
+  "Creative",
 ];
 
 const ARCHETYPE_PRESETS = [
@@ -77,7 +76,7 @@ const ARCHETYPE_PRESETS = [
     defaultImage: "ghcr.io/valgulnecron/custom-game:v1.0@sha256:2222222222222222222222222222222222222222222222222222222222222222",
     defaultPorts: [{ name: "game", containerPort: 7777, protocol: "UDP", advertise: true }],
     defaultStorage: { size: "5Gi", mountPath: "/server" },
-    defaultCategories: ["Action"],
+    defaultCategories: ["Co-op"],
   },
 ];
 
@@ -118,6 +117,7 @@ export function BuildModuleDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [targetSource, setTargetSource] = useState(sources[0] ?? "");
+  const validationSeqRef = useRef(0);
 
   const nameInputId = useId();
   const displayNameInputId = useId();
@@ -135,17 +135,21 @@ export function BuildModuleDialog({
     if (open) {
       setStep(1);
       setArchetype("steamcmd");
-      setName("my-game");
-      setDisplayName("My Game");
-      setSummary("High performance dedicated server for My Game");
-      setCategories(["Shooter", "Co-op"]);
-      setImage(ARCHETYPE_PRESETS[0]?.defaultImage ?? "");
-      setPorts(ARCHETYPE_PRESETS[0]?.defaultPorts ?? []);
+      setName("");
+      setDisplayName("");
+      setSummary("");
+      setCategories(["Shooter"]);
+      setImage("ghcr.io/valgulnecron/cs2-server:latest@sha256:4b9a8e23f0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7");
+      setPorts([{ name: "game", containerPort: 27015, protocol: "UDP", advertise: true }]);
       setStorageSize("20Gi");
       setStorageMountPath("/home/steam/cs2-data");
-      setError(null);
+      setModuleYaml("");
+      setTemplateYaml("");
+      setReadmeMd("");
+      setSimMemory("8Gi");
       setValidationResult(null);
       setPreviewResult(null);
+      setError(null);
       setTargetSource(sources[0] ?? "");
     }
   }
@@ -155,10 +159,10 @@ export function BuildModuleDialog({
     const preset = ARCHETYPE_PRESETS.find((p) => p.id === archId);
     if (preset) {
       setImage(preset.defaultImage);
-      setPorts(preset.defaultPorts);
+      setPorts(preset.defaultPorts.map((p) => ({ ...p })));
       setStorageSize(preset.defaultStorage.size);
       setStorageMountPath(preset.defaultStorage.mountPath);
-      setCategories(preset.defaultCategories);
+      setCategories([...preset.defaultCategories]);
     }
   }
 
@@ -171,7 +175,7 @@ export function BuildModuleDialog({
   }
 
   function addPort() {
-    setPorts([...ports, { name: `port-${ports.length + 1}`, containerPort: 7777, protocol: "UDP", advertise: true }]);
+    setPorts([...ports, { name: `port-${ports.length + 1}`, containerPort: 8080, protocol: "TCP", advertise: true }]);
   }
 
   function removePort(idx: number) {
@@ -203,11 +207,14 @@ export function BuildModuleDialog({
         ports,
         categories,
         summary,
+        storageSize,
+        storageMountPath,
       });
       setModuleYaml(scaffoldRes.moduleYaml);
       setTemplateYaml(scaffoldRes.templateYaml);
       setReadmeMd(scaffoldRes.readmeMd);
 
+      const seq = ++validationSeqRef.current;
       const [valRes, prevRes] = await Promise.all([
         ModuleBuilder.validate({
           moduleYaml: scaffoldRes.moduleYaml,
@@ -218,8 +225,10 @@ export function BuildModuleDialog({
           memory: simMemory,
         }),
       ]);
-      setValidationResult(valRes);
-      setPreviewResult(prevRes);
+      if (seq === validationSeqRef.current) {
+        setValidationResult(valRes);
+        setPreviewResult(prevRes);
+      }
       setStep(3);
     } catch (err) {
       setError(err instanceof APIError ? err.body || err.message : (err as Error).message);
@@ -229,13 +238,16 @@ export function BuildModuleDialog({
   }
 
   async function revalidate(mYaml: string, tYaml: string, mem: string) {
+    const seq = ++validationSeqRef.current;
     try {
       const [valRes, prevRes] = await Promise.all([
         ModuleBuilder.validate({ moduleYaml: mYaml, templateYaml: tYaml }),
         ModuleBuilder.preview({ templateYaml: tYaml, memory: mem }),
       ]);
-      setValidationResult(valRes);
-      setPreviewResult(prevRes);
+      if (seq === validationSeqRef.current) {
+        setValidationResult(valRes);
+        setPreviewResult(prevRes);
+      }
     } catch {
       // Ignored for live preview
     }

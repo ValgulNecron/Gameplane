@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ValgulNecron/gameplane/gp-module/internal/archetypes"
 )
 
 func TestScaffoldArchetypes(t *testing.T) {
@@ -88,5 +90,78 @@ func TestScaffoldInvalidName(t *testing.T) {
 	})
 	if err == nil {
 		t.Errorf("expected error for invalid DNS-1123 name")
+	}
+}
+
+func TestScaffoldCustomPorts_Validation(t *testing.T) {
+	tests := []struct {
+		name    string
+		ports   []archetypes.PortDef
+		wantErr bool
+	}{
+		{
+			name: "valid ports",
+			ports: []archetypes.PortDef{
+				{Name: "game", ContainerPort: 27015, Protocol: "UDP"},
+				{Name: "rcon", ContainerPort: 27016, Protocol: "TCP"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "port number too small",
+			ports: []archetypes.PortDef{
+				{Name: "game", ContainerPort: 0, Protocol: "UDP"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "port number too large",
+			ports: []archetypes.PortDef{
+				{Name: "game", ContainerPort: 70000, Protocol: "UDP"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid protocol",
+			ports: []archetypes.PortDef{
+				{Name: "game", ContainerPort: 27015, Protocol: "HTTP"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "duplicate port collision",
+			ports: []archetypes.PortDef{
+				{Name: "game", ContainerPort: 27015, Protocol: "UDP"},
+				{Name: "query", ContainerPort: 27015, Protocol: "UDP"},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := GenerateFiles(Options{
+				Name:  "my-game",
+				Ports: tc.ports,
+			})
+			if (err != nil) != tc.wantErr {
+				t.Errorf("GenerateFiles() err = %v, wantErr = %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestGenerateFiles_IconBase64(t *testing.T) {
+	files, err := GenerateFiles(Options{
+		Name: "icon-test",
+	})
+	if err != nil {
+		t.Fatalf("GenerateFiles failed: %v", err)
+	}
+	if files.IconBase64 == "" {
+		t.Errorf("expected non-empty IconBase64")
+	}
+	if len(files.IconBytes) == 0 {
+		t.Errorf("expected non-empty IconBytes")
 	}
 }

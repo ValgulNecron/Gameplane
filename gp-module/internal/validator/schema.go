@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	semverRegex = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
-	minVerRegex = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$`)
+	semverRegex = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$`)
+	minVerRegex = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$`)
 )
 
 var allowedModuleKeys = map[string]bool{
@@ -281,6 +281,31 @@ func validateTemplateSchema(node *yaml.Node) []Finding {
 			Message:     "spec mapping is required in template.yaml",
 			Remediation: "Correct the malformed YAML field matching the schema definition.",
 		})
+	} else {
+		gameNode := common.FindNode(node, "spec.game")
+		if gameNode == nil || gameNode.Value == "" {
+			findings = append(findings, Finding{
+				Level:       SeverityError,
+				RuleID:      RuleTemplateSchemaViolation,
+				File:        "template.yaml",
+				Line:        specNode.Line,
+				Field:       "spec.game",
+				Message:     "spec.game is required in template.yaml",
+				Remediation: "Specify the game identifier under spec.game.",
+			})
+		}
+		imgNode := common.FindNode(node, "spec.image")
+		if imgNode == nil || imgNode.Value == "" {
+			findings = append(findings, Finding{
+				Level:       SeverityError,
+				RuleID:      RuleTemplateSchemaViolation,
+				File:        "template.yaml",
+				Line:        specNode.Line,
+				Field:       "spec.image",
+				Message:     "spec.image is required in template.yaml",
+				Remediation: "Specify the base container image under spec.image.",
+			})
+		}
 	}
 
 	return findings

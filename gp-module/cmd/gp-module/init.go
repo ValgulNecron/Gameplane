@@ -194,6 +194,9 @@ Options:
 
 func parsePortDef(s string) (*archetypes.PortDef, error) {
 	parts := strings.Split(s, "/")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("port declaration %q must use PORT or PORT/PROTOCOL", s)
+	}
 	portNum, err := strconv.Atoi(parts[0])
 	if err != nil {
 		return nil, fmt.Errorf("invalid port number %q", parts[0])

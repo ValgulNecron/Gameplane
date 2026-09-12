@@ -4,11 +4,11 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -29,12 +29,11 @@ func TestModule_ScaffoldAndPackage(t *testing.T) {
 
 	ctx := context.Background()
 
-	const (
-		sourceName = "e2e-toolkit-source"
-		moduleName = "e2e-toolkit-game"
-		cmName     = "module-upload-e2e-toolkit-game"
-		ns         = "gameplane-system"
-	)
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano()%0xffffff)
+	sourceName := fmt.Sprintf("e2e-src-%s", suffix)
+	moduleName := fmt.Sprintf("e2e-game-%s", suffix)
+	cmName := fmt.Sprintf("module-upload-%s", moduleName)
+	const ns = "gameplane-system"
 
 	// Step 1: Scaffold using gp-module
 	opts := scaffold.Options{
@@ -45,7 +44,7 @@ func TestModule_ScaffoldAndPackage(t *testing.T) {
 		Ports: []archetypes.PortDef{
 			{Name: "game", ContainerPort: 8888, Protocol: "UDP", Advertise: true},
 		},
-		Categories: []string{"Action", "Co-op"},
+		Categories: []string{"Shooter", "Co-op"},
 		Summary:    "Automated toolkit verification module",
 	}
 
@@ -96,7 +95,7 @@ func TestModule_ScaffoldAndPackage(t *testing.T) {
 		},
 	}}
 	if _, err := envInstance.Dyn.Resource(moduleSourceGVR).
-		Create(ctx, src, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		Create(ctx, src, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("create modulesource: %v", err)
 	}
 	t.Cleanup(func() {
@@ -117,7 +116,7 @@ func TestModule_ScaffoldAndPackage(t *testing.T) {
 		BinaryData: files,
 	}
 	if _, err := envInstance.K8s.CoreV1().ConfigMaps(ns).
-		Create(ctx, cm, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		Create(ctx, cm, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("create bundle configmap: %v", err)
 	}
 	t.Cleanup(func() {
@@ -159,7 +158,7 @@ func TestModule_ScaffoldAndPackage(t *testing.T) {
 		},
 	}}
 	if _, err := envInstance.Dyn.Resource(moduleGVR).
-		Create(ctx, mod, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		Create(ctx, mod, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("create module: %v", err)
 	}
 	t.Cleanup(func() {

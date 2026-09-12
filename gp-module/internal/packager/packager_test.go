@@ -209,3 +209,21 @@ func TestPushOCI_ValidationErrors(t *testing.T) {
 		t.Errorf("expected error for missing version")
 	}
 }
+
+func TestReadModuleFiles_SymlinkRejected(t *testing.T) {
+	tempDir := t.TempDir()
+	extFile := filepath.Join(tempDir, "outside.txt")
+	_ = os.WriteFile(extFile, []byte("sensitive"), 0o600)
+
+	modDir := filepath.Join(tempDir, "mod")
+	_ = os.Mkdir(modDir, 0o750)
+	symlink := filepath.Join(modDir, "link.txt")
+	if err := os.Symlink(extFile, symlink); err != nil {
+		t.Skipf("symlink not supported on this platform: %v", err)
+	}
+
+	_, err := ReadModuleFiles(modDir)
+	if err == nil {
+		t.Errorf("expected error when directory contains symbolic link")
+	}
+}

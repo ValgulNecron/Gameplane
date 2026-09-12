@@ -307,7 +307,7 @@
                   "id": "NQ8y0",
                   "name": "Val",
                   "fill": "$foreground/foreground",
-                  "content": "ghcr.io/valgulnecron/cs2:latest@sha256:4b9a8e23f0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5",
+                  "content": "ghcr.io/valgulnecron/cs2:latest@sha256:4b9a8e23f0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7",
                   "fontFamily": "$typography/font-sans",
                   "fontSize": 12,
                   "fontWeight": "normal"
@@ -577,7 +577,7 @@
                           "id": "prNFB",
                           "name": "Val",
                           "fill": "$foreground/foreground",
-                          "content": "27015",
+                          "content": "27016",
                           "fontFamily": "Inter",
                           "fontSize": 13,
                           "fontWeight": "normal"
@@ -605,7 +605,7 @@
                           "id": "evKQq",
                           "name": "Val",
                           "fill": "$foreground/foreground",
-                          "content": "TCP",
+                          "content": "UDP",
                           "fontFamily": "Inter",
                           "fontSize": 13,
                           "fontWeight": "normal"

@@ -26,6 +26,7 @@ type PortPreview struct {
 	Name          string `json:"name"`
 	ContainerPort int    `json:"containerPort"`
 	Protocol      string `json:"protocol"`
+	Advertise     bool   `json:"advertise"`
 }
 
 // StoragePreview represents module storage settings.
@@ -97,23 +98,30 @@ func GeneratePreview(opts Options) (*Result, error) {
 	var versionEnv []any
 
 	// Version overlay
-	if vers, ok := spec["versions"].([]any); ok && len(vers) > 0 {
-		for _, v := range vers {
-			vMap, ok := v.(map[string]any)
-			if !ok {
-				continue
-			}
-			vid, _ := vMap["id"].(string)
-			if opts.VersionID != "" && vid == opts.VersionID {
-				selectedVer = vid
-				if img, ok := vMap["image"].(string); ok && img != "" {
-					effectiveImage = img
+	if opts.VersionID != "" {
+		found := false
+		if vers, ok := spec["versions"].([]any); ok && len(vers) > 0 {
+			for _, v := range vers {
+				vMap, ok := v.(map[string]any)
+				if !ok {
+					continue
 				}
-				if envList, ok := vMap["env"].([]any); ok {
-					versionEnv = envList
+				vid, _ := vMap["id"].(string)
+				if vid == opts.VersionID {
+					selectedVer = vid
+					found = true
+					if img, ok := vMap["image"].(string); ok && img != "" {
+						effectiveImage = img
+					}
+					if envList, ok := vMap["env"].([]any); ok {
+						versionEnv = envList
+					}
+					break
 				}
-				break
 			}
+		}
+		if !found {
+			return nil, fmt.Errorf("requested version %q not found in template.yaml", opts.VersionID)
 		}
 	}
 
@@ -158,7 +166,10 @@ func GeneratePreview(opts Options) (*Result, error) {
 			if fieldType == "" {
 				fieldType = "string"
 			}
-			defaultVal, _ := sMap["default"].(string)
+			var defaultVal string
+			if def, exists := sMap["default"]; exists && def != nil {
+				defaultVal = fmt.Sprintf("%v", def)
+			}
 			target, _ := sMap["target"].(string)
 			if target == "" {
 				target = "env"
@@ -181,20 +192,26 @@ func GeneratePreview(opts Options) (*Result, error) {
 				case float64:
 					pct = int(p)
 				}
-				if pct > 0 {
-					calcVal, err := CalculateAutoMemory(memLimit, pct)
-					if err == nil {
-						val = calcVal
-						source = fmt.Sprintf("autoFromMemoryLimit: %d%% of %s", pct, memLimit)
-					}
+				if pct <= 0 || pct > 100 {
+					return nil, fmt.Errorf("field %q has invalid autoFromMemoryLimit percent %d (must be 1-100)", fieldName, pct)
 				}
+				calcVal, err := CalculateAutoMemory(memLimit, pct)
+				if err != nil {
+					return nil, fmt.Errorf("field %q: %w", fieldName, err)
+				}
+				val = calcVal
+				source = fmt.Sprintf("autoFromMemoryLimit: %d%% of %s", pct, memLimit)
 			}
 
 			if val != "" {
-				computedConfig[fieldName] = val
+				displayVal := val
+				if fieldType == "password" {
+					displayVal = "******"
+				}
+				computedConfig[fieldName] = displayVal
 				configFields = append(configFields, ConfigFieldPreview{
 					Name:   fieldName,
-					Value:  val,
+					Value:  displayVal,
 					Type:   fieldType,
 					Source: source,
 				})
@@ -227,10 +244,15 @@ func GeneratePreview(opts Options) (*Result, error) {
 				if pProto == "" {
 					pProto = "TCP"
 				}
+				pAdv := true
+				if advVal, ok := pMap["advertise"].(bool); ok {
+					pAdv = advVal
+				}
 				ports = append(ports, PortPreview{
 					Name:          pName,
 					ContainerPort: pPort,
 					Protocol:      pProto,
+					Advertise:     pAdv,
 				})
 			}
 		}

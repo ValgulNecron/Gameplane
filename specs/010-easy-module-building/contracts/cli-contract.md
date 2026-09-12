@@ -133,19 +133,20 @@ Usage: gp-module preview <MODULE_PATH> [options]
 Validates module assets and bundles the directory into an OCI-compliant artifact.
 
 ```text
-Usage: gp-module package <MODULE_PATH> [options]
+Usage: gp-module package [MODULE_PATH] [options]
 ```
 
 #### Arguments & Flags:
 
 | Argument / Flag | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `MODULE_PATH` | Path | Required | Path to module directory. |
+| `MODULE_PATH` | Path | `.` (current directory) | Path to module directory. |
 | `--output <path>` | Path | None | Build a local `.tar.gz` OCI bundle archive instead of pushing. |
 | `--registry <url>` | String | None | Registry destination (e.g. `localhost:5001` or `ghcr.io/valgulnecron/gameplane-modules`). |
 | `--tag <str>` | String | `module.yaml#version` | OCI tag to push. |
 | `--tag-latest` | Flag | `False` | Also push the `:latest` tag. |
-| `--plain-http` | Flag | `False` | Allow insecure plain HTTP registry connections (e.g. local Kind). |
+| `--plain-http` | Flag | `False` | Allow plain HTTP registry connections (e.g. local Kind). |
+| `--insecure` | Flag | `False` | Skip TLS verification. |
 | `--max-icon-size <bytes>`| Integer | 524288 (512 KiB) | Maximum icon size warning threshold. |
 | `--max-bundle-size <bytes>`| Integer| 1048576 (1 MiB) | Maximum bundle size warning threshold. |
 

@@ -23,7 +23,7 @@ Deliver a unified, offline-capable Go CLI developer toolkit (`gp-module`) and a 
 - `gopkg.in/yaml.v3` (for YAML AST node traversal with source line/column numbers)
 - `k8s.io/apimachinery` (for `resource.Quantity`, DNS-1123 label validation)
 - `github.com/ValgulNecron/gameplane/operator/api/v1alpha1` (for `GameTemplate` CRD Go structs)
-- `github.com/ValgulNecron/gameplane/gp-module/internal/...` (shared between CLI and `api/` handlers)
+- `github.com/ValgulNecron/gameplane/gp-module/pkg/...` (public packages exported by `gp-module` and imported by `api/` handlers)
 - `@tanstack/react-query`, Radix UI Dialog primitives, Lucide icons (web dashboard)
 - `oras` (CLI $\ge$ 1.2.0) for OCI artifact packaging and publishing
 

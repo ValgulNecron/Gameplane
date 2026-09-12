@@ -183,6 +183,12 @@ func ReadModuleFiles(dirPath string) (map[string][]byte, error) {
 		if entry.IsDir() {
 			continue
 		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("symbolic link not allowed in module directory: %s", entry.Name())
+		}
+		if !entry.Type().IsRegular() {
+			continue
+		}
 		filePath := filepath.Clean(filepath.Join(absPath, entry.Name()))
 		data, err := os.ReadFile(filePath)
 		if err != nil {

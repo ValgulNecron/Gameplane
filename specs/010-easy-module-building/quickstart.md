@@ -172,6 +172,10 @@ Run the full end-to-end verification test in the local development cluster or CI
 
 ### Command:
 ```sh
+# Using make target:
+make test-e2e BUCKET=operator TEST_ARGS='-run ^TestModule_ScaffoldAndPackage$'
+
+# Or running go test directly against a configured cluster:
 go test -v -tags=e2e ./test/e2e/ -run ^TestModule_ScaffoldAndPackage$
 ```
 

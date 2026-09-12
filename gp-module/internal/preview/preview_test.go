@@ -79,7 +79,8 @@ spec:
 		VersionID:    "1.20.4",
 		MemoryLimit:  "4Gi",
 		UserConfig: map[string]string{
-			"MOTD": "Custom Server MOTD",
+			"MOTD":          "Custom Server MOTD",
+			"RCON_PASSWORD": "supersecretpassword",
 		},
 	}
 
@@ -100,6 +101,9 @@ spec:
 	if res.ComputedConfig["MOTD"] != "Custom Server MOTD" {
 		t.Errorf("expected MOTD override, got %s", res.ComputedConfig["MOTD"])
 	}
+	if res.ComputedConfig["RCON_PASSWORD"] != "******" {
+		t.Errorf("expected password redaction, got %s", res.ComputedConfig["RCON_PASSWORD"])
+	}
 	if res.EffectiveEnv["VERSION"] != "1.20.4" {
 		t.Errorf("expected VERSION env var from version overlay, got %s", res.EffectiveEnv["VERSION"])
 	}
@@ -114,4 +118,114 @@ spec:
 	if !strings.Contains(humanOut, "3072M") || !strings.Contains(humanOut, "Custom Server MOTD") {
 		t.Errorf("human output missing expected info:\n%s", humanOut)
 	}
+	if strings.Contains(humanOut, "supersecretpassword") {
+		t.Errorf("password leaked in human output:\n%s", humanOut)
+	}
 }
+
+func TestPreview_VersionNotFound(t *testing.T) {
+	tmplYAML := `apiVersion: gameplane.local/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test
+spec:
+  game: test
+  image: "img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  versions:
+    - id: "1.0"
+`
+	_, err := GeneratePreview(Options{
+		TemplateYAML: []byte(tmplYAML),
+		VersionID:    "nonexistent",
+	})
+	if err == nil {
+		t.Errorf("expected error for nonexistent version ID")
+	}
+}
+
+func TestPreview_TypedDefaultsAndInvalidAutoMemory(t *testing.T) {
+	tmplYAML := `apiVersion: gameplane.local/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test
+spec:
+  game: test
+  image: "img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  configSchema:
+    - name: ENABLED
+      type: boolean
+      default: true
+    - name: MAX_PLAYERS
+      type: int
+      default: 32
+`
+	res, err := GeneratePreview(Options{
+		TemplateYAML: []byte(tmplYAML),
+	})
+	if err != nil {
+		t.Fatalf("GeneratePreview failed: %v", err)
+	}
+	if res.ComputedConfig["ENABLED"] != "true" {
+		t.Errorf("expected boolean default string 'true', got %s", res.ComputedConfig["ENABLED"])
+	}
+	if res.ComputedConfig["MAX_PLAYERS"] != "32" {
+		t.Errorf("expected int default string '32', got %s", res.ComputedConfig["MAX_PLAYERS"])
+	}
+
+	// Invalid auto memory
+	badAutoMemYAML := `apiVersion: gameplane.local/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test
+spec:
+  game: test
+  image: "img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  configSchema:
+    - name: MEM
+      type: string
+      autoFromMemoryLimit:
+        percent: 150
+`
+	_, err = GeneratePreview(Options{
+		TemplateYAML: []byte(badAutoMemYAML),
+	})
+	if err == nil {
+		t.Errorf("expected error for percent > 100")
+	}
+}
+
+func TestPreview_PortAdvertise(t *testing.T) {
+	tmplYAML := `apiVersion: gameplane.local/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test
+spec:
+  game: test
+  image: "img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  ports:
+    - name: game
+      containerPort: 27015
+      protocol: UDP
+      advertise: true
+    - name: rcon
+      containerPort: 27020
+      protocol: TCP
+      advertise: false
+`
+	res, err := GeneratePreview(Options{
+		TemplateYAML: []byte(tmplYAML),
+	})
+	if err != nil {
+		t.Fatalf("GeneratePreview failed: %v", err)
+	}
+	if len(res.Ports) != 2 {
+		t.Fatalf("expected 2 ports, got %d", len(res.Ports))
+	}
+	if !res.Ports[0].Advertise {
+		t.Errorf("expected port 0 Advertise=true")
+	}
+	if res.Ports[1].Advertise {
+		t.Errorf("expected port 1 Advertise=false")
+	}
+}
+

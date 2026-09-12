@@ -2,6 +2,7 @@
 package scaffold
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,6 +72,21 @@ func GenerateFiles(opts Options) (*GeneratedFiles, error) {
 	ports := opts.Ports
 	if len(ports) == 0 {
 		ports = arch.DefaultPorts
+	} else {
+		seenPorts := make(map[int]string)
+		for _, p := range ports {
+			if p.ContainerPort < 1 || p.ContainerPort > 65535 {
+				return nil, fmt.Errorf("invalid port number %d: must be 1-65535", p.ContainerPort)
+			}
+			proto := strings.ToUpper(p.Protocol)
+			if proto != "TCP" && proto != "UDP" {
+				return nil, fmt.Errorf("invalid protocol %q for port %d: must be TCP or UDP", p.Protocol, p.ContainerPort)
+			}
+			if existingName, exists := seenPorts[p.ContainerPort]; exists {
+				return nil, fmt.Errorf("duplicate port %d used by %q and %q", p.ContainerPort, existingName, p.Name)
+			}
+			seenPorts[p.ContainerPort] = p.Name
+		}
 	}
 
 	storageSize := opts.StorageSize
@@ -184,6 +200,7 @@ func GenerateFiles(opts Options) (*GeneratedFiles, error) {
 		TemplateYAML: templateBuf.String(),
 		ReadmeMD:     readmeBuf.String(),
 		IconBytes:    icon,
+		IconBase64:   base64.StdEncoding.EncodeToString(icon),
 	}, nil
 }
 

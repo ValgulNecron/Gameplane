@@ -30,13 +30,15 @@ type BuilderPortDef struct {
 
 // BuilderScaffoldRequest carries parameters for module scaffolding.
 type BuilderScaffoldRequest struct {
-	Name        string           `json:"name"`
-	DisplayName string           `json:"displayName,omitempty"`
-	Archetype   string           `json:"archetype,omitempty"`
-	Image       string           `json:"image,omitempty"`
-	Ports       []BuilderPortDef `json:"ports,omitempty"`
-	Categories  []string         `json:"categories,omitempty"`
-	Summary     string           `json:"summary,omitempty"`
+	Name             string           `json:"name"`
+	DisplayName      string           `json:"displayName,omitempty"`
+	Archetype        string           `json:"archetype,omitempty"`
+	Image            string           `json:"image,omitempty"`
+	Ports            []BuilderPortDef `json:"ports,omitempty"`
+	Categories       []string         `json:"categories,omitempty"`
+	Summary          string           `json:"summary,omitempty"`
+	StorageSize      string           `json:"storageSize,omitempty"`
+	StorageMountPath string           `json:"storageMountPath,omitempty"`
 }
 
 // BuilderScaffoldResponse returns the in-memory scaffolded module files.
@@ -137,13 +139,15 @@ func (h modulesHandler) builderScaffold(w http.ResponseWriter, req *http.Request
 	}
 
 	opts := scaffold.Options{
-		Name:        body.Name,
-		DisplayName: body.DisplayName,
-		Archetype:   body.Archetype,
-		Image:       body.Image,
-		Ports:       ports,
-		Categories:  body.Categories,
-		Summary:     body.Summary,
+		Name:             body.Name,
+		DisplayName:      body.DisplayName,
+		Archetype:        body.Archetype,
+		Image:            body.Image,
+		Ports:            ports,
+		StorageSize:      body.StorageSize,
+		StorageMountPath: body.StorageMountPath,
+		Categories:       body.Categories,
+		Summary:          body.Summary,
 	}
 
 	files, err := scaffold.GenerateFiles(opts)
@@ -263,7 +267,7 @@ func (h modulesHandler) builderPreview(w http.ResponseWriter, req *http.Request)
 			Name:          p.Name,
 			ContainerPort: p.ContainerPort,
 			Protocol:      p.Protocol,
-			Advertise:     true,
+			Advertise:     p.Advertise,
 		})
 	}
 
@@ -305,10 +309,27 @@ func (h modulesHandler) builderExport(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	var meta struct {
+		Name string `json:"name" yaml:"name"`
+	}
+	if err := yaml.Unmarshal([]byte(body.ModuleYaml), &meta); err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("failed to parse module.yaml: %w", err))
+		return
+	}
+	if meta.Name != body.Name {
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("module name %q does not match module.yaml name %q", body.Name, meta.Name))
+		return
+	}
+
+	readme := body.ReadmeMd
+	if readme == "" {
+		readme = "# " + body.Name + "\n"
+	}
+
 	files := map[string][]byte{
 		"module.yaml":   []byte(body.ModuleYaml),
 		"template.yaml": []byte(body.TemplateYaml),
-		"README.md":     []byte(body.ReadmeMd),
+		"README.md":     []byte(readme),
 	}
 
 	if body.IconBase64 != "" {
@@ -318,15 +339,20 @@ func (h modulesHandler) builderExport(w http.ResponseWriter, req *http.Request) 
 		}
 	}
 	if _, ok := files["icon.png"]; !ok {
-		// Default 1x1 transparent PNG
-		files["icon.png"] = []byte{
-			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-			0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-			0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
-			0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
-			0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
-			0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
-		}
+		files["icon.png"] = archetypes.PlaceholderIconBytes()
+	}
+
+	report, err := validator.ValidateFiles(body.Name, files, validator.ValidateOptions{
+		Strict:  false,
+		Offline: true,
+	})
+	if err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("validation failed: %w", err))
+		return
+	}
+	if !report.Clean {
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("module validation failed: module contains errors"))
+		return
 	}
 
 	// Case 1: Direct cluster installation into an upload-type ModuleSource

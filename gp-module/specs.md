@@ -21,7 +21,7 @@
 - Replicate Gameplane operator runtime logic for memory percentage calculations:
   $$\text{mib} = \lfloor \text{bytes} \times \text{percent} / 100 / (1024 \times 1024) \rfloor \implies \text{"<mib>M"}$$
 - Export valid OCI artifact bundles matching Gameplane's canonical media types and annotations.
-- Provide Go library functions under `internal/` reusable by `api/` for web dashboard integration.
+- Provide Go library functions under `pkg/` (backed by `internal/`) reusable by `api/` for web dashboard integration.
 
 ## Non-goals / boundaries
 
@@ -41,6 +41,12 @@ gp-module/
 │       ├── validate.go           # 'validate' command flags and reporting
 │       ├── preview.go            # 'preview' command flags and formatting
 │       └── package.go            # 'package' command flags and packaging
+├── pkg/                          # Public Go API exported to api/ and other modules
+│   ├── archetypes/               # Archetypes and icon helpers
+│   ├── packager/                 # Archive creation and size limits
+│   ├── preview/                  # Runtime simulation and auto memory
+│   ├── scaffold/                 # File generation from archetypes
+│   └── validator/                # Validation and finding reports
 ├── internal/
 │   ├── archetypes/
 │   │   ├── archetypes.go         # Archetype definitions and embedded icon asset
@@ -74,6 +80,6 @@ gp-module/
 ## Key Invariants
 
 1. **Strictly Offline First.** Scaffolding, validation, and preview operations NEVER make outbound network calls or require a running Kubernetes cluster.
-2. **Zero Code Duplication with Web UI.** Core scaffolding, validation, and preview engines in `internal/` are designed as pure Go libraries directly imported by `api/internal/handlers/modules_builder.go`.
+2. **Zero Code Duplication with Web UI.** Core scaffolding, validation, and preview engines are exported via `pkg/` as pure Go libraries directly imported by `api/internal/handlers/modules_builder.go`.
 3. **Deterministic Memory Arithmetic.** Memory calculations derived from `autoFromMemoryLimit` use identical integer arithmetic and rounding to the Gameplane operator.
 4. **Non-destructive Directory Creation.** Scaffolding refuses to overwrite an existing directory unless `--overwrite` is explicitly specified.

@@ -40,7 +40,10 @@ icon: icon.png
 # yaml-language-server: $schema=../.schema/gametemplate.schema.json
 apiVersion: gameplane.local/v1alpha1
 kind: GameTemplate
-metadata: {}
+metadata:
+  name: {name}
+  labels:
+    gameplane.local/module: {name}
 spec:
   displayName: {displayName}
   game: {name}
@@ -109,7 +112,10 @@ icon: icon.png
 # yaml-language-server: $schema=../.schema/gametemplate.schema.json
 apiVersion: gameplane.local/v1alpha1
 kind: GameTemplate
-metadata: {}
+metadata:
+  name: {name}
+  labels:
+    gameplane.local/module: {name}
 spec:
   displayName: {displayName}
   game: {name}
@@ -179,7 +185,10 @@ icon: icon.png
 # yaml-language-server: $schema=../.schema/gametemplate.schema.json
 apiVersion: gameplane.local/v1alpha1
 kind: GameTemplate
-metadata: {}
+metadata:
+  name: {name}
+  labels:
+    gameplane.local/module: {name}
 spec:
   displayName: {displayName}
   game: {name}

@@ -788,6 +788,8 @@ export interface BuilderScaffoldRequest {
   ports?: BuilderPortDef[];
   categories?: string[];
   summary?: string;
+  storageSize?: string;
+  storageMountPath?: string;
 }
 
 export interface BuilderScaffoldResponse {
@@ -829,14 +831,19 @@ export interface BuilderPreviewResponse {
   storage: { size: string; mountPath: string };
 }
 
-export interface BuilderExportRequest {
+export interface BuilderArchiveRequest {
   name: string;
   moduleYaml: string;
   templateYaml: string;
   readmeMd: string;
   iconBase64?: string;
-  targetSource?: string;
 }
+
+export interface BuilderInstallRequest extends BuilderArchiveRequest {
+  targetSource: string;
+}
+
+export type BuilderExportRequest = BuilderArchiveRequest | BuilderInstallRequest;
 
 export interface BuilderExportInstallResponse {
   installed: boolean;
@@ -850,9 +857,9 @@ export const ModuleBuilder = {
     api<BuilderValidateResponse>("/modules/builder/validate", { method: "POST", body }),
   preview: (body: BuilderPreviewRequest) =>
     api<BuilderPreviewResponse>("/modules/builder/preview", { method: "POST", body }),
-  installToCluster: (body: BuilderExportRequest) =>
+  installToCluster: (body: BuilderInstallRequest) =>
     api<BuilderExportInstallResponse>("/modules/builder/export", { method: "POST", body }),
-  downloadArchive: async (body: BuilderExportRequest): Promise<Blob> => {
+  downloadArchive: async (body: BuilderArchiveRequest): Promise<Blob> => {
     const res = await fetch(withCluster("/modules/builder/export"), {
       method: "POST",
       headers: { ...csrfHeaders(), "Content-Type": "application/json" },

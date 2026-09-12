@@ -3,6 +3,7 @@ package validator
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -10,6 +11,8 @@ import (
 
 	"github.com/ValgulNecron/gameplane/gp-module/internal/common"
 )
+
+var sha256DigestRegex = regexp.MustCompile(`@sha256:[0-9a-fA-F]{64}$`)
 
 var allowedConfigTypes = map[string]bool{
 	"string":   true,
@@ -94,7 +97,7 @@ func validateImageDigest(node *yaml.Node, rawContent string) []Finding {
 	}
 
 	val := imgNode.Value
-	if strings.Contains(val, "@sha256:") {
+	if sha256DigestRegex.MatchString(val) {
 		// Image is pinned
 		return nil
 	}
@@ -254,6 +257,77 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 			})
 		}
 
+		defaultNode := common.FindNode(item, "default")
+		defaultVal := ""
+		if defaultNode != nil {
+			defaultVal = defaultNode.Value
+		}
+
+		// Type-specific default and enum validation
+		switch fieldType {
+		case "int":
+			if defaultNode != nil && defaultVal != "" {
+				if _, err := strconv.Atoi(defaultVal); err != nil {
+					findings = append(findings, Finding{
+						Level:       SeverityError,
+						RuleID:      RuleInvalidConfigType,
+						File:        "template.yaml",
+						Line:        defaultNode.Line,
+						Field:       fmt.Sprintf("spec.configSchema[%d].default", i),
+						Message:     fmt.Sprintf("configSchema field %q default value %q is not a valid integer", fieldName, defaultVal),
+						Remediation: "Provide a valid integer default value.",
+					})
+				}
+			}
+		case "bool", "boolean":
+			if defaultNode != nil && defaultVal != "" {
+				lower := strings.ToLower(defaultVal)
+				if lower != "true" && lower != "false" {
+					findings = append(findings, Finding{
+						Level:       SeverityError,
+						RuleID:      RuleInvalidConfigType,
+						File:        "template.yaml",
+						Line:        defaultNode.Line,
+						Field:       fmt.Sprintf("spec.configSchema[%d].default", i),
+						Message:     fmt.Sprintf("configSchema field %q default value %q is not a valid boolean (true/false)", fieldName, defaultVal),
+						Remediation: "Provide 'true' or 'false' as the boolean default value.",
+					})
+				}
+			}
+		case "enum":
+			optsNode := common.FindNode(item, "options")
+			if optsNode == nil || optsNode.Kind != yaml.SequenceNode || len(optsNode.Content) == 0 {
+				findings = append(findings, Finding{
+					Level:       SeverityError,
+					RuleID:      RuleInvalidConfigType,
+					File:        "template.yaml",
+					Line:        item.Line,
+					Field:       fmt.Sprintf("spec.configSchema[%d].options", i),
+					Message:     fmt.Sprintf("configSchema enum field %q must specify a non-empty options list", fieldName),
+					Remediation: "Provide an options array with at least one allowed value.",
+				})
+			} else if defaultNode != nil && defaultVal != "" {
+				found := false
+				for _, opt := range optsNode.Content {
+					if opt.Value == defaultVal {
+						found = true
+						break
+					}
+				}
+				if !found {
+					findings = append(findings, Finding{
+						Level:       SeverityError,
+						RuleID:      RuleInvalidConfigType,
+						File:        "template.yaml",
+						Line:        defaultNode.Line,
+						Field:       fmt.Sprintf("spec.configSchema[%d].default", i),
+						Message:     fmt.Sprintf("configSchema enum field %q default %q is not in options list", fieldName, defaultVal),
+						Remediation: "Set default to one of the declared options values.",
+					})
+				}
+			}
+		}
+
 		// Credential name check
 		upper := strings.ToUpper(fieldName)
 		isCred := false
@@ -280,7 +354,17 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 		memNode := common.FindNode(item, "autoFromMemoryLimit")
 		if memNode != nil {
 			pctNode := common.FindNode(memNode, "percent")
-			if pctNode != nil {
+			if pctNode == nil {
+				findings = append(findings, Finding{
+					Level:       SeverityError,
+					RuleID:      RuleInvalidMemoryPercent,
+					File:        "template.yaml",
+					Line:        memNode.Line,
+					Field:       fmt.Sprintf("spec.configSchema[%d].autoFromMemoryLimit.percent", i),
+					Message:     fmt.Sprintf("autoFromMemoryLimit for field %q requires 'percent' property", fieldName),
+					Remediation: "Specify 'percent: <1-100>' inside autoFromMemoryLimit.",
+				})
+			} else {
 				pctVal, err := strconv.Atoi(pctNode.Value)
 				if err != nil || pctVal < 1 || pctVal > 100 {
 					findings = append(findings, Finding{

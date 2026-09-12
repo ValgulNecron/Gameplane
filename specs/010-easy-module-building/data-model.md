@@ -213,7 +213,7 @@ Captures findings emitted by the offline linting engine:
 | **`ValidationReport`** | `target` | `string` | Module name or directory path |
 | | `errorCount` | `int` | Total blocking errors |
 | | `warningCount` | `int` | Total advisory warnings |
-| | `clean` | `bool` | `True` when errorCount == 0 and warningCount == 0 |
+| | `clean` | `bool` | `True` when `errorCount == 0` (in normal mode) or when `errorCount == 0 && warningCount == 0` (in `--strict` mode) |
 | | `findings` | `list[DiagnosticFinding]` | Diagnostic entries |
 | **`DiagnosticFinding`**| `level` | `string` | `ERROR` or `WARN` |
 | | `ruleId` | `string` | Machine-readable rule slug (e.g. `image-unpinned`, `invalid-port-range`) |

@@ -46,8 +46,10 @@ func TestBuilderScaffold(t *testing.T) {
 		Ports: []BuilderPortDef{
 			{Name: "game", ContainerPort: 27015, Protocol: "UDP", Advertise: true},
 		},
-		Categories: []string{"Shooter", "Co-op"},
-		Summary:    "Dedicated server for competitive CS2 matches",
+		Categories:       []string{"Shooter", "Co-op"},
+		Summary:          "Dedicated server for competitive CS2 matches",
+		StorageSize:      "25Gi",
+		StorageMountPath: "/cs2-data",
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
@@ -70,6 +72,12 @@ func TestBuilderScaffold(t *testing.T) {
 	}
 	if !strings.Contains(resp.TemplateYaml, "kind: GameTemplate") {
 		t.Errorf("template.yaml missing GameTemplate: %s", resp.TemplateYaml)
+	}
+	if !strings.Contains(resp.TemplateYaml, "size: 25Gi") {
+		t.Errorf("template.yaml missing custom storage size: %s", resp.TemplateYaml)
+	}
+	if !strings.Contains(resp.TemplateYaml, "mountPath: /cs2-data") {
+		t.Errorf("template.yaml missing custom mountPath: %s", resp.TemplateYaml)
 	}
 	if !strings.Contains(resp.ReadmeMd, "Counter-Strike 2 Match") {
 		t.Errorf("README.md missing display name: %s", resp.ReadmeMd)
@@ -198,6 +206,11 @@ spec:
     - name: game
       containerPort: 25565
       protocol: TCP
+      advertise: true
+    - name: rcon
+      containerPort: 25575
+      protocol: TCP
+      advertise: false
   configSchema:
     - name: MEMORY
       type: string
@@ -234,6 +247,16 @@ spec:
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
+	if len(resp.Ports) != 2 {
+		t.Fatalf("expected 2 ports, got %d", len(resp.Ports))
+	}
+	if !resp.Ports[0].Advertise {
+		t.Errorf("expected port 0 Advertise=true")
+	}
+	if resp.Ports[1].Advertise {
+		t.Errorf("expected port 1 Advertise=false")
+	}
+
 	if resp.ComputedConfig["MEMORY"] != "3072M" {
 		t.Errorf("expected computed MEMORY 3072M, got %q", resp.ComputedConfig["MEMORY"])
 	}
@@ -255,10 +278,13 @@ spec:
 func TestBuilderExport_DownloadArchive(t *testing.T) {
 	r, _ := setupTestBuilderRouter(t)
 
+	validModule := "apiVersion: gameplane.local/module/v1\nname: cs2-match\ndisplayName: CS2 Match\nversion: 1.0.0\ngame: cs2\nsummary: A CS2 server\ncategories:\n  - Shooter\n"
+	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  game: cs2\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
+
 	reqBody := BuilderExportRequest{
 		Name:         "cs2-match",
-		ModuleYaml:   "apiVersion: gameplane.local/module/v1\nname: cs2-match\nversion: 1.0.0\n",
-		TemplateYaml: "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\n",
+		ModuleYaml:   validModule,
+		TemplateYaml: validTemplate,
 		ReadmeMd:     "# CS2 Match\n",
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
@@ -310,10 +336,13 @@ func TestBuilderExport_InstallToCluster(t *testing.T) {
 	uploadSource := newUploadSource("uploads")
 	r, k8s := setupTestBuilderRouter(t, uploadSource)
 
+	validModule := "apiVersion: gameplane.local/module/v1\nname: cs2-match\ndisplayName: CS2 Match\nversion: 1.0.0\ngame: cs2\nsummary: A CS2 server\ncategories:\n  - Shooter\n"
+	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  game: cs2\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
+
 	reqBody := BuilderExportRequest{
 		Name:         "cs2-match",
-		ModuleYaml:   "apiVersion: gameplane.local/module/v1\nname: cs2-match\nversion: 1.0.0\n",
-		TemplateYaml: "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\n",
+		ModuleYaml:   validModule,
+		TemplateYaml: validTemplate,
 		ReadmeMd:     "# CS2 Match\n",
 		TargetSource: "uploads",
 	}
@@ -346,5 +375,48 @@ func TestBuilderExport_InstallToCluster(t *testing.T) {
 	}
 	if _, ok := cm.BinaryData["module.yaml"]; !ok {
 		t.Errorf("expected module.yaml in ConfigMap BinaryData: %+v", cm.BinaryData)
+	}
+}
+
+func TestBuilderExport_ValidationFailure(t *testing.T) {
+	r, _ := setupTestBuilderRouter(t)
+
+	// Missing image in template will fail validation
+	reqBody := BuilderExportRequest{
+		Name:         "cs2-match",
+		ModuleYaml:   "apiVersion: gameplane.local/module/v1\nname: cs2-match\nversion: 1.0.0\ngame: cs2\n",
+		TemplateYaml: "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nspec:\n  game: cs2\n",
+		ReadmeMd:     "# CS2 Match\n",
+	}
+	jsonBytes, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jsonBytes))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request on invalid manifest, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBuilderExport_NameMismatch(t *testing.T) {
+	r, _ := setupTestBuilderRouter(t)
+
+	reqBody := BuilderExportRequest{
+		Name:         "different-name",
+		ModuleYaml:   "apiVersion: gameplane.local/module/v1\nname: cs2-match\nversion: 1.0.0\ngame: cs2\n",
+		TemplateYaml: "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nspec:\n  game: cs2\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n",
+		ReadmeMd:     "# CS2 Match\n",
+	}
+	jsonBytes, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jsonBytes))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request on name mismatch, got %d: %s", w.Code, w.Body.String())
 	}
 }
