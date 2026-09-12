@@ -84,12 +84,14 @@ async function mockShareResolve(
                 phases[token] = 0;
               }
               const currentPhase = phases[token];
-              const step = entry[Math.min(currentPhase, entry.length - 1)];
-              // Advance phase on each polling call after a start was called,
-              // but not during the initial double-render in StrictMode
-              if (pendingAdvance[token]) {
+              // Advance phase on resolve calls after start was called: advance first,
+              // then return the response at the new phase. On initial (pre-Start) calls
+              // when pendingAdvance[token] is undefined, return entry[0] without advancing.
+              if (pendingAdvance[token] !== undefined) {
                 phases[token] = Math.min(currentPhase + 1, entry.length - 1);
+                pendingAdvance[token] = false; // Reset flag after first post-Start advance
               }
+              const step = entry[Math.min(phases[token], entry.length - 1)];
               return Promise.resolve(
                 new Response(step.body !== undefined ? JSON.stringify(step.body) : null, {
                   status: step.status,
