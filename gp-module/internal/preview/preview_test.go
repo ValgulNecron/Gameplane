@@ -228,4 +228,3 @@ spec:
 		t.Errorf("expected port 1 Advertise=false")
 	}
 }
-
