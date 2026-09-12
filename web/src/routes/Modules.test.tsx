@@ -27,6 +27,13 @@ vi.mock("@/lib/endpoints", () => ({
     list: () => listSources(),
     removeUpload: (source: string, module: string) => removeUpload(source, module),
   },
+  ModuleBuilder: {
+    scaffold: vi.fn(),
+    validate: vi.fn(),
+    preview: vi.fn(),
+    installToCluster: vi.fn(),
+    downloadArchive: vi.fn(),
+  },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -463,5 +470,18 @@ describe("ModulesPage", () => {
       const uninstallBtn = screen.getByRole("button", { name: /uninstall/i, hidden: true });
       expect(uninstallBtn).toBeDisabled();
     }, { timeout: 2000 });
+  });
+
+  it("opens BuildModuleDialog when clicking Create module", async () => {
+    catalog.mockResolvedValue({ items: [MINECRAFT] });
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    const createBtn = screen.getByRole("button", { name: /Create module/i });
+    expect(createBtn).toBeInTheDocument();
+
+    await userEvent.click(createBtn);
+    expect(await screen.findByText("Create game module")).toBeInTheDocument();
+    expect(screen.getByText("SteamCMD Dedicated")).toBeInTheDocument();
   });
 });

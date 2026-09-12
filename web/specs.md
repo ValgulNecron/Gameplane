@@ -408,6 +408,10 @@ package.json                # @gameplane/web v0.2.0-beta.8; dev: vite, npm scrip
 6. **Modules** (`/modules`) → `ModulesPage`
    - Merged catalog from all registered ModuleSources + installed Module CRs
    - Browse by game, install from catalog, manage installations, bulk upload
+   - **Module Builder** (`BuildModuleDialog.tsx`): 3-step modal wizard for creating, validating, simulating, and packaging custom game modules directly from the dashboard:
+     - **Step 1 (Preset & Metadata)**: Choose an archetype preset (`steamcmd`, `java`, `generic`), enter DNS-1123 module name with live validation, display title, summary, and canonical category chips.
+     - **Step 2 (Container & Ports)**: Configure container image ref (with digest pinning verification badge), custom TCP/UDP ports with advertise flags, and persistent volume size and mount path.
+     - **Step 3 (Review & Export)**: Dual-pane view with syntax-editable YAML manifests (`module.yaml`, `template.yaml`, `README.md`), live offline validation diagnostics, memory scaling simulation (`autoFromMemoryLimit`), and action buttons to download a `.tar.gz` archive or install directly into a cluster upload `ModuleSource`.
 
 7. **Cluster** (`/cluster`) → `ClusterPage` (gated by `servers:write` permission)
    - Cluster health, node list, kubeconfig download

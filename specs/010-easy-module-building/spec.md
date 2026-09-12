@@ -75,6 +75,22 @@ An author has finished developing and validating their module and wants to packa
 1. **Given** a validated module directory, **When** the author executes the build/package command, **Then** an OCI artifact is constructed containing the correct layers (`module.yaml`, `template.yaml`, `README.md`, `icon.png`) with standard media types and annotations.
 2. **Given** an asset exceeding recommended size limits (e.g., an icon > 512 KiB or total bundle > 1 MiB), **When** the packaging command runs, **Then** the tool warns the author about bundle size constraints before completing.
 
+### User Story 5 - Web Dashboard Module Builder (Priority: P2)
+
+An administrator or server operator accesses the Gameplane web dashboard and wants to create a new game module directly from their browser without opening a terminal or cloning the repository. They click "Create Module" on the Modules catalog page, which opens a guided wizard. The wizard allows selecting an archetype, filling in metadata and container parameters, previewing the generated YAML and memory calculations in real time, and with one click, either downloading the module `.tar.gz` bundle or installing it directly into an in-cluster `upload` ModuleSource.
+
+**Why this priority**: While the CLI toolkit empowers developers in local dev environments and automation pipelines, operators managing Gameplane exclusively via the web UI need an in-browser path to author, validate, and test new game modules.
+
+**Independent Test**: Can be tested independently in Cypress/Vitest by opening the Create Module dialog on the Modules page, stepping through archetype selection and metadata entry, asserting that live validation and preview update reactively, and triggering bundle download and in-cluster installation.
+
+**Acceptance Scenarios**:
+
+1. **Given** an authenticated user on the `/modules` page, **When** they click "Create Module", **Then** the Module Builder wizard opens displaying archetype choices (`steamcmd`, `java`, `generic`).
+2. **Given** an archetype selected in the wizard, **When** the author adjusts parameters (name, ports, image, env), **Then** the wizard renders live previews of `module.yaml` and `template.yaml` and executes validation feedback without page reload.
+3. **Given** invalid configuration entered in the wizard (such as an unpinned default image or invalid port), **When** validation evaluates, **Then** error markers appear next to the invalid fields with remediation tips.
+4. **Given** a valid module configuration, **When** the author clicks "Download Bundle", **Then** the browser downloads a valid `.tar.gz` bundle archive containing `module.yaml`, `template.yaml`, `README.md`, and `icon.png`.
+5. **Given** a valid module configuration and an available `upload`-type ModuleSource, **When** the author clicks "Install to Cluster", **Then** the bundle is uploaded to the cluster source and appears in the Modules catalog immediately.
+
 ---
 
 ### Edge Cases
@@ -120,6 +136,12 @@ An author has finished developing and validating their module and wants to packa
 
 - **FR-017**: The system MUST provide a packaging helper that bundles the module directory into an OCI-compliant artifact structure with correct layer media types and title annotations.
 - **FR-018**: The packaging helper MUST enforce bundle size sanity checks, warning if asset files exceed recommended limits.
+
+**Web Dashboard Module Builder:**
+
+- **FR-019**: The backend API (`api/`) MUST provide endpoints for scaffolding module files (`POST /modules/builder/scaffold`), running validation (`POST /modules/builder/validate`), previewing runtime manifests (`POST /modules/builder/preview`), and exporting bundle archives (`POST /modules/builder/export`).
+- **FR-020**: The web dashboard MUST provide a Module Builder interface accessible from `/modules` enabling guided archetype selection, live validation feedback, manifest preview, bundle archive download, and direct in-cluster installation.
+- **FR-021**: The Module Builder UI MUST be designed first in `design.pen` via the Pencil MCP server and exported to `design-export/` before frontend React implementation, satisfying Constitution Principle II.
 
 ---
 

@@ -770,3 +770,107 @@ export const ModuleSources = {
   removeUpload: (source: string, module: string) =>
     api<void>(`/modules/sources/${source}/upload/${module}`, { method: "DELETE" }),
 };
+
+// Module Builder visual authoring, validation, preview, and export surface.
+
+export interface BuilderPortDef {
+  name: string;
+  containerPort: number;
+  protocol: string;
+  advertise?: boolean;
+}
+
+export interface BuilderScaffoldRequest {
+  name: string;
+  displayName?: string;
+  archetype?: string;
+  image?: string;
+  ports?: BuilderPortDef[];
+  categories?: string[];
+  summary?: string;
+  storageSize?: string;
+  storageMountPath?: string;
+}
+
+export interface BuilderScaffoldResponse {
+  moduleYaml: string;
+  templateYaml: string;
+  readmeMd: string;
+  iconBase64?: string;
+}
+
+export interface BuilderValidationFinding {
+  level: "ERROR" | "WARN";
+  ruleId: string;
+  file: string;
+  line: number;
+  field?: string;
+  message: string;
+  remediation?: string;
+}
+
+export interface BuilderValidateResponse {
+  clean: boolean;
+  errorCount: number;
+  warningCount: number;
+  findings: BuilderValidationFinding[];
+}
+
+export interface BuilderPreviewRequest {
+  templateYaml: string;
+  versionId?: string;
+  memory?: string;
+  config?: Record<string, string>;
+}
+
+export interface BuilderPreviewResponse {
+  resolvedImage: string;
+  effectiveEnv: Array<{ name: string; value: string; source: string }>;
+  computedConfig: Record<string, string>;
+  ports: Array<{ name: string; containerPort: number; protocol: string; advertise?: boolean }>;
+  storage: { size: string; mountPath: string };
+}
+
+export interface BuilderArchiveRequest {
+  name: string;
+  moduleYaml: string;
+  templateYaml: string;
+  readmeMd: string;
+  iconBase64?: string;
+}
+
+export interface BuilderInstallRequest extends BuilderArchiveRequest {
+  targetSource: string;
+}
+
+export type BuilderExportRequest = BuilderArchiveRequest | BuilderInstallRequest;
+
+export interface BuilderExportInstallResponse {
+  installed: boolean;
+  moduleName: string;
+}
+
+export const ModuleBuilder = {
+  scaffold: (body: BuilderScaffoldRequest) =>
+    api<BuilderScaffoldResponse>("/modules/builder/scaffold", { method: "POST", body }),
+  validate: (body: { moduleYaml: string; templateYaml: string }) =>
+    api<BuilderValidateResponse>("/modules/builder/validate", { method: "POST", body }),
+  preview: (body: BuilderPreviewRequest) =>
+    api<BuilderPreviewResponse>("/modules/builder/preview", { method: "POST", body }),
+  installToCluster: (body: BuilderInstallRequest) =>
+    api<BuilderExportInstallResponse>("/modules/builder/export", { method: "POST", body }),
+  downloadArchive: async (body: BuilderArchiveRequest): Promise<Blob> => {
+    const res = await fetch(withCluster("/modules/builder/export"), {
+      method: "POST",
+      headers: { ...csrfHeaders(), "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new APIError(res.status, text);
+    }
+    return res.blob();
+  },
+};
+
