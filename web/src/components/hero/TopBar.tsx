@@ -104,16 +104,14 @@ export function TopBar({
             </Avatar>
           </DropdownTrigger>
           <DropdownPopover placement="bottom end" className="rounded-md">
-            <DropdownMenu disabledKeys={["profile"]} className="w-48">
-              <DropdownItem key="profile" className="py-2">
-                <div className="flex items-center gap-2">
-                  <UserCircle className="h-4 w-4 text-muted" />
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-foreground">{name}</span>
-                    <span className="text-xs text-muted">{user?.role ?? "—"}</span>
-                  </div>
-                </div>
-              </DropdownItem>
+            <div className="flex items-center gap-2 px-2 py-2">
+              <UserCircle className="h-4 w-4 text-muted" />
+              <div className="flex flex-col">
+                <span className="font-semibold text-foreground">{name}</span>
+                <span className="text-xs text-muted">{user?.role ?? "—"}</span>
+              </div>
+            </div>
+            <DropdownMenu className="w-48">
               <DropdownSection>
                 <Separator className="my-1" />
                 <DropdownItem
