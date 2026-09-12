@@ -200,7 +200,7 @@ describe("OverviewTab endpoint rendering", () => {
     expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument();
   });
 
-  it("renders host and port rows for the bound endpoint", async () => {
+  it("renders tunnel, external address, and cluster address rows for the bound endpoint", async () => {
     fetchMock.mockImplementation(() =>
       Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
     renderWithQuery(<OverviewTab gs={gs({
@@ -208,9 +208,9 @@ describe("OverviewTab endpoint rendering", () => {
         { name: "game", host: "10.107.129.42", port: 30812 },
       ],
     })} name="s1" />);
-    expect(await screen.findByText("Host")).toBeInTheDocument();
-    expect(screen.getByText("10.107.129.42")).toBeInTheDocument();
-    expect(screen.getByText("Port")).toBeInTheDocument();
-    expect(screen.getByText("30812")).toBeInTheDocument();
+    expect(await screen.findByText("Tunnel")).toBeInTheDocument();
+    expect(screen.getByText("External Address")).toBeInTheDocument();
+    expect(screen.getByText("Cluster Address")).toBeInTheDocument();
+    expect(screen.getByText("10.107.129.42:30812")).toBeInTheDocument();
   });
 });

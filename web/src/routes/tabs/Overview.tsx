@@ -99,7 +99,7 @@ export function OverviewTab({
   );
 
   return (
-    <div className="space-y-5 p-6">
+    <div className="space-y-5 p-8">
       {/* Provisioning failure alert */}
       {provisioningFailure && (
         <Alert
@@ -120,7 +120,7 @@ export function OverviewTab({
         </Alert>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-5">
           <div className="grid gap-4 md:grid-cols-3">
             <ResourceCard
@@ -189,78 +189,22 @@ export function OverviewTab({
               <h3 className="text-lg font-semibold text-foreground">Connection</h3>
             </CardHeader>
             <CardContent className="space-y-3 px-4 py-3 text-sm">
-              {/* Show tunnel endpoint first if it exists */}
-              {primary?.tunnelProvider && (
-                <>
-                  <EndpointRow label={`${primary.tunnelProvider} tunnel`}>
-                    {primary?.host ? (
-                      <>
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                          <span className="truncate font-mono text-foreground">{primary.host}</span>
-                          {primary?.private && (
-                            <span className="shrink-0 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-medium text-warning">
-                              Tailnet only — not public
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
-                          onClick={() => navigator.clipboard?.writeText(primary.host)}
-                          title="Copy"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-muted italic">
-                        {tunnelReady?.message ?? "Waiting for tunnel address…"}
-                      </span>
-                    )}
-                  </EndpointRow>
-                  {primary?.port !== undefined && (
-                    <EndpointRow label="Port">
-                      <span className="font-mono text-foreground">{primary.port}</span>
-                    </EndpointRow>
-                  )}
-                  {/* Show cluster address below */}
-                  <div className="border-t border-border pt-3">
-                    <div className="text-xs text-muted mb-3 uppercase">Cluster address</div>
-                    <div className="space-y-2">
-                      <EndpointRow label="Host">
-                        <span className="truncate font-mono text-foreground">{clusterEndpoint?.host ?? "—"}</span>
-                        {clusterEndpoint?.host && (
-                          <button
-                            className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
-                            onClick={() => navigator.clipboard?.writeText(clusterEndpoint.host)}
-                            title="Copy"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </EndpointRow>
-                      {clusterEndpoint?.port !== undefined && (
-                        <EndpointRow label="Port">
-                          <span className="font-mono text-foreground">{clusterEndpoint.port}</span>
-                        </EndpointRow>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-              {/* No tunnel: a single address row, annotated with its pool when
-                  the operator bound one (there is only one host to show). */}
-              {!primary?.tunnelProvider && (
-                <>
-                  <EndpointRow label="Host">
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <span className="truncate font-mono text-foreground">{primary?.host ?? "—"}</span>
-                      {primary?.pool && (
-                        <span className="text-xs text-muted">
-                          from pool &apos;{primary.pool}&apos;
+              {/* Tunnel row */}
+              <EndpointRow label="Tunnel">
+                {primary?.tunnelProvider ? (
+                  primary?.host ? (
+                    <>
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="truncate font-mono text-foreground">
+                          {primary.host}
+                          {primary.port !== undefined ? `:${primary.port}` : ""}
                         </span>
-                      )}
-                    </div>
-                    {primary?.host && (
+                        {primary?.private && (
+                          <span className="shrink-0 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-medium text-warning">
+                            Tailnet only
+                          </span>
+                        )}
+                      </div>
                       <button
                         className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
                         onClick={() => navigator.clipboard?.writeText(primary.host)}
@@ -268,13 +212,63 @@ export function OverviewTab({
                       >
                         <Copy className="h-3.5 w-3.5" />
                       </button>
+                    </>
+                  ) : (
+                    <span className="text-muted italic">
+                      {tunnelReady?.message ?? "Waiting for tunnel address…"}
+                    </span>
+                  )
+                ) : (
+                  <span className="text-muted italic">—</span>
+                )}
+              </EndpointRow>
+
+              {/* External Address row */}
+              <EndpointRow label="External Address">
+                {primary?.host ? (
+                  <>
+                    <span className="truncate font-mono text-foreground">
+                      {primary.host}
+                      {primary.port !== undefined ? `:${primary.port}` : ""}
+                    </span>
+                    {primary?.pool && (
+                      <span className="text-xs text-muted">
+                        from pool &apos;{primary.pool}&apos;
+                      </span>
                     )}
-                  </EndpointRow>
-                  <EndpointRow label="Port">
-                    <span className="font-mono text-foreground">{primary?.port ?? "—"}</span>
-                  </EndpointRow>
-                </>
-              )}
+                    <button
+                      className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
+                      onClick={() => navigator.clipboard?.writeText(primary.host)}
+                      title="Copy"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-muted italic">—</span>
+                )}
+              </EndpointRow>
+
+              {/* Cluster Address row */}
+              <EndpointRow label="Cluster Address">
+                {clusterEndpoint?.host ? (
+                  <>
+                    <span className="truncate font-mono text-foreground">
+                      {clusterEndpoint.host}
+                      {clusterEndpoint.port !== undefined ? `:${clusterEndpoint.port}` : ""}
+                    </span>
+                    <button
+                      className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
+                      onClick={() => navigator.clipboard?.writeText(clusterEndpoint.host)}
+                      title="Copy"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-muted italic">—</span>
+                )}
+              </EndpointRow>
             </CardContent>
           </Card>
 
