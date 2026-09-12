@@ -182,7 +182,7 @@ export function AdminLogsPage() {
       />
 
       <Tabs selectedKey={component} onSelectionChange={(key) => setComponent(key as LogComponent)} variant="secondary" aria-label="Log source">
-        <Tabs.List>
+        <Tabs.List className="w-fit">
           {COMPONENTS.map((c) => (
             <TabComponent key={c.value} id={c.value}>{c.label}</TabComponent>
           ))}
@@ -246,9 +246,39 @@ export function AdminLogsPage() {
         className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-[#0b0b0d] font-mono text-xs scrollbar-thin"
       >
         {text ? (
-          <pre className="whitespace-pre-wrap break-words px-4 py-3 leading-[18px]">
-            {text}
-          </pre>
+          <div className="px-4 py-3">
+            {text.split("\n").map((line, idx) => {
+              if (!line) return null;
+              let timestamp = "";
+              let level = "";
+              let message = line;
+
+              try {
+                const parsed = JSON.parse(line);
+                if (parsed.ts) timestamp = parsed.ts;
+                if (parsed.level) level = parsed.level;
+                if (parsed.msg) message = parsed.msg;
+              } catch {
+                // Not JSON, use raw line
+              }
+
+              const levelColor =
+                level === "WARN" ? "text-[var(--warning)]" :
+                level === "ERROR" ? "text-[var(--danger)]" :
+                "text-foreground";
+
+              return (
+                <div key={idx} className="flex gap-3 leading-[18px]">
+                  {timestamp && (
+                    <span className="shrink-0 text-muted">{timestamp}</span>
+                  )}
+                  <span className={`break-words ${levelColor}`}>
+                    {message}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-muted">
             {error ? "No output." : "Waiting for output…"}
