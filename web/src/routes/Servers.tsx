@@ -273,16 +273,7 @@ export function ServersPage() {
             isOpen={isFilterOpen}
             onOpenChange={handleOpenFilterChange}
           >
-            <Button
-              variant="outline"
-              className="rounded-[6px] relative"
-              onPress={() => {
-                const tabList = document.querySelector('[aria-label="Server status filter"]');
-                if (tabList instanceof HTMLElement) {
-                  tabList.focus();
-                }
-              }}
-            >
+            <Button variant="outline" className="rounded-[6px] relative">
               <Filter className="h-4 w-4" />
               Filter
               {appliedFacetCount > 0 && (
