@@ -279,16 +279,14 @@ export function AdminLogsPage() {
                   {timestamp && (
                     <span className="shrink-0 text-muted">{timestamp}</span>
                   )}
-                  <div className="flex flex-col gap-1">
-                    <span className={`break-words ${levelColor}`}>
-                      {message}
+                  <span className={`break-words ${levelColor}`}>
+                    {message}
+                  </span>
+                  {structuredFields.length > 0 && (
+                    <span className="text-xs text-muted/60">
+                      {structuredFields.map(([key, val]) => `${key}=${val}`).join(" ")}
                     </span>
-                    {structuredFields.length > 0 && (
-                      <span className="text-xs text-muted/60">
-                        {structuredFields.map(([key, val]) => `${key}=${val}`).join(" ")}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
               );
             })}
