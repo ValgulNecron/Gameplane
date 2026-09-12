@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, Download, Loader2 } from "lucide-react";
-import { Button, Input } from "@heroui/react";
+import { Button, Input, Tabs, Tab as TabComponent } from "@heroui/react";
 
 import { Logs } from "@/lib/endpoints";
 import { openWS } from "@/lib/ws";
@@ -148,26 +148,12 @@ export function LogsTab({
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         {logPath ? (
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant={effectiveSource === "pod" ? "primary" : "outline"}
-              onPress={() => setSource("pod")}
-              className={cn(effectiveSource === "pod" && "font-medium")}
-            >
-              <span title="Follow the pod's setup + game container output (install/startup)">
-                Container output
-              </span>
-            </Button>
-            <Button
-              size="sm"
-              variant={effectiveSource === "file" ? "primary" : "outline"}
-              onPress={() => setSource("file")}
-              className={cn(effectiveSource === "file" && "font-medium")}
-            >
-              <span title="Tail the configured game log file via the agent">Game log</span>
-            </Button>
-          </div>
+          <Tabs selectedKey={source} onSelectionChange={(key) => setSource(key as LogSource)} variant="secondary" aria-label="Log source">
+            <Tabs.List>
+              <TabComponent id="pod">Container output</TabComponent>
+              <TabComponent id="file">Game log</TabComponent>
+            </Tabs.List>
+          </Tabs>
         ) : (
           <span
             className="text-xs font-medium text-muted"
@@ -182,22 +168,15 @@ export function LogsTab({
           onChange={(e) => setFilter(e.target.value)}
           className="w-full sm:w-64 font-mono text-xs"
         />
-        <div className="flex gap-1">
-          {(["all", ...LEVELS] as const).map((lv) => (
-            <Button
-              key={lv}
-              size="sm"
-              variant={level === lv ? "primary" : "outline"}
-              onPress={() => setLevel(lv)}
-              className={cn(
-                "text-xs font-medium",
-              )}
-            >
-              {lv === "all" ? "All" : `${lv[0]}${lv.slice(1).toLowerCase()}`}
-              {lv !== "all" && ` ${counts[lv]}`}
-            </Button>
-          ))}
-        </div>
+        <Tabs selectedKey={level} onSelectionChange={(key) => setLevel(key as "all" | LogLevel)} variant="secondary" aria-label="Log level">
+          <Tabs.List>
+            {(["all", ...LEVELS] as const).map((lv) => (
+              <TabComponent key={lv} id={lv}>
+                {lv === "all" ? "All" : `${lv[0]}${lv.slice(1).toLowerCase()}`}{lv !== "all" && ` ${counts[lv]}`}
+              </TabComponent>
+            ))}
+          </Tabs.List>
+        </Tabs>
         <span className="text-xs text-muted">{filtered.length.toLocaleString()} lines</span>
         <div className="ml-auto">
           <Button

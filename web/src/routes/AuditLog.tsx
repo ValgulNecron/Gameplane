@@ -5,7 +5,7 @@ import type { AuditEvent, AuditVerifyResult } from "@/types";
 import { Audit, type AuditExportFilter } from "@/lib/endpoints";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, Tabs, Tab as TabComponent } from "@heroui/react";
 import { Input } from "@/components/ui/input";
 import { cn, formatRelative } from "@/lib/utils";
 
@@ -109,22 +109,15 @@ export function AuditLogPage() {
       {renderIntegrityBanner(verifyQuery)}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
-          {(["all", "2xx", "4xx", "5xx"] as StatusClass[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusClass(s)}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                statusClass === s
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
-            >
-              {labelFor(s)} · {totals[s] ?? 0}
-            </button>
-          ))}
-        </div>
+        <Tabs selectedKey={statusClass} onSelectionChange={(key) => setStatusClass(key as StatusClass)} variant="secondary" aria-label="Status filter">
+          <Tabs.List>
+            {(["all", "2xx", "4xx", "5xx"] as StatusClass[]).map((s) => (
+              <TabComponent key={s} id={s} className="text-xs">
+                {labelFor(s)} · {totals[s] ?? 0}
+              </TabComponent>
+            ))}
+          </Tabs.List>
+        </Tabs>
 
         <select
           value={methodFilter}
@@ -142,6 +135,7 @@ export function AuditLogPage() {
           value={actorQ}
           onChange={(e) => setActorQ(e.target.value)}
           className="w-64"
+          variant="primary"
         />
 
         <div className="ml-auto text-xs text-muted">
@@ -242,18 +236,17 @@ function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactN
   if (data.ok) {
     return (
       <div className="flex items-center justify-between rounded-md border border-success bg-success/5 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-5 w-5 text-success" />
-          <span className="text-sm font-medium text-success">Audit chain verified — no tampering detected</span>
+        <div className="flex items-center gap-2 text-sm font-medium text-success">
+          <ShieldCheck className="h-4 w-4" />
+          Audit chain verified — no tampering detected
         </div>
         <Button
           size="sm"
-          variant="ghost"
-          onClick={() => {
-            void query.refetch();
-          }}
-          disabled={query.isFetching}
+          variant="outline"
+          onPress={() => void query.refetch()}
+          isDisabled={query.isFetching}
         >
+          <RefreshCw className="h-4 w-4" />
           Re-check
         </Button>
       </div>

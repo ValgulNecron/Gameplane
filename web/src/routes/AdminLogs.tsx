@@ -4,7 +4,7 @@ import { APIError } from "@/lib/api";
 import { errorTextWithStatus } from "@/lib/errors";
 import { withCluster } from "@/lib/endpoints";
 import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/button";
+import { Button, Tabs, Tab as TabComponent } from "@heroui/react";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -185,24 +185,13 @@ export function AdminLogsPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
-          {COMPONENTS.map((c) => (
-            <button
-              key={c.value}
-              type="button"
-              onClick={() => setComponent(c.value)}
-              aria-pressed={component === c.value}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                component === c.value
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
+        <Tabs selectedKey={component} onSelectionChange={(key) => setComponent(key as LogComponent)} variant="secondary" aria-label="Log source">
+          <Tabs.List>
+            {COMPONENTS.map((c) => (
+              <TabComponent key={c.value} id={c.value}>{c.label}</TabComponent>
+            ))}
+          </Tabs.List>
+        </Tabs>
 
         <label className="flex items-center gap-2 text-xs text-muted">
           Tail
