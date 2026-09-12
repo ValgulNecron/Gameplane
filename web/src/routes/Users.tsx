@@ -167,7 +167,7 @@ export function UsersPage() {
         variant="secondary"
       >
         <div className="flex items-center gap-3">
-          <Tabs.List className="w-fit">
+          <Tabs.List className="w-fit min-w-0">
             <TabComponent id="users">
               <div className="flex items-center gap-2">
                 <span>Users</span>
@@ -183,7 +183,7 @@ export function UsersPage() {
             <TabComponent id="service">Service accounts</TabComponent>
             <TabComponent id="idp">Identity providers</TabComponent>
           </Tabs.List>
-          <div className="relative ml-auto w-64">
+          <div className="relative ml-auto w-64 shrink-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
             <Input
               className="pl-9"
