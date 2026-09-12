@@ -75,7 +75,7 @@ export function LoginPage() {
           </div>
 
           <div className="mb-6">
-            <h1 className="font-mono text-2xl font-semibold">Sign in</h1>
+            <h1 className="font-mono text-[22px] font-semibold">Sign in</h1>
             <p className="pt-1 text-sm text-muted">Welcome to Gameplane.</p>
           </div>
 
