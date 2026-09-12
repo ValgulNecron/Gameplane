@@ -324,20 +324,19 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   </Description>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="oci-insecure"
-                    isSelected={f.insecure}
-                    onChange={(isSelected) => set({ insecure: isSelected })}
-                  >
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
-                    <Checkbox.Content className="text-xs text-muted">
-                      Allow plain HTTP (local registries only)
-                    </Checkbox.Content>
-                  </Checkbox>
-                </div>
+                <Checkbox
+                  id="oci-insecure"
+                  isSelected={f.insecure}
+                  onChange={(isSelected) => set({ insecure: isSelected })}
+                  className="flex items-center gap-2"
+                >
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                  <Checkbox.Content className="text-xs text-muted">
+                    Allow plain HTTP (local registries only)
+                  </Checkbox.Content>
+                </Checkbox>
 
                 <div className="space-y-1">
                   <Select
@@ -521,20 +520,19 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   </Description>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="http-insecure"
-                    isSelected={f.insecure}
-                    onChange={(isSelected) => set({ insecure: isSelected })}
-                  >
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
-                    <Checkbox.Content className="text-xs text-muted">
-                      Allow plain HTTP (local registries only)
-                    </Checkbox.Content>
-                  </Checkbox>
-                </div>
+                <Checkbox
+                  id="http-insecure"
+                  isSelected={f.insecure}
+                  onChange={(isSelected) => set({ insecure: isSelected })}
+                  className="flex items-center gap-2"
+                >
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                  <Checkbox.Content className="text-xs text-muted">
+                    Allow plain HTTP (local registries only)
+                  </Checkbox.Content>
+                </Checkbox>
               </>
             )}
 
