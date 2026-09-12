@@ -1,28 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import * as Dialog from "@radix-ui/react-dialog";
 import { Plus } from "lucide-react";
 import { Backups, Restores, Schedules, Servers } from "@/lib/endpoints";
 import { useBackupDestinations } from "@/lib/destinations";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { FieldLabel } from "@/components/ui/field";
+import {
+  Button,
+  Card,
+  Select,
+  ListBox,
+  ListBoxItem,
+  Tabs,
+  Tab,
+  Table,
+  Modal,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalHeading,
+  ModalBody,
+  ModalFooter,
+  Switch,
+} from "@heroui/react";
 import { PageHeader } from "@/components/PageHeader";
-import { cn, formatRelative } from "@/lib/utils";
-import { PhaseBadge } from "@/components/ui/badge";
+import { formatRelative } from "@/lib/utils";
+import { PhaseChip } from "@/components/hero/PhaseChip";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
 import { ScheduleForm } from "@/components/backups/ScheduleForm";
 import { RestoreDialog } from "@/components/backups/RestoreDialog";
 import { BackupDetailDrawer } from "@/components/backups/BackupDetailDrawer";
 import { BackupRow } from "@/components/backups/BackupRow";
 import { BackupFilters } from "@/components/backups/BackupFilters";
-import { Switch } from "@/components/ui/switch";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
 import type { Backup } from "@/types";
 
-type Tab = "backups" | "schedules" | "restores";
-const TABS: { id: Tab; label: string }[] = [
+type TabKey = "backups" | "schedules" | "restores";
+const TABS: { id: TabKey; label: string }[] = [
   { id: "backups", label: "Backups" },
   { id: "schedules", label: "Schedules" },
   { id: "restores", label: "Restores" },
@@ -31,13 +45,13 @@ const TABS: { id: Tab; label: string }[] = [
 const BACKUP_PHASES = ["Pending", "Running", "Succeeded", "Failed"];
 const RESTORE_PHASES = ["Pending", "Suspending", "Running", "Resuming", "Succeeded", "Failed"];
 
-function readTab(): Tab {
+function readTab(): TabKey {
   const v = new URLSearchParams(window.location.search).get("tab");
   return v === "schedules" || v === "restores" ? v : "backups";
 }
 
 export function BackupsPage() {
-  const [tab, setTab] = useState<Tab>(() => readTab());
+  const [tab, setTab] = useState<TabKey>(() => readTab());
   const [backupNow, setBackupNow] = useState(false);
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -52,29 +66,21 @@ export function BackupsPage() {
         title="Backups"
         subtitle="Snapshots, schedules, and restores across all servers in this cluster."
         actions={
-          <Button onClick={() => setBackupNow(true)}>
+          <Button onPress={() => setBackupNow(true)}>
             <Plus className="h-4 w-4" /> Back up now
           </Button>
         }
       />
       {backupNow && <BackupNowDialog onClose={() => setBackupNow(false)} />}
-      <div className="flex items-center gap-1 border-b border-border">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "h-9 border-b-2 px-3 text-sm transition-colors",
-              tab === t.id
-                ? "border-primary text-fg"
-                : "border-transparent text-muted hover:text-fg",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key as TabKey)}>
+        <Tabs.List>
+          {TABS.map((t) => (
+            <Tab key={t.id} id={t.id}>
+              {t.label}
+            </Tab>
+          ))}
+        </Tabs.List>
+      </Tabs>
       {tab === "backups" && <BackupsTabPanel />}
       {tab === "schedules" && <SchedulesTabPanel />}
       {tab === "restores" && <RestoresTabPanel />}
@@ -127,41 +133,42 @@ function BackupsTabPanel() {
         trailing={`${filtered.length} of ${items.length} ${items.length === 1 ? "backup" : "backups"}`}
       />
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Server</th>
-                <th className="px-4 py-3">Phase</th>
-                <th className="px-4 py-3">Size</th>
-                <th className="px-4 py-3">Completed</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted">
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <Table.Root>
+          <Table.ScrollContainer>
+            <Table.Content aria-label="Backups">
+              <Table.Header>
+                <Table.Column key="name" isRowHeader>
+                  Name
+                </Table.Column>
+                <Table.Column key="server">Server</Table.Column>
+                <Table.Column key="phase">Phase</Table.Column>
+                <Table.Column key="size">Size</Table.Column>
+                <Table.Column key="completed">Completed</Table.Column>
+                <Table.Column key="actions" className="text-end" />
+              </Table.Header>
+              <Table.Body
+                renderEmptyState={() => (
+                  <>
                     {items.length === 0
-                      ? "No backups yet. Use “Back up now” to create the first one."
+                      ? 'No backups yet. Use "Back up now" to create the first one.'
                       : "No backups match the current filters."}
-                  </td>
-                </tr>
-              )}
-              {filtered.map((b) => (
-                <BackupRow
-                  key={b.metadata.name}
-                  backup={b}
-                  showServer
-                  onSelect={(x) => setSelectedBackup(x.metadata.name)}
-                  onRestore={setRestoringBackup}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </>
+                )}
+              >
+                {filtered.map((b) => (
+                  <BackupRow
+                    key={b.metadata.name}
+                    backup={b}
+                    showServer
+                    onSelect={(x) => setSelectedBackup(x.metadata.name)}
+                    onRestore={setRestoringBackup}
+                  />
+                ))}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table.Root>
       </div>
 
       <RestoreDialog
@@ -181,8 +188,8 @@ function BackupsTabPanel() {
 }
 
 // The "Back up now" form, relocated from an inline card above the table to a
-// dialog launched from the page header (design frame 4avx0). The query and
-// mutation logic is unchanged; the dialog closes once the snapshot starts.
+// dialog launched from the page header. The query and mutation logic is unchanged;
+// the dialog closes once the snapshot starts.
 function BackupNowDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [createServer, setCreateServer] = useState("");
@@ -217,73 +224,90 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
   const noDestinations = destinations.length === 0;
 
   return (
-    <Dialog.Root
-      open
-      onOpenChange={(o) => {
-        if (!o) onClose();
-      }}
-    >
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">Back up now</Dialog.Title>
-          <Dialog.Description className="pt-1 text-sm text-muted">
-            Run a one-off snapshot outside any schedule.
-          </Dialog.Description>
-          <div className="space-y-4 pt-4">
-            <FieldLabel label="Server">
-              <select
-                className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
-                value={createServer}
-                onChange={(e) => setCreateServer(e.target.value)}
-              >
-                <option value="" disabled>Select a server…</option>
-                {(serversList?.items ?? []).map((s) => (
-                  <option key={s.metadata.name} value={s.metadata.name}>
-                    {s.metadata.name}
-                  </option>
-                ))}
-              </select>
-            </FieldLabel>
-            {destinations.length > 1 && (
-              <FieldLabel label="Destination">
-                <select
-                  className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
-                  value={createDest}
-                  onChange={(e) => setCreateDest(e.target.value)}
-                >
-                  {destinations.map((d) => (
-                    <option key={d.name} value={d.name}>{d.name}</option>
-                  ))}
-                </select>
-              </FieldLabel>
-            )}
-            {noDestinations && (
-              <div className="text-xs text-muted">
-                No backup destinations configured. Add one in{" "}
-                <Link to="/admin" className="text-primary hover:underline">
-                  admin settings
-                </Link>{" "}
-                to enable snapshots.
+    <Modal isOpen onOpenChange={(open) => { if (!open) onClose(); }}>
+      <ModalBackdrop isDismissable={!createNow.isPending} isKeyboardDismissDisabled={createNow.isPending}>
+        <ModalContainer>
+          <ModalDialog>
+            <ModalHeader>
+              <ModalHeading>Back up now</ModalHeading>
+            </ModalHeader>
+            <ModalBody className="gap-4">
+              <p className="text-sm text-foreground/60">Run a one-off snapshot outside any schedule.</p>
+              <div className="space-y-4">
+                <div>
+                  <Select
+                    value={createServer}
+                    onChange={(v) => setCreateServer(v as string)}
+                    placeholder="Select a server…"
+                    aria-label="Server"
+                    className="mt-1"
+                  >
+                    <Select.Trigger>
+                      <Select.Value />
+                      <Select.Indicator className="ml-auto h-4 w-4" />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox aria-label="Server options">
+                        {(serversList?.items ?? []).map((s) => (
+                          <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
+                            {s.metadata.name}
+                          </ListBoxItem>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+                {destinations.length > 1 && (
+                  <div>
+                    <Select
+                      value={createDest}
+                      onChange={(v) => setCreateDest(v as string)}
+                      placeholder="Select a destination…"
+                      aria-label="Destination"
+                      className="mt-1"
+                    >
+                      <Select.Trigger>
+                        <Select.Value />
+                        <Select.Indicator className="ml-auto h-4 w-4" />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox aria-label="Destination options">
+                          {destinations.map((d) => (
+                            <ListBoxItem key={d.name} id={d.name} textValue={d.name}>{d.name}</ListBoxItem>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </div>
+                )}
+                {noDestinations && (
+                  <p className="text-xs text-foreground/60">
+                    No backup destinations configured. Add one in{" "}
+                    <Link to="/admin" className="text-primary hover:underline">
+                      admin settings
+                    </Link>{" "}
+                    to enable snapshots.
+                  </p>
+                )}
+                {createNow.error && <ErrorBanner err={createNow.error} />}
               </div>
-            )}
-            {createNow.error && <ErrorBanner err={createNow.error} />}
-          </div>
-          <div className="flex items-center justify-end gap-2 pt-5">
-            <Button variant="ghost" size="sm" onClick={onClose} disabled={createNow.isPending}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              disabled={!createServer || !createDest || createNow.isPending || noDestinations}
-              onClick={() => createNow.mutate()}
-            >
-              {createNow.isPending ? "Starting…" : "Run snapshot"}
-            </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="secondary" onPress={onClose} isDisabled={createNow.isPending}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                isDisabled={!createServer || !createDest || createNow.isPending || noDestinations}
+                onPress={() => createNow.mutate()}
+              >
+                {createNow.isPending ? "Starting…" : "Run snapshot"}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
+    </Modal>
   );
 }
 
@@ -322,20 +346,29 @@ function SchedulesTabPanel() {
     <div className="space-y-4">
       <Card className="p-4">
         <div className="flex items-end gap-2">
-          <div className="flex-1 space-y-1.5">
-            <div className="text-xs font-medium text-fg">New schedule for</div>
-            <select
-              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+          <div className="flex-1">
+            <label className="text-xs font-medium">New schedule for</label>
+            <Select
               value={creatingFor}
-              onChange={(e) => setCreatingFor(e.target.value)}
+              onChange={(v) => setCreatingFor(v as string)}
+              placeholder="Select a server…"
+              aria-label="Select a server"
+              className="mt-1"
             >
-              <option value="">Select a server…</option>
-              {(serversList?.items ?? []).map((s) => (
-                <option key={s.metadata.name} value={s.metadata.name}>
-                  {s.metadata.name}
-                </option>
-              ))}
-            </select>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator className="ml-auto h-4 w-4" />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox aria-label="Server options">
+                  {(serversList?.items ?? []).map((s) => (
+                    <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
+                      {s.metadata.name}
+                    </ListBoxItem>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
           </div>
         </div>
       </Card>
@@ -346,62 +379,67 @@ function SchedulesTabPanel() {
       {toggleSuspend.error && <ErrorBanner err={toggleSuspend.error} />}
       {remove.error && <ErrorBanner err={remove.error} />}
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Server</th>
-                <th className="px-4 py-3">Cron</th>
-                <th className="px-4 py-3">Last run</th>
-                <th className="px-4 py-3">Next run</th>
-                <th className="px-4 py-3">Active</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted">
-                    No schedules configured yet.
-                  </td>
-                </tr>
-              )}
-              {items.map((s) => (
-                <tr key={s.metadata.name} className="hover:bg-surface/40">
-                  <td className="px-4 py-3 font-mono text-xs">{s.metadata.name}</td>
-                  <td className="px-4 py-3">{s.spec.serverRef.name}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{s.spec.schedule}</td>
-                  <td className="px-4 py-3 text-muted">
-                    {formatRelative(s.status?.lastSuccessfulTime)}
-                  </td>
-                  <td className="px-4 py-3 text-muted">
-                    {s.spec.suspend ? "—" : formatRelative(s.status?.nextScheduleTime)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Switch
-                      checked={!s.spec.suspend}
-                      onCheckedChange={(active) =>
-                        toggleSuspend.mutate({ name: s.metadata.name, suspend: !active })
-                      }
-                      aria-label="Schedule active"
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setDeleting(s.metadata.name)}
-                    >
-                      Delete
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <Table.Root>
+          <Table.ScrollContainer>
+            <Table.Content aria-label="Schedules">
+              <Table.Header>
+                <Table.Column key="name" isRowHeader>
+                  Name
+                </Table.Column>
+                <Table.Column key="server">Server</Table.Column>
+                <Table.Column key="cron">Cron</Table.Column>
+                <Table.Column key="lastrun">Last run</Table.Column>
+                <Table.Column key="nextrun">Next run</Table.Column>
+                <Table.Column key="active">Active</Table.Column>
+                <Table.Column key="actions" className="text-end" />
+              </Table.Header>
+              <Table.Body renderEmptyState={() => <>No schedules configured yet.</>}>
+                {items.map((s) => (
+                  <Table.Row key={s.metadata.name}>
+                    <Table.Cell>
+                      <span className="font-mono text-xs">{s.metadata.name}</span>
+                    </Table.Cell>
+                    <Table.Cell>{s.spec.serverRef.name}</Table.Cell>
+                    <Table.Cell>
+                      <span className="font-mono text-xs">{s.spec.schedule}</span>
+                    </Table.Cell>
+                    <Table.Cell className="text-foreground/60">
+                      {formatRelative(s.status?.lastSuccessfulTime)}
+                    </Table.Cell>
+                    <Table.Cell className="text-foreground/60">
+                      {s.spec.suspend ? "—" : formatRelative(s.status?.nextScheduleTime)}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Switch
+                        isSelected={!s.spec.suspend}
+                        onChange={(isSelected) =>
+                          toggleSuspend.mutate({ name: s.metadata.name, suspend: !isSelected })
+                        }
+                        aria-label="Schedule active"
+                      >
+                        <Switch.Content>
+                          <Switch.Control>
+                            <Switch.Thumb />
+                          </Switch.Control>
+                        </Switch.Content>
+                      </Switch>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onPress={() => setDeleting(s.metadata.name)}
+                      >
+                        Delete
+                      </Button>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table.Root>
       </div>
 
       <ConfirmDialog
@@ -473,46 +511,53 @@ function RestoresTabPanel() {
         phases={RESTORE_PHASES}
         trailing={`${filtered.length} of ${items.length} ${items.length === 1 ? "restore" : "restores"}`}
       />
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Backup</th>
-                <th className="px-4 py-3">Target</th>
-                <th className="px-4 py-3">Phase</th>
-                <th className="px-4 py-3">Completed</th>
-                <th className="px-4 py-3">Message</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted">
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <Table.Root>
+          <Table.ScrollContainer>
+            <Table.Content aria-label="Restores">
+              <Table.Header>
+                <Table.Column key="name" isRowHeader>
+                  Name
+                </Table.Column>
+                <Table.Column key="backup">Backup</Table.Column>
+                <Table.Column key="target">Target</Table.Column>
+                <Table.Column key="phase">Phase</Table.Column>
+                <Table.Column key="completed">Completed</Table.Column>
+                <Table.Column key="message">Message</Table.Column>
+              </Table.Header>
+              <Table.Body
+                renderEmptyState={() => (
+                  <>
                     {items.length === 0
                       ? "No restores have been run."
                       : "No restores match the current filters."}
-                  </td>
-                </tr>
-              )}
-              {filtered.map((r) => (
-                <tr key={r.metadata.name} className="hover:bg-surface/40">
-                  <td className="px-4 py-3 font-mono text-xs">{r.metadata.name}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{r.spec.backupRef.name}</td>
-                  <td className="px-4 py-3">{r.spec.serverRef.name}</td>
-                  <td className="px-4 py-3"><PhaseBadge phase={r.status?.phase} /></td>
-                  <td className="px-4 py-3 text-muted">
-                    {formatRelative(r.status?.completionTime)}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted">
-                    {r.status?.message ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </>
+                )}
+              >
+                {filtered.map((r) => (
+                  <Table.Row key={r.metadata.name}>
+                    <Table.Cell>
+                      <span className="font-mono text-xs">{r.metadata.name}</span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="font-mono text-xs">{r.spec.backupRef.name}</span>
+                    </Table.Cell>
+                    <Table.Cell>{r.spec.serverRef.name}</Table.Cell>
+                    <Table.Cell>
+                      <PhaseChip phase={r.status?.phase} />
+                    </Table.Cell>
+                    <Table.Cell className="text-foreground/60">
+                      {formatRelative(r.status?.completionTime)}
+                    </Table.Cell>
+                    <Table.Cell className="text-xs text-foreground/60">
+                      {r.status?.message ?? "—"}
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table.Root>
       </div>
     </div>
   );

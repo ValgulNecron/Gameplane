@@ -1,11 +1,29 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Button } from "@/components/ui/button";
+import {
+  Modal,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalHeading,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Input,
+  Label,
+  Description,
+  ListBox,
+  ListBoxItem,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@heroui/react";
+import { ChevronDown } from "lucide-react";
 import { Restores, Servers } from "@/lib/endpoints";
+import { errorText } from "@/lib/errors";
 import type { Backup } from "@/types";
-import { ErrorBanner } from "./ErrorBanner";
-import { FieldLabel } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 
 interface Props {
   backup: Backup | null;
@@ -26,6 +44,7 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
     enabled: open,
   });
   const [target, setTarget] = useState("");
+  const [popoverOpen, setPopoverOpen] = useState(false);
   // Tracks which backup `target` was last initialized for, so the reset
   // below (adjusted directly during render, not in an effect) fires exactly
   // once per newly-opened backup: restic restores default to the in-place
@@ -58,95 +77,129 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
     },
   });
 
+  const selectedServer = servers?.items?.find((s) => s.metadata.name === target);
+
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) onClose();
-      }}
-    >
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">
-            Restore from backup
-          </Dialog.Title>
-          <Dialog.Description className="pt-1 text-sm text-muted">
-            {isVolumeSnapshot
-              ? "A new server will be provisioned from this snapshot. The original server is left untouched."
-              : "The target server will be suspended, the volume restored from the snapshot, then resumed."}
-          </Dialog.Description>
-          <div className="space-y-4 pt-4">
-            <FieldLabel label="Source backup">
-              <span className="inline-flex items-center rounded-full border border-border bg-surface/40 px-3 py-1 font-mono text-xs">
-                {backup?.metadata.name}
-              </span>
-            </FieldLabel>
+    <Modal isOpen={open} onOpenChange={(o) => !o && onClose()}>
+      <ModalBackdrop isDismissable={!create.isPending} isKeyboardDismissDisabled={create.isPending}>
+        <ModalContainer>
+          <ModalDialog>
+          <ModalHeader>
+            <ModalHeading>Restore backup</ModalHeading>
+          </ModalHeader>
 
-            {isVolumeSnapshot ? (
-              <FieldLabel label="New server name">
-                <input
-                  className="h-9 w-full rounded-md border border-border bg-surface px-3 font-mono text-sm"
-                  value={target}
-                  spellCheck={false}
-                  autoComplete="off"
-                  placeholder="my-restored-server"
-                  onChange={(e) => setTarget(e.target.value)}
-                />
-                {nameTaken && (
-                  <p className="pt-1 text-xs text-danger">
-                    A server named “{target}” already exists — choose a new
-                    name.
-                  </p>
-                )}
-              </FieldLabel>
-            ) : (
-              <FieldLabel label="Target game server">
-                <select
-                  className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value)}
-                >
-                  <option value="" disabled>
-                    Select a server…
-                  </option>
-                  {(servers?.items ?? []).map((s) => (
-                    <option key={s.metadata.name} value={s.metadata.name}>
-                      {s.metadata.name}
-                    </option>
-                  ))}
-                </select>
-              </FieldLabel>
-            )}
+          <ModalBody className="gap-4">
+            <Description className="text-sm text-muted">
+              {isVolumeSnapshot
+                ? "A new server will be provisioned from this snapshot. The original server is left untouched."
+                : "The target server will be suspended, the volume restored from the snapshot, then resumed."}
+            </Description>
 
-            {isVolumeSnapshot ? (
-              <div className="rounded-md border border-border bg-surface/40 p-3 text-xs text-muted">
-                The new server copies {backup?.spec.serverRef.name}&apos;s
-                configuration and starts with the snapshot&apos;s data. Nothing
-                on the original server changes.
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="source-backup" className="text-xs">
+                  Source backup
+                </Label>
+                <div className="mt-1 flex items-center rounded-lg border border-border bg-surface/40 px-3 py-2 font-mono text-xs text-fg">
+                  {backup?.metadata.name}
+                </div>
               </div>
-            ) : (
-              <div className="rounded-md border border-danger/60 bg-danger/10 p-3 text-xs text-danger">
-                This will overwrite all data on the target server. Players will
-                be disconnected during the restore.
-              </div>
-            )}
-            {create.error && <ErrorBanner err={create.error} />}
-          </div>
-          <div className="flex items-center justify-end gap-2 pt-5">
+
+              {isVolumeSnapshot ? (
+                <div>
+                  <Label htmlFor="new-server-name" className="text-xs">
+                    New server name
+                  </Label>
+                  <Input
+                    id="new-server-name"
+                    autoFocus
+                    value={target}
+                    onChange={(e) => setTarget(e.target.value)}
+                    spellCheck={false}
+                    autoComplete="off"
+                    placeholder="my-restored-server"
+                    className="mt-1"
+                  />
+                  {nameTaken && (
+                    <p role="alert" className="mt-2 text-xs text-danger">
+                      A server named &quot;{target}&quot; already exists — choose a new name.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="target-server" className="text-xs">
+                    Target game server
+                  </Label>
+                  <Popover isOpen={popoverOpen} onOpenChange={setPopoverOpen}>
+                    <PopoverTrigger
+                      id="target-server"
+                      className={cn(
+                        "mt-1 flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
+                        "hover:bg-surface transition-colors cursor-pointer",
+                      )}
+                    >
+                      <span className={target ? "text-fg" : "text-muted"}>
+                        {selectedServer?.metadata.name || "Select a server…"}
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-muted shrink-0" />
+                    </PopoverTrigger>
+                    <PopoverContent className="min-w-[200px]">
+                      <ListBox
+                        aria-label="Select target server"
+                        selectionMode="single"
+                        onSelectionChange={(selected) => {
+                          const [id] = selected;
+                          if (id !== undefined) setTarget(String(id));
+                          setPopoverOpen(false);
+                        }}
+                      >
+                        {(servers?.items ?? []).map((s) => (
+                          <ListBoxItem key={s.metadata.name} id={s.metadata.name}>
+                            {s.metadata.name}
+                          </ListBoxItem>
+                        ))}
+                      </ListBox>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              {isVolumeSnapshot ? (
+                <div className="rounded-md border border-border bg-surface/40 p-3 text-xs text-muted">
+                  The new server copies {backup?.spec.serverRef.name}&apos;s
+                  configuration and starts with the snapshot&apos;s data. Nothing
+                  on the original server changes.
+                </div>
+              ) : (
+                <div className="rounded-md border border-danger/60 bg-danger/10 p-3 text-xs text-danger">
+                  This will overwrite all data on the target server. Players will
+                  be disconnected during the restore.
+                </div>
+              )}
+
+              {create.isError && (
+                <div className="rounded-md border border-danger/60 bg-danger/10 p-2 text-xs text-danger">
+                  {errorText(create.error, "Restore failed")}
+                </div>
+              )}
+            </div>
+          </ModalBody>
+
+          <ModalFooter className="flex items-center justify-end gap-2">
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
-              onClick={onClose}
-              disabled={create.isPending}
+              onPress={onClose}
+              isDisabled={create.isPending}
             >
               Cancel
             </Button>
             <Button
               size="sm"
-              variant={isVolumeSnapshot ? "default" : "danger"}
-              onClick={() => create.mutate()}
-              disabled={invalid || create.isPending}
+              variant={isVolumeSnapshot ? "primary" : "danger"}
+              isDisabled={invalid || create.isPending}
+              onPress={() => create.mutate()}
             >
               {create.isPending
                 ? "Starting…"
@@ -154,9 +207,10 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                   ? "Restore to new server"
                   : "Restore"}
             </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
+    </Modal>
   );
 }

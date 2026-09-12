@@ -15,14 +15,20 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { BackupsPage } from "./Backups";
 
-// The native "Back up now" / "New schedule for" <select> is the combobox
-// whose options include the "Select a server…" placeholder (the Radix
-// filter Selects render their options only when opened).
+// HeroUI Select renders as a button. This finds the server select button,
+// either in an open dialog (for backups) or on the page (for schedules).
 function serverSelect(): HTMLElement {
-  const combos = screen.getAllByRole("combobox");
-  const match = combos.find((c) => within(c).queryByRole("option", { name: /select a server/i }));
-  if (!match) throw new Error("server <select> not found");
-  return match;
+  try {
+    const dialog = screen.getByRole("dialog");
+    const serverButton = within(dialog).getByRole("button", { name: /Server/i });
+    return serverButton;
+  } catch {
+    // Not in a dialog; find the button on the page with "Select a server" text
+    const allButtons = screen.getAllByRole("button");
+    const match = allButtons.find((b) => within(b).queryByText(/Select a server/i));
+    if (!match) throw new Error("server select not found");
+    return match;
+  }
 }
 
 describe("BackupsPage flows", () => {
@@ -47,8 +53,9 @@ describe("BackupsPage flows", () => {
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-2026-05-07"); // default backup row
     await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
-    await screen.findByRole("option", { name: "alpha" });
-    await userEvent.selectOptions(serverSelect(), "alpha");
+    await userEvent.click(serverSelect());
+    const option = await screen.findByRole("option", { name: "alpha" });
+    await userEvent.click(option);
     const run = screen.getByRole("button", { name: /Run snapshot/i });
     await waitFor(() => expect(run).toBeEnabled());
     await userEvent.click(run);
@@ -78,7 +85,7 @@ describe("BackupsPage flows", () => {
   it("shows the empty restores state on the Restores tab", async () => {
     server.use(http.get("/restores", () => HttpResponse.json({ items: [] })));
     renderWithQuery(<BackupsPage />);
-    await userEvent.click(screen.getByRole("button", { name: /^Restores$/i }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Restores$/i }));
     expect(await screen.findByText(/No restores have been run/i)).toBeInTheDocument();
   });
 
@@ -91,7 +98,7 @@ describe("BackupsPage flows", () => {
       ),
     );
     renderWithQuery(<BackupsPage />);
-    await userEvent.click(screen.getByRole("button", { name: /^Restores$/i }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Restores$/i }));
     expect(await screen.findByText("restore-1")).toBeInTheDocument();
   });
 
@@ -100,8 +107,11 @@ describe("BackupsPage flows", () => {
       http.get("/servers", () => HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] })),
     );
     renderWithQuery(<BackupsPage />);
-    await userEvent.click(screen.getByRole("button", { name: /^Schedules$/i }));
-    await userEvent.selectOptions(serverSelect(), "alpha");
+    await userEvent.click(screen.getByRole("tab", { name: /^Schedules$/i }));
+    const select = serverSelect();
+    await userEvent.click(select);
+    const alphaOption = await screen.findByRole("option", { name: "alpha" });
+    await userEvent.click(alphaOption);
     expect(await screen.findByText(/Schedule \(cron\)/i)).toBeInTheDocument();
   });
 
@@ -120,11 +130,12 @@ describe("BackupsPage flows", () => {
       }),
     );
     renderWithQuery(<BackupsPage />);
-    await userEvent.click(screen.getByRole("button", { name: /^Schedules$/i }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Schedules$/i }));
     await screen.findByText("alpha-daily");
 
     // Toggle the "active" switch → patchSpec (read-modify-write PUT).
-    await userEvent.click(screen.getByRole("switch", { name: /Schedule active/i }));
+    const switchControl = screen.getByRole("switch", { name: /Schedule active/i });
+    await userEvent.click(switchControl);
     await waitFor(() => expect(patched).not.toBeNull());
 
     // Delete prompts a confirm dialog.

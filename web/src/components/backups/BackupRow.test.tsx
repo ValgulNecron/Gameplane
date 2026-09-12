@@ -2,14 +2,29 @@ import type React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Table } from "@heroui/react";
 import { BackupRow } from "./BackupRow";
 import { makeBackup } from "@/test/factories";
 
 function tableWrap(children: React.ReactNode) {
   return (
-    <table>
-      <tbody>{children}</tbody>
-    </table>
+    <Table.Root>
+      <Table.ScrollContainer>
+        <Table.Content aria-label="Backups">
+          <Table.Header>
+            <Table.Column key="name" isRowHeader>
+              Name
+            </Table.Column>
+            <Table.Column key="server">Server</Table.Column>
+            <Table.Column key="phase">Phase</Table.Column>
+            <Table.Column key="size">Size</Table.Column>
+            <Table.Column key="completed">Completed</Table.Column>
+            <Table.Column key="actions" />
+          </Table.Header>
+          <Table.Body>{children}</Table.Body>
+        </Table.Content>
+      </Table.ScrollContainer>
+    </Table.Root>
   );
 }
 
@@ -28,6 +43,26 @@ describe("BackupRow", () => {
     );
     await userEvent.click(screen.getByText("alpha-1"));
     expect(onSelect).toHaveBeenCalled();
+  });
+
+  it("renders the backup name and server", async () => {
+    render(
+      tableWrap(
+        <BackupRow
+          backup={makeBackup({
+            metadata: { name: "alpha-1" },
+            spec: { serverRef: { name: "alpha" } }
+          })}
+          showServer={true}
+          onSelect={() => {}}
+          onRestore={() => {}}
+        />,
+      ),
+    );
+    // Verify that the backup row renders the backup name
+    expect(screen.getByText("alpha-1")).toBeInTheDocument();
+    // Verify that the server name is displayed when showServer=true
+    expect(screen.getByText("alpha")).toBeInTheDocument();
   });
 
   it("Restore button is enabled when phase=Succeeded with snapshotID", async () => {

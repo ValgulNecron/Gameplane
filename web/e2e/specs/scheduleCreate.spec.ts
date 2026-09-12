@@ -33,14 +33,16 @@ test.describe("schedule create", () => {
     await page.waitForLoadState("domcontentloaded");
 
     // Switch to the Schedules sub-tab.
-    await page.getByRole("button", { name: /^schedules$/i }).click();
+    await page.getByRole("tab", { name: /^schedules$/i }).click();
 
-    // The Schedules panel renders a "New schedule for" select. Pick alpha
-    // and the ScheduleForm appears below.
+    // The Schedules panel renders a "New schedule for" HeroUI Select. Pick
+    // alpha and the ScheduleForm appears below.
+    // Select with Trigger/Popover/ListBox (Backups.tsx lines 350-371).
     const newScheduleCard = page
       .getByText("New schedule for", { exact: true })
       .locator("..");
-    await newScheduleCard.locator("select").selectOption("alpha");
+    await newScheduleCard.getByRole("button").first().click();
+    await page.getByRole("option", { name: "alpha" }).click();
 
     // ScheduleForm renders. The cron Input is the first input on the form.
     await expect(page.getByText(/new backup schedule/i)).toBeVisible();
@@ -71,12 +73,13 @@ test.describe("schedule create", () => {
   test("Create button stays disabled when cron is empty", async ({ page }) => {
     await page.goto("/backups");
     await page.waitForLoadState("domcontentloaded");
-    await page.getByRole("button", { name: /^schedules$/i }).click();
+    await page.getByRole("tab", { name: /^schedules$/i }).click();
 
     const newScheduleCard = page
       .getByText("New schedule for", { exact: true })
       .locator("..");
-    await newScheduleCard.locator("select").selectOption("alpha");
+    await newScheduleCard.getByRole("button").first().click();
+    await page.getByRole("option", { name: "alpha" }).click();
     await expect(page.getByText(/new backup schedule/i)).toBeVisible();
 
     // Wipe the cron input — submit must be disabled.

@@ -74,9 +74,9 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
 
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange}>
-      <ModalBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy} />
-      <ModalContainer>
-        <ModalDialog>
+      <ModalBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy}>
+        <ModalContainer>
+          <ModalDialog>
           <ModalHeader>
             <h2 className="text-base font-semibold">
               Install {entry.displayName ?? entry.name}
@@ -202,8 +202,9 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
               Install
             </Button>
           </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }

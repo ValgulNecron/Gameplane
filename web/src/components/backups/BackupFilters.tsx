@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import {
+  Input,
+  Select,
+  ListBox,
+  ListBoxItem,
+} from "@heroui/react";
 import type { GameServer } from "@/types";
 
 interface Props {
@@ -29,25 +33,40 @@ export function BackupFilters({
           placeholder="Search by name or server…"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
+          type="text"
         />
-        <Select
-          className="w-44"
-          value={server}
-          onValueChange={onServerChange}
-          options={[
-            { value: "", label: "All servers" },
-            ...servers.map((s) => ({ value: s.metadata.name, label: s.metadata.name })),
-          ]}
-        />
-        <Select
-          className="w-36"
-          value={phase}
-          onValueChange={onPhaseChange}
-          options={[
-            { value: "", label: "All phases" },
-            ...phases.map((p) => ({ value: p, label: p })),
-          ]}
-        />
+        <Select value={server} onChange={(v) => onServerChange(v as string)} className="w-44" aria-label="Filter by server">
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator className="ml-auto h-4 w-4" />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox aria-label="Server options">
+              <ListBoxItem id="" textValue="All servers">All servers</ListBoxItem>
+              {servers.map((s) => (
+                <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
+                  {s.metadata.name}
+                </ListBoxItem>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
+        <Select value={phase} onChange={(v) => onPhaseChange(v as string)} className="w-36" aria-label="Filter by phase">
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator className="ml-auto h-4 w-4" />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox aria-label="Phase options">
+              <ListBoxItem id="" textValue="All phases">All phases</ListBoxItem>
+              {phases.map((p) => (
+                <ListBoxItem key={p} id={p} textValue={p}>
+                  {p}
+                </ListBoxItem>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       </div>
       {trailing && <div className="text-xs text-muted">{trailing}</div>}
     </div>

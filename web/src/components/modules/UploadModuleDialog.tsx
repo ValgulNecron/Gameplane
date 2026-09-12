@@ -91,9 +91,9 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
 
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange}>
-      <ModalBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy} />
-      <ModalContainer>
-        <ModalDialog>
+      <ModalBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy}>
+        <ModalContainer>
+          <ModalDialog>
           <ModalHeader>
             <ModalHeading>Upload module</ModalHeading>
           </ModalHeader>
@@ -185,8 +185,9 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
               Upload
             </Button>
           </ModalFooter>
-        </ModalDialog>
-      </ModalContainer>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }

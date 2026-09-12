@@ -2,13 +2,12 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, Settings2, Upload } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { Button, Input, buttonVariants } from "@heroui/react";
 
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { InstallDialog } from "@/components/modules/InstallDialog";
 import { UploadModuleDialog } from "@/components/modules/UploadModuleDialog";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
@@ -135,15 +134,13 @@ export function ModulesPage() {
         actions={
           <div className="flex items-center gap-2">
             {uploadSources.length > 0 && (
-              <Button variant="outline" onClick={() => setUploadOpen(true)}>
+              <Button variant="outline" onPress={() => setUploadOpen(true)}>
                 <Upload className="h-4 w-4" /> Upload module
               </Button>
             )}
-            <Button variant="outline" asChild>
-              <Link to="/admin" hash="modules">
-                <Settings2 className="h-4 w-4" /> Manage sources
-              </Link>
-            </Button>
+            <Link to="/admin" hash="modules" className={buttonVariants({ variant: "outline" })}>
+              <Settings2 className="h-4 w-4" /> Manage sources
+            </Link>
           </div>
         }
       />
@@ -151,37 +148,37 @@ export function ModulesPage() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="inline-flex gap-1 rounded-md border border-border bg-card p-1">
           {sources.map((s) => (
-            <button
+            <Button
               key={s}
-              onClick={() => setSourceFilter(s)}
-              aria-pressed={sourceFilter === s}
+              onPress={() => setSourceFilter(s)}
+              variant="ghost"
               className={cn(
-                "rounded px-3 py-1.5 text-xs transition-colors",
+                "px-3 py-1.5 text-xs h-auto",
                 sourceFilter === s
                   ? "bg-primary/15 text-primary"
                   : "text-muted hover:text-fg",
               )}
             >
               {s === "all" ? "All sources" : s}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="relative min-w-0">
           <div className="flex gap-1 overflow-x-auto rounded-md border border-border bg-card p-1 scrollbar-thin">
             {catChips.map((c) => (
-              <button
+              <Button
                 key={c}
-                onClick={() => toggleCat(c)}
+                onPress={() => toggleCat(c)}
+                variant="ghost"
                 className={cn(
-                  "shrink-0 rounded px-3 py-1.5 text-xs transition-colors",
+                  "shrink-0 px-3 py-1.5 text-xs h-auto transition-colors",
                   catActive(c)
                     ? "bg-primary/15 text-primary"
                     : "text-muted hover:text-fg",
                 )}
-                aria-pressed={catActive(c)}
               >
                 {c === "all" ? "All categories" : c}
-              </button>
+              </Button>
             ))}
           </div>
           <div className="absolute inset-y-0 right-0 w-14 bg-gradient-to-r from-transparent to-card pointer-events-none rounded-md" />
