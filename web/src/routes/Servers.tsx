@@ -221,11 +221,33 @@ export function ServersPage() {
         <Tabs
           selectedKey={filter}
           onSelectionChange={(key) => setFilter(key as FilterKey)}
+          variant="secondary"
         >
           <Tabs.List aria-label="Server status filter">
-            <Tab id="all">{`All ${servers.length}`}</Tab>
-            <Tab id="running">{`Running ${counts.running}`}</Tab>
-            <Tab id="stopped">{`Stopped ${counts.stopped}`}</Tab>
+            <Tab id="all">
+              <span className="inline-flex items-center gap-1.5">
+                All
+                <span className="rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
+                  {servers.length}
+                </span>
+              </span>
+            </Tab>
+            <Tab id="running">
+              <span className="inline-flex items-center gap-1.5">
+                Running
+                <span className="rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
+                  {counts.running}
+                </span>
+              </span>
+            </Tab>
+            <Tab id="stopped">
+              <span className="inline-flex items-center gap-1.5">
+                Stopped
+                <span className="rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
+                  {counts.stopped}
+                </span>
+              </span>
+            </Tab>
           </Tabs.List>
         </Tabs>
         <div className="ml-auto flex items-center gap-2">
