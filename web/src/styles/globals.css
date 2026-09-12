@@ -220,6 +220,12 @@ input:-webkit-autofill:focus {
   min-width: fit-content;
 }
 
+.tabs__list.w-fit .tabs__tab {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .tabs__tab[aria-selected="true"],
 .tabs__tab[data-selected] {
   background-color: var(--accent-soft);
@@ -262,4 +268,8 @@ input:-webkit-autofill:focus {
 
 .table__column {
   text-transform: uppercase;
+}
+
+.checkbox.flex-row {
+  flex-direction: row;
 }

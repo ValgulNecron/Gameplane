@@ -328,7 +328,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   id="oci-insecure"
                   isSelected={f.insecure}
                   onChange={(isSelected) => set({ insecure: isSelected })}
-                  className="flex items-center gap-2"
+                  className="flex-row items-center gap-2"
                 >
                   <Checkbox.Control>
                     <Checkbox.Indicator />
@@ -524,7 +524,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   id="http-insecure"
                   isSelected={f.insecure}
                   onChange={(isSelected) => set({ insecure: isSelected })}
-                  className="flex items-center gap-2"
+                  className="flex-row items-center gap-2"
                 >
                   <Checkbox.Control>
                     <Checkbox.Indicator />
