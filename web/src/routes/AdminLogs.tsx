@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
+import { Button, Select, Switch, ListBox, ListBoxItem } from "@heroui/react";
 import { APIError } from "@/lib/api";
 import { errorTextWithStatus } from "@/lib/errors";
 import { withCluster } from "@/lib/endpoints";
-import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/hero/PageHeader";
 
 type LogComponent = "api" | "operator";
 
@@ -181,47 +178,59 @@ export function AdminLogsPage() {
     <div className="flex h-full flex-col gap-4 p-6">
       <PageHeader
         title="System logs"
-        subtitle="Live logs from the Gameplane control-plane pods."
+        description="Live logs from the Gameplane control-plane pods."
       />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
           {COMPONENTS.map((c) => (
-            <button
+            <Button
               key={c.value}
               type="button"
-              onClick={() => setComponent(c.value)}
+              onPress={() => setComponent(c.value)}
+              variant={component === c.value ? "primary" : "ghost"}
+              size="sm"
+              className="px-3 py-1 text-xs"
               aria-pressed={component === c.value}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                component === c.value
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
             >
               {c.label}
-            </button>
+            </Button>
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-muted">
+        <div className="flex items-center gap-2 text-xs text-muted">
           Tail
           <Select
             aria-label="Tail lines"
-            className="w-32"
-            value={String(tail)}
-            onValueChange={(v) => setTail(Number(v))}
-            options={TAIL_OPTIONS.map((n) => ({
-              value: String(n),
-              label: `${n} lines`,
-            }))}
-          />
-        </label>
+            selectedKey={String(tail)}
+            onSelectionChange={(key) => setTail(Number(key))}
+          >
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox aria-label="Tail lines">
+                {TAIL_OPTIONS.map((n) => (
+                  <ListBoxItem key={n} id={String(n)}>
+                    {n} lines
+                  </ListBoxItem>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        </div>
 
-        <label className="flex items-center gap-2 text-xs text-muted">
+        <div className="flex items-center gap-2 text-xs text-muted">
           Follow
-          <Switch checked={follow} onCheckedChange={setFollow} aria-label="Follow" />
-        </label>
+          <Switch isSelected={follow} onChange={setFollow} aria-label="Follow">
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Content>
+          </Switch>
+        </div>
 
         <span
           className="inline-flex h-6 items-center rounded bg-primary/10 px-2 font-mono text-xs text-primary"
@@ -231,7 +240,7 @@ export function AdminLogsPage() {
         </span>
 
         <div className="ml-auto">
-          <Button variant="outline" onClick={() => void downloadLogs()}>
+          <Button variant="outline" onPress={() => void downloadLogs()}>
             <Download className="h-4 w-4" /> Download
           </Button>
         </div>

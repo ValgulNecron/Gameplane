@@ -154,8 +154,14 @@ describe("UsersPage", () => {
     await user.click(await screen.findByLabelText("Actions for alice"));
     await user.click(await screen.findByText("Edit user"));
 
-    const select = await screen.findByDisplayValue("operator");
-    await user.selectOptions(select, "admin");
+    // HeroUI v3 Select doesn't expose displayValue; find by label and click to open
+    const dialog = await screen.findByRole("dialog");
+    const select = within(dialog).getByLabelText(/Primary role/);
+    await user.click(select);
+    // Click the "admin" option in the opened popover
+    const adminOption = await screen.findByRole("option", { name: "admin" });
+    await user.click(adminOption);
+
     await user.click(screen.getByRole("button", { name: /Save changes/i }));
 
     await waitFor(() => expect(update).toHaveBeenCalledWith(2, { role: "admin" }));
@@ -170,7 +176,7 @@ describe("UsersPage", () => {
 
     const pw = await screen.findByPlaceholderText(/At least 12 characters/i);
     await user.type(pw, "brand-new-password-1");
-    await user.click(screen.getByRole("button", { name: /Set new password/i }));
+    await user.click(screen.getByRole("button", { name: "Set new password" }));
 
     await waitFor(() =>
       expect(resetPassword).toHaveBeenCalledWith(2, "brand-new-password-1"),
@@ -181,10 +187,9 @@ describe("UsersPage", () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByLabelText("Actions for root"));
-    const deleteItem = await screen.findByText("Delete user");
-    const item = deleteItem.closest("[role='menuitem']");
-    expect(item).toHaveAttribute("aria-disabled", "true");
-    // Clicking a disabled Radix menu item is a no-op; assert the
+    const deleteItem = await screen.findByRole("menuitem", { name: /Delete user/i });
+    expect(deleteItem).toHaveAttribute("aria-disabled", "true");
+    // Clicking a disabled menu item is a no-op; assert the
     // underlying mutation never fires.
     await user.click(deleteItem);
     expect(remove).not.toHaveBeenCalled();
@@ -207,7 +212,7 @@ describe("UsersPage roles tab", () => {
   async function openRolesTab() {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Roles/i }));
+    await user.click(screen.getByRole("tab", { name: /Roles/i }));
     return user;
   }
 
@@ -370,13 +375,9 @@ describe("UsersPage user row display", () => {
     list.mockResolvedValue([ME, oidcUser]);
     renderPage();
     await user.click(await screen.findByLabelText("Actions for oidc-user"));
-    const resetItem = await screen.findByText("Reset password");
-    const item = resetItem.closest("[role='menuitem']");
-    expect(item).toHaveAttribute("aria-disabled", "true");
-    // The hint only reaches the DOM as the native `title` attribute (see
-    // DropdownMenuItem's `title={hint}`), not as visible/accessible text,
-    // so getByText can never match it.
-    expect(item).toHaveAttribute("title", "Account is OIDC-managed");
+    const resetItem = await screen.findByRole("menuitem", { name: /Reset password/i });
+    expect(resetItem).toHaveAttribute("aria-disabled", "true");
+    expect(resetItem).toHaveAttribute("aria-label", expect.stringContaining("OIDC-managed"));
   });
 });
 
@@ -384,7 +385,7 @@ describe("UsersPage tabs", () => {
   it("switches to roles tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Roles/i }));
+    await user.click(screen.getByRole("tab", { name: /Roles/i }));
     expect(await screen.findByText("operator")).toBeInTheDocument();
     expect(screen.queryByText("alice")).not.toBeInTheDocument();
   });
@@ -392,14 +393,14 @@ describe("UsersPage tabs", () => {
   it("switches to service accounts tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Service accounts/i }));
+    await user.click(screen.getByRole("tab", { name: /Service accounts/i }));
     expect(await screen.findByText(/tracked for v1.1/i)).toBeInTheDocument();
   });
 
   it("switches to identity providers tab", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Identity providers/i }));
+    await user.click(screen.getByRole("tab", { name: /Identity providers/i }));
     expect(await screen.findByText(/configured in Helm values/i)).toBeInTheDocument();
   });
 });
@@ -411,12 +412,16 @@ describe("InviteModal", () => {
     renderPage();
     await user.click(await screen.findByRole("button", { name: /Invite user/i }));
 
-    await user.type(await screen.findByPlaceholderText("alice"), "newuser");
-    await user.type(screen.getByPlaceholderText("Alice Operator"), "New User");
-    await user.type(screen.getByPlaceholderText("alice@example.com"), "new@example.com");
-    await user.type(screen.getAllByPlaceholderText(/At least 12 characters/)[0], "password-1234");
+    // The dialog's submit button is also labelled "Invite user" (matching
+    // the page's own trigger button, which stays in the DOM behind the
+    // overlay) — scope button queries to the dialog to disambiguate.
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByPlaceholderText("alice"), "newuser");
+    await user.type(within(dialog).getByPlaceholderText("Alice Operator"), "New User");
+    await user.type(within(dialog).getByPlaceholderText("alice@example.com"), "new@example.com");
+    await user.type(within(dialog).getByPlaceholderText(/At least 12 characters/), "password-1234");
 
-    await user.click(screen.getByRole("button", { name: /Create user/i }));
+    await user.click(within(dialog).getByRole("button", { name: "Create user" }));
 
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(
@@ -436,8 +441,9 @@ describe("InviteModal", () => {
     renderPage();
     await user.click(await screen.findByRole("button", { name: /Invite user/i }));
 
-    await user.type(await screen.findByPlaceholderText("alice"), "oidc-user");
-    await user.click(screen.getByRole("button", { name: /Create user/i }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByPlaceholderText("alice"), "oidc-user");
+    await user.click(within(dialog).getByRole("button", { name: "Create user" }));
 
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(
@@ -454,12 +460,13 @@ describe("InviteModal", () => {
     renderPage();
     await user.click(await screen.findByRole("button", { name: /Invite user/i }));
 
-    await user.type(await screen.findByPlaceholderText("alice"), "newuser");
-    await user.type(screen.getAllByPlaceholderText(/At least 12 characters/)[0], "short");
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByPlaceholderText("alice"), "newuser");
+    await user.type(within(dialog).getByPlaceholderText(/At least 12 characters/), "short");
 
-    const button = screen.getByRole("button", { name: /Create user/i });
+    const button = within(dialog).getByRole("button", { name: "Create user" });
     expect(button).toBeDisabled();
-    expect(screen.getByText(/At least 12 characters/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/At least 12 characters\./)).toBeInTheDocument();
   });
 
   it("displays error from API", async () => {
@@ -468,9 +475,10 @@ describe("InviteModal", () => {
     renderPage();
     await user.click(await screen.findByRole("button", { name: /Invite user/i }));
 
-    await user.type(await screen.findByPlaceholderText("alice"), "duplicate");
-    await user.type(screen.getAllByPlaceholderText(/At least 12 characters/)[0], "password-1234");
-    await user.click(screen.getByRole("button", { name: /Create user/i }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByPlaceholderText("alice"), "duplicate");
+    await user.type(within(dialog).getByPlaceholderText(/At least 12 characters/), "password-1234");
+    await user.click(within(dialog).getByRole("button", { name: "Create user" }));
 
     expect(await screen.findByText("User already exists")).toBeInTheDocument();
   });
@@ -520,8 +528,8 @@ describe("EditUserModal", () => {
 
   it("blocks self-demotion from user management role", async () => {
     const user = userEvent.setup();
-    // useMe() and the users list must agree on root's role: EditUserModal
-    // seeds its role <select> from the clicked row's own `user.role` (from
+    // useMe() and the users list must agree on root’s role: EditUserModal
+    // seeds its role <select> from the clicked row’s own `user.role` (from
     // `list`), not from useMe(), so leaving `list` on the base ME (role
     // "admin") meant the "operator" <select> the test looked for never
     // rendered.
@@ -540,12 +548,17 @@ describe("EditUserModal", () => {
     await user.click(await screen.findByLabelText("Actions for root"));
     await user.click(await screen.findByText("Edit user"));
 
-    const select = await screen.findByDisplayValue("operator");
-    await user.selectOptions(select, "viewer");
+    // HeroUI v3 Select doesn’t expose displayValue; find by label and click to open
+    const dialog = await screen.findByRole("dialog");
+    const select = within(dialog).getByLabelText(/Primary role/);
+    await user.click(select);
+    // Click the "viewer" option in the opened popover
+    const viewerOption = await screen.findByRole("option", { name: "viewer" });
+    await user.click(viewerOption);
 
     // The component renders a typographic apostrophe ("can’t", U+2019), not
     // a straight one — match on the surrounding text instead of the
-    // apostrophe-adjacent word so this doesn't depend on which quote glyph
+    // apostrophe-adjacent word so this doesn’t depend on which quote glyph
     // the copy uses.
     expect(
       await screen.findByText(/remove your own ability to manage users/i),
@@ -595,9 +608,11 @@ describe("ResetPasswordModal", () => {
     const pw = await screen.findByPlaceholderText(/At least 12 characters/i);
     await user.type(pw, "short");
 
-    const button = screen.getByRole("button", { name: /Set new password/i });
+    // The dialog preemptively disables the submit button rather than
+    // showing an inline message before the user attempts to submit.
+    const button = screen.getByRole("button", { name: "Set new password" });
     expect(button).toBeDisabled();
-    expect(screen.getByText(/At least 12 characters/i)).toBeInTheDocument();
+    expect(screen.getByText(/At least 12 characters\./)).toBeInTheDocument();
   });
 
   it("displays error from API", async () => {
@@ -609,7 +624,7 @@ describe("ResetPasswordModal", () => {
 
     const pw = await screen.findByPlaceholderText(/At least 12 characters/i);
     await user.type(pw, "brand-new-password-1");
-    await user.click(screen.getByRole("button", { name: /Set new password/i }));
+    await user.click(screen.getByRole("button", { name: "Set new password" }));
 
     expect(await screen.findByText("Cannot reset password")).toBeInTheDocument();
   });
@@ -671,7 +686,7 @@ describe("UsersPage roles tab extended", () => {
   async function openRolesTab() {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Roles/i }));
+    await user.click(screen.getByRole("tab", { name: /Roles/i }));
     return user;
   }
 
@@ -712,8 +727,8 @@ describe("UsersPage roles tab extended", () => {
 
     // Both non-admin roles (operator, viewer) render an "Edit" button, so
     // an unscoped findByRole match is ambiguous — scope to the operator
-    // card specifically.
-    const operatorCard = (await screen.findByText("operator")).closest(".rounded-lg");
+    // card specifically. HeroUI v3's Card uses data-slot="card", not Tailwind classes.
+    const operatorCard = (await screen.findByText("operator")).closest('[data-slot="card"]');
     const editBtn = within(operatorCard as HTMLElement).getByRole("button", { name: /Edit/ });
     await user.click(editBtn);
     const descInput = await screen.findByDisplayValue("Manage servers.");

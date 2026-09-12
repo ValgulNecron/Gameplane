@@ -637,7 +637,6 @@ describe("CreateServerWizard tunnel configuration", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     try {
-      let callCount = 0;
       fetchMock.mockImplementation((url: string, init?: { method?: string; body?: string }) => {
         if (url.includes("/cluster")) {
           return Promise.resolve(
@@ -648,7 +647,6 @@ describe("CreateServerWizard tunnel configuration", () => {
           );
         }
         if ((init?.method ?? "GET") === "POST" && url.includes("/servers")) {
-          callCount++;
           return Promise.resolve(
             new Response(JSON.stringify({ metadata: { name: "partial-tunnel" } }), {
               status: 201,

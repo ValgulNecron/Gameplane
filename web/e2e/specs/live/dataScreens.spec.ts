@@ -64,7 +64,7 @@ test.describe("live: data screens render real backend data", () => {
     // The live admin is the account the Go e2e suite bootstrapped.
     await expect(page.getByText("e2e-admin").first()).toBeVisible();
 
-    await page.getByRole("button", { name: /^roles/i }).first().click();
+    await page.getByRole("tab", { name: /^roles/i }).first().click();
     // RolesTab renders one card per role from GET /roles. Assert the real
     // builtin role names + the built-in badge — unambiguous real RBAC data,
     // not an MSW fixture. Generous timeout for the live roles query. (Role

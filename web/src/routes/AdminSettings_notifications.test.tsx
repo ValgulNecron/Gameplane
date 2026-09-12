@@ -77,6 +77,7 @@ describe("AdminSettings notifications", () => {
   });
 
   it("adds a sink by entering the webhook URL, storing the Secret before the config save", async () => {
+    const user = userEvent.setup();
     const calls: string[] = [];
     let secretBody: Record<string, string> | undefined;
     let saved: NotificationsCfg | undefined;
@@ -94,18 +95,19 @@ describe("AdminSettings notifications", () => {
     );
     renderWithQuery(<AdminSettingsPage />);
     await gotoNotifications();
-    await userEvent.click(await screen.findByRole("button", { name: /Add sink/i }));
+    await user.click(await screen.findByRole("button", { name: /Add sink/i }));
     // There is no configRef input anymore — the value is entered directly.
     expect(screen.queryByText(/Secret name/i)).not.toBeInTheDocument();
-    await userEvent.type(screen.getByPlaceholderText("team-alerts"), "ops-alerts");
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Sink kind/i }), "slack");
-    await userEvent.type(
+    await user.type(screen.getByPlaceholderText("team-alerts"), "ops-alerts");
+    await user.click(screen.getByRole("button", { name: /Sink kind/i }));
+    await user.click(await screen.findByRole("option", { name: /slack/i }));
+    await user.type(
       screen.getByPlaceholderText(/hooks\.slack\.com/i),
       "https://hooks.slack.com/services/T00/B00/xyz",
     );
     // Defaults have server.recovered checked; narrow the filter.
-    await userEvent.click(screen.getByRole("checkbox", { name: /server\.recovered/i }));
-    await userEvent.click(screen.getByRole("button", { name: /^Add sink$/i }));
+    await user.click(screen.getByRole("checkbox", { name: /server\.recovered/i }));
+    await user.click(screen.getByRole("button", { name: /^Add sink$/i }));
     expect(await screen.findByText(/slack · Secret: gameplane-notify-ops-alerts/i)).toBeInTheDocument();
     expect(secretBody).toEqual({
       kind: "slack",
@@ -128,6 +130,7 @@ describe("AdminSettings notifications", () => {
   });
 
   it("adds an ntfy sink with a topic URL and token", async () => {
+    const user = userEvent.setup();
     let secretBody: Record<string, string> | undefined;
     server.use(
       http.put("/admin/notifications/sinks/:name/secret", async ({ params, request }) => {
@@ -137,12 +140,13 @@ describe("AdminSettings notifications", () => {
     );
     renderWithQuery(<AdminSettingsPage />);
     await gotoNotifications();
-    await userEvent.click(await screen.findByRole("button", { name: /Add sink/i }));
-    await userEvent.type(screen.getByPlaceholderText("team-alerts"), "phone");
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Sink kind/i }), "ntfy");
-    await userEvent.type(screen.getByPlaceholderText(/ntfy\.sh/i), "https://ntfy.sh/gameplane-oncall");
-    await userEvent.type(screen.getByPlaceholderText("tk_…"), "tk_secret");
-    await userEvent.click(screen.getByRole("button", { name: /^Add sink$/i }));
+    await user.click(await screen.findByRole("button", { name: /Add sink/i }));
+    await user.type(screen.getByPlaceholderText("team-alerts"), "phone");
+    await user.click(screen.getByRole("button", { name: /Sink kind/i }));
+    await user.click(await screen.findByRole("option", { name: /ntfy/i }));
+    await user.type(screen.getByPlaceholderText(/ntfy\.sh/i), "https://ntfy.sh/gameplane-oncall");
+    await user.type(screen.getByPlaceholderText("tk_…"), "tk_secret");
+    await user.click(screen.getByRole("button", { name: /^Add sink$/i }));
     expect(await screen.findByText(/ntfy · Secret: gameplane-notify-phone/i)).toBeInTheDocument();
     expect(secretBody).toEqual({
       kind: "ntfy",

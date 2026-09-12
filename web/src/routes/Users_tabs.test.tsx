@@ -81,7 +81,7 @@ describe("UsersPage tabs", () => {
   it("Roles tab renders the three role cards", async () => {
     renderPage();
     await screen.findByText("root");
-    await userEvent.click(screen.getByRole("button", { name: /Roles/i }));
+    await userEvent.click(screen.getByRole("tab", { name: /Roles/i }));
     expect(await screen.findByText(/Full access/i)).toBeInTheDocument();
     expect(screen.getByText(/Manage game servers/i)).toBeInTheDocument();
     expect(screen.getByText(/Read-only access/i)).toBeInTheDocument();
@@ -90,9 +90,7 @@ describe("UsersPage tabs", () => {
   it("Service accounts tab renders the placeholder", async () => {
     renderPage();
     await screen.findByText("root");
-    await userEvent.click(
-      screen.getByRole("button", { name: /Service accounts/i }),
-    );
+    await userEvent.click(screen.getByRole("tab", { name: /Service accounts/i }));
     expect(
       await screen.findByText(/Service accounts.*tracked for v1\.1/i),
     ).toBeInTheDocument();
@@ -101,9 +99,7 @@ describe("UsersPage tabs", () => {
   it("Identity providers tab renders the placeholder", async () => {
     renderPage();
     await screen.findByText("root");
-    await userEvent.click(
-      screen.getByRole("button", { name: /Identity providers/i }),
-    );
+    await userEvent.click(screen.getByRole("tab", { name: /Identity providers/i }));
     expect(
       await screen.findByText(/OIDC identity providers/i),
     ).toBeInTheDocument();

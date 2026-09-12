@@ -539,7 +539,10 @@ describe("AdminSettingsPage", () => {
     // The heading's immediate ancestor div only wraps the title/subtitle
     // block (see SectionCard) — walk up to the enclosing Card so the query
     // also covers the card's body content (groups claim, mappings, etc).
-    const helmCard = helmCardHeading.closest<HTMLElement>(".rounded-lg");
+    // HeroUI v3's Card renders no Tailwind class (its styling comes from
+    // "card"/"card--default" component classes, not "rounded-lg"), so scope
+    // via the data-slot="card" attribute CardRoot always sets instead.
+    const helmCard = helmCardHeading.closest<HTMLElement>('[data-slot="card"]');
     expect(helmCard).toBeInTheDocument();
     expect(within(helmCard!).getByText("teams")).toBeInTheDocument();
     // Scope "viewer" to the default role display, since it appears in both

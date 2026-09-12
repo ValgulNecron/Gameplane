@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ChangeEvent, type ComponentType, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -24,14 +24,25 @@ import {
   Trash2,
   Webhook,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { PageHeader } from "@/components/PageHeader";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { SlackIcon } from "@/components/ui/slack-icon";
+import {
+  Button,
+  Input as HeroInput,
+  Card,
+  Select,
+  ListBox,
+  ListBoxItem,
+  Switch,
+  Label,
+  Description,
+  TextField,
+  Alert,
+} from "@heroui/react";
+import { PageHeader } from "@/components/hero/PageHeader";
+import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
+import { ConfirmAdminMappingDialog } from "@/components/hero/ConfirmAdminMappingDialog";
+import { RemovableGroupChip } from "@/components/hero/RemovableGroupChip";
+import { ProvenanceBadge } from "@/components/hero/ProvenanceBadge";
+import { SlackIcon } from "@/components/hero/SlackIcon";
 import { cn, formatRelative } from "@/lib/utils";
 import { errorText } from "@/lib/errors";
 import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications } from "@/lib/endpoints";
@@ -58,7 +69,6 @@ import {
   type TelemetryCfg,
 } from "@/lib/config";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
-import { FieldLabel } from "@/components/ui/field";
 import { ModuleSourcesPanel } from "@/components/modules/ModuleSourcesPanel";
 
 type Section =
@@ -85,7 +95,7 @@ export function AdminSettingsPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Admin settings"
-        subtitle="Platform-wide configuration for this Gameplane instance."
+        description="Platform-wide configuration for this Gameplane instance."
       />
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
@@ -120,11 +130,15 @@ export function AdminSettingsPage() {
 
         <div className="space-y-6">
           {cfg.isLoading && (
-            <Card className="p-5 text-sm text-muted">Loading configuration…</Card>
+            <Card>
+              <Card.Content className="text-sm text-muted">Loading configuration…</Card.Content>
+            </Card>
           )}
           {cfg.isError && (
-            <Card className="p-5 text-sm text-danger">
-              Failed to load configuration. Refresh to retry.
+            <Card>
+              <Card.Content className="text-sm text-danger">
+                Failed to load configuration. Refresh to retry.
+              </Card.Content>
             </Card>
           )}
           {cfg.data && section === "general"       && <GeneralSection       initial={cfg.data.general} />}
@@ -154,24 +168,24 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="p-5 space-y-4">
-      <div>
-        <div className="font-medium">{title}</div>
-        {subtitle && <div className="pt-0.5 text-xs text-muted">{subtitle}</div>}
-      </div>
-      {children}
-      {footer && <div className="flex items-center justify-end gap-3 pt-2">{footer}</div>}
+    <Card className="space-y-4">
+      <Card.Header className="space-y-2 pb-2">
+        <div className="font-medium text-base">{title}</div>
+        {subtitle && <div className="text-xs text-muted">{subtitle}</div>}
+      </Card.Header>
+      <Card.Content className="space-y-4">{children}</Card.Content>
+      {footer && <Card.Footer className="flex items-center justify-end gap-3 pt-2">{footer}</Card.Footer>}
     </Card>
   );
 }
 
 function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
-    <label className="block space-y-1.5">
-      <span className="text-xs text-muted">{label}</span>
+    <TextField className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
       {children}
-      {hint && <span className="text-[11px] text-muted">{hint}</span>}
-    </label>
+      {hint && <Description className="text-[11px]">{hint}</Description>}
+    </TextField>
   );
 }
 
@@ -238,24 +252,24 @@ function GeneralSection({ initial }: { initial?: GeneralCfg }) {
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
-          <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
+          <Button variant="primary" onPress={f.save} isDisabled={f.pending}>Save changes</Button>
         </>
       }
     >
       <Field label="Instance name" hint="Shown in the UI and OIDC replies.">
-        <Input
+        <HeroInput
           value={f.draft.instanceName}
           onChange={(e) => f.update({ instanceName: e.target.value })}
         />
       </Field>
       <Field label="External URL" hint="Canonical base URL, used in emails, webhooks, OIDC callbacks.">
-        <Input
+        <HeroInput
           value={f.draft.externalURL}
           onChange={(e) => f.update({ externalURL: e.target.value })}
         />
       </Field>
       <Field label="Default namespace" hint="Where new GameServers land by default.">
-        <Input
+        <HeroInput
           value={f.draft.defaultNamespace}
           onChange={(e) => f.update({ defaultNamespace: e.target.value })}
         />
@@ -321,7 +335,7 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
         footer={
           <>
             <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
-            <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
+            <Button variant="primary" onPress={f.save} isDisabled={f.pending}>Save changes</Button>
           </>
         }
       >
@@ -360,9 +374,9 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
               {p.kind !== "local" && (
                 <Button
                   variant="ghost"
-                  size="icon"
+                  isIconOnly
                   aria-label={`Delete provider ${p.name}`}
-                  onClick={() => removeProvider(idx)}
+                  onPress={() => removeProvider(idx)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -400,7 +414,7 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
             onClose={() => setAdding(false)}
           />
         ) : (
-          <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+          <Button variant="outline" size="sm" onPress={() => setAdding(true)}>
             <Plus className="mr-1.5 h-4 w-4" />
             Add provider
           </Button>
@@ -448,6 +462,7 @@ function AddProviderForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingAdmin, setConfirmingAdmin] = useState(false);
+
 
   // Role-mapping lists, parsed live so the Default role select can unlock
   // as soon as any mapping exists (the API rejects defaultRole without
@@ -528,78 +543,99 @@ function AddProviderForm({
     <div className="space-y-3 rounded-md border border-border bg-surface/30 p-4">
       <div className="text-sm font-medium">Add identity provider</div>
       {!externalURLSet && (
-        <p className="text-xs text-warning">
-          Set <span className="font-mono">General → External URL</span> first — it forms the
-          provider&apos;s OIDC redirect URL.
-        </p>
+        <Alert status="warning">
+          <Alert.Content className="text-xs">
+            Set <span className="font-mono">General → External URL</span> first — it forms the
+            provider&apos;s OIDC redirect URL.
+          </Alert.Content>
+        </Alert>
       )}
       <div className="grid gap-3 md:grid-cols-2">
-        <FieldLabel label="Kind">
+        <TextField>
+          <Label className="text-xs">Kind</Label>
           <Select
             aria-label="Provider kind"
-            value={kind}
-            onValueChange={(v) => applyPreset(v as AuthKind)}
-            options={[
-              { value: "oidc", label: "Generic OIDC" },
-              { value: "google", label: "Google" },
-              { value: "github", label: "GitHub (via OIDC bridge)" },
-            ]}
-          />
+            selectedKey={kind}
+            onSelectionChange={(key) => applyPreset(key as AuthKind)}
+          >
+            <Select.Trigger className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
+              <Select.Value />
+              <Select.Indicator className="ml-auto h-4 w-4" />
+            </Select.Trigger>
+            <Select.Popover className="rounded border border-border">
+              <ListBox aria-label="Provider kind">
+                <ListBoxItem id="oidc">Generic OIDC</ListBoxItem>
+                <ListBoxItem id="google">Google</ListBoxItem>
+                <ListBoxItem id="github">GitHub (via OIDC bridge)</ListBoxItem>
+              </ListBox>
+            </Select.Popover>
+          </Select>
           {kind === "github" && (
-            <span className="text-[11px] text-muted">
+            <Description className="text-[11px]">
               GitHub.com has no OIDC discovery for user login — run an OIDC bridge such as
               Dex and enter its issuer URL below.
-            </span>
+            </Description>
           )}
-        </FieldLabel>
-        <FieldLabel
-          label="Name"
-          hint="A short lowercase identifier (letters, digits, and dashes) used in the login route and the Secret name."
-        >
-          <Input placeholder="corp-sso" value={name} onChange={(e) => setName(e.target.value)} />
-        </FieldLabel>
-        <FieldLabel label="Display name (login button)">
-          <Input
+        </TextField>
+        <TextField>
+          <Label className="text-xs">Name</Label>
+          <HeroInput
+            placeholder="corp-sso"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Description className="text-[11px]">
+            A short lowercase identifier (letters, digits, and dashes) used in the login route and the Secret name.
+          </Description>
+        </TextField>
+        <TextField>
+          <Label className="text-xs">Display name (login button)</Label>
+          <HeroInput
             placeholder="Acme SSO"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
-        </FieldLabel>
-        <FieldLabel label="Issuer URL">
-          <Input
+        </TextField>
+        <TextField>
+          <Label className="text-xs">Issuer URL</Label>
+          <HeroInput
             placeholder="https://idp.example.com"
             value={issuer}
             onChange={(e) => setIssuer(e.target.value)}
           />
-        </FieldLabel>
-        <FieldLabel label="Client ID">
-          <Input value={clientID} onChange={(e) => setClientID(e.target.value)} />
-        </FieldLabel>
-        <FieldLabel label="Client secret">
-          <Input
+        </TextField>
+        <TextField>
+          <Label className="text-xs">Client ID</Label>
+          <HeroInput value={clientID} onChange={(e) => setClientID(e.target.value)} />
+        </TextField>
+        <TextField>
+          <Label className="text-xs">Client secret</Label>
+          <HeroInput
             type="password"
             value={clientSecret}
             onChange={(e) => setClientSecret(e.target.value)}
           />
-        </FieldLabel>
-        <FieldLabel label="Scopes (optional)">
-          <Input value={scopes} onChange={(e) => setScopes(e.target.value)} />
-          <span className="text-[11px] text-muted">
+        </TextField>
+        <TextField>
+          <Label className="text-xs">Scopes (optional)</Label>
+          <HeroInput value={scopes} onChange={(e) => setScopes(e.target.value)} />
+          <Description className="text-[11px]">
             Extra OAuth scopes beyond <span className="font-mono">openid profile email</span> —
             like <span className="font-mono">groups</span>. Space- or comma-separated.
-          </span>
-        </FieldLabel>
-        <FieldLabel label="Groups claim (optional)">
-          <Input
+          </Description>
+        </TextField>
+        <TextField>
+          <Label className="text-xs">Groups claim (optional)</Label>
+          <HeroInput
             placeholder="groups"
             value={groupsClaim}
             onChange={(e) => setGroupsClaim(e.target.value)}
           />
-          <span className="text-[11px] text-muted">
+          <Description className="text-[11px]">
             ID-token claim holding the user&apos;s group memberships; defaults to{" "}
             <span className="font-mono">groups</span>.
-          </span>
-        </FieldLabel>
+          </Description>
+        </TextField>
       </div>
       <div className="space-y-3 border-t border-border pt-3">
         <div>
@@ -611,92 +647,78 @@ function AddProviderForm({
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <FieldLabel label="Admin groups">
-            <Input
+          <TextField>
+            <Label className="text-xs">Admin groups</Label>
+            <HeroInput
               placeholder="gameplane-admins"
               value={adminGroups}
               onChange={(e) => setAdminGroups(e.target.value)}
             />
-          </FieldLabel>
-          <FieldLabel label="Operator groups">
-            <Input
+          </TextField>
+          <TextField>
+            <Label className="text-xs">Operator groups</Label>
+            <HeroInput
               placeholder="gameplane-operators"
               value={operatorGroups}
               onChange={(e) => setOperatorGroups(e.target.value)}
             />
-          </FieldLabel>
-          <FieldLabel label="Viewer groups">
-            <Input
+          </TextField>
+          <TextField>
+            <Label className="text-xs">Viewer groups</Label>
+            <HeroInput
               placeholder="gameplane-viewers"
               value={viewerGroups}
               onChange={(e) => setViewerGroups(e.target.value)}
             />
-          </FieldLabel>
-          <FieldLabel label="Default role">
+          </TextField>
+          <TextField>
+            <Label className="text-xs">Default role</Label>
             <Select
               aria-label="Default role"
-              value={defaultRole}
-              disabled={!hasMappings}
-              onValueChange={(v) => setDefaultRole(v as AuthDefaultRole | "")}
-              options={[
-                { value: "", label: "(no mapping)" },
-                { value: "viewer", label: "Viewer" },
-                { value: "operator", label: "Operator" },
-                { value: "admin", label: "Admin" },
-                { value: "deny", label: "Deny sign-in" },
-              ]}
-            />
-            <span className="text-[11px] text-muted">
+              selectedKey={defaultRole}
+              onSelectionChange={(key) => setDefaultRole((key ?? "") as AuthDefaultRole | "")}
+              isDisabled={!hasMappings}
+            >
+              <Select.Trigger className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
+                <Select.Value />
+                <Select.Indicator className="ml-auto h-4 w-4" />
+              </Select.Trigger>
+              <Select.Popover className="rounded border border-border">
+                <ListBox aria-label="Default role">
+                  <ListBoxItem id="">(no mapping)</ListBoxItem>
+                  <ListBoxItem id="viewer">Viewer</ListBoxItem>
+                  <ListBoxItem id="operator">Operator</ListBoxItem>
+                  <ListBoxItem id="admin">Admin</ListBoxItem>
+                  <ListBoxItem id="deny">Deny sign-in</ListBoxItem>
+                </ListBox>
+              </Select.Popover>
+            </Select>
+            <Description className="text-[11px]">
               Applied when no group matches. &ldquo;Deny sign-in&rdquo; refuses logins
               without a mapped group.
-            </span>
-          </FieldLabel>
+            </Description>
+          </TextField>
         </div>
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button disabled={!valid || busy} onClick={handleSubmitClick}>
+        <Button variant="ghost" onPress={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" isDisabled={!valid || busy} onPress={handleSubmitClick}>
           {busy ? "Storing…" : "Add provider"}
         </Button>
       </div>
 
-      {/* T050: Admin mapping confirmation dialog */}
-      <ConfirmDialog
+      <ConfirmAdminMappingDialog
         open={confirmingAdmin}
         onOpenChange={(open) => {
           if (!open) {
             setConfirmingAdmin(false);
           }
         }}
-        title="Confirm admin role mapping?"
-        description={
-          <div className="space-y-4">
-            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 flex gap-3">
-              <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
-              <div className="text-xs">
-                <div className="font-medium text-warning mb-1">Full admin access</div>
-                <p className="text-warning/80">
-                  Mapping users to the admin role grants full cluster control. Ensure the mapped group contains only
-                  authorized personnel. Anyone in these groups gets full admin access from their next login.
-                </p>
-              </div>
-            </div>
-            {adminList.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs text-muted">Group(s) being mapped to admin:</p>
-                <div className="flex flex-wrap gap-2">
-                  {adminList.map((group) => (
-                    <span key={group} className="px-2 py-1 rounded text-xs bg-muted/20 text-muted">
-                      {group}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        }
-        confirmLabel="Map to admin role"
+        adminGroups={adminList}
+        busy={busy}
         onConfirm={() => {
           setConfirmingAdmin(false);
           void submit();
@@ -730,7 +752,7 @@ function BackupDestSection() {
       title="Backup destinations"
       subtitle="Restic repositories for snapshots. Stored as labelled Kubernetes Secrets in the configured namespace."
       footer={
-        <Button onClick={() => setAdding(true)} disabled={adding}>
+        <Button onPress={() => setAdding(true)} isDisabled={adding}>
           <Plus className="h-4 w-4" />
           Add destination
         </Button>
@@ -822,35 +844,35 @@ function NewDestinationForm({ onClose }: { onClose: () => void }) {
         Restic URL formats: <span className="font-mono">s3:host/bucket</span>, <span className="font-mono">b2:bucket</span>, <span className="font-mono">azure:account/container</span>, etc.
       </p>
       <div className="grid gap-3 md:grid-cols-2">
-        <FieldLabel label="Name (DNS label)">
-          <Input
+        <Field label="Name (DNS label)">
+          <HeroInput
             placeholder="gameplane-backup-repo"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
-        </FieldLabel>
-        <FieldLabel label="Restic URL">
-          <Input
+        </Field>
+        <Field label="Restic URL">
+          <HeroInput
             placeholder="s3:s3.example.com/gameplane-bucket"
             value={form.url}
             onChange={(e) => setForm({ ...form, url: e.target.value })}
           />
-        </FieldLabel>
-        <FieldLabel label="Repository password">
-          <Input
+        </Field>
+        <Field label="Repository password">
+          <HeroInput
             type="password"
             placeholder="Strong, unique passphrase"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
-        </FieldLabel>
+        </Field>
       </div>
       {create.error && <ErrorBanner err={create.error} />}
       <div className="flex justify-end gap-2 pt-1">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="ghost" onPress={onClose}>Cancel</Button>
         <Button
-          onClick={() => create.mutate()}
-          disabled={!valid || create.isPending}
+          onPress={() => create.mutate()}
+          isDisabled={!valid || create.isPending}
         >
           {create.isPending ? "Saving…" : "Save destination"}
         </Button>
@@ -914,19 +936,19 @@ function SetRegistryKeyForm({
       <div className="text-sm font-medium">
         {replacing ? "Replace" : "Set"} API key — {label}
       </div>
-      <FieldLabel label="API key">
-        <Input
+      <Field label="API key">
+        <HeroInput
           type="password"
           autoFocus
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           spellCheck={false}
         />
-      </FieldLabel>
+      </Field>
       {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button disabled={apiKey.trim() === "" || busy} onClick={() => void submit()}>
+        <Button variant="ghost" onPress={onClose}>Cancel</Button>
+        <Button isDisabled={apiKey.trim() === "" || busy} onPress={() => void submit()}>
           {busy ? "Storing…" : "Save"}
         </Button>
       </div>
@@ -957,7 +979,7 @@ function ModRegistriesSection({ initial }: { initial?: ModRegistriesCfg }) {
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
-          <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
+          <Button onPress={f.save} isDisabled={f.pending}>Save changes</Button>
         </>
       }
     >
@@ -988,15 +1010,15 @@ function ModRegistriesSection({ initial }: { initial?: ModRegistriesCfg }) {
               {editing !== provider && (
                 configured ? (
                   <>
-                    <Button variant="outline" size="sm" onClick={() => setEditing(provider)}>
+                    <Button variant="outline" size="sm" onPress={() => setEditing(provider)}>
                       Replace
                     </Button>
-                    <Button variant="danger" size="sm" onClick={() => removeEntry(provider)}>
+                    <Button variant="danger" size="sm" onPress={() => removeEntry(provider)}>
                       Remove
                     </Button>
                   </>
                 ) : (
-                  <Button variant="outline" size="sm" onClick={() => setEditing(provider)}>
+                  <Button variant="outline" size="sm" onPress={() => setEditing(provider)}>
                     Set API key
                   </Button>
                 )
@@ -1148,8 +1170,8 @@ function AddSinkForm({
     <div className="space-y-3 rounded-md border border-border bg-surface/30 p-4">
       <div className="text-sm font-medium">Add sink</div>
       <div className="grid gap-3 md:grid-cols-2">
-        <FieldLabel label="Name">
-          <Input
+        <Field label="Name">
+          <HeroInput
             placeholder="team-alerts"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -1158,51 +1180,70 @@ function AddSinkForm({
             A short lowercase identifier (letters, digits, and dashes) used to
             name the sink and its Secret — like <span className="font-mono">team-alerts</span>.
           </span>
-        </FieldLabel>
-        <FieldLabel label="Kind">
-          <Select
-            aria-label="Sink kind"
-            value={kind}
-            onValueChange={(v) => setKind(v as SinkKind)}
-            options={["discord", "slack", "smtp", "webhook", "ntfy"].map((k) => ({
-              value: k,
-              label: k,
-            }))}
-          />
-        </FieldLabel>
+        </Field>
+        <Field label="Kind">
+          <Select aria-label="Sink kind" selectedKey={kind} onSelectionChange={(key) => setKind(key as SinkKind)}>
+            <Select.Trigger className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
+              <Select.Value />
+              <Select.Indicator className="ml-auto h-4 w-4" />
+            </Select.Trigger>
+            <Select.Popover className="rounded border border-border">
+              <ListBox aria-label="Sink kind">
+                {(["discord", "slack", "smtp", "webhook", "ntfy"] as const).map((k) => (
+                  <ListBoxItem key={k} id={k}>
+                    {k}
+                  </ListBoxItem>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        </Field>
         {kind === "smtp" ? (
           <>
-            <FieldLabel label="SMTP host">
-              <Input placeholder="mail.example.com" value={cred("host")} onChange={setCred("host")} />
-            </FieldLabel>
-            <FieldLabel label="Port (default 587)">
-              <Input placeholder="587" value={cred("port")} onChange={setCred("port")} />
-            </FieldLabel>
-            <FieldLabel label="Username (optional)">
-              <Input value={cred("username")} onChange={setCred("username")} />
-            </FieldLabel>
-            <FieldLabel label="Password (optional)">
-              <Input type="password" value={cred("password")} onChange={setCred("password")} />
-            </FieldLabel>
-            <FieldLabel label="From address">
-              <Input placeholder="gameplane@example.com" value={cred("from")} onChange={setCred("from")} />
-            </FieldLabel>
-            <FieldLabel label="To (comma-separated)">
-              <Input placeholder="ops@example.com" value={cred("to")} onChange={setCred("to")} />
-            </FieldLabel>
-            <FieldLabel label="TLS">
+            <Field label="SMTP host">
+              <HeroInput placeholder="mail.example.com" value={cred("host")} onChange={setCred("host")} />
+            </Field>
+            <Field label="Port (default 587)">
+              <HeroInput placeholder="587" value={cred("port")} onChange={setCred("port")} />
+            </Field>
+            <Field label="Username (optional)">
+              <HeroInput value={cred("username")} onChange={setCred("username")} />
+            </Field>
+            <Field label="Password (optional)">
+              <HeroInput type="password" value={cred("password")} onChange={setCred("password")} />
+            </Field>
+            <Field label="From address">
+              <HeroInput placeholder="gameplane@example.com" value={cred("from")} onChange={setCred("from")} />
+            </Field>
+            <Field label="To (comma-separated)">
+              <HeroInput placeholder="ops@example.com" value={cred("to")} onChange={setCred("to")} />
+            </Field>
+            <Field label="TLS">
               <Select
                 aria-label="SMTP TLS mode"
-                value={cred("tls")}
-                onValueChange={(v) => setCreds((c) => ({ ...c, tls: v }))}
-                options={["starttls", "implicit", "none"].map((m) => ({ value: m, label: m }))}
-              />
-            </FieldLabel>
+                selectedKey={cred("tls")}
+                onSelectionChange={(key) => setCreds((c) => ({ ...c, tls: String(key ?? "") }))}
+              >
+                <Select.Trigger className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
+                  <Select.Value />
+                  <Select.Indicator className="ml-auto h-4 w-4" />
+                </Select.Trigger>
+                <Select.Popover className="rounded border border-border">
+                  <ListBox aria-label="SMTP TLS mode">
+                    {(["starttls", "implicit", "none"] as const).map((m) => (
+                      <ListBoxItem key={m} id={m}>
+                        {m}
+                      </ListBoxItem>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </Field>
           </>
         ) : (
           <>
-            <FieldLabel label={kind === "ntfy" ? "Topic URL" : "Webhook URL"}>
-              <Input
+            <Field label={kind === "ntfy" ? "Topic URL" : "Webhook URL"}>
+              <HeroInput
                 placeholder={
                   kind === "ntfy"
                     ? "https://ntfy.sh/my-topic"
@@ -1215,16 +1256,16 @@ function AddSinkForm({
                 value={cred("url")}
                 onChange={setCred("url")}
               />
-            </FieldLabel>
+            </Field>
             {kind === "ntfy" && (
-              <FieldLabel label="Access token (optional)">
-                <Input type="password" placeholder="tk_…" value={cred("token")} onChange={setCred("token")} />
-              </FieldLabel>
+              <Field label="Access token (optional)">
+                <HeroInput type="password" placeholder="tk_…" value={cred("token")} onChange={setCred("token")} />
+              </Field>
             )}
             {kind === "webhook" && (
-              <FieldLabel label="Authorization header (optional)">
-                <Input type="password" placeholder="Bearer …" value={cred("authorization")} onChange={setCred("authorization")} />
-              </FieldLabel>
+              <Field label="Authorization header (optional)">
+                <HeroInput type="password" placeholder="Bearer …" value={cred("authorization")} onChange={setCred("authorization")} />
+              </Field>
             )}
           </>
         )}
@@ -1247,11 +1288,64 @@ function AddSinkForm({
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button disabled={!nameOk || !credsOk || busy} onClick={() => void submit()}>
+        <Button variant="ghost" onPress={onClose}>Cancel</Button>
+        <Button isDisabled={!nameOk || !credsOk || busy} onPress={() => void submit()}>
           {busy ? "Storing…" : "Add sink"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function TestButton({ dirty, disabled, onPress, children }: { dirty: boolean; disabled: boolean; onPress: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      if (dirty) {
+        ref.current.setAttribute("title", "Save changes first — tests run against the saved config");
+      } else {
+        ref.current.removeAttribute("title");
+      }
+    }
+  }, [dirty]);
+
+  return (
+    <Button
+      ref={ref}
+      variant="outline"
+      size="sm"
+      isDisabled={disabled}
+      onPress={onPress}
+    >
+      {children}
+    </Button>
+  );
+}
+
+function TelemetrySwitch({ isSelected, onChange, ariaLabel }: { isSelected: boolean; onChange: (value: boolean) => void; ariaLabel: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (containerRef.current) {
+      const button = containerRef.current.querySelector('[role="switch"]') as HTMLElement;
+      if (button) {
+        button.setAttribute("aria-checked", isSelected ? "true" : "false");
+      }
+    }
+  }, [isSelected]);
+
+  return (
+    <div ref={containerRef}>
+      <Switch
+        aria-label={ariaLabel}
+        isSelected={isSelected}
+        onChange={onChange}
+      >
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch.Content>
+      </Switch>
     </div>
   );
 }
@@ -1285,7 +1379,7 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
-          <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
+          <Button onPress={f.save} isDisabled={f.pending}>Save changes</Button>
         </>
       }
     >
@@ -1327,30 +1421,34 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
                   {result.ok ? "✓ delivered" : result.message}
                 </span>
               )}
-              <Button
-                variant="outline"
-                size="sm"
+              <TestButton
+                dirty={dirty}
                 disabled={!s.configRef || dirty || test.isPending}
-                title={dirty ? "Save changes first — tests run against the saved config" : undefined}
-                onClick={() => runTest(s.name)}
+                onPress={() => runTest(s.name)}
               >
                 Send test
-              </Button>
+              </TestButton>
               <Switch
                 aria-label={s.enabled ? `Disable sink ${s.name}` : `Enable sink ${s.name}`}
-                checked={s.enabled}
-                onCheckedChange={(v) => {
+                isSelected={s.enabled}
+                onChange={(v) => {
                   const next = f.draft.sinks.map((x, i) =>
                     i === idx ? { ...x, enabled: v } : x,
                   );
                   f.update({ sinks: next });
                 }}
-              />
+              >
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Content>
+              </Switch>
               <Button
                 variant="ghost"
-                size="icon"
+                isIconOnly
                 aria-label={`Delete sink ${s.name}`}
-                onClick={() => {
+                onPress={() => {
                   // Best-effort cleanup of the API-managed Secret; the
                   // server refuses user-created Secrets, and a failure
                   // only leaves an orphaned Secret behind.
@@ -1373,7 +1471,7 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
           onClose={() => setAdding(false)}
         />
       ) : (
-        <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+        <Button variant="outline" size="sm" onPress={() => setAdding(true)}>
           <Plus className="mr-1.5 h-4 w-4" />
           Add sink
         </Button>
@@ -1393,7 +1491,7 @@ function TelemetrySection({ initial }: { initial?: TelemetryCfg }) {
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
-          <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
+          <Button onPress={f.save} isDisabled={f.pending}>Save changes</Button>
         </>
       }
     >
@@ -1404,10 +1502,10 @@ function TelemetrySection({ initial }: { initial?: TelemetryCfg }) {
             No server names, player counts, or identifying data.
           </div>
         </div>
-        <Switch
-          aria-label={f.draft.sendMetrics ? "Disable telemetry" : "Enable telemetry"}
-          checked={f.draft.sendMetrics}
-          onCheckedChange={(v) => f.update({ sendMetrics: v })}
+        <TelemetrySwitch
+          ariaLabel={f.draft.sendMetrics ? "Disable telemetry" : "Enable telemetry"}
+          isSelected={f.draft.sendMetrics}
+          onChange={(v) => f.update({ sendMetrics: v })}
         />
       </div>
     </SectionCard>
@@ -1571,11 +1669,17 @@ function RoleMappingOverridesCard({
     return initial.helmOverride?.roleMappings?.[role];
   };
 
-  const getProvenance = (role: "admin" | "operator" | "viewer"): string => {
+  const getProvenance = (role: "admin" | "operator" | "viewer"): "overridden" | "fromHelm" | "notConfigured" => {
     const hasOverride = initial.helmOverride?.roleMappings && role in initial.helmOverride.roleMappings;
-    if (hasOverride) return "Overridden in dashboard";
-    if (helmMappings) return "From Helm values";
-    return "Not configured";
+    if (hasOverride) return "overridden";
+    if (helmMappings) return "fromHelm";
+    return "notConfigured";
+  };
+
+  const getRoleVariant = (role: "admin" | "operator" | "viewer"): "secondary" | "orange" | "violet" => {
+    if (role === "admin") return "orange";
+    if (role === "operator") return "violet";
+    return "secondary";
   };
 
   const getRoleGroups = (role: "admin" | "operator" | "viewer"): string[] => {
@@ -1679,7 +1783,7 @@ function RoleMappingOverridesCard({
                   same text (e.g. a save error) appears twice in the DOM, breaking
                   any singular getByText/findByText query for it — see the
                   "surfaces a backend rejection when saving the auth section" test. */}
-              <Button variant="outline" onClick={onSave} disabled={formState.pending}>
+              <Button variant="outline" onPress={onSave} isDisabled={formState.pending}>
                 Save role mappings
               </Button>
             </div>
@@ -1708,17 +1812,15 @@ function RoleMappingOverridesCard({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm capitalize">{role}</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-muted/20 text-muted">
-                        {getProvenance(typedRole)}
-                      </span>
+                      <ProvenanceBadge type={getProvenance(typedRole)} size="sm" />
                     </div>
                     {hasOverride && (
                       <Button
                         variant="ghost"
                         size="sm"
                         aria-label={`Reset to Helm default (${role} role mapping)`}
-                        onClick={() => handleReset(typedRole)}
-                        disabled={resetMutation.isPending}
+                        onPress={() => handleReset(typedRole)}
+                        isDisabled={resetMutation.isPending}
                       >
                         <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
                         Reset to Helm default
@@ -1729,20 +1831,13 @@ function RoleMappingOverridesCard({
                   {groups.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {groups.map((group) => (
-                        <div
+                        <RemovableGroupChip
                           key={group}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-muted/20 text-muted text-xs"
-                        >
-                          {group}
-                          <button
-                            type="button"
-                            aria-label={`Remove group ${group}`}
-                            onClick={() => handleRemoveGroup(typedRole, group)}
-                            className="ml-1 hover:opacity-70"
-                          >
-                            ×
-                          </button>
-                        </div>
+                          label={group}
+                          variant={getRoleVariant(typedRole)}
+                          onRemove={() => handleRemoveGroup(typedRole, group)}
+                          size="md"
+                        />
                       ))}
                     </div>
                   ) : (
@@ -1753,7 +1848,7 @@ function RoleMappingOverridesCard({
                   )}
 
                   <div className="flex gap-2">
-                    <Input
+                    <HeroInput
                       type="text"
                       placeholder="Add IdP group name…"
                       value={input}
@@ -1769,8 +1864,8 @@ function RoleMappingOverridesCard({
                     <Button
                       size="sm"
                       aria-label="Add group"
-                      onClick={() => handleAddGroup(typedRole, input)}
-                      disabled={!input.trim()}
+                      onPress={() => handleAddGroup(typedRole, input)}
+                      isDisabled={!input.trim()}
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </Button>
@@ -1783,7 +1878,7 @@ function RoleMappingOverridesCard({
       </SectionCard>
 
       {/* T030: Admin mapping confirmation dialog */}
-      <ConfirmDialog
+      <ConfirmAdminMappingDialog
         open={confirmingRole === "admin"}
         onOpenChange={(open) => {
           if (!open) {
@@ -1792,34 +1887,7 @@ function RoleMappingOverridesCard({
             setAdminInput("");
           }
         }}
-        title="Confirm admin role mapping?"
-        description={
-          <div className="space-y-4">
-            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 flex gap-3">
-              <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
-              <div className="text-xs">
-                <div className="font-medium text-warning mb-1">Full admin access</div>
-                <p className="text-warning/80">
-                  Mapping users to the admin role grants full cluster control. Ensure the mapped group contains only
-                  authorized personnel. Anyone in these groups gets full admin access from their next login.
-                </p>
-              </div>
-            </div>
-            {pendingGroups.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs text-muted">Group(s) being mapped to admin:</p>
-                <div className="flex flex-wrap gap-2">
-                  {pendingGroups.map((group) => (
-                    <span key={group} className="px-2 py-1 rounded text-xs bg-muted/20 text-muted">
-                      {group}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        }
-        confirmLabel="Map to admin role"
+        adminGroups={pendingGroups}
         onConfirm={handleConfirmAdminMapping}
       />
     </>

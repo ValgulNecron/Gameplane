@@ -75,7 +75,9 @@ describe("AuditLogPage", () => {
     expect(await screen.findByText("Created backup")).toBeInTheDocument();
     expect(screen.getByText("Deleted server")).toBeInTheDocument();
 
-    await user.click(screen.getByText(/5xx · 1/));
+    // Find and click the 5xx filter button
+    await user.click(screen.getByRole("button", { name: /5xx · 1/ }));
+
     expect(screen.getByText("Deleted server")).toBeInTheDocument();
     expect(screen.queryByText("Created backup")).toBeNull();
   });
@@ -93,7 +95,8 @@ describe("AuditLogPage", () => {
     const user = userEvent.setup();
     renderWithQuery(<AuditLogPage />);
     await screen.findByText(/loaded/);
-    await user.click(screen.getByText(/4xx · 0/));
+    // Find and click the 4xx filter button
+    await user.click(screen.getByRole("button", { name: /4xx · 0/ }));
     expect(screen.getByText("No events match the active filters.")).toBeInTheDocument();
   });
 
@@ -140,7 +143,7 @@ describe("AuditLogPage", () => {
     await screen.findByText("Created server");
 
     // Set a filter to verify it's passed to the export endpoint
-    const methodSelect = screen.getByDisplayValue("All methods");
+    const methodSelect = screen.getByDisplayValue("All methods") as HTMLSelectElement;
     await user.selectOptions(methodSelect, "POST");
 
     await user.click(screen.getByText("Export CSV"));
@@ -277,11 +280,13 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
+    const user = userEvent.setup();
     renderWithQuery(<AuditLogPage />);
     await screen.findByText("Created server");
 
-    const methodSelect = screen.getByDisplayValue("All methods");
-    fireEvent.change(methodSelect, { target: { value: "GET" } });
+    // Find the select element by role
+    const methodSelect = screen.getByDisplayValue("All methods") as HTMLSelectElement;
+    await user.selectOptions(methodSelect, "GET");
     await new Promise((r) => setTimeout(r, 0));
 
     expect(screen.getByText(/Viewed server/i)).toBeInTheDocument();
@@ -303,16 +308,18 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
+    const user = userEvent.setup();
     renderWithQuery(<AuditLogPage />);
     // alice's and bob's POST /servers rows both render "Created server" —
     // findAllByText tolerates the duplicate label instead of findByText,
     // which never settles on a single match and times out the test.
     await screen.findAllByText("Created server");
 
-    const methodSelect = screen.getByDisplayValue("All methods");
-    fireEvent.change(methodSelect, { target: { value: "POST" } });
+    const methodSelect = screen.getByDisplayValue("All methods") as HTMLSelectElement;
+    await user.selectOptions(methodSelect, "POST");
 
-    fireEvent.click(screen.getByText(/5xx · 1/));
+    // Find and click the 5xx filter button
+    await user.click(screen.getByRole("button", { name: /5xx · 1/ }));
 
     const actorInput = screen.getByPlaceholderText(/Filter by actor/i);
     fireEvent.change(actorInput, { target: { value: "alice" } });
