@@ -149,7 +149,7 @@ export function UsersPage() {
             {canAudit && (
               <Link
                 to="/admin/audit"
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[6px] border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
               >
                 <ScrollText className="h-4 w-4" /> Audit log
               </Link>
