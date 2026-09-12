@@ -63,8 +63,8 @@ describe("AdminLogsPage", () => {
     );
     render(<AdminLogsPage />);
 
-    expect(screen.getByRole("button", { name: /api server/i })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /operator/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /api server/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /operator/i })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Follow" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /download/i })).toBeInTheDocument();
 

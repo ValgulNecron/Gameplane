@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
-import { Button, Select, Switch, ListBox, ListBoxItem } from "@heroui/react";
+import { Select, Switch, ListBox, ListBoxItem, Tabs, Tab as TabComponent, Button } from "@heroui/react";
 import { APIError } from "@/lib/api";
 import { errorTextWithStatus } from "@/lib/errors";
 import { withCluster } from "@/lib/endpoints";
@@ -181,23 +181,15 @@ export function AdminLogsPage() {
         description="Live logs from the Gameplane control-plane pods."
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
+      <Tabs selectedKey={component} onSelectionChange={(key) => setComponent(key as LogComponent)} variant="secondary" aria-label="Log source">
+        <Tabs.List>
           {COMPONENTS.map((c) => (
-            <Button
-              key={c.value}
-              type="button"
-              onPress={() => setComponent(c.value)}
-              variant={component === c.value ? "primary" : "ghost"}
-              size="sm"
-              className="px-3 py-1 text-xs"
-              aria-pressed={component === c.value}
-            >
-              {c.label}
-            </Button>
+            <TabComponent key={c.value} id={c.value}>{c.label}</TabComponent>
           ))}
-        </div>
+        </Tabs.List>
+      </Tabs>
 
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 text-xs text-muted">
           Tail
           <Select

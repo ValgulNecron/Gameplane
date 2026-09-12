@@ -1,9 +1,9 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useInfiniteQuery, useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, ShieldCheck } from "lucide-react";
 import type { AuditEvent, AuditVerifyResult } from "@/types";
 import { Audit, type AuditExportFilter } from "@/lib/endpoints";
-import { Button, Card, Input, Chip, Table } from "@heroui/react";
+import { Button, Card, Input, Chip, Table, Tabs, Tab as TabComponent } from "@heroui/react";
 import { PageHeader } from "@/components/hero/PageHeader";
 import { AuditIntegrityBanner } from "@/components/hero/AuditIntegrityBanner";
 import { cn, formatRelative } from "@/lib/utils";
@@ -108,19 +108,15 @@ export function AuditLogPage() {
       {renderIntegrityBanner(verifyQuery)}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1">
-          {(["all", "2xx", "4xx", "5xx"] as StatusClass[]).map((s) => (
-            <Button
-              key={s}
-              variant={statusClass === s ? "primary" : "ghost"}
-              size="sm"
-              onPress={() => setStatusClass(s)}
-              className="text-xs"
-            >
-              {labelFor(s)} · {totals[s] ?? 0}
-            </Button>
-          ))}
-        </div>
+        <Tabs selectedKey={statusClass} onSelectionChange={(key) => setStatusClass(key as StatusClass)} variant="secondary" aria-label="Status filter">
+          <Tabs.List>
+            {(["all", "2xx", "4xx", "5xx"] as StatusClass[]).map((s) => (
+              <TabComponent key={s} id={s} className="text-xs">
+                {labelFor(s)} · {totals[s] ?? 0}
+              </TabComponent>
+            ))}
+          </Tabs.List>
+        </Tabs>
 
         <select
           value={methodFilter}
@@ -138,7 +134,7 @@ export function AuditLogPage() {
           value={actorQ}
           onChange={(e) => setActorQ(e.target.value)}
           className="w-64"
-          variant="secondary"
+          variant="primary"
         />
 
         <div className="ml-auto text-xs text-muted">
@@ -239,13 +235,17 @@ function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactN
   if (data.ok) {
     return (
       <div className="flex items-center justify-between rounded-md border border-success bg-success/5 px-4 py-3">
-        <div className="text-sm font-medium text-success">Audit chain verified — no tampering detected</div>
+        <div className="flex items-center gap-2 text-sm font-medium text-success">
+          <ShieldCheck className="h-4 w-4" />
+          Audit chain verified — no tampering detected
+        </div>
         <Button
           size="sm"
-          variant="ghost"
+          variant="outline"
           onPress={() => void query.refetch()}
           isDisabled={query.isFetching}
         >
+          <RefreshCw className="h-4 w-4" />
           Re-check
         </Button>
       </div>

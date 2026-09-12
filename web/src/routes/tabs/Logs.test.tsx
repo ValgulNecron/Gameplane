@@ -78,9 +78,9 @@ describe("LogsTab", () => {
       "[Server thread/INFO]: ok\n[Server thread/WARN]: hmm\n[Server thread/ERROR]: boom",
     );
     await waitFor(() => expect(screen.getByText(/3 lines/)).toBeInTheDocument());
-    // The Error chip advertises its count and filters to just that level.
-    const errorChip = screen.getByRole("button", { name: /Error 1/ });
-    await userEvent.click(errorChip);
+    // The Error tab advertises its count and filters to just that level.
+    const errorTab = screen.getByRole("tab", { name: /Error 1/ });
+    await userEvent.click(errorTab);
     await waitFor(() => expect(screen.getByText(/1 lines/)).toBeInTheDocument());
   });
 
@@ -124,15 +124,15 @@ describe("LogsTab", () => {
 
   it("switches to the game-log file stream when toggled (template has a logPath)", async () => {
     render(<LogsTab name="alpha" logPath="/data/logs/latest.log" />);
-    await userEvent.click(screen.getByRole("button", { name: /game log/i }));
+    await userEvent.click(screen.getByRole("tab", { name: /game log/i }));
     expect(sockets[0].close).toHaveBeenCalled();
     expect(sockets[sockets.length - 1].path).toBe("/ws/servers/alpha/logs");
   });
 
   it("offers only container output (no toggle) when the template has no logPath", () => {
     render(<LogsTab name="alpha" />);
-    // The "Game log" toggle is absent and only the pod stream is opened.
-    expect(screen.queryByRole("button", { name: /game log/i })).not.toBeInTheDocument();
+    // The "Game log" tab is absent and only the pod stream is opened.
+    expect(screen.queryByRole("tab", { name: /game log/i })).not.toBeInTheDocument();
     expect(sockets).toHaveLength(1);
     expect(sockets[0].path).toBe("/ws/servers/alpha/logs/pod?from=start");
   });
@@ -177,7 +177,7 @@ describe("LogsTab", () => {
   it("offers container output when the game-log stream keeps failing", async () => {
     render(<LogsTab name="alpha" logPath="/data/logs/latest.log" phase="Running" />);
     // Switch from container output to the agent-backed game-log file stream.
-    await userEvent.click(screen.getByRole("button", { name: /game log/i }));
+    await userEvent.click(screen.getByRole("tab", { name: /game log/i }));
     const sock = sockets[sockets.length - 1];
     expect(sock.path).toBe("/ws/servers/alpha/logs");
     // Repeated reconnect attempts mean the agent is unreachable: show the
