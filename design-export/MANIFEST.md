@@ -983,3 +983,15 @@ Rebuilt as a plain frame carrying the same style properties read off the resolve
 - **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/g5mEpx.png` (2880×1800, non-empty RGBA).
 
 **Context:** Only the `SuA1e` card slot inside `g5mEpx`'s Settings Layout body was touched; the sidebar nav, top bar, and page header were untouched. Pencil does not auto-save — a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-12 — 010-easy-module-building: BuildModuleDialog modal wizard
+
+Added 3 modal wizard frames for the Web Dashboard Module Builder (US5):
+- `IdbiB`: `Screen/Dialog/Build Module — Step 1 (Preset & Metadata)` (800x700, archetype selector cards, DNS-1123 name validation, display metadata, category chips).
+- `O5kaV`: `Screen/Dialog/Build Module — Step 2 (Container & Ports)` (800x700, pinned image digest badge, dynamic port mapping list, persistent storage configuration).
+- `hmPL7`: `Screen/Dialog/Build Module — Step 3 (Review & Export)` (840x700, dual-pane layout with code viewer tabs for module.yaml/template.yaml/README.md, live offline validation checklist, memory slider preview with heap calculation, and export/install actions).
+
+**Export method & validation:**
+- **JSON:** Exported full subtrees to `design-export/json/IdbiB.json`, `design-export/json/O5kaV.json`, and `design-export/json/hmPL7.json`.
+- **Screenshots:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/{IdbiB,O5kaV,hmPL7}.png`.
+

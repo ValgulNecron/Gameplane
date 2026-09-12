@@ -1,0 +1,396 @@
+package handlers
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
+
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/gp-module/pkg/archetypes"
+	"github.com/ValgulNecron/gameplane/gp-module/pkg/packager"
+	"github.com/ValgulNecron/gameplane/gp-module/pkg/preview"
+	"github.com/ValgulNecron/gameplane/gp-module/pkg/scaffold"
+	"github.com/ValgulNecron/gameplane/gp-module/pkg/validator"
+)
+
+// BuilderPortDef specifies a network port configuration during scaffolding.
+type BuilderPortDef struct {
+	Name          string `json:"name"`
+	ContainerPort int    `json:"containerPort"`
+	Protocol      string `json:"protocol"`
+	Advertise     bool   `json:"advertise"`
+}
+
+// BuilderScaffoldRequest carries parameters for module scaffolding.
+type BuilderScaffoldRequest struct {
+	Name        string           `json:"name"`
+	DisplayName string           `json:"displayName,omitempty"`
+	Archetype   string           `json:"archetype,omitempty"`
+	Image       string           `json:"image,omitempty"`
+	Ports       []BuilderPortDef `json:"ports,omitempty"`
+	Categories  []string         `json:"categories,omitempty"`
+	Summary     string           `json:"summary,omitempty"`
+}
+
+// BuilderScaffoldResponse returns the in-memory scaffolded module files.
+type BuilderScaffoldResponse struct {
+	ModuleYaml   string `json:"moduleYaml"`
+	TemplateYaml string `json:"templateYaml"`
+	ReadmeMd     string `json:"readmeMd"`
+	IconBase64   string `json:"iconBase64,omitempty"`
+}
+
+// BuilderValidateRequest carries module and template YAML for offline verification.
+type BuilderValidateRequest struct {
+	ModuleYaml   string `json:"moduleYaml"`
+	TemplateYaml string `json:"templateYaml"`
+}
+
+// BuilderValidateResponse returns findings from instant offline verification.
+type BuilderValidateResponse struct {
+	Clean        bool                `json:"clean"`
+	ErrorCount   int                 `json:"errorCount"`
+	WarningCount int                 `json:"warningCount"`
+	Findings     []validator.Finding `json:"findings"`
+}
+
+// BuilderPreviewRequest carries template YAML and simulation inputs.
+type BuilderPreviewRequest struct {
+	TemplateYaml string            `json:"templateYaml"`
+	VersionId    string            `json:"versionId,omitempty"`
+	Memory       string            `json:"memory,omitempty"`
+	Config       map[string]string `json:"config,omitempty"`
+}
+
+// BuilderEffectiveEnvVar represents one computed environment variable with source provenance.
+type BuilderEffectiveEnvVar struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Source string `json:"source"`
+}
+
+// BuilderPreviewPort represents a port preview.
+type BuilderPreviewPort struct {
+	Name          string `json:"name"`
+	ContainerPort int    `json:"containerPort"`
+	Protocol      string `json:"protocol"`
+	Advertise     bool   `json:"advertise"`
+}
+
+// BuilderPreviewStorage represents storage preview settings.
+type BuilderPreviewStorage struct {
+	Size      string `json:"size"`
+	MountPath string `json:"mountPath"`
+}
+
+// BuilderPreviewResponse returns runtime preview and simulation results.
+type BuilderPreviewResponse struct {
+	ResolvedImage  string                   `json:"resolvedImage"`
+	EffectiveEnv   []BuilderEffectiveEnvVar `json:"effectiveEnv"`
+	ComputedConfig map[string]string        `json:"computedConfig"`
+	Ports          []BuilderPreviewPort     `json:"ports"`
+	Storage        BuilderPreviewStorage    `json:"storage"`
+}
+
+// BuilderExportRequest carries the finalized module files for packaging or cluster installation.
+type BuilderExportRequest struct {
+	Name         string `json:"name"`
+	ModuleYaml   string `json:"moduleYaml"`
+	TemplateYaml string `json:"templateYaml"`
+	ReadmeMd     string `json:"readmeMd"`
+	IconBase64   string `json:"iconBase64,omitempty"`
+	TargetSource string `json:"targetSource,omitempty"`
+}
+
+// BuilderExportResponse describes the cluster installation result when targetSource is provided.
+type BuilderExportResponse struct {
+	Installed  bool   `json:"installed"`
+	ModuleName string `json:"moduleName"`
+}
+
+func (h modulesHandler) builderScaffold(w http.ResponseWriter, req *http.Request) {
+	var body BuilderScaffoldRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("invalid json request: %w", err))
+		return
+	}
+	if body.Name == "" {
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("name is required"))
+		return
+	}
+
+	ports := make([]archetypes.PortDef, len(body.Ports))
+	for i, p := range body.Ports {
+		ports[i] = archetypes.PortDef{
+			Name:          p.Name,
+			ContainerPort: p.ContainerPort,
+			Protocol:      p.Protocol,
+			Advertise:     p.Advertise,
+		}
+	}
+
+	opts := scaffold.ScaffoldOptions{
+		Name:        body.Name,
+		DisplayName: body.DisplayName,
+		Archetype:   body.Archetype,
+		Image:       body.Image,
+		Ports:       ports,
+		Categories:  body.Categories,
+		Summary:     body.Summary,
+	}
+
+	files, err := scaffold.GenerateFiles(opts)
+	if err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, err)
+		return
+	}
+
+	resp := BuilderScaffoldResponse{
+		ModuleYaml:   files.ModuleYAML,
+		TemplateYaml: files.TemplateYAML,
+		ReadmeMd:     files.ReadmeMD,
+		IconBase64:   files.IconBase64,
+	}
+	writeJSON(w, resp)
+}
+
+func (h modulesHandler) builderValidate(w http.ResponseWriter, req *http.Request) {
+	var body BuilderValidateRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("invalid json request: %w", err))
+		return
+	}
+
+	var meta struct {
+		Name string `json:"name" yaml:"name"`
+	}
+	_ = yaml.Unmarshal([]byte(body.ModuleYaml), &meta)
+	dirName := meta.Name
+	if dirName == "" {
+		dirName = "module"
+	}
+
+	files := map[string][]byte{
+		"module.yaml":   []byte(body.ModuleYaml),
+		"template.yaml": []byte(body.TemplateYaml),
+		"README.md":     []byte("# " + dirName + "\n"),
+		"icon.png":      archetypes.PlaceholderIconBytes(),
+	}
+
+	report, err := validator.ValidateFiles(dirName, files, validator.ValidateOptions{
+		Strict:  false,
+		Offline: true,
+	})
+	if err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, err)
+		return
+	}
+
+	findings := report.Findings
+	if findings == nil {
+		findings = []validator.Finding{}
+	}
+
+	errorCount := 0
+	warningCount := 0
+	for _, f := range findings {
+		if f.Level == validator.SeverityError {
+			errorCount++
+		} else if f.Level == validator.SeverityWarn {
+			warningCount++
+		}
+	}
+
+	resp := BuilderValidateResponse{
+		Clean:        report.Clean,
+		ErrorCount:   errorCount,
+		WarningCount: warningCount,
+		Findings:     findings,
+	}
+	writeJSON(w, resp)
+}
+
+func (h modulesHandler) builderPreview(w http.ResponseWriter, req *http.Request) {
+	var body BuilderPreviewRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("invalid json request: %w", err))
+		return
+	}
+
+	opts := preview.PreviewOptions{
+		TemplateYAML: []byte(body.TemplateYaml),
+		VersionID:    body.VersionId,
+		MemoryLimit:  body.Memory,
+		UserConfig:   body.Config,
+	}
+
+	res, err := preview.GeneratePreview(opts)
+	if err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, err)
+		return
+	}
+
+	// Map source provenance for environment variables
+	configSourceMap := make(map[string]string)
+	for _, cf := range res.ConfigFields {
+		configSourceMap[cf.Name] = cf.Source
+	}
+
+	var effectiveEnv []BuilderEffectiveEnvVar
+	for k, v := range res.EffectiveEnv {
+		source := "template"
+		if s, ok := configSourceMap[k]; ok && s != "" {
+			source = s
+		}
+		effectiveEnv = append(effectiveEnv, BuilderEffectiveEnvVar{
+			Name:   k,
+			Value:  v,
+			Source: source,
+		})
+	}
+
+	var ports []BuilderPreviewPort
+	for _, p := range res.Ports {
+		ports = append(ports, BuilderPreviewPort{
+			Name:          p.Name,
+			ContainerPort: p.ContainerPort,
+			Protocol:      p.Protocol,
+			Advertise:     true,
+		})
+	}
+
+	computedConfig := res.ComputedConfig
+	if computedConfig == nil {
+		computedConfig = make(map[string]string)
+	}
+
+	resp := BuilderPreviewResponse{
+		ResolvedImage:  res.EffectiveImage,
+		EffectiveEnv:   effectiveEnv,
+		ComputedConfig: computedConfig,
+		Ports:          ports,
+		Storage: BuilderPreviewStorage{
+			Size:      res.Storage.Size,
+			MountPath: res.Storage.MountPath,
+		},
+	}
+	writeJSON(w, resp)
+}
+
+func (h modulesHandler) builderExport(w http.ResponseWriter, req *http.Request) {
+	var body BuilderExportRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("invalid json request: %w", err))
+		return
+	}
+
+	if body.Name == "" {
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("name is required"))
+		return
+	}
+	if body.ModuleYaml == "" {
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("moduleYaml is required"))
+		return
+	}
+	if body.TemplateYaml == "" {
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("templateYaml is required"))
+		return
+	}
+
+	files := map[string][]byte{
+		"module.yaml":   []byte(body.ModuleYaml),
+		"template.yaml": []byte(body.TemplateYaml),
+		"README.md":     []byte(body.ReadmeMd),
+	}
+
+	if body.IconBase64 != "" {
+		decoded, err := base64.StdEncoding.DecodeString(body.IconBase64)
+		if err == nil && len(decoded) > 0 {
+			files["icon.png"] = decoded
+		}
+	}
+	if _, ok := files["icon.png"]; !ok {
+		// Default 1x1 transparent PNG
+		files["icon.png"] = []byte{
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+			0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+			0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+			0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+			0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+			0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+		}
+	}
+
+	// Case 1: Direct cluster installation into an upload-type ModuleSource
+	if body.TargetSource != "" {
+		if err := h.requireUploadSource(req, body.TargetSource); err != nil {
+			writeUploadSourceErr(w, req, err)
+			return
+		}
+
+		cmName := "module-upload-" + body.Name
+		cm := &corev1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      cmName,
+				Namespace: h.namespace,
+				Labels: map[string]string{
+					labelModuleUpload:     "true",
+					labelUploadModuleName: body.Name,
+				},
+			},
+			BinaryData: files,
+		}
+
+		cms := h.k.Typed.CoreV1().ConfigMaps(h.namespace)
+		if _, err := cms.Create(req.Context(), cm, metav1.CreateOptions{}); err != nil {
+			if !apierrors.IsAlreadyExists(err) {
+				httperr.Write(w, req, err)
+				return
+			}
+			existing, err := cms.Get(req.Context(), cmName, metav1.GetOptions{})
+			if err != nil {
+				httperr.Write(w, req, err)
+				return
+			}
+			if existing.Labels[labelModuleUpload] != "true" {
+				httperr.WriteCode(w, req, http.StatusConflict,
+					fmt.Errorf("configmap %q exists and is not a module upload", cmName))
+				return
+			}
+			existing.Labels[labelUploadModuleName] = body.Name
+			existing.BinaryData = files
+			existing.Data = nil
+			if _, err := cms.Update(req.Context(), existing, metav1.UpdateOptions{}); err != nil {
+				httperr.Write(w, req, err)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		writeJSON(w, BuilderExportResponse{
+			Installed:  true,
+			ModuleName: body.Name,
+		})
+		return
+	}
+
+	// Case 2: Download .tar.gz bundle
+	archive, _, err := packager.CreateArchiveFromFiles(files, packager.DefaultPackageLimits)
+	if err != nil {
+		httperr.WriteCode(w, req, http.StatusInternalServerError, fmt.Errorf("failed to create archive: %w", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/gzip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", body.Name+".tar.gz"))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(archive)
+}

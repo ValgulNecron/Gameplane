@@ -15,6 +15,13 @@ require github.com/ValgulNecron/gameplane/gameaction v0.0.0
 // `go build ./api/...`.
 replace github.com/ValgulNecron/gameplane/gameaction => ../gameaction
 
+require github.com/ValgulNecron/gameplane/gp-module v0.0.0
+
+// gp-module is an in-repo module (no published version); resolve it
+// locally both inside the go.work workspace and for standalone
+// `go build ./api/...`.
+replace github.com/ValgulNecron/gameplane/gp-module => ../gp-module
+
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/coreos/go-oidc/v3 v3.21.0
@@ -102,6 +109,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.37.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect

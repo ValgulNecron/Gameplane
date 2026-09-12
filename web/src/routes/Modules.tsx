@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, Settings2, Upload } from "lucide-react";
+import { Plus, Search, Settings2, Upload } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { InstallDialog } from "@/components/modules/InstallDialog";
 import { UploadModuleDialog } from "@/components/modules/UploadModuleDialog";
+import { BuildModuleDialog } from "@/components/modules/BuildModuleDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ export function ModulesPage() {
   const [uninstallTarget, setUninstallTarget] = useState<CatalogEntry | null>(null);
   const [removeUploadTarget, setRemoveUploadTarget] = useState<CatalogEntry | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [buildOpen, setBuildOpen] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
 
   const uploadSources = useMemo(
@@ -134,6 +136,9 @@ export function ModulesPage() {
         subtitle="Pre-packaged game-server templates pulled from your configured module sources."
         actions={
           <div className="flex items-center gap-2">
+            <Button onClick={() => setBuildOpen(true)}>
+              <Plus className="h-4 w-4" /> Create module
+            </Button>
             {uploadSources.length > 0 && (
               <Button variant="outline" onClick={() => setUploadOpen(true)}>
                 <Upload className="h-4 w-4" /> Upload module
@@ -253,6 +258,16 @@ export function ModulesPage() {
         onOpenChange={setUploadOpen}
         sources={uploadSources}
         onUploaded={async () => {
+          setPageError(null);
+          await qc.invalidateQueries({ queryKey: ["modules-catalog"] });
+        }}
+      />
+
+      <BuildModuleDialog
+        open={buildOpen}
+        onOpenChange={setBuildOpen}
+        sources={uploadSources}
+        onInstalled={async () => {
           setPageError(null);
           await qc.invalidateQueries({ queryKey: ["modules-catalog"] });
         }}

@@ -32,7 +32,7 @@ else
 KUBECONFIG_ENV :=
 endif
 
-GO_MODULES     := netguard gameaction gameproto operator api agent audit-syslog-bridge telemetry-receiver sentinel mcp-server capture-sidecar svcutil tunnel
+GO_MODULES     := netguard gameaction gameproto gp-module operator api agent audit-syslog-bridge telemetry-receiver sentinel mcp-server capture-sidecar svcutil tunnel
 GO_INTEGRATION_MODULES := operator api
 
 # test/e2e is a separate module (its own go.mod, excluded from the coverage
@@ -310,6 +310,27 @@ module-pin: ## Re-resolve every module image tag to its current digest (rewrites
 	# The gameplane-module repo also runs this monthly via refresh-pins.yml.
 	python3 modules/validate.py --pin
 	@echo "commit the rewritten modules/*/template.yaml in the gameplane-module repo + bump the submodule pointer"
+
+BIN_DIR ?= bin
+GP_MODULE ?= $(BIN_DIR)/gp-module
+
+.PHONY: gp-module module-new module-validate module-preview module-package
+
+gp-module: ## Build gp-module CLI binary
+	@mkdir -p $(BIN_DIR)
+	(cd gp-module && go build $(GO_BUILDFLAGS) -o ../$(GP_MODULE) ./cmd/gp-module)
+
+module-new: gp-module ## Scaffold a new module (NAME=... ARCHETYPE=...)
+	@$(GP_MODULE) init $(NAME) $(if $(ARCHETYPE),--archetype $(ARCHETYPE))
+
+module-validate: gp-module ## Validate module(s) offline (MODULE=...)
+	@$(GP_MODULE) validate $(if $(MODULE),modules/$(MODULE))
+
+module-preview: gp-module ## Dry-run preview of module config (MODULE=... MEMORY=... VERSION=...)
+	@$(GP_MODULE) preview modules/$(MODULE) $(if $(MEMORY),--memory $(MEMORY)) $(if $(VERSION),--version-id $(VERSION))
+
+module-package: gp-module ## Package module bundle (MODULE=... REGISTRY=... OUTPUT=...)
+	@$(GP_MODULE) package modules/$(MODULE) $(if $(REGISTRY),--registry $(REGISTRY)) $(if $(OUTPUT),--output $(OUTPUT))
 
 # -------- local dev cluster (kind) --------
 .PHONY: dev-up dev-down dev-load dev-push dev-install

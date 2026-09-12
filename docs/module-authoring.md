@@ -10,6 +10,87 @@ registry by creating a `ModuleSource` resource; users install a module by
 creating (or clicking Install on) a `Module` resource, which the operator
 materializes into an in-cluster `GameTemplate`.
 
+## Quickstart: Authoring with `gp-module` CLI & Web Builder
+
+Gameplane provides a unified toolkit for creating, verifying, previewing, and packaging modules:
+
+- **Command-Line Interface (`gp-module`)**: First-class Go CLI with Makefile targets.
+- **Web Dashboard Module Builder**: Visual 3-step modal wizard available directly on `/modules` in the web dashboard.
+
+### 1. Scaffolding a new module (`init`)
+
+Scaffold a complete, schema-compliant module directory with DNS-1123 validation using archetypes (`steamcmd`, `java`, or `generic`):
+
+```sh
+# Using make targets
+make module-new NAME=cs2-match ARCHETYPE=steamcmd
+
+# Or using gp-module binary directly
+bin/gp-module init cs2-match \
+  --archetype=steamcmd \
+  --display-name="Counter-Strike 2 Match" \
+  --image="ghcr.io/valgulnecron/cs2:latest@sha256:4b9a8e23f0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7" \
+  --ports="game:27015/udp:adv" \
+  --categories="Shooter,Co-op"
+```
+
+### 2. Instant Offline Validation (`validate`)
+
+Run static offline linting and validation on metadata, CRD schemas, image digests, port ranges, and configuration types without requiring network or cluster access:
+
+```sh
+# Validate a single module
+make module-validate MODULE=modules/cs2-match
+
+# Validate all modules with strict diagnostics
+bin/gp-module validate modules/* --strict
+
+# Machine-readable JSON output for CI pipelines
+bin/gp-module validate modules/cs2-match --json
+```
+
+### 3. Dry-Run Config Preview (`preview`)
+
+Simulate server creation from `template.yaml`, evaluating dynamic memory limits (`autoFromMemoryLimit`) and environment variable precedence:
+
+```sh
+# Preview runtime config with an 8Gi memory limit
+make module-preview MODULE=modules/minecraft-java MEMORY=8Gi
+
+# Simulate with custom user configuration
+bin/gp-module preview modules/minecraft-java \
+  --memory=8Gi \
+  --config="MOTD=My Tournament Server" \
+  --json
+```
+
+### 4. Packaging and Distribution (`package`)
+
+Enforce asset size limits (icon $\le$ 512 KiB, bundle $\le$ 1 MiB) and export to `.tar.gz` or push directly to an OCI registry:
+
+```sh
+# Package into a local tar.gz bundle
+make module-package MODULE=modules/cs2-match OUTPUT=dist/cs2-match.tar.gz
+
+# Push OCI artifact to registry
+bin/gp-module package modules/cs2-match \
+  --registry=ghcr.io/valgulnecron/gameplane-modules \
+  --tag=1.0.0 \
+  --tag-latest
+```
+
+### 5. Web Dashboard Module Builder
+
+In the Gameplane web dashboard:
+1. Navigate to **Modules** in the main navigation.
+2. Click **"Create module"** in the top-right header actions.
+3. Follow the 3-step modal wizard:
+   - **Step 1 (Preset & Metadata)**: Choose an archetype card (`SteamCMD Dedicated`, `Java Server`, or `Generic Container`), enter the module name (validated live against DNS-1123 standards), and select category chips.
+   - **Step 2 (Container & Ports)**: Configure container image (with digest pinning verification), dynamic port mappings (TCP/UDP, advertise flag), and storage volume size and mount path.
+   - **Step 3 (Review & Export)**: View generated files across tabs (`module.yaml`, `template.yaml`, `README.md`) with live syntax editing, monitor instant offline validation results, simulate memory limit scaling, and either download the `.tar.gz` archive or install directly into your cluster's upload source.
+
+---
+
 ## Source layout
 
 The official modules live in the standalone **`gameplane-module`** repo, which

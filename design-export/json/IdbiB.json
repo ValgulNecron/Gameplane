@@ -1,0 +1,740 @@
+{
+  "type": "frame",
+  "id": "IdbiB",
+  "x": -15225,
+  "y": 29490,
+  "name": "Screen/Dialog/Build Module \u2014 Step 1 (Preset & Metadata)",
+  "clip": true,
+  "width": 800,
+  "fill": "$surface/surface",
+  "cornerRadius": 16,
+  "stroke": "$border/border",
+  "strokeWidth": 1,
+  "strokeAlignment": "inner",
+  "layout": "vertical",
+  "children": [
+    {
+      "type": "frame",
+      "id": "O6g2j",
+      "name": "ModalHeader",
+      "width": "fill_container",
+      "stroke": "$border/border",
+      "strokeWidth": {
+        "bottom": 1
+      },
+      "padding": [
+        20,
+        28
+      ],
+      "justifyContent": "space_between",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "sAUqX",
+          "name": "TitleGroup",
+          "layout": "vertical",
+          "gap": 4,
+          "children": [
+            {
+              "type": "text",
+              "id": "MTmdN",
+              "name": "Title",
+              "fill": "$foreground/foreground",
+              "content": "Create game module",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 18,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "SwcaM",
+              "name": "Subtitle",
+              "fill": "$muted",
+              "content": "Step 1 of 3 \u00b7 Preset & Metadata",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "icon",
+          "id": "fw7nv",
+          "name": "CloseIcon",
+          "width": 18,
+          "height": 18,
+          "icon": "x",
+          "library": "lucide",
+          "fill": "$muted"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "gefmT",
+      "name": "Stepper",
+      "width": "fill_container",
+      "stroke": "$border/border",
+      "strokeWidth": {
+        "bottom": 1
+      },
+      "gap": 12,
+      "padding": [
+        12,
+        28
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "ofkt5",
+          "name": "Step1_Active",
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "AULFJ",
+              "name": "Badge",
+              "width": 20,
+              "height": 20,
+              "fill": "$accent/accent",
+              "cornerRadius": 999,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "S3bJzL",
+                  "name": "Num",
+                  "fill": "#ffffff",
+                  "content": "1",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Fyehw",
+              "name": "Label",
+              "fill": "$foreground/foreground",
+              "content": "Preset & Metadata",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 13,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "c2sVlx",
+          "name": "Sep1",
+          "fill": "$muted",
+          "content": "\u00b7",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "cxgug",
+          "name": "Step2_Inactive",
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "rIpp2",
+              "name": "Badge",
+              "width": 20,
+              "height": 20,
+              "cornerRadius": 999,
+              "stroke": "$border/border",
+              "strokeWidth": 1,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "L5JDN",
+                  "name": "Num",
+                  "fill": "$muted",
+                  "content": "2",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "r5AWd",
+              "name": "Label",
+              "fill": "$muted",
+              "content": "Container & Ports",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "j3lfU",
+          "name": "Sep2",
+          "fill": "$muted",
+          "content": "\u00b7",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "h0SnL4",
+          "name": "Step3_Inactive",
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "x4bwK",
+              "name": "Badge",
+              "width": 20,
+              "height": 20,
+              "cornerRadius": 999,
+              "stroke": "$border/border",
+              "strokeWidth": 1,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "zslcb",
+                  "name": "Num",
+                  "fill": "$muted",
+                  "content": "3",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "P18h8j",
+              "name": "Label",
+              "fill": "$muted",
+              "content": "Review & Export",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "jWsIn",
+      "name": "Body",
+      "width": "fill_container",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": [
+        24,
+        28
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "qmvrF",
+          "name": "ArchetypeLabel",
+          "fill": "$foreground/foreground",
+          "content": "Archetype preset",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 13,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "iQAoV",
+          "name": "ArchetypesRow",
+          "width": "fill_container",
+          "gap": 12,
+          "children": [
+            {
+              "type": "frame",
+              "id": "rS3t7",
+              "name": "Archetype_SteamCMD_Selected",
+              "width": "fill_container",
+              "fill": "$surface-alt",
+              "cornerRadius": 8,
+              "stroke": "$accent/accent",
+              "strokeWidth": 2,
+              "layout": "vertical",
+              "gap": 6,
+              "padding": 14,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "esz5O",
+                  "name": "Title",
+                  "fill": "$foreground/foreground",
+                  "content": "SteamCMD Dedicated",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "v4vb0",
+                  "name": "Desc",
+                  "fill": "$muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Automated updates & Steam login for Steamworks games",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "cWSRM",
+              "name": "Archetype_Java",
+              "width": "fill_container",
+              "fill": "$surface/surface",
+              "cornerRadius": 8,
+              "stroke": "$border/border",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 6,
+              "padding": 14,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "md3RH",
+                  "name": "Title",
+                  "fill": "$foreground/foreground",
+                  "content": "Java Server",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "CNfSh",
+                  "name": "Desc",
+                  "fill": "$muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Minecraft / Paper with heap calculation & JVM flags",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "s7jVev",
+              "name": "Archetype_Generic",
+              "width": "fill_container",
+              "fill": "$surface/surface",
+              "cornerRadius": 8,
+              "stroke": "$border/border",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 6,
+              "padding": 14,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BPkm3",
+                  "name": "Title",
+                  "fill": "$foreground/foreground",
+                  "content": "Generic Container",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "jOLHy",
+                  "name": "Desc",
+                  "fill": "$muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Custom binaries, scripts, or container images",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "aj9xL",
+          "name": "FormFields",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "k3jDl",
+              "name": "NameFieldGroup",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Fk8mC",
+                  "name": "NameLabelRow",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "jgd0Y",
+                      "name": "Label",
+                      "fill": "$foreground/foreground",
+                      "content": "Module Name",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "l86N4",
+                      "name": "DNSBadge",
+                      "fill": "$success/success",
+                      "content": "\u2713 Valid DNS-1123 label",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "x3YK4",
+                  "name": "InputBox",
+                  "width": "fill_container",
+                  "height": 38,
+                  "cornerRadius": 6,
+                  "stroke": "$border/border",
+                  "strokeWidth": 1,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "H0q9n",
+                      "name": "Val",
+                      "fill": "$foreground/foreground",
+                      "content": "cs2-competitive",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AocTa",
+              "name": "DisplayNameGroup",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "U5tS0",
+                  "name": "Label",
+                  "fill": "$foreground/foreground",
+                  "content": "Display Name",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "N4WlJ",
+                  "name": "InputBox",
+                  "width": "fill_container",
+                  "height": 38,
+                  "cornerRadius": 6,
+                  "stroke": "$border/border",
+                  "strokeWidth": 1,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dlBkd",
+                      "name": "Val",
+                      "fill": "$foreground/foreground",
+                      "content": "Counter-Strike 2 Competitive",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "qCc04",
+              "name": "SummaryGroup",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Vm1PF",
+                  "name": "Label",
+                  "fill": "$foreground/foreground",
+                  "content": "Summary",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "RcRpH",
+                  "name": "InputBox",
+                  "width": "fill_container",
+                  "height": 38,
+                  "cornerRadius": 6,
+                  "stroke": "$border/border",
+                  "strokeWidth": 1,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "M0uxLC",
+                      "name": "Val",
+                      "fill": "$foreground/foreground",
+                      "content": "High tickrate dedicated server for Counter-Strike 2",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "j7AaDL",
+              "name": "CategoriesGroup",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "wpaOe",
+                  "name": "Label",
+                  "fill": "$foreground/foreground",
+                  "content": "Categories",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "QV9u4",
+                  "name": "ChipsRow",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "sorV6",
+                      "name": "Chip_Shooter_Selected",
+                      "fill": "$accent/accent",
+                      "cornerRadius": 999,
+                      "padding": [
+                        4,
+                        10
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "haa3W",
+                          "name": "Txt",
+                          "fill": "#ffffff",
+                          "content": "Shooter \u00d7",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "u7g81",
+                      "name": "Chip_Coop_Selected",
+                      "fill": "$accent/accent",
+                      "cornerRadius": 999,
+                      "padding": [
+                        4,
+                        10
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "UcIYb",
+                          "name": "Txt",
+                          "fill": "#ffffff",
+                          "content": "Co-op \u00d7",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "e4hEWM",
+                      "name": "Chip_Add",
+                      "cornerRadius": 999,
+                      "stroke": "$border/border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        4,
+                        10
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "dH4Uy",
+                          "name": "Txt",
+                          "fill": "$muted",
+                          "content": "+ Add category",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ldDLZ",
+      "name": "ModalFooter",
+      "width": "fill_container",
+      "stroke": "$border/border",
+      "strokeWidth": {
+        "top": 1
+      },
+      "padding": [
+        16,
+        28
+      ],
+      "justifyContent": "space_between",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "SWPz6",
+          "name": "Hint",
+          "fill": "$muted",
+          "content": "Step 1 of 3",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "e1vw86",
+          "name": "ButtonsRow",
+          "gap": 12,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "IjlZv",
+              "name": "CancelButton",
+              "cornerRadius": 6,
+              "stroke": "$border/border",
+              "strokeWidth": 1,
+              "padding": [
+                8,
+                16
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "jNuWh",
+                  "name": "Label",
+                  "fill": "$foreground/foreground",
+                  "content": "Cancel",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ufdT9",
+              "name": "NextButton",
+              "fill": "$accent/accent",
+              "cornerRadius": 6,
+              "gap": 6,
+              "padding": [
+                8,
+                18
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ORw54",
+                  "name": "Label",
+                  "fill": "#ffffff",
+                  "content": "Continue to Container & Ports \u2192",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
