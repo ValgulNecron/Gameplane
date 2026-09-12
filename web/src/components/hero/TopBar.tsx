@@ -1,4 +1,4 @@
-import { Menu } from "lucide-react";
+import { Menu, UserCircle, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Button,
@@ -8,6 +8,8 @@ import {
   DropdownPopover,
   DropdownMenu,
   DropdownItem,
+  DropdownSection,
+  Separator,
 } from "@heroui/react";
 import { Auth } from "@/lib/endpoints";
 import type { User } from "@/types";
@@ -101,21 +103,30 @@ export function TopBar({
               <Avatar.Fallback className="bg-accent text-accent-foreground">{initials}</Avatar.Fallback>
             </Avatar>
           </DropdownTrigger>
-          <DropdownPopover placement="bottom end">
+          <DropdownPopover placement="bottom end" className="rounded-md">
             <DropdownMenu disabledKeys={["profile"]} className="w-48">
               <DropdownItem key="profile" className="py-2">
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">{name}</span>
-                  <span className="text-xs text-muted">{user?.role ?? "—"}</span>
+                <div className="flex items-center gap-2">
+                  <UserCircle className="h-4 w-4 text-muted" />
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-foreground">{name}</span>
+                    <span className="text-xs text-muted">{user?.role ?? "—"}</span>
+                  </div>
                 </div>
               </DropdownItem>
-              <DropdownItem
-                key="logout"
-                onClick={() => void handleLogout()}
-                className="text-danger"
-              >
-                Sign out
-              </DropdownItem>
+              <DropdownSection>
+                <Separator className="my-1" />
+                <DropdownItem
+                  key="logout"
+                  onClick={() => void handleLogout()}
+                  className="text-danger"
+                >
+                  <div className="flex items-center gap-2">
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </div>
+                </DropdownItem>
+              </DropdownSection>
             </DropdownMenu>
           </DropdownPopover>
         </Dropdown>
