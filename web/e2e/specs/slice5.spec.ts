@@ -36,6 +36,10 @@ interface ScriptedResponse {
 // be a single response (repeated for every call) or an array consumed in
 // order (holding on the last entry once exhausted) — the latter is what
 // lets a test script the Starting → polling → Up transition.
+//
+// For array-based responses, a mutable phase variable tracks the current state.
+// The phase advances only when a polling call arrives after a Start click,
+// preventing StrictMode double-renders from skipping states.
 async function mockShareResolve(
   page: Page,
   responses: Record<string, ScriptedResponse | ScriptedResponse[]>,
@@ -45,26 +49,64 @@ async function mockShareResolve(
       string,
       { status: number; body?: unknown } | { status: number; body?: unknown }[]
     >;
-    const calls: Record<string, number> = {};
+    // Track phase index for each token with array-based responses
+    const phases: Record<string, number> = {};
+    // Track whether a start was just called, so next resolve advances the phase
+    const pendingAdvance: Record<string, boolean> = {};
     const originalFetch = window.fetch.bind(window);
     window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
       const match = /\/shares\/([^/?]+)(\/start)?/.exec(url);
       if (match) {
         const token = decodeURIComponent(match[1]);
-        const key = match[2] ? `${token}:start` : token;
-        const entry = table[key];
-        if (entry) {
-          const steps = Array.isArray(entry) ? entry : [entry];
-          const i = Math.min(calls[key] ?? 0, steps.length - 1);
-          calls[key] = (calls[key] ?? 0) + 1;
-          const step = steps[i];
-          return Promise.resolve(
-            new Response(step.body !== undefined ? JSON.stringify(step.body) : null, {
-              status: step.status,
-              headers: { "Content-Type": "application/json" },
-            }),
-          );
+        const isStart = !!match[2];
+        if (isStart) {
+          // Start call: answer with the start response and mark for phase advance on next resolve
+          const startKey = `${token}:start`;
+          const startEntry = table[startKey];
+          if (startEntry) {
+            const step = Array.isArray(startEntry) ? startEntry[0] : startEntry;
+            pendingAdvance[token] = true;
+            return Promise.resolve(
+              new Response(step.body !== undefined ? JSON.stringify(step.body) : null, {
+                status: step.status,
+                headers: { "Content-Type": "application/json" },
+              }),
+            );
+          }
+        } else {
+          // Resolve call: answer with response at current phase
+          const entry = table[token];
+          if (entry) {
+            if (Array.isArray(entry)) {
+              // Initialize phase if needed
+              if (!(token in phases)) {
+                phases[token] = 0;
+              }
+              const currentPhase = phases[token];
+              const step = entry[Math.min(currentPhase, entry.length - 1)];
+              // Advance phase on each polling call after a start was called,
+              // but not during the initial double-render in StrictMode
+              if (pendingAdvance[token]) {
+                phases[token] = Math.min(currentPhase + 1, entry.length - 1);
+              }
+              return Promise.resolve(
+                new Response(step.body !== undefined ? JSON.stringify(step.body) : null, {
+                  status: step.status,
+                  headers: { "Content-Type": "application/json" },
+                }),
+              );
+            } else {
+              // Single response: return as-is
+              const step = entry;
+              return Promise.resolve(
+                new Response(step.body !== undefined ? JSON.stringify(step.body) : null, {
+                  status: step.status,
+                  headers: { "Content-Type": "application/json" },
+                }),
+              );
+            }
+          }
         }
       }
       return originalFetch(input, init);
