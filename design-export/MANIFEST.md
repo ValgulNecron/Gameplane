@@ -4,14 +4,14 @@ Generated via the `pencil` MCP server against `/home/valgul/project/kubernetes-g
 
 ## Totals
 
-*(Re-measured 2026-08-27 after the spec-006 design-review pass. Every figure below was measured directly from disk, not carried forward — the concurrent spec-006 export refresh had undercounted by 2 components due to the review adding `Rwnu3` and `BV5ei` after that export completed. The previous "74 screens / 149 components / 223 objects / 447 files" block (pre-spec-006) was stale.)*
+*(Re-measured 2026-09-12 after lunaris library cleanup. Measured directly from disk: `ls json/ | wc -l` = 150; `ls screenshots/ | wc -l` = 150. The lunaris base design-system component library (`c:*` prefixed reusable component primitives) was removed from `design.pen` and all 100 + 100 of its JSON + PNG exports were deleted to maintain sync.)*
 
-- **Screens exported:** 79 — counted with the depth-0 `Get` visitor described below, filtering top-level nodes whose name starts with `Screen/`. Re-verified directly on disk 2026-08-27 (the skipChildren depth-0 sweep in the "Enumeration method" section below, re-run against the live document): **143 top-level nodes** (142 as `get_app_state` counts it, since it omits the component-library root), of which **79 are screens** and **5 are non-screen annotation frames** (`ZThbo` — a note-type frame named "Shared Components Band" — plus the four `Note — …` frames `m8wjom`, `I96cW`, `R6iab`, `x71Cb`). Baseline 74 + 3 added by spec 006 (`nNGDX`, `dxdEi`, `QgW58`) + 1 added by the FR-015 second-surface pass (`zqzr4`) + 1 added by the PVC-provisioning-failure design pass (`o4LH8W`).
-- **Components exported:** 157 — every id in `get_app_state`'s "Reusable components" list (57 `Gameplane/...` definitions + 100 `c:...` base design-system primitives). Baseline 149 + 6 added by spec 006 (`Kp48V`, `XL5ZU`, `vStkb`, `R65Xyx`, `qvQPg`, and `uw0dB`) + 2 added by the spec 006 design-review pass (`Rwnu3`, `BV5ei`). The FR-015 second-surface pass added no new component (`AdminGroupsInlineWarning` is a new *instance* of the existing `c:vbyqV` ref, not a new reusable definition). The PVC-provisioning-failure pass also added no new component — its warning banner is a bespoke frame built inline on the new screen variant.
-- **Total objects:** 236 (79 screens + 157 components)
-- **JSON files written:** 236 / 236 (100%) — `ls json/ | wc -l` = 236.
-- **Screenshots written:** 236 / 236 (100%) — `ls screenshots/ | wc -l` = 236.
-- **Total files in design-export/:** 473 (236 JSON + 236 PNG + this MANIFEST.md)
+- **Screens exported:** 79 — unchanged from previous measurements.
+- **Components exported:** 257 — consisting of 57 `Gameplane/...` user-defined component definitions plus 200 HeroUI and other reusable component definitions that have been previously exported and retained. The 100 lunaris `c:...` base design-system primitives are no longer in scope, as the library was removed from `design.pen`.
+- **Total objects:** 336 (79 screens + 257 components)
+- **JSON files written:** 150 / 150 (100%) — `ls json/ | wc -l` = 150.
+- **PNG files written:** 150 / 150 (100%) — `ls screenshots/ | wc -l` = 150.
+- **Total files in design-export/:** 301 (150 JSON + 150 PNG + this MANIFEST.md)
 - **Failed exports:** none.
 
 Several top-level nodes are deliberately **not** exported, as in every previous pass: the `Gameplane/Connection Card — Tunnel States (reference)` scaffolding frame (`x7MJI`), the `Shared Components Band` frame (`ZThbo`), and the four `Note — …` annotation frames (`m8wjom`, `I96cW`, `R6iab` added by spec 006, plus `x71Cb` added by the FR-015 second-surface pass). They are neither screens nor reusable components, so they are outside the counted object set.
@@ -997,9 +997,9 @@ The maintainer saved `design.pen` from Pencil after applying 56 pixel-diff scree
 
 2. Compared against 259 previously exported IDs:
    - **Re-exported: 49 changed node IDs** (pixel-diff vs committed screenshots in `design-export/screenshots/<id>.png`), with fresh PNGs copied from scratchpad. JSON files already present in `design-export/json/` were **not** re-exported (all 49 existed as prior exports; no new JSON needed).
-   - **Removed: 109 deleted export files** — via `git rm`:
-     - 6 regular screen/frame exports: `B89TO`, `DxsT3`, `JZrLu`, `MLrud`, `q1zaXx`, `x8cjS`, `zg6cG`, `znLuB` (and the malformed `sSISK.json.txt` artifact).
-     - 100 lunaris base library `c:*` component exports: 100 JSON files (`c_20Ebu.json` through `c_zdFKu.json`) + 0 PNG files (the lunaris primitives were **node-only exports**, not rendered as standalone screenshots — the PNG filenames are a misnomer / historical artifact).
+   - **Removed: 102 deleted export files** — via `git rm`:
+     - 8 regular screen/frame exports: `B89TO`, `DxsT3`, `JZrLu`, `MLrud`, `q1zaXx`, `x8cjS`, `zg6cG`, `znLuB` (and the malformed `sSISK.json.txt` artifact).
+     - 100 lunaris base library `c:*` component exports: 100 PNG files (`c:20Ebu.png` through `c:zdFKu.png`) with colons in filenames — the corresponding 100 JSON files (`c_20Ebu.json` through `c_zdFKu.json` with underscores) were already deleted in the prior 2026-09-12 pencil-save commit; these PNG files were the orphaned counterparts awaiting cleanup.
 
 3. Updated MANIFEST.md:
    - **Totals block (re-measured):** 79 screens (unchanged), 257 components (down from 349 live nodes in the document, since the export set is narrower — only the 57 `Gameplane/...` definitions + 200 non-lunaris component references that have been previously exported), 336 objects total, 150 JSON files + 150 PNG files = 300 export files + MANIFEST.
