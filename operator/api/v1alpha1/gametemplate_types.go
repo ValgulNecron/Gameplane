@@ -1216,6 +1216,7 @@ type GameTemplateList struct {
 	Items           []GameTemplate `json:"items"`
 }
 
+// init registers GameTemplate types with the scheme builder.
 func init() {
 	SchemeBuilder.Register(&GameTemplate{}, &GameTemplateList{})
 }

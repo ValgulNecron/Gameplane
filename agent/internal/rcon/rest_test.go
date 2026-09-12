@@ -16,6 +16,7 @@ import (
 	"time"
 )
 
+// parseRESTHostPort splits host and integer port from an address string.
 func parseRESTHostPort(t *testing.T, s string) (string, int) {
 	t.Helper()
 	host, portStr, err := net.SplitHostPort(s)
@@ -29,14 +30,17 @@ func parseRESTHostPort(t *testing.T, s string) (string, int) {
 	return host, port
 }
 
+// staticPass returns a PassFn providing a fixed password.
 func staticPass(p string) PassFn {
 	return func() (string, error) { return p, nil }
 }
 
+// errPass returns a PassFn that returns an error.
 func errPass(err error) PassFn {
 	return func() (string, error) { return "", err }
 }
 
+// TestREST_GenericAdapter_SuccessCases tests generic REST adapter parsing across payload variants.
 func TestREST_GenericAdapter_SuccessCases(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -152,6 +156,7 @@ func TestREST_GenericAdapter_SuccessCases(t *testing.T) {
 	}
 }
 
+// TestREST_TxAdminAdapter verifies command formatting and token auth for FiveM txAdmin.
 func TestREST_TxAdminAdapter(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/fxserver/commands" {
@@ -197,6 +202,7 @@ func TestREST_TxAdminAdapter(t *testing.T) {
 	}
 }
 
+// TestREST_FarmingSimulatorAdapter verifies basic auth credentials and console endpoints for FS25.
 func TestREST_FarmingSimulatorAdapter(t *testing.T) {
 	expectedPass := "admin:fs25-secret"
 	expectedBasic := "Basic " + base64.StdEncoding.EncodeToString([]byte(expectedPass))
@@ -242,6 +248,7 @@ func TestREST_FarmingSimulatorAdapter(t *testing.T) {
 	}
 }
 
+// TestREST_PortBasedDefaultAdapters verifies automatic adapter selection based on target port.
 func TestREST_PortBasedDefaultAdapters(t *testing.T) {
 	cTx := NewREST("127.0.0.1", 40120, nil)
 	if cTx.adapter.Name() != "txadmin" {
@@ -259,6 +266,7 @@ func TestREST_PortBasedDefaultAdapters(t *testing.T) {
 	}
 }
 
+// TestREST_AuthFailure_Cooldown verifies exponential cooldown backoff following 401/403 responses.
 func TestREST_AuthFailure_Cooldown(t *testing.T) {
 	var callCount int
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -306,6 +314,7 @@ func TestREST_AuthFailure_Cooldown(t *testing.T) {
 	}
 }
 
+// TestREST_HTTPErrorStatuses verifies error mapping on 4xx/5xx HTTP status codes.
 func TestREST_HTTPErrorStatuses(t *testing.T) {
 	tests := []struct {
 		status int
@@ -339,6 +348,7 @@ func TestREST_HTTPErrorStatuses(t *testing.T) {
 	}
 }
 
+// TestREST_PassFnError verifies error propagation when resolving password credentials.
 func TestREST_PassFnError(t *testing.T) {
 	client := NewREST("127.0.0.1", 8080, errPass(errors.New("secret file missing")))
 	defer client.Close()
@@ -352,6 +362,7 @@ func TestREST_PassFnError(t *testing.T) {
 	}
 }
 
+// TestREST_LargeResponseCap verifies capping response buffers to restMaxResponseBytes.
 func TestREST_LargeResponseCap(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -376,6 +387,7 @@ func TestREST_LargeResponseCap(t *testing.T) {
 	}
 }
 
+// TestREST_Options verifies client configuration options.
 func TestREST_Options(t *testing.T) {
 	client := NewREST("127.0.0.1", 443, nil, WithCustomPath("/custom/api"), WithScheme("https"))
 	defer client.Close()
@@ -388,6 +400,7 @@ func TestREST_Options(t *testing.T) {
 	}
 }
 
+// TestAdapters_ParseResponse_And_CustomPath verifies response decoding and path overrides on adapters.
 func TestAdapters_ParseResponse_And_CustomPath(t *testing.T) {
 	ctx := context.Background()
 

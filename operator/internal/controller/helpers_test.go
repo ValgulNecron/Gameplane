@@ -6,6 +6,7 @@ import (
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
+// TestEffectiveConsoleMode tests precedence rules for template console modes.
 func TestEffectiveConsoleMode(t *testing.T) {
 	cases := []struct {
 		name string

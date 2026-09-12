@@ -13,6 +13,7 @@ import (
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
+// main is the probe entrypoint.
 func main() {
 	log.SetFlags(log.Ltime)
 
@@ -67,6 +68,7 @@ func main() {
 	os.Exit(exitCode)
 }
 
+// probeBannerlord executes join-depth probing against the target game server.
 func probeBannerlord(ctx context.Context, addr string) (joindepth.JoinDepth, string, error) {
 	var info *a2s.Info
 	err := retryWithContext(ctx, "bannerlord-a2s-query", 15*time.Second, func(actx context.Context) error {
@@ -87,6 +89,7 @@ func probeBannerlord(ctx context.Context, addr string) (joindepth.JoinDepth, str
 	return joindepth.QUERY, evidence, nil
 }
 
+// retryWithContext executes an operation repeatedly until it succeeds or context is canceled.
 func retryWithContext(ctx context.Context, opName string, perAttemptTimeout time.Duration, fn func(context.Context) error) error {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()

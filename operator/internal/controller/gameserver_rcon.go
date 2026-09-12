@@ -38,6 +38,7 @@ type resolvedRCON struct {
 	port        int32
 }
 
+// resolveRCON computes effective RCON configuration and credentials for a game server.
 func resolveRCON(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate) resolvedRCON {
 	if !templateHasRCON(tmpl) {
 		return resolvedRCON{}

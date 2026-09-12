@@ -8,14 +8,17 @@ import (
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
+// rconGS constructs a dummy GameServer for RCON unit tests.
 func rconGS() *gameplanev1alpha1.GameServer {
 	return &gameplanev1alpha1.GameServer{ObjectMeta: metav1.ObjectMeta{Name: "smp", Namespace: "ns"}}
 }
 
+// rconTmpl constructs a dummy GameTemplate wrapping the given RCONSpec.
 func rconTmpl(spec *gameplanev1alpha1.RCONSpec) *gameplanev1alpha1.GameTemplate {
 	return &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{RCON: spec}}
 }
 
+// TestResolveRCON tests RCON resolution logic across protocols and secret configurations.
 func TestResolveRCON(t *testing.T) {
 	gs := rconGS()
 
@@ -101,6 +104,7 @@ func TestResolveRCON(t *testing.T) {
 	})
 }
 
+// TestRCONGameEnv verifies environment variable injection into the game container.
 func TestRCONGameEnv(t *testing.T) {
 	gs := rconGS()
 	// No passwordEnv → no env injected.
@@ -124,6 +128,7 @@ func TestRCONGameEnv(t *testing.T) {
 	}
 }
 
+// TestAgentVolumeMounts verifies agent volume mounts across RCON protocol configurations.
 func TestAgentVolumeMounts(t *testing.T) {
 	gs := rconGS()
 	base := agentVolumeMounts(gs, rconTmpl(nil), nil, "/data")
@@ -161,6 +166,7 @@ func TestAgentVolumeMounts(t *testing.T) {
 	}
 }
 
+// TestGeneratePassword verifies cryptographic password generation.
 func TestGeneratePassword(t *testing.T) {
 	a, err := generatePassword()
 	if err != nil || len(a) != 32 {

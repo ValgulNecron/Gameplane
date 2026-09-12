@@ -467,6 +467,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{RequeueAfter: requeue}, nil
 }
 
+// SetupWithManager configures the controller manager to watch GameServer and its owned resources.
 func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gameplanev1alpha1.GameServer{}).
@@ -1097,6 +1098,7 @@ func networkPolicyPortsFromTemplate(tmpl *gameplanev1alpha1.GameTemplate) []netw
 	return out
 }
 
+// svcPortsFromTemplate extracts Kubernetes Service ports declared by the GameTemplate.
 func svcPortsFromTemplate(
 	tmpl *gameplanev1alpha1.GameTemplate, gs *gameplanev1alpha1.GameServer,
 ) []corev1.ServicePort {
@@ -1331,6 +1333,7 @@ func (r *GameServerReconciler) issueStopSequence(
 	}
 }
 
+// setStopAnnotation records the stop request timestamp on the GameServer.
 func (r *GameServerReconciler) setStopAnnotation(ctx context.Context, gs *gameplanev1alpha1.GameServer, val string) error {
 	if gs.Annotations == nil {
 		gs.Annotations = map[string]string{}
@@ -1339,6 +1342,7 @@ func (r *GameServerReconciler) setStopAnnotation(ctx context.Context, gs *gamepl
 	return r.Update(ctx, gs)
 }
 
+// clearStopAnnotation removes the stop request annotation from the GameServer.
 func (r *GameServerReconciler) clearStopAnnotation(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
 	if _, ok := gs.Annotations[stopRequestedAtAnnotation]; !ok {
 		return nil
@@ -1347,6 +1351,7 @@ func (r *GameServerReconciler) clearStopAnnotation(ctx context.Context, gs *game
 	return r.Update(ctx, gs)
 }
 
+// reconcileStatefulSet ensures the workload StatefulSet matches the desired server spec.
 func (r *GameServerReconciler) reconcileStatefulSet(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 	ver *gameplanev1alpha1.GameVersion, mc *materializedConfig, replicas int32,
@@ -1860,6 +1865,7 @@ func effectiveResources(
 	return tmpl.Spec.Resources
 }
 
+// buildGameContainer constructs the primary game server container definition.
 func buildGameContainer(
 	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, image string,
 	ver *gameplanev1alpha1.GameVersion, mc *materializedConfig,
@@ -2077,6 +2083,7 @@ func gamePodSecurityContext(tmpl *gameplanev1alpha1.GameTemplate) *corev1.PodSec
 	return &corev1.PodSecurityContext{FSGroup: sec.FSGroup}
 }
 
+// buildAgentContainer constructs the sidecar management agent container definition.
 func buildAgentContainer(
 	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 	ver *gameplanev1alpha1.GameVersion, fallbackImage, logLevel, pullPolicy string,
@@ -2191,6 +2198,7 @@ func buildAgentContainer(
 	return c
 }
 
+// reconcileBackupSchedule synchronizes automated backup schedules with the server backup policy.
 func (r *GameServerReconciler) reconcileBackupSchedule(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 ) error {
@@ -2218,6 +2226,7 @@ func (r *GameServerReconciler) reconcileBackupSchedule(
 	return err
 }
 
+// setPhase updates the GameServer status phase and ready condition message.
 func (r *GameServerReconciler) setPhase(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, msg string,
 ) error {

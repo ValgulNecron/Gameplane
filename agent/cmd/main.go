@@ -38,6 +38,7 @@ import (
 // Version is overridden at build time via -ldflags.
 var Version = "dev"
 
+// main is the entrypoint for the Gameplane sidecar agent process.
 func main() {
 	var (
 		addr         string
@@ -240,6 +241,7 @@ func main() {
 	_ = srv.Shutdown(shutdownCtx)
 }
 
+// envOr returns the environment variable value for key if set, or fallback otherwise.
 func envOr(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v

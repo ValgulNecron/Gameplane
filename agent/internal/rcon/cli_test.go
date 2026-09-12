@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// TestCLI_Runner verifies custom command runner invocation.
 func TestCLI_Runner(t *testing.T) {
 	called := false
 	runner := func(_ context.Context, cmd string) (string, error) {
@@ -34,6 +35,7 @@ func TestCLI_Runner(t *testing.T) {
 	}
 }
 
+// TestCLI_PipeExec verifies writing commands to a FIFO pipe file.
 func TestCLI_PipeExec(t *testing.T) {
 	dir := t.TempDir()
 	pipeFile := filepath.Join(dir, "cmd.pipe")
@@ -62,6 +64,7 @@ func TestCLI_PipeExec(t *testing.T) {
 	}
 }
 
+// TestCLI_PipeExec_MissingFile verifies error handling when the target pipe is missing.
 func TestCLI_PipeExec_MissingFile(t *testing.T) {
 	client := NewCLI("127.0.0.1", 0, nil, WithPipePath("/path/to/nonexistent/pipe"), WithExecTimeout(1*time.Second))
 	defer client.Close()
@@ -75,6 +78,7 @@ func TestCLI_PipeExec_MissingFile(t *testing.T) {
 	}
 }
 
+// TestCLI_NoPipeOrRunner verifies error handling when neither pipe nor runner is configured.
 func TestCLI_NoPipeOrRunner(t *testing.T) {
 	client := NewCLI("127.0.0.1", 0, nil)
 	defer client.Close()
@@ -88,6 +92,7 @@ func TestCLI_NoPipeOrRunner(t *testing.T) {
 	}
 }
 
+// TestCLI_EnvPipe verifies configuring the pipe path via environment variable.
 func TestCLI_EnvPipe(t *testing.T) {
 	t.Setenv("GAMEPLANE_CLI_PIPE", "/tmp/test-env.pipe")
 	c := NewCLI("127.0.0.1", 0, nil)
@@ -98,6 +103,7 @@ func TestCLI_EnvPipe(t *testing.T) {
 	}
 }
 
+// TestCLI_WithExecTimeout verifies configuring execution timeout option.
 func TestCLI_WithExecTimeout(t *testing.T) {
 	c := NewCLI("127.0.0.1", 0, nil, WithExecTimeout(42*time.Second))
 	defer c.Close()

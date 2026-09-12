@@ -111,6 +111,7 @@ func (c *CLI) Exec(cmd string) (string, error) {
 	return "", errors.New("cli rcon requires a configured stdin pipe or runner")
 }
 
+// execPipe writes a command string into the configured stdin FIFO pipe.
 func (c *CLI) execPipe(ctx context.Context, cmd string) error {
 	done := make(chan error, 1)
 	go func() {
