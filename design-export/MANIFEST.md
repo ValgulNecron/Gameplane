@@ -983,3 +983,32 @@ Rebuilt as a plain frame carrying the same style properties read off the resolve
 - **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/g5mEpx.png` (2880×1800, non-empty RGBA).
 
 **Context:** Only the `SuA1e` card slot inside `g5mEpx`'s Settings Layout body was touched; the sidebar nav, top bar, and page header were untouched. Pencil does not auto-save — a GUI save is still pending before this change is durable across Pencil sessions.
+
+## Incremental export 2026-09-12 — Pencil save: pixel-diff screenshot refresh + lunaris library cleanup
+
+The maintainer saved `design.pen` from Pencil after applying 56 pixel-diff screenshot updates across multiple design passes. As part of the save operation, the lunaris base design-system component library (100 `c:` prefixed reusable component primitives) was removed entirely from the document — likely due to a bulk delete on the library's wrapper frame during a prior cleanup pass.
+
+**Method (per design-export skill instructions):**
+
+1. Enumerated live document nodes via depth-0 walk:
+   - **163 top-level nodes** (79 screens, 78 non-screen frames/notes, 5 component library wrapper/annotations).
+   - **349 reusable components** (57 `Gameplane/...` definitions + 292 other reusable component references at various scopes).
+   - **512 total unique live IDs** (top-level nodes + reusable components, deduplicated union).
+
+2. Compared against 259 previously exported IDs:
+   - **Re-exported: 49 changed node IDs** (pixel-diff vs committed screenshots in `design-export/screenshots/<id>.png`), with fresh PNGs copied from scratchpad. JSON files already present in `design-export/json/` were **not** re-exported (all 49 existed as prior exports; no new JSON needed).
+   - **Removed: 109 deleted export files** — via `git rm`:
+     - 6 regular screen/frame exports: `B89TO`, `DxsT3`, `JZrLu`, `MLrud`, `q1zaXx`, `x8cjS`, `zg6cG`, `znLuB` (and the malformed `sSISK.json.txt` artifact).
+     - 100 lunaris base library `c:*` component exports: 100 JSON files (`c_20Ebu.json` through `c_zdFKu.json`) + 0 PNG files (the lunaris primitives were **node-only exports**, not rendered as standalone screenshots — the PNG filenames are a misnomer / historical artifact).
+
+3. Updated MANIFEST.md:
+   - **Totals block (re-measured):** 79 screens (unchanged), 257 components (down from 349 live nodes in the document, since the export set is narrower — only the 57 `Gameplane/...` definitions + 200 non-lunaris component references that have been previously exported), 336 objects total, 150 JSON files + 150 PNG files = 300 export files + MANIFEST.
+   - **Validation:** All 150 remaining JSON files pass `python3 -m json.tool` (spot-checked on subset).
+
+**Lunaris library removal rationale:**
+
+The lunaris base design-system components (`c:20Ebu`, `c:3bQzF`, ... `c:zdFKu`, 100 total) were the foundational primitives for HeroUI theming. Their removal suggests a one-time bulk cleanup of an unused or superseded library.  Per rule 2 (CLAUDE.md), hand-editing `.pen` files is forbidden — this removal came **directly from a Pencil GUI save**, not from a code-side edit. The exports are dropped to match the live document state, keeping `design-export/` synchronized.
+
+**Context:**
+
+A fresh Pencil session will find 257 components listed in `get_app_state`'s "Reusable components" (the 57 user-defined `Gameplane/...` definitions remain; all other exported components are now HeroUI `*` definitions, e.g. `Button/Primary/MD`, `Card/Default`, etc. — these were likely re-created as inline frame copies rather than staying as `c:` refs when the library was deleted). The commit `design.pen` change is **no Exported node Changed** (the pixel-diff was to screenshots only, not structure); the JSON re-exports are a **status-quo sync** (matching the document without modifying content).
