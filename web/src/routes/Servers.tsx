@@ -273,7 +273,7 @@ export function ServersPage() {
             isOpen={isFilterOpen}
             onOpenChange={handleOpenFilterChange}
           >
-            <Button variant="outline" className="rounded-[6px] relative">
+            <div className="inline-flex items-center gap-2 rounded-[6px] px-3 py-2 text-sm font-medium border border-default-300 bg-default-100 hover:bg-default-200 cursor-pointer transition-colors">
               <Filter className="h-4 w-4" />
               Filter
               {appliedFacetCount > 0 && (
@@ -281,7 +281,7 @@ export function ServersPage() {
                   {appliedFacetCount}
                 </Chip>
               )}
-            </Button>
+            </div>
           </FilterPopover>
         </div>
       </div>
