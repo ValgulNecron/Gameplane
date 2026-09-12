@@ -136,6 +136,11 @@ body {
   width: 100%;
 }
 
+.input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
 /* Override webkit-autofill styles to maintain design token colors */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
@@ -157,6 +162,11 @@ input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--field-foreground) !important;
 }
 
+/* Modal backdrop opacity: #000000B3 = 0.70 */
+.modal__backdrop--opaque {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
 /* ==========================================================================
    Component radius overrides — HeroUI v3's default theme routes button,
    tab, card, modal, dropdown, menu-item and chip corners through shared
@@ -174,7 +184,8 @@ input:-webkit-autofill:focus {
 .tabs__tab,
 .tabs__indicator,
 .menu-item,
-.list-box-item {
+.list-box-item,
+.select__trigger {
   border-radius: 6px;
 }
 
@@ -192,6 +203,28 @@ input:-webkit-autofill:focus {
 }
 
 /* ==========================================================================
+   Tabs/Segmented control styling — segmented track and selected tab fill
+   ========================================================================== */
+.tabs__list {
+  background-color: var(--surface-secondary);
+  border-radius: 999px;
+  padding: 4px;
+  width: fit-content;
+}
+
+.tabs__tab[aria-selected="true"],
+.tabs__tab[data-selected] {
+  background-color: var(--accent-soft);
+  color: var(--accent-soft-foreground);
+}
+
+/* Meter/Progress fill rounded radius */
+.progress__fill,
+::-webkit-meter-fill {
+  border-radius: 999px;
+}
+
+/* ==========================================================================
    Table primitive — data tables sit in a filled surface card per the design
    scale, not HeroUI's default (transparent-when-overridden, 25px-radius)
    primary variant. The generic .table__body corner-rounding rule also left
@@ -206,6 +239,14 @@ input:-webkit-autofill:focus {
 
 .table-root--primary .table__body tr:last-child td:last-child {
   border-end-end-radius: 0;
+}
+
+.table-root--primary .table__body tr:first-child td:last-child {
+  border-start-end-radius: 0;
+}
+
+.table-root--primary .table__body tr:first-child td:first-child {
+  border-start-start-radius: 0;
 }
 
 .table__column {
