@@ -162,20 +162,20 @@ func GenerateFiles(opts Options) (*GeneratedFiles, error) {
 
 	// 3. Render README.md
 	var readmeBuf strings.Builder
-	readmeBuf.WriteString(fmt.Sprintf("# %s\n\n", displayName))
-	readmeBuf.WriteString(fmt.Sprintf("%s\n\n", summary))
+	fmt.Fprintf(&readmeBuf, "# %s\n\n", displayName)
+	fmt.Fprintf(&readmeBuf, "%s\n\n", summary)
 	readmeBuf.WriteString("## Overview\n\n")
-	readmeBuf.WriteString(fmt.Sprintf("This module packages the dedicated server for **%s** as a Gameplane OCI bundle.\n\n", displayName))
+	fmt.Fprintf(&readmeBuf, "This module packages the dedicated server for **%s** as a Gameplane OCI bundle.\n\n", displayName)
 	readmeBuf.WriteString("## Networking & Ports\n\n")
 	for _, p := range ports {
 		adv := "internal only"
 		if p.Advertise {
 			adv = "publicly advertised"
 		}
-		readmeBuf.WriteString(fmt.Sprintf("- **%s**: port `%d/%s` (%s)\n", p.Name, p.ContainerPort, p.Protocol, adv))
+		fmt.Fprintf(&readmeBuf, "- **%s**: port `%d/%s` (%s)\n", p.Name, p.ContainerPort, p.Protocol, adv)
 	}
 	readmeBuf.WriteString("\n## Storage\n\n")
-	readmeBuf.WriteString(fmt.Sprintf("- Volume size: `%s`\n- Mount path: `%s`\n", storageSize, storageMount))
+	fmt.Fprintf(&readmeBuf, "- Volume size: `%s`\n- Mount path: `%s`\n", storageSize, storageMount)
 
 	icon := archetypes.PlaceholderIconBytes()
 

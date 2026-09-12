@@ -390,3 +390,55 @@ func TestValidate_DirectoryErrors(t *testing.T) {
 		t.Errorf("expected error when path is not a directory")
 	}
 }
+
+func TestValidationReport(t *testing.T) {
+	repEmpty := NewValidationReport(nil)
+	if !repEmpty.Clean || repEmpty.ErrorCount != 0 || repEmpty.WarningCount != 0 {
+		t.Errorf("expected empty report to be clean with 0 counts")
+	}
+
+	modReports := []ModuleReport{
+		{
+			Name:  "mod-ok",
+			Clean: true,
+		},
+		{
+			Name:  "mod-err",
+			Clean: false,
+			Findings: []Finding{
+				{
+					RuleID:      "TEST-001",
+					Level:       SeverityError,
+					File:        "module.yaml",
+					Line:        10,
+					Message:     "test error",
+					Remediation: "fix it",
+				},
+				{
+					RuleID:  "TEST-002",
+					Level:   SeverityWarn,
+					File:    "template.yaml",
+					Message: "test warning",
+				},
+			},
+		},
+	}
+
+	rep := NewValidationReport(modReports)
+	if rep.Clean {
+		t.Errorf("expected report to not be clean")
+	}
+	if rep.ErrorCount != 1 || rep.WarningCount != 1 {
+		t.Errorf("expected 1 error and 1 warning, got %d, %d", rep.ErrorCount, rep.WarningCount)
+	}
+
+	human := rep.FormatHuman()
+	if !strings.Contains(human, "OK (no findings)") || !strings.Contains(human, "TEST-001") || !strings.Contains(human, "Remediation: fix it") {
+		t.Errorf("FormatHuman missing expected text:\n%s", human)
+	}
+
+	jsonBytes, err := rep.ToJSON()
+	if err != nil || len(jsonBytes) == 0 {
+		t.Errorf("ToJSON failed: %v", err)
+	}
+}

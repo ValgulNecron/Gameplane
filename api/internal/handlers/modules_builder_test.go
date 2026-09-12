@@ -51,7 +51,7 @@ func TestBuilderScaffold(t *testing.T) {
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/modules/builder/scaffold", bytes.NewReader(jsonBytes))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/scaffold", bytes.NewReader(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -84,7 +84,7 @@ func TestBuilderScaffold_InvalidName(t *testing.T) {
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/modules/builder/scaffold", bytes.NewReader(jsonBytes))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/scaffold", bytes.NewReader(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -129,7 +129,7 @@ spec:
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/modules/builder/validate", bytes.NewReader(jsonBytes))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/validate", bytes.NewReader(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -166,7 +166,7 @@ spec:
 `
 	reqBody.TemplateYaml = unpinnedTemplate
 	jsonBytes, _ = json.Marshal(reqBody)
-	req = httptest.NewRequest(http.MethodPost, "/modules/builder/validate", bytes.NewReader(jsonBytes))
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/validate", bytes.NewReader(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -220,7 +220,7 @@ spec:
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/modules/builder/preview", bytes.NewReader(jsonBytes))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/preview", bytes.NewReader(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -263,7 +263,7 @@ func TestBuilderExport_DownloadArchive(t *testing.T) {
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/modules/builder/export", bytes.NewReader(jsonBytes))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -319,7 +319,7 @@ func TestBuilderExport_InstallToCluster(t *testing.T) {
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/modules/builder/export", bytes.NewReader(jsonBytes))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)

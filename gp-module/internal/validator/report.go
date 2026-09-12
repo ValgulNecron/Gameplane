@@ -80,9 +80,10 @@ func NewValidationReport(modules []ModuleReport) ValidationReport {
 			clean = false
 		}
 		for _, f := range modules[i].Findings {
-			if f.Level == SeverityError {
+			switch f.Level {
+			case SeverityError:
 				errCount++
-			} else if f.Level == SeverityWarn {
+			case SeverityWarn:
 				warnCount++
 			}
 		}
@@ -107,7 +108,7 @@ func (r *ValidationReport) FormatHuman() string {
 	var sb strings.Builder
 
 	for _, m := range r.Modules {
-		sb.WriteString(fmt.Sprintf("== %s ==\n", m.Name))
+		fmt.Fprintf(&sb, "== %s ==\n", m.Name)
 		if len(m.Findings) == 0 {
 			sb.WriteString("  OK (no findings)\n")
 		} else {
@@ -116,9 +117,9 @@ func (r *ValidationReport) FormatHuman() string {
 				if f.Line > 0 {
 					loc = fmt.Sprintf("%s:%d", f.File, f.Line)
 				}
-				sb.WriteString(fmt.Sprintf("  %-5s [%s] %s: %s\n", f.Level, f.RuleID, loc, f.Message))
+				fmt.Fprintf(&sb, "  %-5s [%s] %s: %s\n", f.Level, f.RuleID, loc, f.Message)
 				if f.Remediation != "" {
-					sb.WriteString(fmt.Sprintf("        Remediation: %s\n", f.Remediation))
+					fmt.Fprintf(&sb, "        Remediation: %s\n", f.Remediation)
 				}
 			}
 		}
@@ -126,8 +127,8 @@ func (r *ValidationReport) FormatHuman() string {
 	}
 
 	sb.WriteString("---\n")
-	sb.WriteString(fmt.Sprintf("SUMMARY: %d module(s) checked, %d error(s), %d warning(s).\n",
-		len(r.Modules), r.ErrorCount, r.WarningCount))
+	fmt.Fprintf(&sb, "SUMMARY: %d module(s) checked, %d error(s), %d warning(s).\n",
+		len(r.Modules), r.ErrorCount, r.WarningCount)
 
 	return sb.String()
 }

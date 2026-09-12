@@ -64,7 +64,7 @@ type BuilderValidateResponse struct {
 // BuilderPreviewRequest carries template YAML and simulation inputs.
 type BuilderPreviewRequest struct {
 	TemplateYaml string            `json:"templateYaml"`
-	VersionId    string            `json:"versionId,omitempty"`
+	VersionID    string            `json:"versionId,omitempty"`
 	Memory       string            `json:"memory,omitempty"`
 	Config       map[string]string `json:"config,omitempty"`
 }
@@ -201,9 +201,10 @@ func (h modulesHandler) builderValidate(w http.ResponseWriter, req *http.Request
 	errorCount := 0
 	warningCount := 0
 	for _, f := range findings {
-		if f.Level == validator.SeverityError {
+		switch f.Level {
+		case validator.SeverityError:
 			errorCount++
-		} else if f.Level == validator.SeverityWarn {
+		case validator.SeverityWarn:
 			warningCount++
 		}
 	}
@@ -226,7 +227,7 @@ func (h modulesHandler) builderPreview(w http.ResponseWriter, req *http.Request)
 
 	opts := preview.Options{
 		TemplateYAML: []byte(body.TemplateYaml),
-		VersionID:    body.VersionId,
+		VersionID:    body.VersionID,
 		MemoryLimit:  body.Memory,
 		UserConfig:   body.Config,
 	}

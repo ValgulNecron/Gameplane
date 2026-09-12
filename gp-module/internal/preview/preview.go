@@ -270,17 +270,17 @@ func (p *Result) FormatHuman() string {
 	if title == "" {
 		title = p.Game
 	}
-	sb.WriteString(fmt.Sprintf("== %s (%s) Preview ==\n", title, p.Game))
-	sb.WriteString(fmt.Sprintf("Selected Version: %s\n", p.VersionID))
-	sb.WriteString(fmt.Sprintf("Container Image:  %s\n", p.EffectiveImage))
-	sb.WriteString(fmt.Sprintf("Memory Limit:     %s\n\n", p.EffectiveMemory))
+	fmt.Fprintf(&sb, "== %s (%s) Preview ==\n", title, p.Game)
+	fmt.Fprintf(&sb, "Selected Version: %s\n", p.VersionID)
+	fmt.Fprintf(&sb, "Container Image:  %s\n", p.EffectiveImage)
+	fmt.Fprintf(&sb, "Memory Limit:     %s\n\n", p.EffectiveMemory)
 
 	sb.WriteString("Computed Configuration:\n")
 	if len(p.ConfigFields) == 0 {
 		sb.WriteString("  (none)\n")
 	} else {
 		for _, cf := range p.ConfigFields {
-			sb.WriteString(fmt.Sprintf("  %-16s %s (%s)\n", cf.Name+":", cf.Value, cf.Source))
+			fmt.Fprintf(&sb, "  %-16s %s (%s)\n", cf.Name+":", cf.Value, cf.Source)
 		}
 	}
 	sb.WriteString("\n")
@@ -296,7 +296,7 @@ func (p *Result) FormatHuman() string {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			sb.WriteString(fmt.Sprintf("  %-16s %s\n", k+":", p.EffectiveEnv[k]))
+			fmt.Fprintf(&sb, "  %-16s %s\n", k+":", p.EffectiveEnv[k])
 		}
 	}
 	sb.WriteString("\n")
@@ -306,7 +306,7 @@ func (p *Result) FormatHuman() string {
 		sb.WriteString("  (none)\n")
 	} else {
 		for _, port := range p.Ports {
-			sb.WriteString(fmt.Sprintf("  - %d/%s (%s)\n", port.ContainerPort, port.Protocol, port.Name))
+			fmt.Fprintf(&sb, "  - %d/%s (%s)\n", port.ContainerPort, port.Protocol, port.Name)
 		}
 	}
 

@@ -11,3 +11,7 @@ threshold:
   file: 0
   package: 0
   total: 80
+
+exclude:
+  paths:
+    - ^cmd/
