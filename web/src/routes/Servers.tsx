@@ -173,7 +173,7 @@ export function ServersPage() {
         title="Servers"
         subtitle="Manage game server workloads across your cluster."
         actions={
-          <Link to="/servers/new" className={buttonVariants({ variant: "primary" })}>
+          <Link to="/servers/new" className={cn(buttonVariants({ variant: "primary" }), "rounded-full")}>
             <Plus className="h-4 w-4" /> Create server
           </Link>
         }
@@ -273,7 +273,16 @@ export function ServersPage() {
             isOpen={isFilterOpen}
             onOpenChange={handleOpenFilterChange}
           >
-            <span className={cn(buttonVariants({ variant: "outline" }), "relative")}>
+            <Button
+              variant="outline"
+              className="rounded-[6px] relative"
+              onPress={() => {
+                const tabList = document.querySelector('[aria-label="Server status filter"]');
+                if (tabList instanceof HTMLElement) {
+                  tabList.focus();
+                }
+              }}
+            >
               <Filter className="h-4 w-4" />
               Filter
               {appliedFacetCount > 0 && (
@@ -281,7 +290,7 @@ export function ServersPage() {
                   {appliedFacetCount}
                 </Chip>
               )}
-            </span>
+            </Button>
           </FilterPopover>
         </div>
       </div>
