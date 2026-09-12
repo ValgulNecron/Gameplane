@@ -162,12 +162,14 @@ export function LogsTab({
             Container output
           </span>
         )}
-        <Input
-          placeholder="filter…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="w-64 font-mono text-xs"
-        />
+        <div className="w-64 shrink-0">
+          <Input
+            placeholder="filter…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="font-mono text-xs"
+          />
+        </div>
         <Tabs selectedKey={level} onSelectionChange={(key) => setLevel(key as "all" | LogLevel)} variant="secondary" aria-label="Log level">
           <Tabs.List className="w-fit">
             {(["all", ...LEVELS] as const).map((lv) => (
