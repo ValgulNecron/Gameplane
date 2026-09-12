@@ -18,12 +18,14 @@ export function OverviewTab({
   tmpl,
   ns,
   onViewAllEvents,
+  onOpenConsole,
 }: {
   gs?: GameServer;
   name: string;
   tmpl?: GameTemplate;
   ns?: string;
   onViewAllEvents?: () => void;
+  onOpenConsole?: () => void;
 }) {
   const { data: roster } = useQuery({
     queryKey: ["players", name, "overview", ns],
@@ -118,7 +120,7 @@ export function OverviewTab({
         </Alert>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
         <div className="space-y-5">
           <div className="grid gap-4 md:grid-cols-3">
             <ResourceCard
@@ -223,9 +225,25 @@ export function OverviewTab({
                   {/* Show cluster address below */}
                   <div className="border-t border-border pt-3">
                     <div className="text-xs text-muted mb-3 uppercase">Cluster address</div>
-                    <EndpointRow label="Host">
-                      <span className="truncate font-mono text-foreground">{clusterEndpoint?.host ?? "—"}</span>
-                    </EndpointRow>
+                    <div className="space-y-2">
+                      <EndpointRow label="Host">
+                        <span className="truncate font-mono text-foreground">{clusterEndpoint?.host ?? "—"}</span>
+                        {clusterEndpoint?.host && (
+                          <button
+                            className="rounded p-1 text-muted hover:bg-border hover:text-foreground"
+                            onClick={() => navigator.clipboard?.writeText(clusterEndpoint.host)}
+                            title="Copy"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </EndpointRow>
+                      {clusterEndpoint?.port !== undefined && (
+                        <EndpointRow label="Port">
+                          <span className="font-mono text-foreground">{clusterEndpoint.port}</span>
+                        </EndpointRow>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -262,11 +280,11 @@ export function OverviewTab({
 
           <PlayersCard roster={roster} fallbackOnline={players} />
 
-          <ServerStatusCard name={name} tmpl={tmpl} running={running} />
+          <ServerStatusCard name={name} tmpl={tmpl} running={running} gs={gs} />
 
           <ServerSleepCard gs={gs} />
 
-          <ServerActionsCard name={name} tmpl={tmpl} />
+          <ServerActionsCard name={name} tmpl={tmpl} gs={gs} ns={ns} onOpenConsole={onOpenConsole} />
         </div>
       </div>
     </div>
@@ -342,9 +360,11 @@ function ResourceCard({
   );
 }
 
+// 8px address rows per design (design-export/screenshots/EZFW0.png): compact
+// bordered rows for each connection value, most with a copy affordance.
 function EndpointRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2 rounded-md border border-border bg-surface/60 px-3 py-2">
+    <div className="flex items-start gap-2 rounded-[8px] border border-border bg-surface/60 px-3 py-2">
       <span className="w-16 shrink-0 pt-1 text-xs font-medium text-muted">{label}</span>
       <div className="flex min-w-0 flex-1 items-center gap-2">{children}</div>
     </div>
