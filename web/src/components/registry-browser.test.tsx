@@ -185,15 +185,16 @@ describe("RegistryBrowser", () => {
       />,
     );
 
-    const sortSelect = screen.getByRole("combobox", { name: /sort/i }) as HTMLSelectElement;
-    expect(sortSelect).not.toBeDisabled();
+    const sortTrigger = screen.getByRole("button", { name: /sort/i });
+    expect(sortTrigger).not.toHaveAttribute("aria-disabled", "true");
+    expect(sortTrigger).not.toBeDisabled();
 
     const input = screen.getByRole("textbox");
     await userEvent.type(input, "test");
 
     // Sort should become disabled while searching
     await waitFor(() => {
-      expect(sortSelect).toBeDisabled();
+      expect(sortTrigger).toBeDisabled();
     });
   });
 
@@ -310,7 +311,6 @@ describe("RegistryBrowser", () => {
     const projects = Array.from({ length: 30 }, (_, i) =>
       mockProject({ title: `Mod ${i + 1}` }),
     );
-    let callCount = 0;
     server.use(
       http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
@@ -320,7 +320,6 @@ describe("RegistryBrowser", () => {
       http.get("/servers/test/mods/registry/search", ({ request }) => {
         const url = new URL(request.url);
         const offset = parseInt(url.searchParams.get("offset") ?? "0");
-        callCount++;
         const page = projects.slice(offset, offset + 24);
         return HttpResponse.json(page);
       }),

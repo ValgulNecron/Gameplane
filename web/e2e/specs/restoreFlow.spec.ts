@@ -3,7 +3,7 @@ import { LoginPage } from "../pages/LoginPage";
 
 // Restore-flow e2e. The Backups page renders one row per backup with a
 // "Restore" button on Succeeded backups. Clicking it opens the
-// RestoreDialog (a Radix dialog) which submits POST /restores with
+// RestoreDialog (a HeroUI dialog) which submits POST /restores with
 // {backupRef:{name}, serverRef:{name}}.
 
 async function loginIfNeeded(page: Page): Promise<void> {
@@ -45,11 +45,13 @@ test.describe("restore from backup", () => {
     // Radix Dialog mounts at the document root.
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText(/restore from backup/i)).toBeVisible();
+    await expect(dialog.getByText(/restore backup/i)).toBeVisible();
 
-    // Pick the target server from the select. MSW seeds two servers,
-    // alpha and beta — we restore alpha→alpha (the typical case).
-    await dialog.locator("select").selectOption("alpha");
+    // Pick the target server from the HeroUI Popover + ListBox. MSW seeds
+    // two servers, alpha and beta — we restore alpha→alpha (the typical case).
+    // RestoreDialog.tsx lines 135-146 (PopoverTrigger with id="target-server").
+    await dialog.locator("#target-server").click();
+    await page.getByRole("option", { name: "alpha" }).click();
 
     const created = page.waitForRequest(
       (req) => /\/restores$/.test(req.url()) && req.method() === "POST",

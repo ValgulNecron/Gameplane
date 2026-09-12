@@ -678,7 +678,7 @@ describe("CaptureWidget", () => {
         // the default http.delete("/servers/:name") stub, which returns 204,
         // api() maps 204 to undefined, and deleteMut *succeeds* instantly —
         // closing the dialog before the pending assertion below runs.
-        http.delete(/servers\/alpha:capture(\?.*)?$/, async () => {
+        http.delete(/.*servers.*alpha.*capture/, async () => {
           await deleteGate;
           return HttpResponse.json({ deleted: true, captureId: "cap-1" });
         }),
@@ -706,9 +706,17 @@ describe("CaptureWidget", () => {
       // vacuously for any other reason (there is none here, since no
       // confirmPhrase is passed and `matches` is always true, but tying it
       // to the pending-only label keeps that true even if that changes).
+      //
+      // The scope role is "alertdialog", not "dialog": HeroUI v3's
+      // AlertDialogDialog hard-codes role="alertdialog" on the react-aria
+      // Dialog (node_modules/@heroui/react/dist/components/alert-dialog/
+      // alert-dialog.js), and Testing Library's byRole matches the role
+      // string literally — it does not walk the ARIA role hierarchy, so
+      // "dialog" never matches an alertdialog. Only the Modal-based
+      // StartCaptureModal below is role="dialog".
       try {
         await waitFor(() => {
-          const dialog = screen.getByRole("dialog");
+          const dialog = screen.getByRole("alertdialog");
           const pendingBtn = within(dialog).getByRole("button", { name: /Working/i });
           expect(pendingBtn).toBeDisabled();
         });
@@ -721,7 +729,9 @@ describe("CaptureWidget", () => {
       // clears deleteTarget, which closes the dialog. That is the only
       // observable proof the DELETE was issued and succeeded — the
       // captures list is a fixed mock, so the row itself never disappears.
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      // Same "alertdialog" role as above — queried as "dialog" this
+      // assertion was vacuous (it can never find the confirm dialog).
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     });
 
     it("shows expiry time with correct tone badge", async () => {
@@ -753,7 +763,10 @@ describe("CaptureWidget", () => {
       // timeout (asyncUtilTimeout == testTimeout). Exact matching pins the
       // query to the expiry badge, whose whole text is "1h".
       const expiryCell = await screen.findByText("1h");
-      expect(expiryCell.className).toContain("text-warning");
+      // In HeroUI v3, the Chip color is applied at the root span level via Tailwind variants,
+      // not as a plain className on the label. Check the parent element (the Chip root).
+      const chipRoot = expiryCell.closest("span[data-color]");
+      expect(chipRoot).toHaveAttribute("data-color", "warning");
     });
 
     it("displays capture count at the bottom", async () => {
@@ -957,10 +970,13 @@ describe("CaptureWidget", () => {
       await userEvent.click(startBtn);
 
       const durationUnit = screen.getByLabelText(/Max duration unit/i);
-      // Assuming the Select component uses a native select or accessible select
-      await userEvent.selectOptions(durationUnit, "minutes");
+      await userEvent.click(durationUnit);
+      const minutesOption = await screen.findByRole("option", { name: /minutes/i });
+      await userEvent.click(minutesOption);
 
-      expect((durationUnit as HTMLSelectElement).value).toBe("minutes");
+      await waitFor(() => {
+        expect(screen.getByText("minutes")).toBeInTheDocument();
+      });
     });
 
     it("allows changing size unit between MB and GB", async () => {
@@ -979,9 +995,13 @@ describe("CaptureWidget", () => {
       await userEvent.click(startBtn);
 
       const sizeUnit = screen.getByLabelText(/Max size unit/i);
-      await userEvent.selectOptions(sizeUnit, "GB");
+      await userEvent.click(sizeUnit);
+      const gbOption = await screen.findByRole("option", { name: /GB/i });
+      await userEvent.click(gbOption);
 
-      expect((sizeUnit as HTMLSelectElement).value).toBe("GB");
+      await waitFor(() => {
+        expect(screen.getByText("GB")).toBeInTheDocument();
+      });
     });
 
     it("allows changing retention unit between hours and days", async () => {
@@ -1000,9 +1020,13 @@ describe("CaptureWidget", () => {
       await userEvent.click(startBtn);
 
       const retentionUnit = screen.getByLabelText(/Retention unit/i);
-      await userEvent.selectOptions(retentionUnit, "days");
+      await userEvent.click(retentionUnit);
+      const daysOption = await screen.findByRole("option", { name: /days/i });
+      await userEvent.click(daysOption);
 
-      expect((retentionUnit as HTMLSelectElement).value).toBe("days");
+      await waitFor(() => {
+        expect(screen.getByText("days")).toBeInTheDocument();
+      });
     });
 
     it("disables Start button when duration value is below 1", async () => {
@@ -1167,7 +1191,9 @@ describe("CaptureWidget", () => {
 
       await userEvent.clear(durationInput);
       await userEvent.type(durationInput, "5");
-      await userEvent.selectOptions(durationUnit, "minutes");
+      await userEvent.click(durationUnit);
+      const minutesOption = await screen.findByRole("option", { name: /minutes/i });
+      await userEvent.click(minutesOption);
 
       const submitBtn = screen.getByRole("button", { name: /Start Capture/ });
       await userEvent.click(submitBtn);
@@ -1205,7 +1231,9 @@ describe("CaptureWidget", () => {
 
       await userEvent.clear(sizeInput);
       await userEvent.type(sizeInput, "1");
-      await userEvent.selectOptions(sizeUnit, "GB");
+      await userEvent.click(sizeUnit);
+      const gbOption = await screen.findByRole("option", { name: /GB/i });
+      await userEvent.click(gbOption);
 
       const submitBtn = screen.getByRole("button", { name: /Start Capture/ });
       await userEvent.click(submitBtn);
@@ -1243,7 +1271,9 @@ describe("CaptureWidget", () => {
 
       await userEvent.clear(retentionInput);
       await userEvent.type(retentionInput, "7");
-      await userEvent.selectOptions(retentionUnit, "days");
+      await userEvent.click(retentionUnit);
+      const daysOption = await screen.findByRole("option", { name: /days/i });
+      await userEvent.click(daysOption);
 
       const submitBtn = screen.getByRole("button", { name: /Start Capture/ });
       await userEvent.click(submitBtn);
@@ -1596,7 +1626,10 @@ describe("CaptureWidget", () => {
       // Duration cell ("1h 0m" from makeCapture's defaults) and a relative
       // "Completed at" cell, either of which a loose regex could grow into.
       const expiryBadge = await screen.findByText("30m");
-      expect(expiryBadge.className).toContain("text-danger");
+      // In HeroUI v3, the Chip color is applied at the root span level via Tailwind variants,
+      // not as a plain className on the label. Check the parent element (the Chip root).
+      const chipRoot = expiryBadge.closest("span[data-color]");
+      expect(chipRoot).toHaveAttribute("data-color", "danger");
     });
 
     it("displays expiry badge with warning tone when 1-6 hours remaining", async () => {
@@ -1622,7 +1655,10 @@ describe("CaptureWidget", () => {
       // Should show 2h with warning tone; exact match for the same
       // single-element reason as the 30m case above.
       const expiryBadge = await screen.findByText("2h");
-      expect(expiryBadge.className).toContain("text-warning");
+      // In HeroUI v3, the Chip color is applied at the root span level via Tailwind variants,
+      // not as a plain className on the label. Check the parent element (the Chip root).
+      const chipRoot = expiryBadge.closest("span[data-color]");
+      expect(chipRoot).toHaveAttribute("data-color", "warning");
     });
 
     it("displays expiry badge with muted tone when more than 6 hours remaining", async () => {
@@ -1648,7 +1684,11 @@ describe("CaptureWidget", () => {
       // Should show 24h with muted tone; exact match for the same
       // single-element reason as the 30m case above.
       const expiryBadge = await screen.findByText("24h");
-      expect(expiryBadge.className).toContain("text-muted");
+      // In HeroUI v3, the Chip color is applied at the root span level via Tailwind variants,
+      // not as a plain className on the label. Check the parent element (the Chip root).
+      // More than 6 hours remaining uses "default" color (visually muted/neutral).
+      const chipRoot = expiryBadge.closest("span[data-color]");
+      expect(chipRoot).toHaveAttribute("data-color", "default");
     });
 
     it("displays expiry badge with em-dash when expiresAt is missing", async () => {

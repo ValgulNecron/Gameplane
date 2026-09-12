@@ -695,7 +695,7 @@ describe("ServerDetailPage capture tab", () => {
     expect(
       await screen.findByText("invalid filter: syntax error at position 12 (invalid token 'foo')"),
     ).toBeInTheDocument();
-    expect(filterInput).toHaveClass("border-danger");
+    expect(filterInput).toHaveAttribute("aria-invalid", "true");
     await waitFor(() => expect(submitBtn).toBeDisabled());
   });
 });

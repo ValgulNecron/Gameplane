@@ -192,6 +192,36 @@ export const screenshotTemplates: GameTemplate[] = [
       image: "ghcr.io/valgulnecron/gameplane/ark:1.30.2",
     },
   }),
+  makeTemplate({
+    metadata: { name: "minecraft-modded" },
+    spec: {
+      displayName: "Minecraft (Modded)",
+      game: "minecraft",
+      version: "1.21",
+      description: "Minecraft server with mod support (Fabric/Forge)",
+      image: "ghcr.io/valgulnecron/gameplane/minecraft:1.21",
+      versions: [
+        { id: "1.21", displayName: "1.21 (Vanilla)", default: true, gameVersion: "1.21" },
+        { id: "1.21-fabric", displayName: "1.21 (Fabric)", loader: "fabric" },
+        { id: "1.21-forge", displayName: "1.21 (Forge)", loader: "forge" },
+        { id: "1.20.4", displayName: "1.20.4", gameVersion: "1.20.4" },
+      ],
+      capabilities: {
+        mods: {
+          path: "mods",
+          extensions: [".jar"],
+          install: { allowedHosts: ["modrinth.com", "cdn.modrinth.com", "github.com"] },
+          loaders: {
+            fabric: { path: "mods" },
+            forge: { path: "mods" },
+          },
+          registry: {
+            providers: [{ provider: "modrinth", modpacks: {} }],
+          },
+        },
+      },
+    },
+  }),
 ];
 
 // ============================================================================
@@ -287,6 +317,37 @@ export const screenshotServers: GameServer[] = [
         playersMax: 0,
       },
       startedAt: undefined,
+    },
+  }),
+  makeServer({
+    metadata: {
+      name: "test-server-09",
+      namespace: "default",
+      annotations: { "gameplane.local/node": "node-01" },
+    },
+    spec: { templateRef: { name: "minecraft-modded" }, version: "1.21-fabric" },
+    status: {
+      phase: "Running",
+      agent: {
+        playersOnline: 4,
+        playersMax: 20,
+        lastHeartbeat: "2026-09-06T10:15:30Z",
+        cpuMillicores: 1680,
+        cpuLimitMillicores: 4000,
+        memoryBytes: 6_200_000_000,
+        memoryLimitBytes: 8_000_000_000,
+        diskUsedBytes: 15_600_000_000,
+        diskTotalBytes: 50_000_000_000,
+      },
+      endpoints: [
+        {
+          name: "main",
+          host: "test-server-09.gameplane-demo.local",
+          port: 25565,
+          protocol: "tcp",
+        },
+      ],
+      startedAt: "2026-09-03T14:20:00Z",
     },
   }),
 ];
@@ -641,6 +702,20 @@ export function screenshotConfig(): AllConfig {
     },
   });
 }
+
+// ============================================================================
+// System Log Lines for Admin — System Logs screen (control-plane logs)
+// ============================================================================
+
+export const screenshotSystemLogLines = [
+  '{"level":"info","ts":"2026-09-06T12:00:01Z","msg":"starting gameplane-api","version":"v0.2.0-beta.8"}',
+  '{"level":"info","ts":"2026-09-06T12:00:02Z","msg":"connected to database","driver":"sqlite"}',
+  '{"level":"info","ts":"2026-09-06T12:00:03Z","msg":"listening","addr":":8080"}',
+  '{"level":"info","ts":"2026-09-06T12:01:15Z","msg":"request","method":"GET","path":"/api/v1/servers","status":200,"duration_ms":4}',
+  '{"level":"info","ts":"2026-09-06T12:01:22Z","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"duration_ms":112}',
+  '{"level":"warn","ts":"2026-09-06T12:03:47Z","msg":"slow query","table":"audit_events","duration_ms":340}',
+  '{"level":"info","ts":"2026-09-06T12:05:00Z","msg":"reconciled gameserver","name":"test-server-01","phase":"Running"}',
+];
 
 // ============================================================================
 // Game Server Log Lines (exact lines matching Pencil design kPmoo)

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, Suspense, lazy } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Tabs } from "@heroui/react";
 import {
   AlertTriangle,
   CalendarClock,
   HardDrive,
   Layers,
+  Link2,
   MapPin,
   Network,
   RadioTower,
@@ -15,11 +17,9 @@ import {
 } from "lucide-react";
 
 import type { GameServer } from "@/types";
-import { Button } from "@/components/ui/button";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
 import { Servers, Templates } from "@/lib/endpoints";
-import { cn } from "@/lib/utils";
 
 import { GeneralSection } from "./settings/General";
 import { VersionSection } from "./settings/Version";
@@ -30,6 +30,7 @@ import { LifecycleSection } from "./settings/Lifecycle";
 import { BackupsSection } from "./settings/Backups";
 import { NetworkCaptureSection } from "./settings/NetworkCapture";
 import { AccessSection } from "./settings/Access";
+import { ShareLinksSection } from "./settings/ShareLinks";
 import { DangerSection } from "./settings/Danger";
 const PlacementSection = lazy(() =>
   import("./settings/Placement").then((m) => ({ default: m.PlacementSection })),
@@ -46,6 +47,7 @@ type SectionKey =
   | "capture"
   | "placement"
   | "access"
+  | "sharelinks"
   | "danger";
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] = [
@@ -59,6 +61,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] 
   { key: "capture",    label: "Network capture", icon: RadioTower },
   { key: "placement",  label: "Placement",     icon: MapPin },
   { key: "access",     label: "RBAC & access", icon: ShieldCheck },
+  { key: "sharelinks", label: "Share links",   icon: Link2 },
   { key: "danger",     label: "Danger zone",   icon: AlertTriangle },
 ];
 
@@ -183,26 +186,22 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
   return (
     <div className="flex h-full">
       <nav className="w-56 shrink-0 border-r border-border bg-surface/30 p-2">
-        {sections.map((s) => (
-          <button
-            key={s.key}
-            onClick={() => {
-              setSection(s.key);
-              setSectionValid(true);
-            }}
-            className={cn(
-              "flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors",
-              section === s.key
-                ? "bg-surface text-fg"
-                : "text-muted hover:bg-surface/60 hover:text-fg",
-              s.key === "danger" && section !== s.key && "text-danger/80 hover:text-danger",
-              s.key === "danger" && section === s.key && "text-danger",
-            )}
-          >
-            <s.icon className="h-4 w-4" />
-            {s.label}
-          </button>
-        ))}
+        <Tabs
+          selectedKey={section}
+          onSelectionChange={(k) => {
+            setSection(k as SectionKey);
+            setSectionValid(true);
+          }}
+          orientation="vertical"
+        >
+          <Tabs.List>
+            {sections.map((s) => (
+              <Tabs.Tab key={s.key} id={s.key}>
+                {s.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -226,10 +225,11 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
             </Suspense>
           )}
           {section === "access"     && <AccessSection     gs={gs} />}
+          {section === "sharelinks" && <ShareLinksSection name={name} ns={ns} />}
           {section === "danger"     && <DangerSection     name={name} ns={ns} />}
         </div>
 
-        {section !== "danger" && section !== "access" && (
+        {section !== "danger" && section !== "access" && section !== "sharelinks" && (
           <footer className="flex items-center justify-between gap-4 border-t border-border bg-surface/30 px-6 py-3">
             <div className="min-w-0 text-xs">
               {conflict && (
@@ -253,15 +253,15 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={reset}
-                disabled={!dirty || save.isPending}
+                onPress={reset}
+                isDisabled={!dirty || save.isPending}
               >
                 Discard
               </Button>
               <Button
                 size="sm"
-                onClick={() => save.mutate(draft)}
-                disabled={!dirty || !sectionValid || save.isPending}
+                onPress={() => save.mutate(draft)}
+                isDisabled={!dirty || !sectionValid || save.isPending}
               >
                 {save.isPending ? "Saving…" : "Save changes"}
               </Button>

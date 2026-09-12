@@ -23,8 +23,12 @@ import {
   RefreshCw,
   Repeat,
   RotateCcw,
+  RotateCw,
   Save,
+  Square,
   Sun,
+  Sunrise,
+  Terminal,
   UserMinus,
   UserPlus,
   Zap,
@@ -51,8 +55,8 @@ import {
   Description,
 } from "@heroui/react";
 
-import type { ActionParamDecl, GameTemplate, ServerActionDecl } from "@/types";
-import { Servers } from "@/lib/endpoints";
+import type { ActionParamDecl, GameServer, GameTemplate, ServerActionDecl } from "@/types";
+import { Servers, type LifecycleVerb } from "@/lib/endpoints";
 import { rconAvailable } from "@/lib/capabilities";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
@@ -108,7 +112,28 @@ type RunStatus = { kind: "ok" | "err"; text: string; type?: "output" | "sent" };
 // (spec.capabilities.actions) as buttons. Actions with parameters or a
 // confirm flag open a dialog; the rest run immediately. Every run POSTs
 // to /servers/{name}/actions/run, which the API gates to operator+.
-export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTemplate }) {
+//
+// When the template declares no actions, and a GameServer is available,
+// this falls back to a generic "Quick actions" body of lifecycle shortcuts
+// (start/stop/restart/wake, open console) built from data already on the
+// GameServer — so the design's four-card right column
+// (design-export/screenshots/EZFW0.png) is populated for every template,
+// not just ones with declared actions. `gs`/`ns`/`onOpenConsole` are
+// optional: callers that don't pass `gs` keep the old "render nothing"
+// behavior.
+export function ServerActionsCard({
+  name,
+  tmpl,
+  gs,
+  ns,
+  onOpenConsole,
+}: {
+  name: string;
+  tmpl?: GameTemplate;
+  gs?: GameServer;
+  ns?: string;
+  onOpenConsole?: () => void;
+}) {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const canRun = can(me, "servers:write");
@@ -117,6 +142,11 @@ export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTem
 
   const actions = tmpl?.spec.capabilities?.actions ?? [];
   const hasRcon = rconAvailable(tmpl);
+
+  const lifecycle = useMutation({
+    mutationFn: (verb: LifecycleVerb) => Servers.lifecycle(name, verb, ns),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["server", name, ns] }),
+  });
 
   const run = useMutation<
     { ok: boolean; raw?: string },
@@ -149,7 +179,55 @@ export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTem
     },
   });
 
-  if (actions.length === 0) return null;
+  if (actions.length === 0) {
+    if (!gs) return null;
+    const phase = gs.status?.phase;
+    // Mirrors ServerDetail.tsx's header gating: Stopping still counts as
+    // "not asleep yet" (players may be connected during the drain window).
+    const asleep = gs.status?.idle?.asleep === true && phase !== "Stopping";
+    const running = phase === "Running";
+    const canStart = (phase === "Stopped" || phase === "Suspended" || phase === "Failed") && !asleep;
+    return (
+      <Card>
+        <CardHeader className="flex flex-col gap-1 px-6 py-5">
+          <h2 className="text-base font-semibold text-foreground">Quick actions</h2>
+        </CardHeader>
+        <CardContent className="space-y-1 px-0 py-2">
+          <LifecycleButton
+            icon={RotateCw}
+            label="Restart"
+            onClick={() => lifecycle.mutate("restart")}
+            disabled={!canRun || !running || lifecycle.isPending}
+          />
+          <LifecycleButton
+            icon={Square}
+            label="Stop"
+            onClick={() => lifecycle.mutate("stop")}
+            disabled={!canRun || (!running && !asleep) || lifecycle.isPending}
+          />
+          {asleep && (
+            <LifecycleButton
+              icon={Sunrise}
+              label="Wake"
+              onClick={() => lifecycle.mutate("wake")}
+              disabled={!canRun || lifecycle.isPending}
+            />
+          )}
+          {canStart && (
+            <LifecycleButton
+              icon={Play}
+              label="Start"
+              onClick={() => lifecycle.mutate("start")}
+              disabled={!canRun || lifecycle.isPending}
+            />
+          )}
+          {onOpenConsole && (
+            <LifecycleButton icon={Terminal} label="Open console" onClick={onOpenConsole} />
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Group actions: separate grouped and ungrouped, preserving group order
   const grouped = new Map<string, ServerActionDecl[]>();
@@ -477,6 +555,33 @@ function collect(
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n) + "…";
+}
+
+// LifecycleButton renders one row of the generic (no module actions)
+// "Quick actions" fallback — same row shape as renderActionButton above.
+function LifecycleButton({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className="flex w-full items-center gap-3 px-6 py-2 text-left hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <span className="text-muted">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="text-sm text-foreground">{label}</span>
+    </button>
+  );
 }
 
 function errMsg(err: unknown): string {

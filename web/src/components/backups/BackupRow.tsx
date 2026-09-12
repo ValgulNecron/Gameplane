@@ -1,7 +1,7 @@
-import { Button } from "@/components/ui/button";
+import { Button, Table } from "@heroui/react";
 import { formatRelative } from "@/lib/utils";
 import type { Backup } from "@/types";
-import { PhaseBadge } from "@/components/ui/badge";
+import { PhaseChip } from "@/components/hero/PhaseChip";
 
 interface Props {
   backup: Backup;
@@ -14,34 +14,31 @@ export function BackupRow({ backup, showServer, onSelect, onRestore }: Props) {
   const restorable =
     backup.status?.phase === "Succeeded" && Boolean(backup.status.snapshotID);
   return (
-    <tr
-      className="cursor-pointer hover:bg-surface/40"
-      onClick={() => onSelect(backup)}
+    <Table.Row
+      className="cursor-pointer"
+      onAction={() => onSelect(backup)}
     >
-      <td className="px-4 py-3 font-mono text-xs">{backup.metadata.name}</td>
-      {showServer && (
-        <td className="px-4 py-3 text-muted">{backup.spec.serverRef.name}</td>
-      )}
-      <td className="px-4 py-3">
-        <PhaseBadge phase={backup.status?.phase} />
-      </td>
-      <td className="px-4 py-3 font-mono">{backup.status?.size ?? "—"}</td>
-      <td className="px-4 py-3 text-muted">
+      <Table.Cell className="font-mono text-xs">{backup.metadata.name}</Table.Cell>
+      <Table.Cell>
+        {showServer && backup.spec.serverRef.name}
+      </Table.Cell>
+      <Table.Cell>
+        <PhaseChip phase={backup.status?.phase} />
+      </Table.Cell>
+      <Table.Cell className="font-mono">{backup.status?.size ?? "—"}</Table.Cell>
+      <Table.Cell>
         {formatRelative(backup.status?.completionTime)}
-      </td>
-      <td
-        className="px-4 py-3 text-right"
-        onClick={(e) => e.stopPropagation()}
-      >
+      </Table.Cell>
+      <Table.Cell className="text-right">
         <Button
           size="sm"
           variant="outline"
-          disabled={!restorable}
-          onClick={() => onRestore(backup)}
+          isDisabled={!restorable}
+          onPress={() => onRestore(backup)}
         >
           Restore
         </Button>
-      </td>
-    </tr>
+      </Table.Cell>
+    </Table.Row>
   );
 }

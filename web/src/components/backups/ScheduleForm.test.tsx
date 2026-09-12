@@ -13,11 +13,12 @@ describe("ScheduleForm", () => {
     // Retention policy defaults to keepLast: 7
     expect((screen.getByLabelText("Keep last") as HTMLInputElement).value).toBe("7");
     // Destination select defaults to the only configured destination
-    // (the MSW handler returns one named "default").
+    // (the MSW handler returns one named "default"). HeroUI v3's Select
+    // renders the chosen value as visible text inside the trigger (the
+    // mirrored native <select> used for form semantics has no text
+    // content on its <option>s, so getByDisplayValue can't see it here).
     await waitFor(() => {
-      expect(
-        (screen.getByLabelText("Destination") as HTMLSelectElement).value,
-      ).toBe("default");
+      expect(screen.getByLabelText("Destination")).toHaveTextContent("default");
     });
   });
 
@@ -64,7 +65,14 @@ describe("ScheduleForm", () => {
       }),
     );
     renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
-    await userEvent.selectOptions(screen.getByLabelText("Backup type"), "volume-snapshot");
+    // HeroUI Select: click trigger to open popover
+    const backupTypeButtons = screen.getAllByRole("button");
+    const backupTypeButton = backupTypeButtons.find(b => b.textContent?.includes("Restic"));
+    if (backupTypeButton) {
+      await userEvent.click(backupTypeButton);
+      const volumeOption = await screen.findByText("Volume snapshot (CSI)");
+      await userEvent.click(volumeOption);
+    }
     expect(screen.queryByLabelText("Destination")).toBeNull();
     const create = screen.getByRole("button", { name: /Create schedule/i });
     await waitFor(() => expect(create).toBeEnabled());
@@ -104,8 +112,14 @@ describe("ScheduleForm", () => {
     renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
     // Initially shows restic help text
     expect(screen.getByText(/restic repository/i)).toBeInTheDocument();
-    // Switch to volume-snapshot
-    await userEvent.selectOptions(screen.getByLabelText("Backup type"), "volume-snapshot");
+    // Switch to volume-snapshot using HeroUI Select
+    const backupTypeButtons = screen.getAllByRole("button");
+    const backupTypeButton = backupTypeButtons.find(b => b.textContent?.includes("Restic"));
+    if (backupTypeButton) {
+      await userEvent.click(backupTypeButton);
+      const volumeOption = await screen.findByText("Volume snapshot (CSI)");
+      await userEvent.click(volumeOption);
+    }
     expect(screen.getByText(/CSI volume snapshot/i)).toBeInTheDocument();
   });
 
@@ -114,8 +128,14 @@ describe("ScheduleForm", () => {
     // Initially visible for restic
     expect(screen.getByLabelText("Destination")).toBeInTheDocument();
     expect(screen.getByLabelText(/Repo secret/i)).toBeInTheDocument();
-    // Switch to volume-snapshot
-    await userEvent.selectOptions(screen.getByLabelText("Backup type"), "volume-snapshot");
+    // Switch to volume-snapshot using HeroUI Select
+    const backupTypeButtons = screen.getAllByRole("button");
+    const backupTypeButton = backupTypeButtons.find(b => b.textContent?.includes("Restic"));
+    if (backupTypeButton) {
+      await userEvent.click(backupTypeButton);
+      const volumeOption = await screen.findByText("Volume snapshot (CSI)");
+      await userEvent.click(volumeOption);
+    }
     expect(screen.queryByLabelText("Destination")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Repo secret/i)).not.toBeInTheDocument();
   });
@@ -146,7 +166,7 @@ describe("ScheduleForm", () => {
       }),
     );
     renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
-    await userEvent.selectOptions(screen.getByLabelText("Backup type"), "restic-snapshot");
+    // Restic is already the default, so no need to change it
     const create = screen.getByRole("button", { name: /Create schedule/i });
     await waitFor(() => expect(create).toBeEnabled());
     await userEvent.click(create);

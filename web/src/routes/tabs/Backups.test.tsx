@@ -34,7 +34,7 @@ describe("BackupsTab", () => {
     renderWithQuery(<BackupsTab name="alpha" />);
     const btn = await screen.findByRole("button", { name: /back up now/i });
     await waitFor(() => expect(btn).toBeDisabled());
-    expect(btn.getAttribute("title")).toMatch(/No backup destination/i);
+    expect(btn.closest("[title]")?.getAttribute("title")).toMatch(/No backup destination/i);
   });
 
   it("disables 'Back up now' with a multi-destination hint", async () => {
@@ -45,7 +45,9 @@ describe("BackupsTab", () => {
     );
     renderWithQuery(<BackupsTab name="alpha" />);
     const btn = await screen.findByRole("button", { name: /back up now/i });
-    await waitFor(() => expect(btn.getAttribute("title")).toMatch(/Multiple destinations/i));
+    await waitFor(() =>
+      expect(btn.closest("[title]")?.getAttribute("title")).toMatch(/Multiple destinations/i),
+    );
     expect(btn).toBeDisabled();
   });
 
@@ -120,7 +122,7 @@ describe("BackupsTab", () => {
     const restoreBtn = screen.getByRole("button", { name: /^restore$/i });
     expect(restoreBtn).toBeEnabled();
     await userEvent.click(restoreBtn);
-    expect(await screen.findByText("Restore from backup")).toBeInTheDocument();
+    expect(await screen.findByText(/Restore backup/i)).toBeInTheDocument();
   });
 
   it("disables Restore for a backup that has not succeeded", async () => {
@@ -216,7 +218,7 @@ describe("BackupsTab", () => {
     const restoreBtn = await screen.findByRole("button", { name: /^restore$/i });
     await userEvent.click(restoreBtn);
     // Dialog should open when Restore button in table row is clicked
-    expect(await screen.findByText(/Restore from backup/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Restore backup/i)).toBeInTheDocument();
   });
 
   it("stops propagation when restore button in table row is clicked", async () => {
@@ -228,7 +230,7 @@ describe("BackupsTab", () => {
     const restoreBtn = await screen.findByRole("button", { name: /^restore$/i });
     await userEvent.click(restoreBtn);
     // Verify dialog opened (which means the click was handled by the button, not propagated)
-    expect(await screen.findByText(/Restore from backup/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Restore backup/i)).toBeInTheDocument();
   });
 
   it("closes restore dialog when onClose is called", async () => {
@@ -238,11 +240,11 @@ describe("BackupsTab", () => {
     renderWithQuery(<BackupsTab name="alpha" />);
     const restoreBtn = await screen.findByRole("button", { name: /^restore$/i });
     await userEvent.click(restoreBtn);
-    await screen.findByText(/Restore from backup/i);
+    await screen.findByText(/Restore backup/i);
     // Press Escape to close the dialog (via Radix dialog's onOpenChange)
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
-      expect(screen.queryByText(/Restore from backup/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Restore backup/i)).not.toBeInTheDocument();
     });
   });
 
@@ -269,7 +271,7 @@ describe("BackupsTab", () => {
     // Drawer should close and restore dialog should open
     await waitFor(() => {
       expect(screen.queryByText("Snapshot ID")).not.toBeInTheDocument();
-      expect(screen.getByText(/Restore from backup/i)).toBeInTheDocument();
+      expect(screen.getByText(/Restore backup/i)).toBeInTheDocument();
     });
   });
 

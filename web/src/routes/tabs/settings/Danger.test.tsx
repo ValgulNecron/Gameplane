@@ -15,15 +15,14 @@ import { DangerSection } from "./Danger";
 describe("DangerSection", () => {
   it("renders the three rows", () => {
     renderWithQuery(<DangerSection name="alpha" />);
-    expect(screen.getByText(/Wipe world data/i)).toBeInTheDocument();
-    expect(screen.getByText(/Transfer ownership/i)).toBeInTheDocument();
-    // "Delete server" matches both the row title and the button label.
-    expect(screen.getAllByText(/Delete server/i).length).toBeGreaterThan(0);
+    expect(screen.getByText("Wipe world data")).toBeInTheDocument();
+    expect(screen.getByText("Transfer ownership")).toBeInTheDocument();
+    expect(screen.getByText("Delete server")).toBeInTheDocument();
   });
 
   it("Delete button opens the confirm dialog", async () => {
     renderWithQuery(<DangerSection name="alpha" />);
-    await userEvent.click(screen.getByRole("button", { name: /Delete server…/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(await screen.findByText(/Delete alpha\?/)).toBeInTheDocument();
   });
 
@@ -33,7 +32,7 @@ describe("DangerSection", () => {
     );
     navigate.mockClear();
     renderWithQuery(<DangerSection name="alpha" />);
-    await userEvent.click(screen.getByRole("button", { name: /Delete server…/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     // Need to type the confirm phrase first.
     const inp = await screen.findByRole("textbox");
     await userEvent.type(inp, "alpha");
@@ -96,7 +95,7 @@ describe("DangerSection", () => {
       ),
     );
     renderWithQuery(<DangerSection name="alpha" />);
-    await userEvent.click(screen.getByRole("button", { name: /Delete server…/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     const inp = await screen.findByRole("textbox");
     await userEvent.type(inp, "alpha");
     await userEvent.click(await screen.findByRole("button", { name: /Confirm|Delete/i }));

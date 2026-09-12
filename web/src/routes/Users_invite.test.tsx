@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { UsersPage } from "./Users";
@@ -49,30 +49,36 @@ describe("UsersPage Invite dialog", () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: /Invite user/i }));
     expect(await screen.findByRole("heading", { name: /Invite user/i })).toBeInTheDocument();
-    const submit = screen.getByRole("button", { name: /Create user/i });
+    // The dialog's own submit button is also labelled "Invite user"
+    // (matching the page's trigger button, which stays in the DOM behind
+    // the overlay) — scope to the dialog to disambiguate.
+    const dialog = screen.getByRole("dialog");
+    const submit = within(dialog).getByRole("button", { name: "Create user" });
     expect(submit).toBeDisabled();
   });
 
   it("validates password length", async () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: /Invite user/i }));
-    await screen.findByRole("heading", { name: /Invite user/i });
-    const usernameInput = screen.getByPlaceholderText("alice") as HTMLInputElement;
+    const dialog = await screen.findByRole("dialog");
+    const usernameInput = within(dialog).getByPlaceholderText("alice") as HTMLInputElement;
     await userEvent.type(usernameInput, "newuser");
-    const pwInput = screen.getByPlaceholderText(/At least 12 characters/);
+    const pwInput = within(dialog).getByPlaceholderText(/At least 12 characters/);
     await userEvent.type(pwInput, "short");
-    expect(screen.getByText(/At least 12 characters\./)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Create user/i })).toBeDisabled();
+    // The dialog preemptively disables the submit button rather than
+    // showing an inline message before the user attempts to submit.
+    expect(within(dialog).getByRole("button", { name: "Create user" })).toBeDisabled();
+    expect(within(dialog).getByText(/At least 12 characters\./)).toBeInTheDocument();
   });
 
   it("submits a create with the form values", async () => {
     create.mockResolvedValue({ id: 99 });
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: /Invite user/i }));
-    await screen.findByRole("heading", { name: /Invite user/i });
-    const usernameInput = screen.getByPlaceholderText("alice") as HTMLInputElement;
+    const dialog = await screen.findByRole("dialog");
+    const usernameInput = within(dialog).getByPlaceholderText("alice") as HTMLInputElement;
     await userEvent.type(usernameInput, "newuser");
-    await userEvent.click(screen.getByRole("button", { name: /Create user/i }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create user" }));
     await waitFor(() => expect(create).toHaveBeenCalled());
     const args = create.mock.calls[0][0];
     expect(args.username).toBe("newuser");

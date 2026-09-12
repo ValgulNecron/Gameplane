@@ -1,9 +1,23 @@
-import { useState, type ReactNode } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
+import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import {
+  Modal,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalHeading,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Input,
+  Label,
+  Description,
+  Select,
+  ListBox,
+  ListBoxItem,
+  Checkbox,
+} from "@heroui/react";
 import { APIError } from "@/lib/api";
 import type { ModuleSource, ModuleSourceSpec, ModuleSourceType } from "@/types";
 
@@ -206,103 +220,202 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[520px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">
-            {editing ? `Edit source ${source.metadata.name}` : "Add module source"}
-          </Dialog.Title>
-          <Dialog.Description className="pt-1 text-xs text-muted">
-            Where the operator discovers and pulls module bundles from.
-          </Dialog.Description>
+    <Modal isOpen={open} onOpenChange={onOpenChange}>
+      <ModalBackdrop isDismissable={!busy} isKeyboardDismissDisabled={busy}>
+        <ModalContainer>
+          <ModalDialog>
+          <ModalHeader>
+            <ModalHeading>
+              {editing ? `Edit source ${source.metadata.name}` : "Add module source"}
+            </ModalHeading>
+          </ModalHeader>
 
-          <div className="max-h-[60vh] space-y-3 overflow-y-auto pt-4">
+          <ModalBody className="gap-4 max-h-[60vh] overflow-y-auto">
+            <Description className="text-sm text-muted">
+              Where the operator discovers and pulls module bundles from.
+            </Description>
+
             {!editing && (
-              <Field label="Name" hint="DNS label identifying this source.">
+              <div className="space-y-1">
+                <Label htmlFor="source-name" className="text-xs">
+                  Name
+                </Label>
                 <Input
+                  id="source-name"
                   value={name}
                   onChange={(e) => setName(e.target.value.toLowerCase())}
                   placeholder="community"
+                  className="mt-1"
                 />
-              </Field>
+                <Description className="mt-1 text-xs">
+                  DNS label identifying this source.
+                </Description>
+              </div>
             )}
-            <Field label="Type">
+
+            <div className="space-y-1">
               <Select
                 value={f.type}
-                onValueChange={(v) => set({ type: v as ModuleSourceType })}
-                options={TYPE_OPTIONS}
-              />
-            </Field>
+                onChange={(v) => set({ type: v as ModuleSourceType })}
+                className="mt-1"
+                aria-label="Type"
+              >
+                <Label className="text-xs">Type</Label>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator className="ml-auto h-4 w-4" />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox aria-label="Type options">
+                    {TYPE_OPTIONS.map((opt) => (
+                      <ListBoxItem key={opt.value} id={opt.value}>
+                        {opt.label}
+                      </ListBoxItem>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            </div>
 
             {f.type === "oci" && (
               <>
-                <Field label="Registry URL">
+                <div className="space-y-1">
+                  <Label htmlFor="oci-url" className="text-xs">
+                    Registry URL
+                  </Label>
                   <Input
+                    id="oci-url"
                     value={f.url}
                     onChange={(e) => set({ url: e.target.value })}
                     placeholder="ghcr.io/valgulnecron/gameplane-modules"
+                    className="mt-1"
                   />
-                </Field>
-                <Field
-                  label="Modules"
-                  hint="Comma-separated module names (registries can't be enumerated)."
-                >
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="oci-modules" className="text-xs">
+                    Modules
+                  </Label>
                   <Input
+                    id="oci-modules"
                     value={f.modules}
                     onChange={(e) => set({ modules: e.target.value })}
                     placeholder="minecraft-java, valheim"
+                    className="mt-1"
                   />
-                </Field>
-                <Field label="Pull secret" hint="dockerconfigjson Secret in the operator namespace (optional).">
+                  <Description className="mt-1 text-xs">
+                    Comma-separated module names (registries can&apos;t be enumerated).
+                  </Description>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="oci-secret" className="text-xs">
+                    Pull secret
+                  </Label>
                   <Input
+                    id="oci-secret"
                     value={f.secretName}
                     onChange={(e) => set({ secretName: e.target.value })}
                     placeholder="registry-creds"
+                    className="mt-1"
                   />
-                </Field>
-                <InsecureToggle checked={f.insecure} onChange={(insecure) => set({ insecure })} />
-                <Field
-                  label="Signature verification"
-                  hint="Require a valid cosign signature on every bundle pulled from this source."
+                  <Description className="mt-1 text-xs">
+                    dockerconfigjson Secret in the operator namespace (optional).
+                  </Description>
+                </div>
+
+                <Checkbox
+                  id="oci-insecure"
+                  isSelected={f.insecure}
+                  onChange={(isSelected) => set({ insecure: isSelected })}
+                  className="flex-row items-center gap-2"
                 >
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                  <Checkbox.Content className="text-xs text-muted">
+                    Allow plain HTTP (local registries only)
+                  </Checkbox.Content>
+                </Checkbox>
+
+                <div className="space-y-1">
                   <Select
                     value={f.verifyMode}
-                    onValueChange={(v) => set({ verifyMode: v as VerifyMode })}
-                    options={VERIFY_OPTIONS}
-                  />
-                </Field>
-                {f.verifyMode === "keyed" && (
-                  <Field
-                    label="Public key secret"
-                    hint="Secret holding the cosign public key under the cosign.pub data key."
+                    onChange={(v) => set({ verifyMode: v as VerifyMode })}
+                    className="mt-1"
+                    aria-label="Signature verification"
                   >
+                    <Label className="text-xs">Signature verification</Label>
+                    <Select.Trigger>
+                      <Select.Value />
+                      <Select.Indicator className="ml-auto h-4 w-4" />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox aria-label="Signature verification options">
+                        {VERIFY_OPTIONS.map((opt) => (
+                          <ListBoxItem key={opt.value} id={opt.value}>
+                            {opt.label}
+                          </ListBoxItem>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                  <Description className="mt-1 text-xs">
+                    Require a valid cosign signature on every bundle pulled from this source.
+                  </Description>
+                </div>
+
+                {f.verifyMode === "keyed" && (
+                  <div className="space-y-1">
+                    <Label htmlFor="verify-key-secret" className="text-xs">
+                      Public key secret
+                    </Label>
                     <Input
+                      id="verify-key-secret"
                       value={f.verifyKeySecret}
                       onChange={(e) => set({ verifyKeySecret: e.target.value })}
                       placeholder="cosign-pub"
+                      className="mt-1"
                     />
-                  </Field>
+                    <Description className="mt-1 text-xs">
+                      Secret holding the cosign public key under the cosign.pub data key.
+                    </Description>
+                  </div>
                 )}
+
                 {f.verifyMode === "keyless" && (
                   <>
-                    <Field label="OIDC issuer" hint="Issuer embedded in the signing certificate.">
+                    <div className="space-y-1">
+                      <Label htmlFor="verify-issuer" className="text-xs">
+                        OIDC issuer
+                      </Label>
                       <Input
+                        id="verify-issuer"
                         value={f.verifyIssuer}
                         onChange={(e) => set({ verifyIssuer: e.target.value })}
                         placeholder="https://token.actions.githubusercontent.com"
+                        className="mt-1"
                       />
-                    </Field>
-                    <Field
-                      label="Certificate identity"
-                      hint="SAN identity that must have produced the signature."
-                    >
+                      <Description className="mt-1 text-xs">
+                        Issuer embedded in the signing certificate.
+                      </Description>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="verify-identity" className="text-xs">
+                        Certificate identity
+                      </Label>
                       <Input
+                        id="verify-identity"
                         value={f.verifyIdentity}
                         onChange={(e) => set({ verifyIdentity: e.target.value })}
                         placeholder="github.com/org/repo/.github/workflows/release.yml@refs/heads/main"
+                        className="mt-1"
                       />
-                    </Field>
+                      <Description className="mt-1 text-xs">
+                        SAN identity that must have produced the signature.
+                      </Description>
+                    </div>
                   </>
                 )}
               </>
@@ -310,63 +423,135 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
 
             {f.type === "git" && (
               <>
-                <Field label="Clone URL">
+                <div className="space-y-1">
+                  <Label htmlFor="git-url" className="text-xs">
+                    Clone URL
+                  </Label>
                   <Input
+                    id="git-url"
                     value={f.url}
                     onChange={(e) => set({ url: e.target.value })}
                     placeholder="https://github.com/example/gameplane-modules"
+                    className="mt-1"
                   />
-                </Field>
-                <Field label="Ref" hint="Branch or tag. Defaults to main.">
-                  <Input value={f.ref} onChange={(e) => set({ ref: e.target.value })} placeholder="main" />
-                </Field>
-                <Field label="Subdirectory" hint="Scan only this path inside the repo (optional).">
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="git-ref" className="text-xs">
+                    Ref
+                  </Label>
                   <Input
+                    id="git-ref"
+                    value={f.ref}
+                    onChange={(e) => set({ ref: e.target.value })}
+                    placeholder="main"
+                    className="mt-1"
+                  />
+                  <Description className="mt-1 text-xs">
+                    Branch or tag. Defaults to main.
+                  </Description>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="git-subpath" className="text-xs">
+                    Subdirectory
+                  </Label>
+                  <Input
+                    id="git-subpath"
                     value={f.subPath}
                     onChange={(e) => set({ subPath: e.target.value })}
                     placeholder="modules"
+                    className="mt-1"
                   />
-                </Field>
-                <Field
-                  label="Credentials secret"
-                  hint="Secret with token / username+password (https) or ssh-privatekey + known_hosts (ssh). Optional."
-                >
+                  <Description className="mt-1 text-xs">
+                    Scan only this path inside the repo (optional).
+                  </Description>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="git-secret" className="text-xs">
+                    Credentials secret
+                  </Label>
                   <Input
+                    id="git-secret"
                     value={f.secretName}
                     onChange={(e) => set({ secretName: e.target.value })}
                     placeholder="gh-creds"
+                    className="mt-1"
                   />
-                </Field>
+                  <Description className="mt-1 text-xs">
+                    Secret with token / username+password (https) or ssh-privatekey + known_hosts (ssh). Optional.
+                  </Description>
+                </div>
               </>
             )}
 
             {f.type === "http" && (
               <>
-                <Field label="Archive URL" hint="A .tar.gz or .zip of module directories.">
+                <div className="space-y-1">
+                  <Label htmlFor="http-url" className="text-xs">
+                    Archive URL
+                  </Label>
                   <Input
+                    id="http-url"
                     value={f.url}
                     onChange={(e) => set({ url: e.target.value })}
                     placeholder="https://example.com/modules.tar.gz"
+                    className="mt-1"
                   />
-                </Field>
-                <Field label="Credentials secret" hint="Secret with token (Bearer) or username+password. Optional.">
+                  <Description className="mt-1 text-xs">
+                    A .tar.gz or .zip of module directories.
+                  </Description>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="http-secret" className="text-xs">
+                    Credentials secret
+                  </Label>
                   <Input
+                    id="http-secret"
                     value={f.secretName}
                     onChange={(e) => set({ secretName: e.target.value })}
                     placeholder="archive-creds"
+                    className="mt-1"
                   />
-                </Field>
-                <InsecureToggle checked={f.insecure} onChange={(insecure) => set({ insecure })} />
+                  <Description className="mt-1 text-xs">
+                    Secret with token (Bearer) or username+password. Optional.
+                  </Description>
+                </div>
+
+                <Checkbox
+                  id="http-insecure"
+                  isSelected={f.insecure}
+                  onChange={(isSelected) => set({ insecure: isSelected })}
+                  className="flex-row items-center gap-2"
+                >
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                  <Checkbox.Content className="text-xs text-muted">
+                    Allow plain HTTP (local registries only)
+                  </Checkbox.Content>
+                </Checkbox>
               </>
             )}
 
             {f.type === "local" && (
-              <Field
-                label="Path"
-                hint="Relative to the operator's module mount (Helm: operator.localModules). Empty scans the mount root."
-              >
-                <Input value={f.path} onChange={(e) => set({ path: e.target.value })} placeholder="bundles" />
-              </Field>
+              <div className="space-y-1">
+                <Label htmlFor="local-path" className="text-xs">
+                  Path
+                </Label>
+                <Input
+                  id="local-path"
+                  value={f.path}
+                  onChange={(e) => set({ path: e.target.value })}
+                  placeholder="bundles"
+                  className="mt-1"
+                />
+                <Description className="mt-1 text-xs">
+                  Relative to the operator&apos;s module mount (Helm: operator.localModules). Empty scans the mount root.
+                </Description>
+              </div>
             )}
 
             {f.type === "upload" && (
@@ -376,63 +561,67 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
               </div>
             )}
 
-            <Field label="Allow list" hint="Optional module name filter — exact names or globs, comma-separated.">
+            <div className="space-y-1">
+              <Label htmlFor="allow-list" className="text-xs">
+                Allow list
+              </Label>
               <Input
+                id="allow-list"
                 value={f.allow}
                 onChange={(e) => set({ allow: e.target.value })}
                 placeholder="minecraft-*"
+                className="mt-1"
               />
-            </Field>
-            <Field label="Refresh interval" hint="How often the catalog re-indexes. Defaults to 1h.">
+              <Description className="mt-1 text-xs">
+                Optional module name filter — exact names or globs, comma-separated.
+              </Description>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="refresh-interval" className="text-xs">
+                Refresh interval
+              </Label>
               <Input
+                id="refresh-interval"
                 value={f.refreshInterval}
                 onChange={(e) => set({ refreshInterval: e.target.value })}
                 placeholder="1h"
+                className="mt-1"
               />
-            </Field>
-          </div>
-
-          {error && (
-            <div className="mt-3 rounded border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
-              {error}
+              <Description className="mt-1 text-xs">
+                How often the catalog re-indexes. Defaults to 1h.
+              </Description>
             </div>
-          )}
 
-          <div className="mt-5 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+            {error && (
+              <p role="alert" className="mt-2 text-xs text-danger">
+                {error}
+              </p>
+            )}
+          </ModalBody>
+
+          <ModalFooter className="gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => onOpenChange(false)}
+              isDisabled={busy}
+            >
               Cancel
             </Button>
-            <Button onClick={submit} disabled={busy}>
+            <Button
+              variant="primary"
+              size="sm"
+              isDisabled={busy}
+              onPress={submit}
+            >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {editing ? "Save" : "Add source"}
             </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
-function InsecureToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-2 text-xs text-muted">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-3.5 w-3.5 accent-primary"
-      />
-      Allow plain HTTP (local registries only)
-    </label>
-  );
-}
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return (
-    <label className="block">
-      <div className="pb-1 text-xs text-muted">{label}</div>
-      {children}
-      {hint && <div className="pt-1 text-[11px] text-muted">{hint}</div>}
-    </label>
+          </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
+    </Modal>
   );
 }

@@ -61,7 +61,7 @@ export function Sidebar({
       aria-label="Sidebar"
       className={cn(
         "flex flex-col border-r border-border bg-surface/60",
-        variant === "fixed" ? "w-[260px] shrink-0" : "w-full h-full"
+        variant === "fixed" ? "h-full w-[260px] shrink-0" : "w-full h-full"
       )}>
       {/* Header */}
       <div className="flex items-center gap-2 px-5 py-4 border-b border-border">

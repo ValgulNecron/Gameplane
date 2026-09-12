@@ -72,13 +72,13 @@ test.describe("users page", () => {
   test("switches between Users and Roles tabs", async ({ page }) => {
     await page.goto("/users");
 
-    // The TabBar component renders sub-tabs; click "Roles" and verify
-    // the role cards render.
-    await page.getByRole("button", { name: /^roles/i }).first().click();
+    // HeroUI Tabs render each sub-tab with role="tab"; click "Roles" and
+    // verify the role cards render.
+    await page.getByRole("tab", { name: /^roles/i }).first().click();
     await expect(page.getByText(/full access to all resources/i)).toBeVisible();
 
     // Back to Users.
-    await page.getByRole("button", { name: /^users/i }).first().click();
+    await page.getByRole("tab", { name: /^users/i }).first().click();
     await expect(page.getByText("operator-bob")).toBeVisible();
   });
 });

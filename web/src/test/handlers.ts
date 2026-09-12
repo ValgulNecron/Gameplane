@@ -26,6 +26,7 @@ import {
 import {
   getScreenshotData,
   screenshotConsoleOutput,
+  screenshotSystemLogLines,
 } from "./screenshotData";
 
 export const handlers = [
@@ -555,6 +556,13 @@ export const handlers = [
     }
     return HttpResponse.json(out);
   }),
+  // Audit chain integrity check — AuditLogPage renders the success/failure
+  // banner from this. No dedicated test exercises the failure path against
+  // this default handler (see AuditLog.test.tsx's own fetch mocks); this
+  // exists so the endpoint isn't unhandled when a test lands on /admin/audit.
+  http.get("/admin/audit/verify", () =>
+    HttpResponse.json({ ok: true, checked: 5, message: "audit chain intact" }),
+  ),
   http.get("/admin/config", () => HttpResponse.json(makeConfig())),
   http.put("/admin/config/:section", () => new HttpResponse(null, { status: 204 })),
   http.post("/admin/notifications/sinks/:name/test", () =>
@@ -909,12 +917,18 @@ export function buildScreenshotHandlers() {
     ),
 
     // Backups
+    // T118 (specs/014-heroui-web-rebuild/tasks.md): both entries' spec.serverRef
+    // is pinned to "test-server-01" (previously left at makeBackup()'s "alpha"
+    // default despite the metadata.name already reading "test-server-01-…") so
+    // ServerDetail's per-server Backups tab (which filters by
+    // spec.serverRef.name) actually has rows to render for the screenshot.
     http.get("/backups", () =>
       HttpResponse.json({
         items: [
-          makeBackup(),
+          makeBackup({ spec: { serverRef: { name: "test-server-01" } } }),
           makeBackup({
             metadata: { name: "test-server-01-2026-05-06", namespace: "default" },
+            spec: { serverRef: { name: "test-server-01" } },
             status: {
               phase: "Failed",
               startTime: "2026-05-06T03:00:00Z",
@@ -1057,8 +1071,12 @@ export function buildScreenshotHandlers() {
     ),
 
     // Mods
+    // T118 (specs/014-heroui-web-rebuild/tasks.md): modpacks flipped true so
+    // the Modpacks tab (screenshot slice2b) has a provider to browse —
+    // matches valheim-default's registry.providers[].modpacks declaration
+    // added to screenshotData.ts for the same task.
     http.get("/servers/:name/mods/registry/providers", () =>
-      HttpResponse.json([{ provider: "thunderstore", available: true, modpacks: false }]),
+      HttpResponse.json([{ provider: "thunderstore", available: true, modpacks: true }]),
     ),
     http.get("/servers/:name/mods/registry/search", () => HttpResponse.json(data.registryProjects)),
     http.get("/servers/:name/mods/registry/projects/:project/versions", () =>
@@ -1230,12 +1248,82 @@ export function buildScreenshotHandlers() {
       // Return screenshot audit events up to limit
       return HttpResponse.json(data.auditEvents.slice(0, limit));
     }),
+    // Audit chain integrity — default "verified" state (DxKOh). The
+    // failure banner state (kIxaJ) is produced per-test via page.route
+    // overriding this route, since it's a one-off variant, not a
+    // dataset-wide fixture.
+    http.get("/admin/audit/verify", () =>
+      HttpResponse.json({ ok: true, checked: data.auditEvents.length, message: "audit chain intact" }),
+    ),
     http.get("/admin/config", () => HttpResponse.json(data.config())),
     http.put("/admin/config/:section", () => new HttpResponse(null, { status: 204 })),
     http.post("/admin/notifications/sinks/:name/test", () =>
       HttpResponse.json({ delivered: true }),
     ),
     http.get("/admin/users", () => HttpResponse.json({ items: data.users })),
+
+    // Admin — System Logs (Bq2Yg, slice 4). AdminLogsPage fetches this
+    // plaintext stream directly (not through lib/api.ts), so it's mocked
+    // as a plain HttpResponse rather than HttpResponse.json.
+    http.get("/admin/system-logs/:component", () =>
+      new HttpResponse(screenshotSystemLogLines.join("\n") + "\n", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain",
+          "X-Gameplane-Pod": "gameplane-api-6f9c8d5b7-x2k9p",
+        },
+      }),
+    ),
+    // Share links: list, create, revoke, resolve (public), start (public)
+    http.get(/\/servers\/[^/]+:shares$/, () => {
+      // Return mock share links for testing
+      return HttpResponse.json([
+        {
+          id: "share-1",
+          createdAt: "2026-07-28T00:00:00Z",
+          expiresAt: "2026-08-04T00:00:00Z",
+          canStart: true,
+        },
+        {
+          id: "share-2",
+          createdAt: "2026-06-01T00:00:00Z",
+          expiresAt: "2026-06-08T00:00:00Z",
+          canStart: false,
+        },
+      ]);
+    }),
+    http.post(/\/servers\/[^/]+:shares$/, async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        expiresIn?: string;
+        canStart?: boolean;
+      } | null;
+      return HttpResponse.json({
+        id: `share-${Math.random().toString(36).slice(2)}`,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        canStart: body?.canStart ?? false,
+        token: `token_${Math.random().toString(36).slice(2)}`,
+      });
+    }),
+    http.delete("/servers/:name/shares/:id", () =>
+      new HttpResponse(null, { status: 204 }),
+    ),
+    // Public share endpoints (no auth required)
+    http.get("/shares/:token", () => {
+      // Return public share info
+      return HttpResponse.json({
+        serverName: "mc-survival",
+        status: "Running",
+        address: {
+          host: "game.example.com",
+          port: 25565,
+        },
+        playersOnline: 3,
+      });
+    }),
+    http.post("/shares/:token/start", () =>
+      new HttpResponse(null, { status: 202 }),
+    ),
 
     // WebSocket: PTY Console (registered before RCON console to match narrower pattern first)
     ws.link(`${wsOrigin}/ws/servers/*/console-pty*`).addEventListener("connection", ({ client }) => {

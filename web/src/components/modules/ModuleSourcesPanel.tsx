@@ -11,9 +11,8 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import { Button, Card } from "@heroui/react";
 
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { APIError } from "@/lib/api";
 import { ModuleSources } from "@/lib/endpoints";
 import { formatRelative } from "@/lib/utils";
@@ -84,7 +83,8 @@ export function ModuleSourcesPanel() {
         </div>
         <Button
           size="sm"
-          onClick={() => {
+          variant="primary"
+          onPress={() => {
             setEditTarget(null);
             setDialogOpen(true);
           }}
@@ -218,14 +218,14 @@ function SourceRow({
         {stale && <div className="text-warning">serving stale catalog</div>}
       </div>
       <div className="flex items-center gap-1">
-        <Button size="sm" variant="ghost" onClick={onEdit} aria-label={`Edit ${source.metadata.name}`}>
+        <Button size="sm" variant="ghost" onPress={onEdit} aria-label={`Edit ${source.metadata.name}`}>
           <Pencil className="h-3.5 w-3.5" />
         </Button>
         <Button
           size="sm"
           variant="ghost"
-          onClick={onDelete}
-          disabled={deleting}
+          onPress={onDelete}
+          isDisabled={deleting}
           aria-label={`Delete ${source.metadata.name}`}
         >
           <Trash2 className="h-3.5 w-3.5 text-danger" />

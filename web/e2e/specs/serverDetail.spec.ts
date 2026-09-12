@@ -53,11 +53,26 @@ test.describe("server detail tabs", () => {
 
     // Visit each tab in sequence. Console and Files lazy-load via
     // React.Suspense; allow time for the chunk to settle.
-    const labels = ["Overview", "Console", "Logs", "Files", "Players", "Backups", "Settings"];
+    // Slice 2b adds Mods and Modpacks tabs; both depend on template capabilities.
+    // Events and Capture are always present; Console, Mods, Modpacks are optional.
+    const labels = ["Overview", "Events", "Console", "Logs", "Files", "Players", "Mods", "Modpacks", "Backups", "Capture", "Settings"];
+    const optionalTabs = ["Console", "Mods", "Modpacks"];
     for (const label of labels) {
-      await tabNav.getByRole("tab", { name: new RegExp(`^${label}$`) }).click();
-      // Tab content swap doesn't change URL — just await DOM stability.
-      await page.waitForTimeout(200);
+      const tab = tabNav.getByRole("tab", { name: new RegExp(`^${label}$`) });
+      if (optionalTabs.includes(label)) {
+        // Some tabs may not be present depending on template capabilities; tolerate that gracefully.
+        if (await tab.isVisible().catch(() => false)) {
+          await tab.click();
+          // Tab content swap doesn't change URL — just await DOM stability.
+          await page.waitForTimeout(200);
+        }
+      } else {
+        // Required tabs must be visible; fail loudly if missing (regression detector).
+        await expect(tab).toBeVisible();
+        await tab.click();
+        // Tab content swap doesn't change URL — just await DOM stability.
+        await page.waitForTimeout(200);
+      }
     }
 
     expect(errors.filter((e) => !isExpectedDevWarning(e))).toEqual([]);
@@ -76,8 +91,9 @@ test.describe("server detail tabs", () => {
 
     // Settings has an inner tab strip (TabBar) — sub-tabs differ in
     // styling but are also <button> elements. Match by their text and
-    // require visibility before clicking.
-    const subTabs = ["General", "Networking", "Resources", "Environment", "Lifecycle", "Access", "Danger"];
+    // require visibility before clicking. Slice 2b adds Version, Scheduled backups,
+    // Network capture, and Placement tabs.
+    const subTabs = ["General", "Version", "Resources", "Networking", "Environment", "Lifecycle", "Scheduled backups", "Network capture", "Placement", "RBAC & access", "Danger zone"];
     for (const t of subTabs) {
       const btn = page.getByRole("button", { name: new RegExp(`^${t}$`, "i") }).first();
       // Some sub-tabs may not be present depending on settings module

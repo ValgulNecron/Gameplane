@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { ServerActionsCard } from "./ServerActionsCard";
-import type { GameTemplate, ServerActionDecl } from "@/types";
+import type { GameServer, GameTemplate, ServerActionDecl } from "@/types";
 
 const fetchMock = vi.fn();
 
@@ -833,6 +833,33 @@ describe("ServerActionsCard", () => {
     await waitFor(() => expect(openBtn).not.toBeDisabled());
     fireEvent.click(openBtn);
     expect(await screen.findByText("The command to execute")).toBeInTheDocument();
+  });
+
+  it("falls back to generic lifecycle shortcuts when a GameServer is given and no actions are declared", async () => {
+    routeFetch("operator", []);
+    const onOpenConsole = vi.fn();
+    const gs: GameServer = {
+      metadata: { name: "s1" },
+      spec: { templateRef: { name: "minecraft-java" } },
+      status: { phase: "Running" },
+    };
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([])}
+        gs={gs}
+        onOpenConsole={onOpenConsole}
+      />,
+    );
+    expect(await screen.findByText("Quick actions")).toBeInTheDocument();
+    const restart = screen.getByRole("button", { name: /Restart/i });
+    const stop = screen.getByRole("button", { name: /Stop/i });
+    // Running: Start is hidden, Restart/Stop are available.
+    expect(screen.queryByRole("button", { name: /^Start$/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(restart).not.toBeDisabled());
+    await waitFor(() => expect(stop).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: /Open console/i }));
+    expect(onOpenConsole).toHaveBeenCalled();
   });
 
   it("validates negative integers", async () => {

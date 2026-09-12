@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { Button, Input, Chip } from "@heroui/react";
 
 import type {
   GameServer,
@@ -30,9 +31,7 @@ import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
 import { resolveModVolume } from "@/lib/capabilities";
 import { useMe, can } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
 import { RegistryBrowser, RegistryIcon, compactNum, providerLabel } from "@/components/registry-browser";
 import { cn, formatBytes, formatRelative } from "@/lib/utils";
 
@@ -228,16 +227,15 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} title="Refresh">
+          <Button variant="ghost" size="sm" onPress={() => void refetch()} isDisabled={isFetching} aria-label="Refresh">
             <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
           </Button>
           {canInstall && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void updates.refetch()}
-              disabled={updates.isFetching || !mods?.some((m) => m.meta && m.meta.provider !== "upload")}
-              title="Check the registry for newer versions of managed mods"
+              onPress={() => void updates.refetch()}
+              isDisabled={updates.isFetching || !mods?.some((m) => m.meta && m.meta.provider !== "upload")}
             >
               <RotateCw className={cn("h-3 w-3", updates.isFetching && "animate-spin")} />{" "}
               {updates.isFetching ? "Checking…" : "Check updates"}
@@ -247,21 +245,26 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => updateAll.mutate()}
-              disabled={updateAll.isPending || install.isPending}
+              onPress={() => updateAll.mutate()}
+              isDisabled={updateAll.isPending || install.isPending}
             >
               <ArrowUpCircle className="h-4 w-4" />{" "}
               {updateAll.isPending ? "Updating…" : `Update all (${updateByName.size})`}
             </Button>
           )}
-          <Button
-            size="sm"
-            onClick={() => setBrowsing(true)}
-            disabled={!canManage}
-            title={canManage ? undefined : "Requires operator role"}
-          >
-            <Plus className="h-4 w-4" /> Install mod
-          </Button>
+          {/* The disabled reason lives on a wrapping element's title (not
+              the Button's aria-label) so the button's accessible name
+              stays its visible text, "Install mod", for role queries and
+              assistive tech alike. */}
+          <span title={canManage ? undefined : "Requires operator role"} tabIndex={0}>
+            <Button
+              size="sm"
+              onPress={() => setBrowsing(true)}
+              isDisabled={!canManage}
+            >
+              <Plus className="h-4 w-4" /> Install mod
+            </Button>
+          </span>
         </div>
       </header>
 
@@ -276,9 +279,9 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
         >
           <div className="flex items-start justify-between gap-3">
             <span className="font-mono break-all">{banner.text}</span>
-            <button onClick={() => setBanner(null)} className="shrink-0 text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
+            <Button variant="ghost" size="sm" onPress={() => setBanner(null)} isIconOnly aria-label="dismiss">
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       )}
@@ -286,9 +289,9 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
       {isError && !mods && (
         <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           {errMsg(listError)} ·{" "}
-          <button onClick={() => refetch()} className="underline hover:no-underline">
+          <Button variant="ghost" size="sm" className="underline" onPress={() => void refetch()} aria-label="retry">
             retry
-          </button>
+          </Button>
         </div>
       )}
 
@@ -327,7 +330,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
                       ) : (
                         <span
                           className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[10px] text-muted"
-                          title="Placed outside the panel — no update checks"
+                          aria-label="Placed outside the panel — no update checks"
                         >
                           unmanaged
                         </span>
@@ -348,9 +351,8 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
                       {canManage && (
                         <Button
                           size="sm"
-                          title={`Update to ${update.latestVersionNumber ?? update.latestVersionId}`}
-                          onClick={() => install.mutate(upgradeBody(update))}
-                          disabled={install.isPending || updateAll.isPending}
+                          onPress={() => install.mutate(upgradeBody(update))}
+                          isDisabled={install.isPending || updateAll.isPending}
                         >
                           <ArrowUpCircle className="h-3 w-3" /> Update
                         </Button>
@@ -361,9 +363,9 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
                     <Button
                       variant="ghost"
                       size="sm"
-                      title={`Remove ${m.name}`}
-                      onClick={() => setConfirmRemove(m)}
-                      disabled={remove.isPending}
+                      aria-label={`Remove ${m.name}`}
+                      onPress={() => setConfirmRemove(m)}
+                      isDisabled={remove.isPending}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -540,19 +542,22 @@ function ModsByIdTab({
     return (
       <div className="flex h-full flex-col gap-4 p-6">
         <header className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setBrowsing(false)}
-            className="flex items-center gap-1 text-xs text-muted hover:text-fg"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onPress={() => setBrowsing(false)}
+            aria-label="Back to selected mods"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Selected mods
-          </button>
+          </Button>
           <h2 className="text-base font-semibold">Browse {providerName ?? "registry"}</h2>
         </header>
         <div className="min-h-0 flex-1">
           <RegistryBrowser
             name={name}
             type="mod"
+            categories={MOD_CATEGORIES}
             renderItem={(p) => (
               <IdModCard
                 project={p}
@@ -575,8 +580,16 @@ function ModsByIdTab({
             {[tmpl?.spec.displayName, providerName ? `${providerName} mod IDs` : null].filter(Boolean).join(" · ")}
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} title="Refresh">
-          <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
+        <Button
+          isIconOnly
+          variant="ghost"
+          size="sm"
+          onPress={() => void refetch()}
+          isDisabled={isFetching}
+          aria-label="Refresh"
+          className="h-auto w-auto"
+        >
+          <RotateCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
         </Button>
       </header>
 
@@ -599,9 +612,9 @@ function ModsByIdTab({
         >
           <div className="flex items-start justify-between gap-3">
             <span className="font-mono break-all">{banner.text}</span>
-            <button onClick={() => setBanner(null)} className="shrink-0 text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
+            <Button variant="ghost" size="sm" onPress={() => setBanner(null)} isIconOnly aria-label="dismiss">
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       )}
@@ -609,16 +622,20 @@ function ModsByIdTab({
       {isError && !saved && (
         <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           {errMsg(listError)} ·{" "}
-          <button onClick={() => refetch()} className="underline hover:no-underline">
+          <Button variant="ghost" size="sm" className="underline" onPress={() => void refetch()} aria-label="retry">
             retry
-          </button>
+          </Button>
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         {canBrowse && canManage && (
           <>
-            <Button variant="outline" size="sm" onClick={() => setBrowsing(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={() => setBrowsing(true)}
+            >
               <Compass className="h-4 w-4" /> Browse {providerName ?? "registry"}
             </Button>
             <div className="h-6 w-px bg-border" />
@@ -635,8 +652,8 @@ function ModsByIdTab({
           />
           <Button
             size="sm"
-            disabled={!canManage || !modIDPattern.test(idInput.trim())}
-            onClick={() => {
+            isDisabled={!canManage || !modIDPattern.test(idInput.trim())}
+            onPress={() => {
               addModID(idInput.trim());
               setIdInput("");
             }}
@@ -676,15 +693,31 @@ function ModsByIdTab({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {r.state === "added" && <ModIDChip kind="added">Added</ModIDChip>}
-                  {r.state === "removed" && <ModIDChip kind="removed">Marked for removal</ModIDChip>}
+                  {r.state === "added" && (
+                    <Chip size="sm" color="success" variant="soft">
+                      Added
+                    </Chip>
+                  )}
+                  {r.state === "removed" && (
+                    <Chip size="sm" color="warning" variant="soft">
+                      Marked for removal
+                    </Chip>
+                  )}
                   {canManage &&
                     (r.state === "removed" ? (
-                      <Button variant="ghost" size="sm" onClick={() => undoRemove(r.id)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onPress={() => undoRemove(r.id)}
+                      >
                         <RotateCcw className="h-3 w-3" /> Undo
                       </Button>
                     ) : (
-                      <Button variant="ghost" size="sm" onClick={() => markRemoved(r.id)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onPress={() => markRemoved(r.id)}
+                      >
                         <X className="h-3 w-3" /> Remove
                       </Button>
                     ))}
@@ -700,33 +733,24 @@ function ModsByIdTab({
           <TriangleAlert className="h-4 w-4" /> Saving restarts the server to apply the new mod list.
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={discard} disabled={!dirty || save.isPending}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={discard}
+            isDisabled={!dirty || save.isPending}
+          >
             Discard
           </Button>
-          <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending || !canManage}>
+          <Button
+            size="sm"
+            onPress={() => save.mutate()}
+            isDisabled={!dirty || save.isPending || !canManage}
+          >
             {save.isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>
       </div>
     </div>
-  );
-}
-
-// ModIDChip is the pending-state pill for a row: "Added" (success) for a
-// new not-yet-saved selection, "Marked for removal" (warning) for a kept
-// row queued for removal. Mirrors the existing update-available badge's
-// pill styling (rounded-full border + tinted bg/text) rather than
-// introducing a new one.
-function ModIDChip({ kind, children }: { kind: "added" | "removed"; children: ReactNode }) {
-  return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-        kind === "added" ? "border-success/40 bg-success/10 text-success" : "border-warning/40 bg-warning/10 text-warning",
-      )}
-    >
-      {children}
-    </span>
   );
 }
 
@@ -744,7 +768,7 @@ function IdModCard({
   onAdd: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded border border-border bg-surface/30 p-2.5">
+    <div className="flex items-center gap-3 rounded-md border border-border bg-surface/30 p-2.5">
       <RegistryIcon url={project.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{project.title}</div>
@@ -754,7 +778,12 @@ function IdModCard({
             .join(" · ")}
         </div>
       </div>
-      <Button size="sm" variant={added ? "outline" : "default"} disabled={added} onClick={onAdd}>
+      <Button
+        size="sm"
+        variant={added ? "outline" : "primary"}
+        isDisabled={added}
+        onPress={onAdd}
+      >
         {added ? "Added" : "Add"}
       </Button>
     </div>
@@ -814,13 +843,15 @@ function InstallPage({
   return (
     <div className="flex h-full flex-col gap-4 p-6">
       <header className="space-y-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1 text-xs text-muted hover:text-fg"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs"
+          onPress={onBack}
+          aria-label="Back to installed mods"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Installed mods
-        </button>
+        </Button>
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-0.5">
             <h2 className="text-base font-semibold">Install mods</h2>
@@ -841,7 +872,7 @@ function InstallPage({
                   onClick={() => setMode(m.key)}
                   aria-pressed={mode === m.key}
                   className={cn(
-                    "h-8 px-3",
+                    "h-8 px-3 rounded-none border-none bg-transparent cursor-pointer",
                     i === 0 && "rounded-l",
                     i === modes.length - 1 && "rounded-r",
                     i > 0 && "border-l border-border",
@@ -871,9 +902,9 @@ function InstallPage({
         >
           <div className="flex items-start justify-between gap-3">
             <span className="font-mono break-all">{banner.text}</span>
-            <button onClick={onDismiss} className="shrink-0 text-xs text-muted hover:text-fg">
-              dismiss
-            </button>
+            <Button variant="ghost" size="sm" onPress={onDismiss} isIconOnly aria-label="dismiss">
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       )}
@@ -962,13 +993,13 @@ function UrlForm({
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-5">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+        <Button variant="ghost" size="sm" onPress={onCancel} isDisabled={pending}>
           Cancel
         </Button>
         <Button
           size="sm"
-          disabled={!validURL || pending}
-          onClick={() =>
+          isDisabled={!validURL || pending}
+          onPress={() =>
             onInstall({ url: trimmed, ...(fileName.trim() ? { name: fileName.trim() } : {}) })
           }
         >
@@ -1032,10 +1063,10 @@ function UploadForm({
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-5">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+        <Button variant="ghost" size="sm" onPress={onCancel} isDisabled={pending}>
           Cancel
         </Button>
-        <Button size="sm" disabled={!file || pending} onClick={() => file && onUpload(file)}>
+        <Button size="sm" isDisabled={!file || pending} onPress={() => file && onUpload(file)}>
           {pending ? "Uploading…" : "Upload"}
         </Button>
       </div>
@@ -1129,7 +1160,7 @@ function ModCard({
   const file = chosen?.files.find((f) => f.primary) ?? chosen?.files[0];
 
   return (
-    <div className="rounded border border-border bg-surface/30">
+    <div className="rounded-md border border-border bg-surface/30">
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 p-2.5 text-left">
         <RegistryIcon url={project.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
         <div className="min-w-0 flex-1">
@@ -1172,20 +1203,24 @@ function ModCard({
               {file?.requiresAuth ? (
                 // Portal files (e.g. Factorio) download only with the
                 // player's own credentials — hand off to the URL form so
-                // the user can append them; never one-click install.
-                <Button
-                  size="sm"
-                  variant="outline"
-                  title="This registry's downloads need your own account credentials appended to the URL"
-                  onClick={() => onUseUrl(file.downloadUrl)}
-                >
-                  Use URL form
-                </Button>
+                // the user can append them; never one-click install. The
+                // hint lives on a wrapping element's title (not the
+                // Button's aria-label) so the button's accessible name
+                // stays its visible text, "Use URL form".
+                <span title="This registry's downloads need your own account credentials appended to the URL">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onPress={() => onUseUrl(file.downloadUrl)}
+                  >
+                    Use URL form
+                  </Button>
+                </span>
               ) : (
                 <Button
                   size="sm"
-                  disabled={!file || pending}
-                  onClick={() =>
+                  isDisabled={!file || pending}
+                  onPress={() =>
                     file &&
                     onInstall({
                       url: file.downloadUrl,

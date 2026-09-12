@@ -303,6 +303,349 @@ Selectors updated to query by role (`getByRole("button", { name: /clone/i })`, `
 
 CloneServerDialog, TransferServerDialog and WipeServerDialog do not route through hero/ConfirmDialog the way DeleteServerDialog and the Files delete confirmation do — each builds its own dialog directly from HeroUI `Modal`/`AlertDialog` primitives, since their forms need bespoke fields (name/description/template picker, destination picker, wipe checkbox) that hero/ConfirmDialog's fixed layout does not support. This is a real, verified divergence from the atom-reuse framing above, not a workaround pending cleanup — no forbidden-import (`@/components/ui/`, `@radix-ui`) is involved, per the Design Import Rule grep above.
 
+## T097–T120 — Slice 2b: Mods, Modpacks, Backups Tab, and Settings
+
+**Scope:** Slice 2b (tasks T097–T120, `specs/014-heroui-web-rebuild/tasks.md`) completes ServerDetail by rebuilding four tabbed interfaces — Mods (installed mod browsing and installation), Modpacks (modpack selection), Backups (per-server backup listing and restore), and Settings (11 sub-sections for server configuration). All nine tabs in ServerDetail are now HeroUI-based; legacy primitives are fully purged from the authenticated shell and server management surfaces.
+
+### Screens and Routes
+
+1. **Mods Tab** (`web/src/routes/tabs/Mods.tsx`, 1206 lines)
+   - Browse installed mods (idList or file-based, per template capability)
+   - Install from registry or upload custom mods via dialogs
+   - Per-mod actions: upgrade, reinstall, uninstall using HeroUI Button + Dropdown
+   - Registry browser (CurseForge/Modrinth) picker via hero/ composition
+   - Rendering strategy differs by game: ARK/Project Zomboid use idList editor; others show file list
+   - Uses HeroUI Button, Input, Chip; hero/ ConfirmDialog (for destructive actions)
+
+2. **Modpacks Tab** (`web/src/routes/tabs/Modpacks.tsx`, 230 lines)
+   - Modpack-capable games render a selector/browser
+   - Select active pack, view pack contents, toggle mods within a pack
+   - Uses HeroUI Select, Table, Button, Chip
+
+3. **Backups Tab** (`web/src/routes/tabs/Backups.tsx`, 209 lines)
+   - Per-server backup list (snapshots created via the /backups page or on-demand)
+   - Table columns: backup name, phase (Pending/Succeeded/Failed), size, completion time, actions
+   - Open backup detail drawer, trigger restore dialog, delete backup
+   - Uses HeroUI Table, Button, Modal (restore trigger), hero/ PhaseChip
+
+4. **Settings Tab** (`web/src/routes/tabs/Settings.tsx`, 289 lines)
+   - Sub-section navigation tabs (11 sections below) via HeroUI Tabs
+   - Layout: left sidebar with section buttons, right panel for section content
+   - Each section maintains independent form state, save/discard flow, per-field validation
+
+### Settings Sub-Sections (T101–T111)
+
+All 11 sections render form controls from HeroUI (TextField, Select, Slider, Switch, Checkbox) with independent state management:
+
+1. **General** (`web/src/routes/tabs/settings/General.tsx`) — Server name, description, game-icon display (read-only)
+2. **Version** (`web/src/routes/tabs/settings/Version.tsx`) — Active version selector, available versions, rollback button
+3. **Resources** (`web/src/routes/tabs/settings/Resources.tsx`) — CPU request/limit, memory request/limit, storage size sliders + TextField inputs
+4. **Networking** (`web/src/routes/tabs/settings/Networking.tsx`) — Port table (external/internal/protocol), address pool picker, firewall rules via HeroUI Table + Modal dialogs
+5. **Environment** (`web/src/routes/tabs/settings/EnvVars.tsx`) — Environment variable key/value editor (table, add/delete rows) via HeroUI Table + TextField
+6. **Lifecycle** (`web/src/routes/tabs/settings/Lifecycle.tsx`) — Auto-pause threshold, idle sleep settings, quiesce strategy selector via HeroUI Switch/Select/Slider
+7. **Scheduled backups** (`web/src/routes/tabs/settings/Backups.tsx`) — Retention days selector, retention policy dropdown via HeroUI Select/TextField
+8. **Network capture** (`web/src/routes/tabs/settings/NetworkCapture.tsx`) — Capture enabled toggle, BPF filter input, retention policy via HeroUI Switch/TextField/Select; warning banner via hero/ component
+9. **Placement** (`web/src/routes/tabs/settings/Placement.tsx`) — Node affinity rules, pod-node-selector builder via HeroUI form components
+10. **RBAC & access** (`web/src/routes/tabs/settings/Access.tsx`) — Per-role read/exec/admin permissions toggle matrix via HeroUI Switch grid
+11. **Danger zone** (`web/src/routes/tabs/settings/Danger.tsx`) — Destructive action buttons (Delete server, Wipe world, Transfer ownership to another user) wired to confirmation dialogs via HeroUI Button (danger variant) + hero/ ConfirmDialog
+
+### New Components (T112–T115)
+
+- **CaptureWidget.tsx** (T112) — Status display for active network packet capture; download + stop buttons via HeroUI Button; capture warning banner via hero/ component
+- **registry-browser.tsx** (T113) — Shared mod registry browser (Mods + Modpacks tabs); search, category filter, mod list via HeroUI Table/SearchField/Chip; provider logo display
+- **modules/InstallDialog.tsx** (T114) — Modal dialog for installing a module (name field pre-filled, version selector) via HeroUI Modal/TextField/Select/Button
+- **modules/UploadModuleDialog.tsx** (T115) — Modal dialog for uploading custom module (file input, version field) via HeroUI Modal/Input/TextField/Button
+
+### HeroUI Components Imported
+
+All rebuilt Slice 2b files import **only** from `@heroui/react` and `@/components/hero/`:
+
+- **Table** — Mods/Modpacks/Backups/Settings tabs (Networking, EnvVars, etc.) use HeroUI Table + Table.Header/Table.Column/Table.Body/Table.Row/Table.Cell (no `align`, `classNames`, `emptyContent`, `isLoading` props per HeroUI v3)
+- **Modal, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter** — Module dialogs (install/upload), restore/delete confirmations
+- **TextField, Input, Select, Checkbox, Switch, Slider, NumberField** — Settings form controls (no `onValueChange`, no `defaultValue` on Select; use `value`/`onChange`)
+- **Button** — Lifecycle actions (install, upgrade, uninstall, delete, wipe, transfer), navigation (next/previous in Backups detail)
+- **Tabs, Tab, TabList** — Settings sub-section navigation
+- **Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, DropdownSection, DropdownDivider** — Per-mod actions (upgrade, reinstall, uninstall)
+- **Popover, PopoverTrigger, PopoverContent** — Restore destination picker (if needed), filter popovers
+- **Drawer** — Backup detail drawer (if HeroUI Drawer is preferred; fallback to Modal anchored left)
+- **SearchField** — Registry browser search (Mods/Modpacks)
+- **Chip** — Phase badges (Backups), category tags (Modpacks)
+
+### Registry Browser and Capture Widget
+
+**registry-browser.tsx** (T113) is a shared composition used by both Mods and Modpacks tabs:
+- Fetches mod list from configured registries (CurseForge, Modrinth, GitHub, custom)
+- Renders search field + category filter (both HeroUI) + paginated result table (HeroUI Table)
+- Displays mod name, version, downloads, authors, description; mod icon and provider logo
+- Handles selection and passes back to parent tab (via callback or state mutation)
+
+**CaptureWidget.tsx** (T112) is a per-server status indicator:
+- Displays "Capture running" state with live frame count
+- Shows download button (downloads captured PCAPNG) and stop button (halts capture)
+- Displays warning banner (hero/ component) if capture is in progress
+- Used in ServerDetail header or a separate Capture tab (depends on template capability)
+
+### State Preservation Rule
+
+Each Settings sub-section independently owns its form state (no shared parent provider):
+- Read/fetch on tab navigation (`useEffect` keyed to tab key)
+- State syncs to form fields (TextField.value = formState, etc.)
+- User edits mutate local state (e.g., `setFormState({...formState, name: e.target.value})`)
+- Save button triggers PATCH /servers/{name} with all changed fields
+- Discard button resets form to the last-fetched state
+- Navigation away without save prompts user (e.g., "You have unsaved changes")
+
+### Design Import Rule (FR-012)
+
+Every file in slice 2b imports **only** from `@heroui/react` and `@/components/hero/` (no `@radix-ui/*`, no `@/components/ui/*`):
+
+- ✅ Verified by `grep -rl -e '@/components/ui/' -e '@radix-ui' web/src/routes/tabs/{Mods,Modpacks,Backups,Settings}.tsx web/src/routes/tabs/settings/ web/src/components/{CaptureWidget,registry-browser}.tsx web/src/components/modules/{InstallDialog,UploadModuleDialog}.tsx 2>/dev/null` must return **zero results** (task T120)
+## T119–T137 — Slice 3: Create Server Wizard, Modules Catalog, and Backups Management
+
+**Scope:** Slice 3 (tasks T119–T137, `specs/014-heroui-web-rebuild/tasks.md`) rebuilds three onboarding and operational management surfaces on HeroUI components: the multi-step Create Server wizard (Steps 1–5), the Modules library catalog, and the Backups management interface (index, schedules, restores). This slice completes the foundational surfaces for server creation and backup operations, applying the same HeroUI component family and theme tokens established in slices 0–2a.
+
+### Screens and Routes
+
+1. **Create Server Wizard** (`web/src/routes/CreateServer.tsx`, 52,147 bytes)
+   - Multi-step form guiding server creation through five steps; each step has validation, back/next navigation, and error display
+   - Step 1: Server name and template selection (game type pick)
+   - Step 2: Version selection (pick released/beta/unstable version per template)
+   - Step 3: Game configuration (slots, difficulty, world size, etc. — rendered from template `spec.configSchema`)
+   - Step 4: Networking (service type, ports, tunnel config if enabled)
+   - Step 5: Review and confirmation (summary of all selections; triggers server creation on submit)
+   - Form state and validation managed per-step via React state; back button returns to previous step without data loss
+   - Tunnel credentials saved to a Kubernetes Secret after server creation if tunnel is enabled (error chain preserved if secret-save fails)
+
+2. **Modules Catalog Page** (`web/src/routes/Modules.tsx`, 11,410 bytes)
+   - Browse available game modules (templates) from all registered ModuleSources
+   - Module cards display game icon, name, description, version, install status
+   - Actions: install from catalog, manage installed versions, bulk upload, add/edit ModuleSource
+   - Filter by game type or source; search by name
+   - InstallDialog, UploadModuleDialog, SourceDialog (add/edit module source) for workflow UI
+
+3. **Backups Management Page** (`web/src/routes/Backups.tsx`, 18,395 bytes)
+   - Tabbed interface with three sub-views: Backups (index), Schedules, Restores
+   - **Backups tab:** List all Backup CRs (manual + scheduled); filter by server/status; view backup metadata (size, created/expires); restore/delete actions
+   - **Schedules tab:** List BackupSchedule CRs; create/edit/suspend/delete schedules; cron/daily/weekly templates; retention policy form
+   - **Restores tab:** List Restore operations in progress and completed; view status, source backup, destination server; cancel restore action
+   - BackupDetailDrawer (slide-out panel) for full backup metadata, file size, retention expiry
+   - RestoreDialog (modal) for restore workflow (pick source backup, destination server, confirm)
+   - ScheduleForm (modal) for create/edit schedule with cron input and retention retention-window controls
+
+### Design-Imported Compositions
+
+**Slice 3 uses the following hero/ atom compositions from slice 0:**
+
+- **StatCard** — metric display (total backups, schedule count, retention summary) in backup/schedule list headers (`web/src/routes/Backups.tsx` line 23)
+- **PhaseChip** — backup/restore phase badge (Completed/Failed/Pending) in Backups and Restores tables (`web/src/components/backups/BackupRow.tsx` line 8, `web/src/routes/Backups.tsx` line 24)
+- **FilterPopover** — filter controls in Backups list (server, status, date range) (`web/src/routes/Backups.tsx` line 25)
+- **ErrorBanner** — error display in backup/schedule operations (`web/src/components/backups/ErrorBanner.tsx` line 1)
+- **ErrorCard** — error state display when backup operations fail (`web/src/components/backups/` components, used at error boundaries)
+
+**HeroUI Components imported directly** (component-name lists from `@heroui/react` import statements in each file):
+
+- **Button** — from `@heroui/react`, imported in CreateServer.tsx (line 22), Modules.tsx (line 8), Backups.tsx (line 15), ModuleCard.tsx, InstallDialog.tsx, SourceDialog.tsx, UploadModuleDialog.tsx, RestoreDialog.tsx, ScheduleForm.tsx, BackupDetailDrawer.tsx
+- **Input, Label, Description** — from `@heroui/react`, text/number fields in Create Server steps 1–5 and schedule/backup forms; label + description pattern for field validation and helper text
+- **Select, ListBox, ListBoxItem** — from `@heroui/react`, version picker (Step 2), game selector (Step 1), namespace/server picker in Backups restore workflow, template selector in Modules install
+- **Modal, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter, Tabs, Tab** — from `@heroui/react`, step progression UI in Create Server (using Tabs for step navigation; alternative: linear stepper), module install/upload dialogs (InstallDialog.tsx, UploadModuleDialog.tsx, SourceDialog.tsx), restore dialog (RestoreDialog.tsx), schedule form (ScheduleForm.tsx)
+- **Card, CardHeader, CardTitle, CardContent, CardFooter** — from `@heroui/react`, module cards (ModuleCard.tsx), backup detail drawer (BackupDetailDrawer.tsx), server summary cards in Create Server Step 5
+- **Checkbox, Radio** — from `@heroui/react`, configuration options in Step 3 (difficulty, world mode as checkboxes), retention policy toggles in ScheduleForm
+- **Chip** — from `@heroui/react`, status badges (backup phase, restore status), module version/provider tags in Modules catalog
+- **Table** — from `@heroui/react`, backup index table (Backups.tsx), schedules list (ScheduleForm.tsx scope), restores table in Backups tab 3
+- **Slider, NumberField, Switch** — from `@heroui/react`, resource/slot range inputs in Step 3 (CPU, memory, player slots), retention window/duration inputs in ScheduleForm, tunnel toggle in Step 4
+- **Popover, PopoverTrigger, PopoverContent** — from `@heroui/react`, filter popover in Backups (FilterPopover composition), module source selector in Modules
+- **Alert** — from `@heroui/react`, success/info/warning displays in backup workflows, tunnel credential save status in Create Server Step 4
+- **Drawer** (or modal equivalent for side panel) — BackupDetailDrawer.tsx implements slide-out detail view via Modal with custom positioning (right-side panel style)
+
+### Create Server Form Fields & Validation (Steps 1–5)
+
+**Step 1 — Name & Template Selection:**
+- Server name input (required, alphanumeric + hyphens, max length from API constraint)
+- Game template selector (required, ListBox with game icons, descriptions)
+- Validation: name uniqueness checked via API query; template exists check
+
+**Step 2 — Version Selection:**
+- Version picker (ListBox or Radio group) showing released/beta/unstable versions per template
+- Displays version notes/changelog when available
+- Validation: selected version exists and is compatible with chosen template
+
+**Step 3 — Configuration:**
+- Dynamic form fields rendered from template's `spec.configSchema` (slots, difficulty, world size, etc.)
+- Input types: Text, Number, Select (enum), Checkbox (boolean), Slider (range)
+- Each field carries its schema-declared label and description (helper text)
+- Client-side validation against declared constraints (min/max, enum values, string patterns)
+- Validation: all required fields present; values within declared ranges
+
+**Step 4 — Networking:**
+- Service type picker (ClusterIP/NodePort/LoadBalancer) via Select/ListBox
+- Port configuration: inline port overrides (game-specific ports like 25565 for Minecraft)
+- Address pool / explicit address request (if LoadBalancer mode, optional pool name + requested IP)
+- Tunnel configuration (if operator has `tunnel.enabled`): provider select (frp/Tailscale/playit), credentials form
+- Validation: ports in valid range; address valid CIDR if provided; tunnel credentials required if tunnel enabled
+
+**Step 5 — Review & Confirmation:**
+- Display-only summary of all prior steps' selections (name, template, version, config values, networking, tunnel)
+- "Create server" button triggers POST to `/servers` endpoint
+- Error display if creation fails (network error, validation error, server name conflict)
+- On success, redirect to ServerDetail page for new server
+
+### Modules Catalog Surface
+
+**Modules.tsx (main page):**
+- Tab/section switcher (Catalog / Installed / Upload)
+- Catalog section: list of all ModuleSources' modules; ModuleCard instances for each; search/filter by game
+- Installed section: list of installed Module CRs; version picker; uninstall action
+- Upload section: bulk file upload dialog; ModuleSourcesPanel for source CRUD
+
+**ModuleCard.tsx (reusable card):**
+- Game icon (hero/GameIcon); module name, description
+- Version badge (current, latest available)
+- Install button (if not installed) → opens InstallDialog
+- Manage button (if installed) → opens version picker or uninstall confirmation
+
+**InstallDialog.tsx:**
+- Modal with source/namespace pickers (destination cluster and namespace for module installation)
+- Version selector (pick which version to install)
+- Install button → POST to `/modules` endpoint
+
+**UploadModuleDialog.tsx:**
+- File drag-drop or file picker for OCI bundle upload
+- Module source selector (which ModuleSource to upload to)
+- Upload button → multipart POST to `/modules/:source/upload`
+
+**SourceDialog.tsx (ModuleSource CRUD):**
+- Modal form for create/edit ModuleSource (git URL, HTTP URL, local upload)
+- Source name, type picker, credentials/auth fields as needed
+- Add/Update button → POST/PUT to `/module-sources`
+
+### Backups Management Surface
+
+**Backups.tsx (main page with three tabs):**
+- Tab structure (HeroUI Tabs) for Backups / Schedules / Restores
+- Shared header: StatCard summary (total backups, scheduled count, active restores count)
+
+**Tab 1 — Backups Index:**
+- Table of Backup CRs (ID, server, status, size, created/expires dates)
+- Filter popover: server picker, status filter (Completed/Failed/Pending), date range
+- Row actions: download, restore (opens RestoreDialog), delete
+- Detail drawer (BackupDetailDrawer) opened on row click
+
+**Tab 2 — Schedules:**
+- Table of BackupSchedule CRs (name, server, schedule expression, retention policy)
+- Create schedule button → opens ScheduleForm
+- Row actions: edit (ScheduleForm), suspend toggle, delete
+
+**Tab 3 — Restores:**
+- Table of Restore CRs (ID, source backup, destination server, status, progress)
+- Row actions: view details (BackupDetailDrawer for source backup context), cancel restore
+- Empty state when no restores
+
+**BackupDetailDrawer.tsx:**
+- Slide-out right panel (modal positioned right-side or Drawer component)
+- Shows backup metadata: ID, server, size (human-readable), created/expires timestamps
+- Retention expiry badge (green/yellow/red based on days remaining)
+- Associated backup file listing (if applicable)
+- Close button or swipe-to-close
+
+**RestoreDialog.tsx:**
+- Modal form for restore workflow
+- Source backup display (read-only; passed as prop from table row)
+- Destination server picker (Select/ListBox, namespace-aware)
+- Confirm restore button → POST to `/restores` endpoint
+- Cancel button → closes dialog
+
+**ScheduleForm.tsx:**
+- Modal form for create/edit BackupSchedule
+- Schedule picker: daily/weekly/cron radio buttons
+- Cron expression input (if cron selected); helper text for cron syntax
+- Retention policy: Duration (days) and/or max-snapshots inputs
+- RetentionFields sub-component for structured duration picker (numeric input + unit dropdown: days/weeks/months)
+- Save/Cancel buttons
+
+### Backup-Related Components (`web/src/components/backups/`)
+
+- **BackupRow.tsx** (32 lines) — Single table row rendering one Backup CR; ID, server, phase chip, size, timestamps
+- **BackupDetailDrawer.tsx** (129 lines) — Slide-out detail panel for backup metadata
+- **BackupFilters.tsx** (65 lines) — Filter controls (server picker, status, date range) for Backups tab
+- **RestoreDialog.tsx** (242 lines) — Modal form for restore workflow (source backup, destination server, confirm)
+- **ScheduleForm.tsx** (188 lines) — Modal form for create/edit schedule (expression, retention)
+- **RetentionFields.tsx** (106 lines) — Sub-component for duration input + unit selector (days/weeks/months)
+- **ErrorBanner.tsx** (14 lines) — Error display for backup/schedule operations
+
+### Modules-Related Components (`web/src/components/modules/`)
+
+- **ModuleCard.tsx** (358 lines) — Card displaying module metadata, install/manage actions
+- **InstallDialog.tsx** (174 lines) — Modal for module installation (source, destination, version selection)
+- **UploadModuleDialog.tsx** (181 lines) — Modal for bulk module file upload
+- **SourceDialog.tsx** (531 lines) — Modal for ModuleSource creation/edit (git URL, HTTP, local)
+- **ModuleSourcesPanel.tsx** (246 lines) — Panel for managing module sources (CRUD operations)
+
+### Design Import Rule (FR-012)
+
+Every file in slice 3 follows the import rule:
+
+- ✅ Imports **only** from `@heroui/react` and `@/components/hero/` (no `@radix-ui/*`, no `@/components/ui/*`)
+- ✅ No mixed families within a single file
+- ✅ Verified by grep: `grep -rE '@/components/ui/|@radix-ui' web/src/routes/{CreateServer,Modules,Backups}.tsx web/src/components/{modules,backups}/ 2>/dev/null` returns **zero results**
+
+**Mechanics:** Lint and review enforce the rule; any rebuilt file importing from forbidden sources fails CI.
+
+### T139 Compliance Findings (post-hoc, 2026-09-06)
+
+T139's original check above only greps for the forbidden **import paths** (`@/components/ui/`, `@radix-ui`) — it passes, and that finding stands. It does not check that the HeroUI v3 **API surface** is used correctly, and a tier+1 review found real v2-API and syntax defects it missed:
+
+- **`web/src/routes/Backups.tsx`** — the file's largest offender:
+  - Curly-quote syntax corruption (smart quotes `” ‘ ’ “` in place of straight `"`) makes the file unparseable as written, at minimum lines 116, 126, 129–137, 142–143 (e.g. `aria-label=”Backups”`, `classNames={{ table: “bg-transparent” }}`, `key=”actions” align=”end”`). Same defect class as T128/T134.
+  - `SelectItem` (v2 API — HeroUI v3 has no such export; v3 `Select` maps `ListBoxItem`s, per this file's own house convention in `ScheduleForm.tsx`/`ServerActionsCard.tsx`) at lines 12, 229, 231, 247, 327, 329.
+  - `Table` v2 props: `classNames={{...}}` (lines 130, 343, 464) and `Table.Column ... align="end"` (lines 137, 351) — v3's `Table.Column`/`Table.Content` have no `classNames`/`align`.
+  - `Table.Body emptyContent={...}` (lines 140, 353, 474) — v3 uses `renderEmptyState`, not `emptyContent`.
+  - `Button` v2 props: `color="default"` and bare `disabled={...}` (line 265, plus `disabled=` at 270) instead of `isDisabled`; `onClick` instead of `onPress` (lines 66, 265).
+- **`web/src/routes/Modules.tsx`** — `Button variant="outline" asChild` (line 141): v3 `Button` has no `asChild`; a router link needs `buttonVariants()` className on the `<Link>` instead, per this rule's own guidance.
+- **`web/src/routes/CreateServer.tsx`** — checked and cleared: the `onClick`s at lines 592, 635, 807, 844 are on plain native `<button>` elements (template/version/expose/tunnel-provider picker tiles), not HeroUI `Button`, so `onClick` there is correct and not a v2-prop defect. Flagged in an earlier pass of this note and corrected here after checking the file.
+
+`ModuleCard.tsx`, `BackupFilters.tsx`, `BackupRow.tsx`, and `BackupDetailDrawer.tsx` (component-level, as opposed to the `Backups.tsx` route) do **not** reproduce the `SelectItem`/`classNames`/`emptyContent`/`CardBody`/v2-Button-prop pattern — checked against `button/*.d.ts` at the time of this note: `BackupRow.tsx`'s `onClick`s are on `Table.Row`/`Table.Cell` (not `Button`), and its one `Button` correctly uses `isDisabled`/`onPress`; `BackupDetailDrawer.tsx`'s three `Button`s likewise all use `isDisabled`/`onPress`. This confirms the defects above are concentrated in the three route files, not systemic across every slice-3 file.
+
+These defects are out of scope for whichever task adds this note (its file allowlist does not include `Backups.tsx`/`Modules.tsx`/`CreateServer.tsx`) — recorded here per rule 15/CLAUDE.md so the next converge or implementation pass on slice 3 does not have to rediscover them from scratch, and so T139's "✅ zero results" line is not mistaken for a full compliance pass.
+
+### Test Count Rule (FR-010)
+
+Each rewritten test file maintains or exceeds the original test count:
+
+- `Mods.test.tsx` — ported mod install/upgrade/uninstall/delete cases; registry search cases
+- `Modpacks.test.tsx` — ported pack selection and toggle cases
+- `Backups.test.tsx` — ported backup list, filter, restore, and delete cases (server-detail Backups tab only; the /backups page is slice 3)
+- `Settings.test.tsx` — ported sub-section navigation and state preservation cases
+- `settings/General.test.tsx`, `settings/Version.test.tsx`, etc. — ported form field, save/discard, and validation cases per section
+- `CaptureWidget.test.tsx` — ported download/stop button interaction and status display cases
+- `registry-browser.test.tsx` — ported search, filter, and result list cases
+- `modules/InstallDialog.test.tsx`, `modules/UploadModuleDialog.test.tsx` — ported dialog open/close, form input, and submit cases
+
+Selectors updated to query by role (`getByRole("table")`, `getByRole("button", { name: /install/i })`, `getByRole("tab")`) since HeroUI markup changes internal DOM structure.
+
+### Playwright Specs (T116)
+
+**serverDetail.spec.ts** updated to navigate all ServerDetail tabs including the newly-rebuilt Mods and Modpacks tabs (added to the labels array in the tab-switching test; both tabs are gated by template capability, so the spec gracefully skips them if not present).
+
+**settingsSubTabs.spec.ts** updated with all 11 Settings sub-section names (General, Version, Resources, Networking, Environment, Lifecycle, Scheduled backups, Network capture, Placement, RBAC & access, Danger zone) to exercise the full configuration surface without console errors.
+
+### Deviation Notes
+
+1. **Slice 2b Backups tab vs. Slice 3 /backups page:** The Backups TAB (per-server backups within ServerDetail) is rebuilt in slice 2b. The global Backups INDEX page (`web/src/routes/Backups.tsx`, showing backups across all servers) is a slice-3 task; that page still uses native `<select>` elements and is not modified here.
+
+2. **Registry browser data-testid:** The registry-browser table includes one `data-testid="mod-registry-results"` or similar to allow test selection when HeroUI Table's role-based queries alone do not narrow the scope tightly enough. No other data-testid is added unless justified by lack of accessible role/name.
+- `CreateServer.test.tsx`, `CreateServer_more.test.tsx`, `CreateServer_tunnel.test.tsx`: ported all step progression, validation, and error cases
+- `Modules.test.tsx`: ported catalog browse, install, upload cases
+- `Backups.test.tsx`, `Backups_flows.test.tsx`: ported backup list, schedule CRUD, restore cases
+- Component test files (`ModuleCard.test.tsx`, `InstallDialog.test.tsx`, `SourceDialog.test.tsx`, `UploadModuleDialog.test.tsx`, `BackupDetailDrawer.test.tsx`, `RestoreDialog.test.tsx`, `ScheduleForm.test.tsx`, `BackupFilters.test.tsx`, etc.): ported all interaction cases
+
+Selectors updated to query by role (`getByRole("button", { name: /install/i })`, `getByRole("tablist")`, `getByRole("table")`) since HeroUI markup changes internal DOM structure. No `data-testid` added unless HeroUI components genuinely lack accessible role/name.
+
+### Deviation Notes
+
+BackupDetailDrawer's slide-out panel is implemented as a Modal with right-side positioning rather than a dedicated Drawer component, since HeroUI v3's Drawer API is not yet stable. The visual effect (right-aligned overlay panel) is achieved via CSS positioning and modal backdrop styling; functionality is identical.
+
+ScheduleForm combines cron-expression input with helper UI (daily/weekly template pickers) to reduce user friction with raw cron syntax; for users familiar with cron, the raw input remains available.
+
 ## Directory & Package Layout
 
 ```
@@ -497,6 +840,15 @@ The warning is shown regardless of how many groups are being added (single or mu
     - List Backups, Schedules, Restores (three sub-tabs)
     - Manual backup trigger, schedule create/edit/suspend, restore from backup
 
+13. **Share** (`/share/$token`) → `SharePage` (public route, outside AppLayout)
+    - Public, unauthenticated, no sidebar or top bar
+    - Resolves a share link token to its public view (server name, status, address, player count if exposed)
+    - Rate-limited; all errors (404, 429, auth) map to neutral "Link not available" message per FR-005
+    - Five states: loading (spinner), up (server online), asleep-start (sleeping, can start), asleep-viewonly (sleeping, view-only), starting (waking up), invalid (link unavailable)
+    - Respects stored appearance preference (light/dark/system); no theme toggle shown
+    - Uses HeroUI Card, Button, Chip, Spinner; brand header with ShieldCheck icon; address copy button
+    - Built directly from HeroUI primitives; no hero/ atom components
+
 ## ServerDetail Tabs
 
 Visible tab set depends on server template + active version:
@@ -515,7 +867,7 @@ Visible tab set depends on server template + active version:
 
 ## ServerDetail Settings Sub-sections
 
-Settings tab (`SettingsTab`, `web/src/routes/tabs/Settings.tsx`) displays 11 sections in a left sidebar (`SECTIONS` array):
+Settings tab (`SettingsTab`, `web/src/routes/tabs/Settings.tsx`) displays 12 sections in a left sidebar (`SECTIONS` array):
 
 1. **General** — Server name, description
 2. **Version** — Template version selector (triggers container restart)
@@ -528,6 +880,8 @@ Settings tab (`SettingsTab`, `web/src/routes/tabs/Settings.tsx`) displays 11 sec
 9. **Placement** — Node selector labels, pod affinity/anti-affinity rules (lazy-loaded)
 10. **RBAC & access** — Server owner + collaborator list, permission inheritance. The `setCollaborators` mutation runs unconditionally at component render (not gated by an early return), so hook invocation order is consistent. The mutation's namespace is derived from the GameServer's `metadata.namespace` (or `gameplane-games` as fallback); when no server is loaded, the mutation returns early without calling the API. On success, the mutation invalidates the `["server", gs.metadata.name]` query cache, clears input state, and resets errors; on error, it sets a locally-rendered error message and does not clear input, allowing retry.
 11. **Danger zone** — Clone, transfer owner, wipe data (confirm-dialog), delete server
+
+**Share links (T179):** Mounted in `Settings.tsx` by slice 5 (`ShareLinksSection`). `ShareLinksSection` (`web/src/routes/tabs/settings/ShareLinks.tsx`). Create/list/revoke share links per server; table shows Created, Expires, Can start capability (view-only vs. can-start), Status (Active/Expired/Revoked). Create dialog opens to set expiry (24h/7d/30d/90d) and start permission; success shows Created dialog with full URL and one-time copy prompt (token hashed server-side and unrecoverable after close). Revoke dialog (AlertDialog danger) confirms destruction. Empty state when no links exist. Visible only to users with the API-enforced permission (owner/admin create/revoke, viewers see list read-only if API permits). Uses HeroUI Modal/ModalBackdrop/ModalContainer/ModalDialog/ModalHeader/ModalHeading/ModalBody/ModalFooter, AlertDialog family, Button, Table, Select, ListBox, ListBoxItem, Label, Description, Switch, Chip.
 
 **Capture types (`src/types.ts`, built):** `CaptureConfiguration` (`{ enabled?, retentionSeconds? }`, mirrors `spec.capture` — `retentionSeconds` is bounded by the CRD's authoritative `+kubebuilder:validation:Minimum=1 / Maximum=604800` on `operator/api/v1alpha1/gameserver_types.go`'s `CaptureConfiguration.RetentionSeconds`, omit to use cluster default (86400)), `CaptureStatus` (mirrors `status.capture`: `ready`, `activeCapture`/`lastCaptureTime` typed nullable since the API's `formatOptionalTime` never omits the key), `CapturePhase` (`"Pending" | "Running" | "Completed" | "Failed" | "Expired"`), `NetworkCapture` (one capture record — merges the API's start/stop/list/get response shapes) and `NetworkCaptureList` (the `:captures` list envelope). All are implemented in the tree; the `CaptureWidget` component and `Captures` endpoint namespace are live (see Tabs and API Client sections above).
 

@@ -70,7 +70,7 @@ describe("SettingsTab", () => {
   it("adds, removes, and toggles env-var rows", async () => {
     stubTemplate();
     renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
-    fireEvent.click(screen.getByRole("button", { name: /Environment/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /Environment/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /Add variable/i }));
     const nameInput = screen.getByPlaceholderText("VAR_NAME");
@@ -81,7 +81,7 @@ describe("SettingsTab", () => {
     expect(screen.getAllByPlaceholderText("VAR_NAME")).toHaveLength(2);
 
     // Remove the literal row.
-    const removeButtons = screen.getAllByTitle("Remove");
+    const removeButtons = screen.getAllByLabelText("Remove");
     fireEvent.click(removeButtons[0]);
     expect(screen.getAllByPlaceholderText("VAR_NAME")).toHaveLength(1);
   });
@@ -89,7 +89,7 @@ describe("SettingsTab", () => {
   it("flags duplicate env names as invalid", async () => {
     stubTemplate();
     renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
-    fireEvent.click(screen.getByRole("button", { name: /Environment/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /Environment/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /Add variable/i }));
     fireEvent.click(screen.getByRole("button", { name: /Add variable/i }));
@@ -180,9 +180,9 @@ describe("SettingsTab", () => {
   it("requires typing the server name to delete from the danger zone", async () => {
     stubTemplate();
     renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
-    fireEvent.click(screen.getByRole("button", { name: /Danger zone/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /Danger zone/i }));
 
-    fireEvent.click(screen.getByRole("button", { name: /Delete server…/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     const confirmBtn = screen.getByRole("button", { name: /^Delete server$/i });
     expect(confirmBtn).toBeDisabled();
 
@@ -274,7 +274,7 @@ describe("SettingsTab", () => {
     const { unmount } = renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     // General section is safe, but let's switch to Lifecycle and make it invalid
-    fireEvent.click(screen.getByRole("button", { name: /Lifecycle/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /Lifecycle/i }));
 
     // Make a change first
     fireEvent.change(screen.getAllByRole("textbox")[0], {
@@ -297,7 +297,7 @@ describe("SettingsTab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Lifecycle/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /Lifecycle/i }));
     const saveBtn = screen.getByRole("button", { name: /Save changes/i });
     // Section is invalid (grace period > 600), so save should be disabled
     expect(saveBtn).toBeDisabled();
@@ -457,8 +457,8 @@ describe("SettingsTab", () => {
 
     renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
-    // Version button should not be in the nav
-    expect(screen.queryByRole("button", { name: /^Version$/i })).not.toBeInTheDocument();
+    // Version tab should not be in the nav
+    expect(screen.queryByRole("tab", { name: /^Version$/i })).not.toBeInTheDocument();
   });
 
   it("includes version section when template has versions", async () => {
@@ -483,9 +483,34 @@ describe("SettingsTab", () => {
 
     renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
-    // Version button should be in the nav
+    // Version tab should be in the nav
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^Version$/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /^Version$/i })).toBeInTheDocument();
     });
+  });
+
+  it("navigates to Share links section between Access and Danger tabs", async () => {
+    stubTemplate();
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
+
+    // Share links tab should exist
+    const shareLinksTab = screen.getByRole("tab", { name: /Share links/i });
+    expect(shareLinksTab).toBeInTheDocument();
+
+    // Click to navigate to Share links section
+    fireEvent.click(shareLinksTab);
+
+    // Section should render
+    await waitFor(() => {
+      expect(screen.getByText(/Let people without a Gameplane account/i)).toBeInTheDocument();
+    });
+
+    // Verify it's between Access and Danger by checking tab order
+    const tabs = screen.getAllByRole("tab");
+    const accessIdx = tabs.findIndex((t) => t.textContent?.includes("RBAC"));
+    const shareLinksIdx = tabs.findIndex((t) => t.textContent?.includes("Share links"));
+    const dangerIdx = tabs.findIndex((t) => t.textContent?.includes("Danger"));
+    expect(accessIdx).toBeLessThan(shareLinksIdx);
+    expect(shareLinksIdx).toBeLessThan(dangerIdx);
   });
 });

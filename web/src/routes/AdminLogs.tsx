@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
+import { Select, Switch, ListBox, ListBoxItem, Tabs, Tab as TabComponent, Button } from "@heroui/react";
 import { APIError } from "@/lib/api";
 import { errorTextWithStatus } from "@/lib/errors";
 import { withCluster } from "@/lib/endpoints";
-import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/hero/PageHeader";
 
 type LogComponent = "api" | "operator";
 
@@ -181,47 +178,51 @@ export function AdminLogsPage() {
     <div className="flex h-full flex-col gap-4 p-6">
       <PageHeader
         title="System logs"
-        subtitle="Live logs from the Gameplane control-plane pods."
+        description="Live logs from the Gameplane control-plane pods."
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
+      <Tabs selectedKey={component} onSelectionChange={(key) => setComponent(key as LogComponent)} variant="secondary" aria-label="Log source">
+        <Tabs.List className="w-fit">
           {COMPONENTS.map((c) => (
-            <button
-              key={c.value}
-              type="button"
-              onClick={() => setComponent(c.value)}
-              aria-pressed={component === c.value}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                component === c.value
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
-            >
-              {c.label}
-            </button>
+            <TabComponent key={c.value} id={c.value}>{c.label}</TabComponent>
           ))}
-        </div>
+        </Tabs.List>
+      </Tabs>
 
-        <label className="flex items-center gap-2 text-xs text-muted">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 text-xs text-muted">
           Tail
           <Select
             aria-label="Tail lines"
-            className="w-32"
-            value={String(tail)}
-            onValueChange={(v) => setTail(Number(v))}
-            options={TAIL_OPTIONS.map((n) => ({
-              value: String(n),
-              label: `${n} lines`,
-            }))}
-          />
-        </label>
+            selectedKey={String(tail)}
+            onSelectionChange={(key) => setTail(Number(key))}
+          >
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox aria-label="Tail lines">
+                {TAIL_OPTIONS.map((n) => (
+                  <ListBoxItem key={n} id={String(n)}>
+                    {n} lines
+                  </ListBoxItem>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        </div>
 
-        <label className="flex items-center gap-2 text-xs text-muted">
+        <div className="flex items-center gap-2 text-xs text-muted">
           Follow
-          <Switch checked={follow} onCheckedChange={setFollow} aria-label="Follow" />
-        </label>
+          <Switch isSelected={follow} onChange={setFollow} aria-label="Follow">
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Content>
+          </Switch>
+        </div>
 
         <span
           className="inline-flex h-6 items-center rounded bg-primary/10 px-2 font-mono text-xs text-primary"
@@ -231,7 +232,7 @@ export function AdminLogsPage() {
         </span>
 
         <div className="ml-auto">
-          <Button variant="outline" onClick={() => void downloadLogs()}>
+          <Button variant="outline" onPress={() => void downloadLogs()}>
             <Download className="h-4 w-4" /> Download
           </Button>
         </div>
@@ -242,12 +243,55 @@ export function AdminLogsPage() {
       <div
         ref={scrollerRef}
         onScroll={onScroll}
+        data-testid="log-scroller"
         className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-[#0b0b0d] font-mono text-xs scrollbar-thin"
       >
         {text ? (
-          <pre className="whitespace-pre-wrap break-words px-4 py-3 leading-[18px]">
-            {text}
-          </pre>
+          <div className="px-4 py-3">
+            {text.split("\n").map((line, idx) => {
+              if (!line) return null;
+              let timestamp = "";
+              let level = "";
+              let message = line;
+              let parsed: Record<string, unknown> = {};
+
+              try {
+                parsed = JSON.parse(line);
+                if (parsed.ts) timestamp = String(parsed.ts);
+                if (parsed.level) level = String(parsed.level);
+                if (parsed.msg) message = String(parsed.msg);
+              } catch {
+                // Not JSON, use raw line
+              }
+
+              const lvl = String(level ?? "").toUpperCase();
+              const levelColor =
+                lvl === "WARN" ? "text-[var(--warning)]" :
+                lvl === "ERROR" ? "text-[var(--danger)]" :
+                "text-foreground";
+
+              // Collect structured fields (all keys except ts, level, msg)
+              const structuredFields = Object.entries(parsed).filter(
+                ([key]) => !["ts", "level", "msg"].includes(key),
+              );
+
+              return (
+                <div key={idx} className="flex gap-3 leading-[18px]">
+                  {timestamp && (
+                    <span className="shrink-0 text-muted">{timestamp}</span>
+                  )}
+                  <span className={`break-words ${levelColor}`}>
+                    {message}
+                  </span>
+                  {structuredFields.length > 0 && (
+                    <span className="text-xs text-muted/60">
+                      {structuredFields.map(([key, val]) => `${key}=${val}`).join(" ")}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-muted">
             {error ? "No output." : "Waiting for output…"}

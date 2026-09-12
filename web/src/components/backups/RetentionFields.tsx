@@ -1,5 +1,4 @@
-import { FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Input, Label } from "@heroui/react";
 
 export interface RetentionForm {
   keepLast?: number;
@@ -39,16 +38,20 @@ export function RetentionFields({ value, onChange }: Props) {
   return (
     <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
       {buckets.map(({ key, label }) => (
-        <FieldLabel key={key} label={label}>
+        <div key={key} className="space-y-1">
+          <Label htmlFor={`retention-${key}`} className="text-xs">
+            {label}
+          </Label>
           <Input
+            id={`retention-${key}`}
             type="number"
             min={0}
             value={value[key] ?? ""}
             onChange={(e) => handleChange(key, e.target.value)}
             placeholder="0"
-            aria-label={label}
+            className="h-9"
           />
-        </FieldLabel>
+        </div>
       ))}
     </div>
   );

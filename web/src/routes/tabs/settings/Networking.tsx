@@ -1,6 +1,11 @@
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import {
+  Input,
+  Button,
+  Select,
+  ListBox,
+  ListBoxItem,
+  Switch,
+} from "@heroui/react";
 import { X, AlertCircle, Check, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
@@ -12,14 +17,14 @@ import { errorText } from "@/lib/errors";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
 
-const EXPOSE_OPTIONS: { value: Expose; label: string }[] = [
+const EXPOSE_OPTIONS: Array<{ value: Expose; label: string }> = [
   { value: "ClusterIP", label: "ClusterIP (in-cluster only)" },
   { value: "NodePort", label: "NodePort" },
   { value: "LoadBalancer", label: "LoadBalancer" },
   { value: "Hostport", label: "Hostport" },
 ];
 
-const TUNNEL_PROVIDER_OPTIONS: { value: "frp" | "tailscale" | "playit"; label: string }[] = [
+const TUNNEL_PROVIDER_OPTIONS: Array<{ value: "frp" | "tailscale" | "playit"; label: string }> = [
   { value: "frp", label: "frp" },
   { value: "tailscale", label: "Tailscale" },
   { value: "playit", label: "playit.gg" },
@@ -148,33 +153,49 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
         label="Expose"
         hint="Service type fronting the game pod. Still applies when a tunnel is enabled.">
         <Select
-          value={net.expose ?? "ClusterIP"}
-          options={EXPOSE_OPTIONS}
-          onValueChange={(v) => setNet({ ...net, expose: v as Expose })}
-        />
+          selectedKey={net.expose ?? "ClusterIP"}
+          onSelectionChange={(v) => setNet({ ...net, expose: v as Expose })}
+        >
+          <Select.Trigger className="w-full">
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox className="p-0">
+              {EXPOSE_OPTIONS.map((opt) => (
+                <ListBoxItem key={opt.value} id={opt.value}>
+                  {opt.label}
+                </ListBoxItem>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       </Field>
 
       {/* Tunnel section */}
       <div className="border-t border-border pt-6">
         <div className="space-y-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={tunnel?.enabled ?? false}
-                  onChange={(e) => {
-                    const newTunnel: GameServerTunnel | undefined = e.target.checked
-                      ? { enabled: true, provider: tunnel?.provider ?? "frp" }
-                      : undefined;
-                    setNet({ ...net, tunnel: newTunnel });
-                  }}
-                  className="h-4 w-4 rounded border border-border bg-surface accent-primary"
-                />
-                <span className="text-sm font-medium">Enable tunnel</span>
-              </label>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Switch
+                isSelected={tunnel?.enabled ?? false}
+                onChange={(selected) => {
+                  const newTunnel: GameServerTunnel | undefined = selected
+                    ? { enabled: true, provider: tunnel?.provider ?? "frp" }
+                    : undefined;
+                  setNet({ ...net, tunnel: newTunnel });
+                }}
+                aria-label="Enable tunnel"
+              >
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Content>
+              </Switch>
+              <span className="text-sm font-medium">Enable tunnel</span>
             </div>
-            <div className="pt-1 text-xs text-muted">
+            <div className="text-xs text-muted">
               Route players through a relay so they can connect without port-forwarding or a public IP.
             </div>
           </div>
@@ -183,15 +204,28 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
             <div className="space-y-4 rounded-lg border border-border bg-surface/40 p-4">
               <Field label="Provider" hint="">
                 <Select
-                  value={tunnel.provider}
-                  options={TUNNEL_PROVIDER_OPTIONS}
-                  onValueChange={(v) =>
+                  selectedKey={tunnel.provider}
+                  onSelectionChange={(v) =>
                     setNet({
                       ...net,
                       tunnel: { ...tunnel, provider: v as "frp" | "tailscale" | "playit" },
                     })
                   }
-                />
+                >
+                  <Select.Trigger className="w-full">
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox className="p-0">
+                      {TUNNEL_PROVIDER_OPTIONS.map((opt) => (
+                        <ListBoxItem key={opt.value} id={opt.value}>
+                          {opt.label}
+                        </ListBoxItem>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
               </Field>
 
               {tunnel.provider === "tailscale" && (
@@ -785,16 +819,16 @@ function FrpPortMappingEditor({
           <Button
             variant="ghost"
             size="sm"
-            className="justify-self-start sm:h-8 sm:w-8 sm:justify-self-auto sm:p-0"
-            title="Remove"
-            onClick={() => remove(idx)}
+            isIconOnly
+            className="justify-self-start sm:justify-self-auto"
+            aria-label="Remove"
+            onPress={() => remove(idx)}
           >
             <X className="h-3 w-3" />
-            <span className="sm:hidden">Remove mapping</span>
           </Button>
         </div>
       ))}
-      <Button size="sm" variant="outline" onClick={add}>
+      <Button size="sm" variant="secondary" onPress={add}>
         Add port mapping
       </Button>
     </div>
@@ -831,10 +865,10 @@ function KVEditor({
           <span className="flex-1 truncate font-mono text-xs">{v}</span>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            title="Remove"
-            onClick={() => {
+            size="sm"
+            isIconOnly
+            aria-label="Remove"
+            onPress={() => {
               const next = { ...values };
               delete next[k];
               onChange(next);
@@ -849,15 +883,13 @@ function KVEditor({
           value={draftKV.key}
           onChange={(e) => setDraftKV({ ...draftKV, key: e.target.value })}
           placeholder={keyPlaceholder}
-          className="flex-1"
         />
         <Input
           value={draftKV.value}
           onChange={(e) => setDraftKV({ ...draftKV, value: e.target.value })}
           placeholder={valuePlaceholder}
-          className="flex-1"
         />
-        <Button size="sm" variant="outline" onClick={add} disabled={!draftKV.key.trim()}>
+        <Button size="sm" variant="secondary" onPress={add} isDisabled={!draftKV.key.trim()}>
           Add
         </Button>
       </div>
@@ -906,30 +938,32 @@ function TunnelCredentialField({
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-fg">Tunnel credentials</span>
+          <span className="text-sm font-medium text-foreground">Tunnel credentials</span>
         </div>
         <div className="rounded-md border border-border bg-surface/30 px-3 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-success" />
             <div className="text-sm">
-              <div className="text-fg font-medium">Configured</div>
+              <div className="text-foreground font-medium">Configured</div>
               {secretName && <div className="text-xs text-muted">Secret: {secretName}</div>}
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              variant="outline"
-              onClick={onShowInput}
-              disabled={isLoading}
+              variant="secondary"
+              onPress={onShowInput}
+              isDisabled={isLoading}
             >
               Replace
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              onClick={onRemove}
-              disabled={isLoading}
+              isIconOnly
+              aria-label="Remove tunnel credentials"
+              onPress={onRemove}
+              isDisabled={isLoading}
               className="text-danger hover:text-danger"
             >
               <X className="h-4 w-4" />
@@ -951,9 +985,10 @@ function TunnelCredentialField({
   return (
     <div className="space-y-2">
       <div className="space-y-1.5">
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-fg">Tunnel credentials</span>
+        <label htmlFor="tunnel-credential" className="block space-y-1.5">
+          <span className="text-sm font-medium text-foreground">Tunnel credentials</span>
           <Input
+            id="tunnel-credential"
             type="password"
             value={credentialValue}
             onChange={(e) => onCredentialChange(e.target.value)}
@@ -977,8 +1012,8 @@ function TunnelCredentialField({
       <div className="flex gap-2">
         <Button
           size="sm"
-          onClick={onSave}
-          disabled={isLoading || !credentialValue.trim()}
+          onPress={onSave}
+          isDisabled={isLoading || !credentialValue.trim()}
         >
           {isLoading ? (
             <>
@@ -990,7 +1025,7 @@ function TunnelCredentialField({
             </>
           )}
         </Button>
-        <Button size="sm" variant="outline" onClick={onCancel} disabled={isLoading}>
+        <Button size="sm" variant="secondary" onPress={onCancel} isDisabled={isLoading}>
           Cancel
         </Button>
       </div>

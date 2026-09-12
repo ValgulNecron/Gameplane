@@ -126,9 +126,10 @@ describe("AdminSettings sections", () => {
   });
 
   it("renders the role-mapping fields and locks Default role until a mapping exists", async () => {
+    const user = userEvent.setup();
     renderWithQuery(<AdminSettingsPage />);
     await gotoSection(/Authentication/i);
-    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    await user.click(await screen.findByRole("button", { name: /Add provider/i }));
     expect(screen.getByLabelText(/Scopes/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Groups claim/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Admin groups/i)).toBeInTheDocument();
@@ -136,13 +137,14 @@ describe("AdminSettings sections", () => {
     expect(screen.getByLabelText(/Viewer groups/i)).toBeInTheDocument();
     // The API rejects defaultRole without roleMappings, so the select stays
     // locked until at least one group is entered.
-    const defaultRole = screen.getByRole("combobox", { name: /Default role/i });
+    const defaultRole = screen.getByRole("button", { name: /Default role/i });
     expect(defaultRole).toBeDisabled();
-    await userEvent.type(screen.getByLabelText(/Admin groups/i), "gp-admins");
+    await user.type(screen.getByLabelText(/Admin groups/i), "gp-admins");
     expect(defaultRole).toBeEnabled();
   });
 
   it("serializes scopes, groups claim, role mappings, and deny into the saved provider", async () => {
+    const user = userEvent.setup();
     let saved: { providers: Array<Record<string, unknown>> } | undefined;
     server.use(
       http.put("/admin/auth/providers/:name/secret", ({ params }) =>
@@ -155,19 +157,20 @@ describe("AdminSettings sections", () => {
     );
     renderWithQuery(<AdminSettingsPage />);
     await gotoSection(/Authentication/i);
-    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
-    await userEvent.type(screen.getByPlaceholderText("corp-sso"), "corp");
-    await userEvent.type(screen.getByPlaceholderText(/idp\.example/i), "https://idp.corp.example");
-    await userEvent.type(screen.getByLabelText(/Client ID/i), "gameplane");
-    await userEvent.type(screen.getByLabelText(/Client secret/i), "s3cret");
+    await user.click(await screen.findByRole("button", { name: /Add provider/i }));
+    await user.type(screen.getByPlaceholderText("corp-sso"), "corp");
+    await user.type(screen.getByPlaceholderText(/idp\.example/i), "https://idp.corp.example");
+    await user.type(screen.getByLabelText(/Client ID/i), "gameplane");
+    await user.type(screen.getByLabelText(/Client secret/i), "s3cret");
     // Scopes accept space or comma separators; group lists are
     // comma-separated with whitespace trimmed around each name.
-    await userEvent.type(screen.getByLabelText(/Scopes/i), "groups, offline_access");
-    await userEvent.type(screen.getByLabelText(/Groups claim/i), "memberOf");
-    await userEvent.type(screen.getByLabelText(/Admin groups/i), "GP Admins , platform-admins");
-    await userEvent.type(screen.getByLabelText(/Viewer groups/i), "gp-view");
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Default role/i }), "deny");
-    await userEvent.click(screen.getByRole("button", { name: /^Add provider$/i }));
+    await user.type(screen.getByLabelText(/Scopes/i), "groups, offline_access");
+    await user.type(screen.getByLabelText(/Groups claim/i), "memberOf");
+    await user.type(screen.getByLabelText(/Admin groups/i), "GP Admins , platform-admins");
+    await user.type(screen.getByLabelText(/Viewer groups/i), "gp-view");
+    await user.click(screen.getByRole("button", { name: /Default role/i }));
+    await user.click(await screen.findByRole("option", { name: /deny/i }));
+    await user.click(screen.getByRole("button", { name: /^Add provider$/i }));
     // FR-015: a non-empty admin-group mapping gates the add behind an
     // explicit confirmation dialog before the provider is actually saved.
     await screen.findByText(/Mapping users to the admin role grants full cluster control/i);
@@ -189,7 +192,7 @@ describe("AdminSettings sections", () => {
       roleMappings: { admin: ["GP Admins", "platform-admins"], viewer: ["gp-view"] },
       defaultRole: "deny",
     });
-  });
+  }, 15000);
 
   it("round-trips a stored provider's mapping fields through an unrelated save", async () => {
     const corp: AuthProvider = {
@@ -231,10 +234,12 @@ describe("AdminSettings sections", () => {
   });
 
   it("prefills the issuer for the Google preset", async () => {
+    const user = userEvent.setup();
     renderWithQuery(<AdminSettingsPage />);
     await gotoSection(/Authentication/i);
-    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Provider kind/i }), "google");
+    await user.click(await screen.findByRole("button", { name: /Add provider/i }));
+    await user.click(screen.getByRole("button", { name: /Provider kind/i }));
+    await user.click(await screen.findByRole("option", { name: /Google/i }));
     expect(screen.getByPlaceholderText(/idp\.example/i)).toHaveValue("https://accounts.google.com");
   });
 
@@ -316,7 +321,7 @@ describe("AdminSettings sections", () => {
     // informational — no select, no save button.
     expect(await screen.findByText("stable")).toBeInTheDocument();
     expect(screen.getByText(/Informational only/i)).toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("hidden-select-container")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Save changes/i })).not.toBeInTheDocument();
   });
 

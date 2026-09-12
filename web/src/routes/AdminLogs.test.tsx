@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AdminLogsPage, capBuffer } from "./AdminLogs";
 
 const fetchMock = vi.fn();
@@ -62,8 +63,8 @@ describe("AdminLogsPage", () => {
     );
     render(<AdminLogsPage />);
 
-    expect(screen.getByText("API server")).toBeInTheDocument();
-    expect(screen.getByText("Operator")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /api server/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /operator/i })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Follow" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /download/i })).toBeInTheDocument();
 
@@ -97,15 +98,18 @@ describe("AdminLogsPage", () => {
   });
 
   it("changing tail refetches with the new tailLines", async () => {
+    const user = userEvent.setup();
     fetchMock.mockImplementation(() =>
       Promise.resolve(logRes("some output\n", "gameplane-api-0")),
     );
     render(<AdminLogsPage />);
     await screen.findByText(/some output/);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Tail lines" }), {
-      target: { value: "1000" },
-    });
+    // Find and click the Select trigger (initially showing "500 lines")
+    await user.click(screen.getByRole("button", { name: /tail lines/i }));
+
+    // Find and click the 1000 lines option
+    await user.click(await screen.findByRole("option", { name: "1000 lines" }));
 
     await waitFor(() =>
       expect(calledURLs().some((u) => u.includes("tailLines=1000"))).toBe(true),
@@ -113,13 +117,14 @@ describe("AdminLogsPage", () => {
   });
 
   it("toggling follow reconnects with follow=true", async () => {
+    const user = userEvent.setup();
     fetchMock.mockImplementation(() =>
       Promise.resolve(logRes("streamed line\n", "gameplane-api-0")),
     );
     render(<AdminLogsPage />);
     await screen.findByText(/streamed line/);
 
-    fireEvent.click(screen.getByRole("switch", { name: "Follow" }));
+    await user.click(screen.getByRole("switch", { name: "Follow" }));
 
     await waitFor(() =>
       expect(calledURLs().some((u) => u.includes("follow=true"))).toBe(true),
@@ -186,8 +191,8 @@ describe("AdminLogsPage", () => {
     render(<AdminLogsPage />);
 
     stream.push("first chunk\n");
-    const pre = await screen.findByText(/first chunk/);
-    const scroller = pre.parentElement as HTMLDivElement;
+    await screen.findByText(/first chunk/);
+    const scroller = screen.getByTestId("log-scroller") as HTMLDivElement;
 
     // Give the panel scrollable geometry (jsdom does no layout) and a
     // plain-value scrollTop so the component's writes are observable.

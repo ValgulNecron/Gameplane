@@ -251,7 +251,14 @@ export function ServerDetailPage() {
       <div className="flex-1 overflow-auto scrollbar-thin">
         <Suspense fallback={<TabFallback />}>
           {tab === "overview" && (
-            <OverviewTab gs={gs} name={name} tmpl={tmpl} ns={ns} onViewAllEvents={() => setTab("events")} />
+            <OverviewTab
+              gs={gs}
+              name={name}
+              tmpl={tmpl}
+              ns={ns}
+              onViewAllEvents={() => setTab("events")}
+              onOpenConsole={consoleAvailable ? () => setTab("console") : undefined}
+            />
           )}
           {tab === "events"   && <EventsTab name={name} ns={ns} gs={gs} />}
           {tab === "console"  && <ConsoleTab name={name} ns={ns} />}
@@ -266,7 +273,7 @@ export function ServerDetailPage() {
           )}
           {tab === "files"    && <FilesTab   name={name} ns={ns} />}
           {tab === "mods"     && <ModsTab    name={name} ns={ns} tmpl={tmpl} gs={gs} />}
-          {tab === "modpacks" && <ModpacksTab name={name} ns={ns} tmpl={tmpl} gs={gs} />}
+          {tab === "modpacks" && <ModpacksTab name={name} ns={ns} tmpl={tmpl} />}
           {tab === "players"  && <PlayersTab name={name} ns={ns} />}
           {tab === "backups"  && <BackupsTab name={name} ns={ns} />}
           {tab === "capture"  && <CaptureWidget name={name} ns={ns} gs={gs} />}

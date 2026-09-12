@@ -364,7 +364,7 @@ describe("CreateServerWizard", () => {
     expect(preview?.className).toContain("min-w-0");
 
     // Verify the modal doesn't have overflow by checking the outer container
-    const modal = screen.getByText(/New game server/).closest("div[class*='max-w']");
+    const modal = screen.getByRole("dialog");
     expect(modal).toBeTruthy();
     if (modal) {
       // The modal must have overflow-hidden to bound content and prevent clipping.
@@ -533,12 +533,14 @@ describe("CreateServerWizard review", () => {
     expect(configPre?.className).toMatch(/max-h-/);
   });
 
-  it("shows Cancel on step 1 and closes the wizard", async () => {
+  it("shows Cancel on step 1 and closes the wizard back to the server list", async () => {
     fetchMock.mockResolvedValue(jsonRes(200, { items: [template()] }));
     renderWithQuery(<CreateServerWizard />);
     const cancel = await screen.findByRole("button", { name: "Cancel" });
     fireEvent.click(cancel);
-    expect(navigate).toHaveBeenCalledWith({ to: "/" });
+    // Design W8idqY: closing the create-server wizard returns to the server
+    // list, not the dashboard.
+    expect(navigate).toHaveBeenCalledWith({ to: "/servers" });
   });
 
   it("sends addressPool and address when LoadBalancer + pool/address are set", async () => {

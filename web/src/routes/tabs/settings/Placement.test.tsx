@@ -38,6 +38,30 @@ describe("PlacementSection", () => {
     expect(editors[1]).toHaveValue("{}");
   });
 
+  it("renders labels with HeroUI Label component", () => {
+    const onChange = vi.fn();
+    render(
+      <PlacementSection
+        draft={baseDraft}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByText("Tolerations")).toBeInTheDocument();
+    expect(screen.getByText("Affinity")).toBeInTheDocument();
+  });
+
+  it("renders descriptions with HeroUI Description component", () => {
+    const onChange = vi.fn();
+    render(
+      <PlacementSection
+        draft={baseDraft}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByText(/Pod tolerations for Kubernetes/)).toBeInTheDocument();
+    expect(screen.getByText(/Pod affinity\/anti-affinity/)).toBeInTheDocument();
+  });
+
   it("initializes tolerations from draft when present", () => {
     const draft = {
       ...baseDraft,

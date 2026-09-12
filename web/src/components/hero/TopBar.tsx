@@ -1,4 +1,4 @@
-import { Menu } from "lucide-react";
+import { Menu, UserCircle, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Button,
@@ -8,6 +8,8 @@ import {
   DropdownPopover,
   DropdownMenu,
   DropdownItem,
+  DropdownSection,
+  Separator,
 } from "@heroui/react";
 import { Auth } from "@/lib/endpoints";
 import type { User } from "@/types";
@@ -91,31 +93,39 @@ export function TopBar({
 
         {/* User avatar dropdown menu */}
         <Dropdown>
-          <DropdownTrigger>
+          <DropdownTrigger
+            aria-label="User menu"
+            className="cursor-pointer"
+          >
             <Avatar
               size="sm"
-              className="cursor-pointer"
               color="default"
-              aria-label="User menu"
             >
               <Avatar.Fallback className="bg-accent text-accent-foreground">{initials}</Avatar.Fallback>
             </Avatar>
           </DropdownTrigger>
-          <DropdownPopover placement="bottom end">
-            <DropdownMenu disabledKeys={["profile"]} className="w-48">
-              <DropdownItem key="profile" className="py-2">
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">{name}</span>
-                  <span className="text-xs text-muted">{user?.role ?? "—"}</span>
-                </div>
-              </DropdownItem>
-              <DropdownItem
-                key="logout"
-                onClick={() => void handleLogout()}
-                className="text-danger"
-              >
-                Sign out
-              </DropdownItem>
+          <DropdownPopover placement="bottom end" className="rounded-md">
+            <div className="flex items-center gap-2 px-2 py-2">
+              <UserCircle className="h-4 w-4 text-muted" />
+              <div className="flex flex-col">
+                <span className="font-semibold text-foreground">{name}</span>
+                <span className="text-xs text-muted">{user?.role ?? "—"}</span>
+              </div>
+            </div>
+            <DropdownMenu className="w-48">
+              <DropdownSection>
+                <Separator className="my-1" />
+                <DropdownItem
+                  key="logout"
+                  onClick={() => void handleLogout()}
+                  className="text-danger"
+                >
+                  <div className="flex items-center gap-2">
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </div>
+                </DropdownItem>
+              </DropdownSection>
             </DropdownMenu>
           </DropdownPopover>
         </Dropdown>

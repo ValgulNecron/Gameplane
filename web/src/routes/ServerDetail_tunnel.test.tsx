@@ -20,7 +20,7 @@ describe("OverviewTab tunnel connection", () => {
       },
     });
     renderWithQuery(<OverviewTab gs={gs} name="test-server" />);
-    expect(screen.getByText("frp tunnel")).toBeInTheDocument();
+    expect(screen.getByText("Tunnel")).toBeInTheDocument();
     expect(screen.getByText("tunnel.example.com")).toBeInTheDocument();
   });
 
@@ -39,7 +39,7 @@ describe("OverviewTab tunnel connection", () => {
       },
     });
     renderWithQuery(<OverviewTab gs={gs} name="test-server" />);
-    expect(screen.getByText("Tailnet only — not public")).toBeInTheDocument();
+    expect(screen.getByText("Tailnet only")).toBeInTheDocument();
   });
 
   it("shows cluster address below tunnel endpoint", async () => {
@@ -61,7 +61,7 @@ describe("OverviewTab tunnel connection", () => {
       },
     });
     renderWithQuery(<OverviewTab gs={gs} name="test-server" />);
-    expect(screen.getByText("Cluster address")).toBeInTheDocument();
+    expect(screen.getByText("Cluster Address")).toBeInTheDocument();
     // The cluster address should still be visible
     expect(screen.getByText("10.0.0.5")).toBeInTheDocument();
   });

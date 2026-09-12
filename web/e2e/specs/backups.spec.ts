@@ -44,11 +44,13 @@ test.describe("backups page", () => {
   test("switches to Schedules and Restores tabs", async ({ page }) => {
     await page.goto("/backups");
 
-    // Top-level tab strip uses native buttons.
-    await page.getByRole("button", { name: /^schedules$/i }).click();
+    // HeroUI Tabs: the top-level tab strip is role="tab", not a native button
+    // (T137, specs/014-heroui-web-rebuild — was a native <button> strip
+    // pre-rebuild).
+    await page.getByRole("tab", { name: /^schedules$/i }).click();
     await expect(page.getByText("alpha-daily")).toBeVisible();
 
-    await page.getByRole("button", { name: /^restores$/i }).click();
+    await page.getByRole("tab", { name: /^restores$/i }).click();
     // Empty restores list shows a placeholder row.
     await expect(page.getByText(/no restores have been run/i)).toBeVisible();
   });
@@ -63,7 +65,13 @@ test.describe("backups page", () => {
     // on the page behind never match.
     await page.getByRole("button", { name: /^back up now$/i }).click();
     const dialog = page.getByRole("dialog");
-    await dialog.locator("select").first().selectOption("alpha");
+
+    // HeroUI Select: a compound trigger/popover/listbox, not a native
+    // <select> (T137, specs/014-heroui-web-rebuild). The trigger's
+    // accessible/visible text is its placeholder until a value is chosen;
+    // opening it reveals role="option" items.
+    await dialog.getByRole("button", { name: /select a server/i }).click();
+    await page.getByRole("option", { name: "alpha" }).click();
 
     // The button only enables once both the server (we just set) AND
     // the backup destination (auto-set by useEffect once destinations

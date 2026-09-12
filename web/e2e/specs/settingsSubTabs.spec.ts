@@ -63,12 +63,16 @@ test.describe("server settings sub-tabs", () => {
 
     const subTabs = [
       "General",
-      "Networking",
+      "Version",
       "Resources",
+      "Networking",
       "Environment",
       "Lifecycle",
-      "Access",
-      "Danger",
+      "Scheduled backups",
+      "Network capture",
+      "Placement",
+      "RBAC & access",
+      "Danger zone",
     ];
     for (const t of subTabs) {
       // Settings sub-tabs render as buttons inside the Settings panel.

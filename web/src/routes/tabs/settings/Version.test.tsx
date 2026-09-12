@@ -26,14 +26,14 @@ describe("VersionSection", () => {
 
     const radios = screen.getAllByRole("radio");
     expect(radios).toHaveLength(3);
-    expect(screen.getByRole("radio", { name: /Fabric/ })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("radio", { name: /1\.21\.4 · Paper/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("radio", { name: /Fabric/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /1\.21\.4 · Paper/ })).not.toBeChecked();
     expect(screen.getByText("Default")).toBeInTheDocument();
   });
 
   it("falls back to the default entry when spec.version is unset", () => {
     render(<VersionSection draft={makeServer()} onChange={() => {}} template={versionedTemplate()} />);
-    expect(screen.getByRole("radio", { name: /1\.21\.4 · Paper/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /1\.21\.4 · Paper/ })).toBeChecked();
   });
 
   it("picking an entry writes spec.version", async () => {

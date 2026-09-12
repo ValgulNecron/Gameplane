@@ -4,6 +4,7 @@ import {
 import { AppLayout } from "@/components/AppLayout";
 import { RequirePermission } from "@/components/RequireRole";
 import { LoginPage } from "@/routes/Login";
+import { SharePage } from "@/routes/Share";
 import { DashboardPage } from "@/routes/Dashboard";
 import { ServersPage } from "@/routes/Servers";
 import { ServerDetailPage } from "@/routes/ServerDetail";
@@ -22,6 +23,12 @@ const loginRoute = new Route({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+});
+
+const shareRoute = new Route({
+  getParentRoute: () => rootRoute,
+  path: "/share/$token",
+  component: SharePage,
 });
 
 const appLayoutRoute = new Route({
@@ -128,6 +135,7 @@ const backupsRoute = new Route({
 
 export const routeTree = rootRoute.addChildren([
   loginRoute,
+  shareRoute,
   appLayoutRoute.addChildren([
     dashboardRoute,
     createServerRoute,
