@@ -166,8 +166,8 @@ export function UsersPage() {
         onSelectionChange={(key) => setTab(key as TabKey)}
         variant="secondary"
       >
-        <div className="flex flex-wrap items-center gap-3">
-          <Tabs.List>
+        <div className="flex items-center gap-3">
+          <Tabs.List className="w-fit">
             <TabComponent id="users">
               <div className="flex items-center gap-2">
                 <span>Users</span>
