@@ -57,9 +57,9 @@ import type { ExtendedUser, Role, RoleBinding } from "@/types";
 type TabKey = "users" | "roles" | "service" | "idp";
 
 const roleColor: Record<string, string> = {
-  admin: "bg-primary/15 text-primary",
+  admin: "bg-warning/15 text-warning",
   operator: "bg-violet/15 text-violet",
-  viewer: "bg-muted/20 text-muted",
+  viewer: "",
 };
 
 function apiErrorText(error: unknown): string | undefined {
@@ -149,7 +149,7 @@ export function UsersPage() {
             {canAudit && (
               <Link
                 to="/admin/audit"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
               >
                 <ScrollText className="h-4 w-4" /> Audit log
               </Link>
@@ -161,12 +161,12 @@ export function UsersPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Tabs
-          selectedKey={tab}
-          onSelectionChange={(key) => setTab(key as TabKey)}
-          variant="secondary"
-        >
+      <Tabs
+        selectedKey={tab}
+        onSelectionChange={(key) => setTab(key as TabKey)}
+        variant="secondary"
+      >
+        <div className="flex flex-wrap items-center gap-3">
           <Tabs.List>
             <TabComponent id="users">
               <div className="flex items-center gap-2">
@@ -183,8 +183,19 @@ export function UsersPage() {
             <TabComponent id="service">Service accounts</TabComponent>
             <TabComponent id="idp">Identity providers</TabComponent>
           </Tabs.List>
+          <div className="relative ml-auto w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
+            <Input
+              className="pl-9"
+              placeholder={tab === "users" ? "Search users…" : "Search…"}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="Search users"
+            />
+          </div>
+        </div>
 
-          <Tabs.Panel id="users">
+        <Tabs.Panel id="users">
             {error instanceof APIError && (
               <Alert status="danger">
                 <Alert.Indicator />
@@ -193,6 +204,7 @@ export function UsersPage() {
               </Alert>
             )}
 
+            <Card className="overflow-hidden p-0">
             <Table.Root>
               <Table.ScrollContainer>
                 <Table.Content aria-label="Users list">
@@ -201,7 +213,7 @@ export function UsersPage() {
                     <Table.Column id="role">Role</Table.Column>
                     <Table.Column id="provider">Provider</Table.Column>
                     <Table.Column id="created">Created</Table.Column>
-                    <Table.Column id="actions" className="text-right">Actions</Table.Column>
+                    <Table.Column id="actions" className="text-right" aria-label="Actions" />
                   </Table.Header>
                   <Table.Body
                     renderEmptyState={() => <span>No entries.</span>}
@@ -297,6 +309,7 @@ export function UsersPage() {
                 </Table.Content>
               </Table.ScrollContainer>
             </Table.Root>
+            </Card>
           </Tabs.Panel>
 
           <Tabs.Panel id="roles">
@@ -310,18 +323,7 @@ export function UsersPage() {
           <Tabs.Panel id="idp">
             <IdpTab />
           </Tabs.Panel>
-        </Tabs>
-        <div className="relative ml-auto w-64">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
-          <Input
-            className="pl-9"
-            placeholder={tab === "users" ? "Search users…" : "Search…"}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            aria-label="Search users"
-          />
-        </div>
-      </div>
+      </Tabs>
 
       <InviteUserDialog
         open={inviting}

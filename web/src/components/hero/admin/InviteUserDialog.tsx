@@ -131,7 +131,7 @@ export function InviteUserDialog({
     <Modal isOpen={open} onOpenChange={handleClose}>
       <ModalBackdrop isDismissable={!isLoading} isKeyboardDismissDisabled={isLoading}>
         <ModalContainer>
-          <ModalDialog>
+          <ModalDialog className="rounded-xl">
             <ModalHeader>
               <ModalHeading>Invite user</ModalHeading>
             </ModalHeader>
@@ -150,6 +150,7 @@ export function InviteUserDialog({
               <Input
                 id="invite-username"
                 autoFocus
+                fullWidth
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="alice"
@@ -158,79 +159,78 @@ export function InviteUserDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="invite-display-name" className="text-xs">
-                  Display name
-                </Label>
-                <Input
-                  id="invite-display-name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Alice Operator"
-                  className="mt-1"
-                  disabled={isLoading}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="invite-email" className="text-xs">
-                  Email
-                </Label>
-                <Input
-                  id="invite-email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="alice@example.com"
-                  className="mt-1"
-                  type="email"
-                  disabled={isLoading}
-                />
-              </div>
+            <div>
+              <Label htmlFor="invite-display-name" className="text-xs">
+                Display name
+              </Label>
+              <Input
+                id="invite-display-name"
+                fullWidth
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Alice Operator"
+                className="mt-1"
+                disabled={isLoading}
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="invite-password" className="text-xs">
-                  Initial password
-                </Label>
-                <Input
-                  id="invite-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-                  className="mt-1"
-                  type="password"
-                  disabled={isLoading}
-                />
-              </div>
-
-              {hasRoles && (
-                <div className="space-y-1">
-                  <Select value={role} onChange={(v) => setRole(String(v))} isDisabled={isLoading}>
-                    <Label htmlFor="invite-role" className="text-xs">
-                      Role
-                    </Label>
-                    <Select.Trigger
-                      id="invite-role"
-                      className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80"
-                    >
-                      <Select.Value />
-                      <Select.Indicator className="ml-auto h-4 w-4" />
-                    </Select.Trigger>
-                    <Select.Popover className="rounded border border-border">
-                      <ListBox className="p-0" aria-label="Role">
-                        {roles?.map((r) => (
-                          <ListBoxItem key={r} id={r}>
-                            {r}
-                          </ListBoxItem>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
-              )}
+            <div>
+              <Label htmlFor="invite-email" className="text-xs">
+                Email
+              </Label>
+              <Input
+                id="invite-email"
+                fullWidth
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="alice@example.com"
+                className="mt-1"
+                type="email"
+                disabled={isLoading}
+              />
             </div>
+
+            <div>
+              <Label htmlFor="invite-password" className="text-xs">
+                Initial password
+              </Label>
+              <Input
+                id="invite-password"
+                fullWidth
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
+                className="mt-1"
+                type="password"
+                disabled={isLoading}
+              />
+            </div>
+
+            {hasRoles && (
+              <div className="space-y-1">
+                <Select value={role} onChange={(v) => setRole(String(v))} isDisabled={isLoading}>
+                  <Label htmlFor="invite-role" className="text-xs">
+                    Role
+                  </Label>
+                  <Select.Trigger
+                    id="invite-role"
+                    className="w-full rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80"
+                  >
+                    <Select.Value />
+                    <Select.Indicator className="ml-auto h-4 w-4" />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded border border-border">
+                    <ListBox className="p-0" aria-label="Role">
+                      {roles?.map((r) => (
+                        <ListBoxItem key={r} id={r}>
+                          {r}
+                        </ListBoxItem>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
+            )}
 
             {displayError && (<p className="text-xs text-danger" role="alert">{displayError}</p>)}
           </ModalBody>
