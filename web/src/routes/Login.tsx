@@ -14,7 +14,6 @@ import {
 import {
   Input,
   Label,
-  InputGroup,
   Button,
   Alert,
   Spinner,
@@ -64,7 +63,7 @@ export function LoginPage() {
   return (
     <div className="grid h-full grid-cols-1 md:grid-cols-2">
       <section className="flex items-center justify-center bg-background p-8">
-        <div className="w-full max-w-[420px] rounded-xl border border-border bg-card p-8">
+        <div className="w-full max-w-[420px] rounded-[12px] border border-border bg-card p-8">
           <div className="mb-8 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/15">
               <ShieldCheck className="h-5 w-5 text-primary" />
@@ -135,7 +134,7 @@ export function LoginPage() {
                     Forgot?
                   </Button>
                 </div>
-                <InputGroup>
+                <div className="relative">
                   <Input
                     id="password"
                     name="password"
@@ -144,6 +143,7 @@ export function LoginPage() {
                     onChange={(e) => setP(e.target.value)}
                     autoComplete="current-password"
                     fullWidth
+                    className="pr-10"
                   />
                   <Button
                     isIconOnly
@@ -152,6 +152,7 @@ export function LoginPage() {
                     size="sm"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                     onPress={() => setShowPassword(!showPassword)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2"
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -159,7 +160,7 @@ export function LoginPage() {
                       <Eye className="h-4 w-4" />
                     )}
                   </Button>
-                </InputGroup>
+                </div>
                 {forgot && (
                   <p className="text-xs text-muted">
                     Contact your administrator to reset your password.
@@ -218,7 +219,7 @@ export function LoginPage() {
               AGPL-3.0
             </span>
           </div>
-          <h2 className="text-3xl font-semibold leading-tight font-mono">
+          <h2 className="text-[44px] font-semibold leading-tight font-mono">
             Kubernetes-native<br />game server hosting.
           </h2>
           <p className="mt-4 text-sm text-muted">
