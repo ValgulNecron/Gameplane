@@ -210,18 +210,56 @@ EOF
 #   TestGameServer_SevenDaysToDieBot_Query: 55Gi combined storage (10Gi saves + 45Gi install) — largest single footprint
 #   TestGameServer_ValheimBot_Query: 5Gi storage but ~12GB SteamCMD download on first boot (exceeds runner disk)
 #   TestGameServer_VRisingBot_Query: 20Gi storage + Wine/Ubuntu base image overhead
+#   TestGameServer_FiveM_Persistence: 10Gi storage + embedded txAdmin database (exceeds runner disk)
+#   TestGameServer_ArkSurvival_ClusterPersistence: 35Gi storage + cluster-travel multi-shard footprint
+#   TestGameServer_TeamFortress2_RCON: 15Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_Squad_RCON: 40Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_TModLoader_Mods: Multi-GB tModLoader/.NET image download and persistent mod storage
+#   TestGameServer_DayZ_Workshop: 40Gi storage + SteamCMD workshop download (exceeds runner disk)
+#   TestGameServer_ArkSurvivalEvolvedBot_Query: 30Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_ArmaReforgerBot_Query: 25Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_BeamMPBot_Query: 5Gi storage + vehicle assets overhead (exceeds runner disk)
+#   TestGameServer_EuroTruckSimulator2Bot_Query: 5Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_FarmingSimulator25Bot_Query: 20Gi storage + Wine/Xvfb overhead (exceeds runner disk)
+#   TestGameServer_FiveMBot_Query: 10Gi storage + embedded txAdmin database (exceeds runner disk)
+#   TestGameServer_HellLetLooseBot_Query: 30Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_Left4Dead2Bot_Query: 15Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_MountAndBlade2BannerlordBot_Query: 15Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_SquadBot_Query: 40Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_TeamFortress2Bot_Query: 15Gi storage + SteamCMD download (exceeds runner disk)
+#   TestGameServer_TheIsleBot_Query: 20Gi storage + UE4 + SteamCMD download (exceeds runner disk)
+#   TestGameServer_TModLoaderBot_Query: 5Gi storage + .NET/SteamCMD download (exceeds runner disk)
 bucket_bot_heavy() { cat <<'EOF'
 TestGameServer_ArkBot_Query
+TestGameServer_ArkSurvivalEvolvedBot_Query
+TestGameServer_ArkSurvival_ClusterPersistence
+TestGameServer_ArmaReforgerBot_Query
+TestGameServer_BeamMPBot_Query
 TestGameServer_CS2Bot_Query
 TestGameServer_DayZBot_Query
+TestGameServer_DayZ_Workshop
 TestGameServer_DontStarveTogetherBot_Query
 TestGameServer_EnshroudedBot_Query
+TestGameServer_EuroTruckSimulator2Bot_Query
 TestGameServer_FactorioBot_Query
+TestGameServer_FarmingSimulator25Bot_Query
+TestGameServer_FiveMBot_Query
+TestGameServer_FiveM_Persistence
+TestGameServer_HellLetLooseBot_Query
+TestGameServer_Left4Dead2Bot_Query
+TestGameServer_MountAndBlade2BannerlordBot_Query
 TestGameServer_PalworldBot_Query
 TestGameServer_ProjectZomboidBot_Query
 TestGameServer_RustBot_Query
 TestGameServer_SatisfactoryBot_Query
 TestGameServer_SevenDaysToDieBot_Query
+TestGameServer_SquadBot_Query
+TestGameServer_Squad_RCON
+TestGameServer_TeamFortress2Bot_Query
+TestGameServer_TeamFortress2_RCON
+TestGameServer_TheIsleBot_Query
+TestGameServer_TModLoaderBot_Query
+TestGameServer_TModLoader_Mods
 TestGameServer_ValheimBot_Query
 TestGameServer_VRisingBot_Query
 EOF

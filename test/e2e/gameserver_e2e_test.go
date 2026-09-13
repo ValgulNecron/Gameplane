@@ -1018,7 +1018,11 @@ func TestGameServer_NetworkCaptureRestartCleanup(t *testing.T) {
 			return false, "get networkcapture: " + err.Error()
 		}
 		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
-		return phase == "Running", ""
+		message, _, _ := unstructured.NestedString(obj.Object, "status", "message")
+		if phase != "Running" {
+			return false, fmt.Sprintf("phase=%s message=%s", phase, message)
+		}
+		return true, ""
 	})
 
 	// Capture the pod UID before deletion so we can detect the restart.
@@ -1223,7 +1227,11 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 			return false, "get networkcapture: " + err.Error()
 		}
 		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
-		return phase == "Running", ""
+		message, _, _ := unstructured.NestedString(obj.Object, "status", "message")
+		if phase != "Running" {
+			return false, fmt.Sprintf("phase=%s message=%s", phase, message)
+		}
+		return true, ""
 	})
 
 	// Stop the first capture.
@@ -1258,7 +1266,10 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 			return false, "get networkcapture: " + err.Error()
 		}
 		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
-		return phase == "Completed", ""
+		if phase != "Completed" {
+			return false, fmt.Sprintf("phase=%s", phase)
+		}
+		return true, ""
 	})
 	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
 		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).

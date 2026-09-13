@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +28,36 @@ func NewCaptureClient(agent *Client) *CaptureClient {
 		http:     agent.http,
 		Disabled: agent.Disabled,
 	}
+}
+
+// HTTPError records a non-2xx HTTP status returned by the capture sidecar.
+type HTTPError struct {
+	Op         string
+	StatusCode int
+	Body       string
+}
+
+// Error formats the HTTP error with operation, status code, and response body.
+func (e *HTTPError) Error() string {
+	if e.Body != "" {
+		return fmt.Sprintf("capture sidecar: %s: status %d: %s", e.Op, e.StatusCode, e.Body)
+	}
+	return fmt.Sprintf("capture sidecar: %s: status %d", e.Op, e.StatusCode)
+}
+
+// IsTransientError reports whether err indicates a temporary failure communicating
+// with the capture sidecar (such as a network dial error, timeout, connection refusal,
+// or 5xx server error) that is worth retrying. 4xx HTTP client errors (e.g. 400 Bad Request
+// or 409 Conflict) are considered permanent.
+func IsTransientError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var httpErr *HTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.StatusCode >= 500 || httpErr.StatusCode == http.StatusTooManyRequests
+	}
+	return true
 }
 
 // sidecarURL builds the in-cluster URL for a given GameServer's capture sidecar,
@@ -89,7 +120,7 @@ func (c *CaptureClient) StartCapture(
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<10))
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("capture sidecar: start capture: status %d: %s", resp.StatusCode, string(respBody))
+		return &HTTPError{Op: "start capture", StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 
 	var respParsed startCaptureResponse
@@ -138,7 +169,7 @@ func (c *CaptureClient) StopCapture(
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<10))
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("capture sidecar: stop capture: status %d: %s", resp.StatusCode, string(respBody))
+		return &HTTPError{Op: "stop capture", StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 
 	return nil
@@ -180,7 +211,7 @@ func (c *CaptureClient) GetCaptureStatus(
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<10))
 
 	if resp.StatusCode != http.StatusOK {
-		return "", 0, 0, "", fmt.Errorf("capture sidecar: get status: status %d", resp.StatusCode)
+		return "", 0, 0, "", &HTTPError{Op: "get status", StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 
 	var respParsed getCaptureStatusResponse
@@ -232,6 +263,6 @@ func (c *CaptureClient) DeleteCaptureFile(
 		return fmt.Errorf("capture sidecar: delete capture %s: capture still running", captureID)
 	default:
 		// Other errors: wrap with status code and body
-		return fmt.Errorf("capture sidecar: delete capture %s: status %d: %s", captureID, resp.StatusCode, string(respBody))
+		return &HTTPError{Op: fmt.Sprintf("delete capture %s", captureID), StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 }

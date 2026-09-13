@@ -13,7 +13,7 @@ Every rebuilt screen is accepted only through this procedure. It runs on CI and 
 2. The `web-e2e-mock` job uploads `web/playwright-report` including the screenshots as an artifact on every run (today only on failure; the spec adds `always()` for the screenshot project).
 3. The reviewer (sonnet in the review Workflow, then the maintainer) compares each pair and records one verdict per screen in the PR description: **match**, **layout mismatch**, **colour mismatch**, **component-family mismatch**, **content mismatch** (fixture, not design). Only **match** or **content mismatch** is acceptable.
 4. A **component-family mismatch** (a lunaris-looking control on a rebuilt screen, or an old primitive import) blocks the PR regardless of visual closeness.
-5. Pixel-diff tooling is not required; the comparison is visual, at reference width, same appearance. Anti-aliasing and font-hinting differences are not mismatches.
+5. Automated pixel-diff tooling (`web/scripts/compare-screenshots.mjs` running in `.github/workflows/visual-diff.yaml`) evaluates diff factor between Pencil design exports (`design-export/screenshots/<id>.png`) and Playwright browser captures (`web/e2e/screenshots/<id>.png`). Subpixel anti-aliasing differences are ignored via `pixelmatch` (`includeAA: false`, `threshold: 0.15`), and dimension variations are normalized via top-left canvas padding. The pipeline enforces a 4.0% default diff factor threshold (with screen-specific overrides for text-dense pages), uploads 3-panel composite previews `[Reference | Browser | Diff]` and `summary.json` as the `visual-diff-report` GitHub Actions artifact, and writes the summary table to the GitHub Actions Job Summary (`$GITHUB_STEP_SUMMARY`).
 
 ## Per-slice coverage
 

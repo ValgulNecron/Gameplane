@@ -8,14 +8,17 @@ import (
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
+// rconGS constructs a dummy GameServer for RCON unit tests.
 func rconGS() *gameplanev1alpha1.GameServer {
 	return &gameplanev1alpha1.GameServer{ObjectMeta: metav1.ObjectMeta{Name: "smp", Namespace: "ns"}}
 }
 
+// rconTmpl constructs a dummy GameTemplate wrapping the given RCONSpec.
 func rconTmpl(spec *gameplanev1alpha1.RCONSpec) *gameplanev1alpha1.GameTemplate {
 	return &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{RCON: spec}}
 }
 
+// TestResolveRCON tests RCON resolution logic across protocols and secret configurations.
 func TestResolveRCON(t *testing.T) {
 	gs := rconGS()
 
@@ -77,8 +80,31 @@ func TestResolveRCON(t *testing.T) {
 			t.Fatalf("PasswordSecretRef should win over PasswordFile: %+v", rc)
 		}
 	})
+
+	t.Run("cli protocol without passwordEnv does not generate secret", func(t *testing.T) {
+		rc := resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+			Protocol: "cli",
+		}))
+		if !rc.enabled {
+			t.Fatal("expected enabled for cli")
+		}
+		if rc.secretName != "" || rc.secretKey != "" {
+			t.Fatalf("cli without passwordEnv should not set secretName/secretKey: %+v", rc)
+		}
+	})
+
+	t.Run("cli protocol with passwordEnv generates secret", func(t *testing.T) {
+		rc := resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+			Protocol:    "cli",
+			PasswordEnv: "CLI_PASSWORD",
+		}))
+		if !rc.enabled || rc.secretName != "smp-rcon" || rc.secretKey != "password" {
+			t.Fatalf("cli with passwordEnv should set secretName: %+v", rc)
+		}
+	})
 }
 
+// TestRCONGameEnv verifies environment variable injection into the game container.
 func TestRCONGameEnv(t *testing.T) {
 	gs := rconGS()
 	// No passwordEnv → no env injected.
@@ -102,6 +128,7 @@ func TestRCONGameEnv(t *testing.T) {
 	}
 }
 
+// TestAgentVolumeMounts verifies agent volume mounts across RCON protocol configurations.
 func TestAgentVolumeMounts(t *testing.T) {
 	gs := rconGS()
 	base := agentVolumeMounts(gs, rconTmpl(nil), nil, "/data")
@@ -128,8 +155,18 @@ func TestAgentVolumeMounts(t *testing.T) {
 			t.Fatalf("passwordFile mode should not mount rcon-password volume: %+v", withFile)
 		}
 	}
+	// Passwordless CLI mode should not mount rcon-password volume
+	withCLI := agentVolumeMounts(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+		Protocol: "cli",
+	}), nil, "/data")
+	for _, m := range withCLI {
+		if m.Name == "rcon-password" {
+			t.Fatalf("passwordless cli should not mount rcon-password volume: %+v", withCLI)
+		}
+	}
 }
 
+// TestGeneratePassword verifies cryptographic password generation.
 func TestGeneratePassword(t *testing.T) {
 	a, err := generatePassword()
 	if err != nil || len(a) != 32 {

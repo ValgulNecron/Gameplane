@@ -400,9 +400,12 @@ mods, deps-mode Thunderstore packs), **terraria** (tag catalog, pty
 console, configFiles), **factorio** (tag catalog, pty console,
 wizard-managed server-settings.json, portal registry), **palworld**
 (wrapper channels, REST admin API console, pak mods). The full
-catalog also includes 7-days-to-die, ark-survival-ascended, cs2, dayz,
-dont-starve-together, enshrouded, garrys-mod, project-zomboid, rust,
-satisfactory, and v-rising.
+catalog also includes 7-days-to-die, ark-survival-ascended,
+ark-survival-evolved, arma-reforger, beammp, cs2, dayz, dont-starve-together,
+enshrouded, euro-truck-simulator-2, farming-simulator-25, fivem, garrys-mod,
+hell-let-loose, left-4-dead-2, mount-and-blade-2-bannerlord, nuclear-option,
+project-zomboid, rust, satisfactory, squad, team-fortress-2, the-isle,
+tmodloader, and v-rising (see [Game Coverage](game-coverage.md) for full protocol and testing status).
 
 ### Branding
 
@@ -709,9 +712,9 @@ Rules and semantics:
 
 ### RCON
 
-The console protocol is selected via `rcon.protocol`. Eight protocols are
+The console protocol is selected via `rcon.protocol`. Ten protocols are
 supported: `source`, `telnet`, `websocket`, `battleye`, `satisfactory`,
-`palworld`, `nuclearoption`, and `none`. Each game's template declares the one(s) it uses.
+`palworld`, `nuclearoption`, `rest`, `cli`, and `none`. Each game's template declares the one(s) it uses.
 
 #### Source (Valve / Minecraft)
 
@@ -810,6 +813,38 @@ dedicated pod-local remote-command port with no authentication:
 rcon:
   protocol: nuclearoption
   port: 7779
+```
+
+#### REST (Generic HTTP admin API)
+
+Generic HTTP/JSON administrative console APIs (e.g. FiveM txAdmin or Farming
+Simulator 25 web admin). The agent issues HTTP POST requests with either
+bearer token / `X-TxAdmin-Token` or HTTP Basic credentials, parsing output
+from JSON envelopes or raw response bodies:
+
+```yaml
+rcon:
+  protocol: rest
+  port: 40120                     # txAdmin default port (or 8080 for FS25)
+  passwordEnv: TXADMIN_TOKEN     # or passwordSecretRef
+```
+
+The agent automatically selects the appropriate adapter based on game identifier or port:
+- `fivem` (port 40120): txAdmin API (`POST /fxserver/commands`) with `X-TxAdmin-Token` and `Authorization: Bearer`.
+- `farming-simulator-25` (port 8080): Web admin API (`POST /api/console`) with HTTP Basic auth.
+- Generic REST: `POST /api/command` with JSON `{"command": "<cmd>"}`.
+
+#### CLI (Container Stdin / Local Execution)
+
+Console access over the container's stdin/PTY or local process execution.
+Per the resolution recorded in `OPEN-DECISIONS.md` (Option A):
+- The web dashboard console continues to attach directly via Kubernetes pod-attach / PTY (`consoleMode: pty`).
+- The agent executes lifecycle stop sequences, health checks, and scheduled commands locally via standard input (Unix FIFO pipe or local process execution) without requiring remote TCP networking or an external password secret:
+
+```yaml
+rcon:
+  protocol: cli
+consoleMode: pty
 ```
 
 #### No console

@@ -1,0 +1,33 @@
+# ark-survival-evolved — E2E Probe Specification
+
+## Coverage Status
+
+- **Status**: active
+- **Depth**: QUERY
+- **Test**: TestGameServer_ArkSurvivalEvolvedBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: None
+- **Blocker Class**: none
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=ark-survival-evolved make test-e2e-keep
+```
+
+**Status:** beta; probe depth measured: **QUERY** (A2S query response received)  
+**Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/ark-survival-evolved`  
+**Dependencies:** `test/e2e/internal/protocol/{a2sproto,joindepth}`  
+**Heavy game:** Yes (>30GB SteamCMD download)
+
+## Purpose
+
+End-to-end test harness for ARK: Survival Evolved, verifying that an ASE dedicated server responds to Steam A2S queries over UDP port 27015.
+
+## Responsibilities
+
+1. **A2S Query Protocol:** Issue standard Steam A2S query packets over UDP.
+2. **Verdict Reporting:** Emit standard `VERDICT` output conforming to `joindepth.ProbeVerdict`.

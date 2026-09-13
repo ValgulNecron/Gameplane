@@ -6,6 +6,7 @@ import (
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
+// TestEffectiveConsoleMode tests precedence rules for template console modes.
 func TestEffectiveConsoleMode(t *testing.T) {
 	cases := []struct {
 		name string
@@ -39,6 +40,13 @@ func TestEffectiveConsoleMode(t *testing.T) {
 				RCON: &gameplanev1alpha1.RCONSpec{Protocol: "source"},
 			},
 			want: "rcon",
+		},
+		{
+			name: "default with rcon cli → pty",
+			spec: gameplanev1alpha1.GameTemplateSpec{
+				RCON: &gameplanev1alpha1.RCONSpec{Protocol: "cli"},
+			},
+			want: "pty",
 		},
 		{
 			name: "default with rcon protocol=none → none",

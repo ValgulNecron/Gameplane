@@ -18,9 +18,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/operator/internal/agent"
 )
 
 // SidecarCaptureClient abstracts the sidecar's :9091 HTTP control endpoint.
@@ -377,6 +379,13 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				maxDurationSeconds,
 				maxSizeBytes,
 			); err != nil {
+				if agent.IsTransientError(err) && (nc.CreationTimestamp.IsZero() || time.Since(nc.CreationTimestamp.Time) < 60*time.Second) {
+					// The sidecar ephemeral container may still be binding its port or kube-proxy
+					// endpoints may still be propagating. Requeue to retry starting the capture.
+					log.FromContext(ctx).Info("capture sidecar not yet reachable, retrying start",
+						"capture", nc.Name, "gameserver", gs.Name, "error", err)
+					return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+				}
 				return r.fail(ctx, &nc, fmt.Sprintf("failed to start capture on sidecar: %v", err))
 			}
 		} else {

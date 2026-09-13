@@ -1,6 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
-import path from "path";
-import { fileURLToPath } from "node:url";
+import { test, expect } from "@playwright/test";
+import { capture } from "./capture";
 
 // Slice 1: Shell + Login Screens — Screenshot verification tests for HeroUI rebuild
 // These tests capture the 6 design frames from slice 1 at precise viewports with MSW mocks.
@@ -21,17 +20,6 @@ import { fileURLToPath } from "node:url";
 //       retention-days: 30
 //       if-no-files-found: ignore
 
-/**
- * Capture a full-page screenshot and save it to web/e2e/screenshots/<id>.png
- * @param page The Playwright page object
- * @param id The design frame id for naming the screenshot
- */
-async function capture(page: Page, id: string): Promise<void> {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const screenshotPath = path.join(here, `${id}.png`);
-  await page.screenshot({ path: screenshotPath, fullPage: true });
-}
-
 test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () => {
   // Desktop viewport for all tests in this describe block
   test.use({
@@ -42,14 +30,20 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
 
   test("N1GkB: Login — Default", async ({ page }) => {
     // Default login form with both local and SSO providers visible
-    // No error message, form is empty and ready for input
+    // Fill in credentials matching the Pencil design baseline (valgul + 12-char masked password)
     await page.goto("/login");
     await page.waitForLoadState("domcontentloaded");
 
     // Verify the form is visible
-    await expect(page.getByRole("textbox", { name: /username/i })).toBeVisible();
-    await expect(page.locator('input[name="password"]')).toBeVisible();
+    const usernameInput = page.getByRole("textbox", { name: /email or username/i });
+    const passwordInput = page.locator('input[name="password"]');
+    await expect(usernameInput).toBeVisible();
+    await expect(passwordInput).toBeVisible();
     await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
+
+    await usernameInput.fill("valgul");
+    await passwordInput.fill("secretpass12");
+    await passwordInput.blur();
 
     // Capture the default login state
     await capture(page, "N1GkB");
@@ -61,11 +55,17 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
     await page.goto("/login");
     await page.waitForLoadState("domcontentloaded");
 
-    // Submit empty credentials to trigger 401 error
+    const usernameInput = page.getByRole("textbox", { name: /email or username/i });
+    const passwordInput = page.locator('input[name="password"]');
+    await usernameInput.fill("valgul");
+    await passwordInput.fill("wrongpasswrd");
+
+    // Submit invalid credentials to trigger 401 error
     await page.getByRole("button", { name: /sign in/i }).click();
 
     // Wait for error message to appear
     await expect(page.getByRole("alert")).toBeVisible({ timeout: 5000 });
+    await page.getByRole("button", { name: /sign in/i }).blur();
 
     // Capture the error state
     await capture(page, "jmoi3");
@@ -76,24 +76,19 @@ test.describe("Slice 1: Shell + Login (Desktop — 1440x900) @screenshots", () =
   });
 
   test("ljdA5: Login — SSO Only", async ({ page }) => {
-    // Route /auth/providers to return a real SSO provider so Login.tsx renders
-    // the SSO-only branch (no username/password form, only provider buttons).
-    await page.route("**/auth/providers", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ providers: [{ name: "corp", kind: "oidc", label: "Acme SSO" }] }),
-      });
+    // Mock-mode MSW reads this flag (src/test/browser-msw.ts) and swaps in
+    // buildSsoOnlyHandlers(), which reports no local-login provider so
+    // Login.tsx renders its SSO-only branch (Keycloak + Google SSO buttons).
+    await page.addInitScript(() => {
+      localStorage.setItem("gameplane-e2e-dataset", "sso-only");
     });
 
     await page.goto("/login");
     await page.waitForLoadState("domcontentloaded");
 
-    // Wait for the SSO button to actually render before asserting/capturing —
-    // domcontentloaded fires before React mounts and MSW resolves the
-    // providers fetch, so screenshotting immediately after it races the
-    // paint and captures a blank/black frame.
-    await expect(page.getByRole("button", { name: /continue with acme sso/i })).toBeVisible();
+    // Wait for the SSO button to actually render before asserting/capturing
+    await expect(page.getByRole("button", { name: /continue with keycloak/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /continue with google/i })).toBeVisible();
 
     // The local login form must not render in this state.
     await expect(page.getByRole("textbox", { name: /email or username/i })).toHaveCount(0);

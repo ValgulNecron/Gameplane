@@ -1,6 +1,6 @@
 # Contract: Gameplane Module Layout & Metadata
 
-**Feature**: `014-top-steam-game-modules`  
+**Feature**: `015-top-steam-game-modules`  
 **Contract Version**: `1.0.0`  
 **Status**: Normative  
 
@@ -17,7 +17,7 @@ modules/<name>/
 ├── README.md            # Operator & administrator guide
 ├── specs.md             # Constitution Principle IV architectural specification
 └── samples/
-    └── server.yaml      # Ready-to-run sample GameServer manifest
+    └── gameserver.yaml  # Ready-to-run sample GameServer manifest
 ```
 
 ---

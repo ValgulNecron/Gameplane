@@ -1,6 +1,6 @@
 # Contract: Top 100 Steam Dedicated Server Engine & Protocol Matrix
 
-**Feature**: `014-top-steam-game-modules`  
+**Feature**: `015-top-steam-game-modules`  
 **Contract Version**: `1.0.0`  
 **Status**: Normative  
 
@@ -21,10 +21,10 @@ This matrix defines the required configurations, port specifications, query prot
 | `dayz` | 223350 | A2S_INFO (UDP) | 2302 UDP | 27016 UDP | 2306 UDP (BattlEye RCON) | `/serverdata` | `#shutdown` |
 | `farming-simulator-25`| N/A | GIANTS HTTP | 10823 UDP | 10823 UDP | 8080 TCP (Web Admin HTTP) | `/data/My Games/FarmingSimulator2025` | Web Save API |
 | `euro-truck-simulator-2`| 1948400 | A2S_INFO (UDP) | 27015 UDP | 27016 UDP | Stdin Console | `/home/steam/.local/share/Euro Truck Simulator 2` | `exit` |
-| `garrys-mod` | 4020 | A2S_INFO (UDP) | 27015 UDP | 27015 UDP | 27015 TCP (Source RCON) | `/home/steam/gmod-dedicated` | N/A (Stateless) |
+| `garrys-mod` | 4020 | A2S_INFO (UDP) | 27015 UDP | 27015 UDP | None (no console reachable: baked cfg/, no password env, agent rcon-port wiring unfixed) | `/home/steam/gmod-dedicated` | N/A (Stateless, no capabilities block) |
 | `mount-and-blade-2-bannerlord`| 1863440 | A2S_INFO (UDP) | 7210 UDP | 7211 UDP | Stdin Console | `/serverdata` | N/A (Match-based) |
 | `terraria` | 105600 | Custom TCP | 7777 TCP | 7777 TCP | Stdin / REST | `/root/.local/share/Terraria/Worlds` | `save` |
-| `7-days-to-die` | 294420 | A2S_INFO (UDP) | 26900 UDP | 26900 UDP | 8082 TCP (Telnet) / 8081 (Web) | `/home/sdtduser/.local/share/7DaysToDie` | `saveworld` |
+| `7-days-to-die` | 294420 | A2S_INFO (UDP) | 26900 UDP | 26900 UDP | None (TelnetPassword lives in serverconfig.xml under serverfiles/, unreachable from the world-saves mount) | `/home/sdtduser/.local/share/7DaysToDie` | N/A (no capabilities block; LinuxGSM user.sh traps SIGINT/SIGTERM) |
 | `tmodloader` | 1281930 | Custom TCP | 7777 TCP | 7777 TCP | Stdin Console | `/root/.local/share/Terraria/tModLoader` | `save` |
 | `beammp` | N/A | Custom TCP/UDP | 30814 UDP | 30814 UDP | 30814 TCP (Auth/CLI) | `/server/Root` | N/A |
 | `ark-survival-ascended`| 2430930 | A2S_INFO (UDP) | 7777 UDP | 7777 UDP | 27020 TCP (Source RCON) | `/serverdata/ShooterGame/Saved` | `SaveWorld` |

@@ -26,7 +26,10 @@ import (
 // (Terraria), a hand-rolled UDP protocol (Factorio), and the shared Source
 // family (Garry's Mod). They boot quickly (minutes at most) and fit within a
 // single kind node.
-var fastGameSet = []string{"minecraft-java", "terraria", "factorio", "garrys-mod"}
+var fastGameSet = []string{
+	"minecraft-java", "terraria", "factorio", "garrys-mod",
+	"tmodloader", "beammp",
+}
 
 // heavyGameSet lists the games not in the fast set. These are opt-in only
 // (GAMEPLANE_E2E_GAMES=all) due to large disk/network requirements; they are
@@ -36,6 +39,9 @@ var heavyGameSet = []string{
 	"cs2", "7-days-to-die", "project-zomboid", "valheim", "palworld", "rust",
 	"v-rising", "dayz", "ark-survival-ascended", "dont-starve-together",
 	"enshrouded", "satisfactory",
+	"fivem", "team-fortress-2", "farming-simulator-25", "euro-truck-simulator-2",
+	"mount-and-blade-2-bannerlord", "left-4-dead-2", "the-isle",
+	"ark-survival-evolved", "arma-reforger", "hell-let-loose", "squad",
 }
 
 // parseGameScope parses GAMEPLANE_E2E_GAMES and returns the set of games to test,

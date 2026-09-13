@@ -5,6 +5,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -118,8 +119,9 @@ func TestNetworkCapture_RetentionExpiry(t *testing.T) {
 			return false, "get networkcapture: " + err.Error()
 		}
 		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		message, _, _ := unstructured.NestedString(obj.Object, "status", "message")
 		if phase != "Running" {
-			return false, "phase=" + phase
+			return false, fmt.Sprintf("phase=%s message=%s", phase, message)
 		}
 		return true, ""
 	})

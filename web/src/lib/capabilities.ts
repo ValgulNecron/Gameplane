@@ -10,6 +10,7 @@ export function resolveConsoleMode(tmpl: GameTemplate | undefined): ConsoleMode 
   if (!tmpl) return "rcon";
   if (tmpl.spec.consoleMode) return tmpl.spec.consoleMode;
   const proto = tmpl.spec.rcon?.protocol;
+  if (proto === "cli") return "pty";
   if (proto && proto !== "none") return "rcon";
   return "none";
 }
@@ -19,7 +20,7 @@ export function resolveConsoleMode(tmpl: GameTemplate | undefined): ConsoleMode 
 // over RCON.
 export function rconAvailable(tmpl: GameTemplate | undefined): boolean {
   const proto = tmpl?.spec.rcon?.protocol;
-  return !!proto && proto !== "none";
+  return !!proto && proto !== "none" && proto !== "cli";
 }
 
 // activeVersion mirrors the operator's resolveVersion: the server's chosen

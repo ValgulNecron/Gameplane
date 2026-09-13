@@ -1,6 +1,6 @@
 # Contract: GameTemplate CRD & Lifecycle Mechanics
 
-**Feature**: `014-top-steam-game-modules`  
+**Feature**: `015-top-steam-game-modules`  
 **Contract Version**: `1.0.0`  
 **Status**: Normative  
 
@@ -25,28 +25,31 @@ Supported remote administration protocols in `spec.rcon.protocol`:
 | `source` | Valve Source RCON (TCP) | CS2, TF2, L4D2, GMod, Squad, The Isle, ARK, HLL | `27015` |
 | `battleye` | BattlEye RCON (UDP) | DayZ | `2306` |
 | `websocket` | Rust WebSocket RCON (TCP/WS) | Rust | `28016` |
-| `rest` | REST API over HTTP/JSON | Palworld, Satisfactory | `8212` / `7777` |
+| `satisfactory` | Satisfactory HTTPS TLS API | Satisfactory | `7777` |
+| `palworld` | Palworld REST API | Palworld | `8212` |
+| `nuclearoption` | Nuclear Option JSON-RPC | Nuclear Option | `7778` |
+| `rest` | Generic HTTP REST API | FiveM (txAdmin), Farming Simulator 25 (Web Admin) | `40120` / `8080` |
 | `telnet` | Plaintext Telnet Socket (TCP) | 7 Days to Die | `8082` |
-| `cli` | Stdin/Stdout PTY Console | Terraria, Factorio, BeamMP, Arma Reforger | N/A |
+| `cli` | Stdin/PTY Console (Agent-driven) | Open pending OPEN-DECISIONS.md (T005); unassigned | N/A |
+| `none` | No remote RCON protocol | Games utilizing consoleMode: pty or stateless | N/A |
 
 ---
 
 ## 3. Lifecycle Stop Action Contract
 
-For all persistent games, `spec.lifecycle.stop` MUST be declared as follows:
+For games supporting persistence or graceful shutdown sequences, `spec.capabilities.lifecycle.stop` MUST be declared as a 1-16 item array of plain command strings executed in sequence prior to container termination:
 
 ```yaml
-lifecycle:
-  stop:
-    action: rcon # or "cli" or "http"
-    command: "<engine save command>"
-    timeoutSeconds: 30
+capabilities:
+  lifecycle:
+    stop:
+      - "<pre-shutdown warning or save command>"
+      - "<engine save or shutdown command>"
 ```
 
 Examples:
-- Source / Unreal Engine: `saveworld` or `broadcast Server shutting down...; save`
-- Rust: `server.save; server.writecfg`
-- Factorio: `/server-save`
-- Terraria: `save; exit`
-- 7 Days to Die: `saveworld; shutdown`
-- Don't Starve Together: `c_save(); c_shutdown(true)`
+- Unreal Engine / Source: `["SaveWorld"]`
+- Rust: `["server.save", "server.writecfg"]`
+- Factorio: `["/server-save"]`
+- Terraria: `["save", "exit"]`
+- Don't Starve Together: `["c_save()", "c_shutdown(true)"]`
