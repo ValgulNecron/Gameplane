@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
@@ -418,5 +419,217 @@ func TestBuilderExport_NameMismatch(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 Bad Request on name mismatch, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBuilderScaffold_Errors(t *testing.T) {
+	r, _ := setupTestBuilderRouter(t)
+
+	// Invalid JSON
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/scaffold", strings.NewReader("invalid json"))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid JSON, got %d", w.Code)
+	}
+
+	// Port collision
+	reqBody := BuilderScaffoldRequest{
+		Name:      "my-game",
+		Archetype: "steamcmd",
+		Ports: []BuilderPortDef{
+			{Name: "p1", ContainerPort: 8080, Protocol: "UDP"},
+			{Name: "p2", ContainerPort: 8080, Protocol: "UDP"},
+		},
+	}
+	jb, _ := json.Marshal(reqBody)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/scaffold", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for port collision, got %d", w.Code)
+	}
+}
+
+func TestBuilderValidate_Errors(t *testing.T) {
+	r, _ := setupTestBuilderRouter(t)
+
+	// Invalid JSON
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/validate", strings.NewReader("invalid json"))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid JSON, got %d", w.Code)
+	}
+
+	// Empty dirName fallback
+	reqBody := BuilderValidateRequest{
+		ModuleYaml:   "invalid: [yaml",
+		TemplateYaml: "invalid: [yaml",
+	}
+	jb, _ := json.Marshal(reqBody)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/validate", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for validate even with errors, got %d", w.Code)
+	}
+}
+
+func TestBuilderPreview_Errors(t *testing.T) {
+	r, _ := setupTestBuilderRouter(t)
+
+	// Invalid JSON
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/preview", strings.NewReader("invalid json"))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid JSON, got %d", w.Code)
+	}
+
+	// Invalid template
+	reqBody := BuilderPreviewRequest{
+		TemplateYaml: "invalid yaml: [",
+	}
+	jb, _ := json.Marshal(reqBody)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/preview", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid template YAML, got %d", w.Code)
+	}
+}
+
+func TestBuilderExport_Errors(t *testing.T) {
+	r, _ := setupTestBuilderRouter(t)
+
+	// Invalid JSON
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", strings.NewReader("invalid json"))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+
+	// Missing Name
+	reqBody := BuilderExportRequest{
+		Name:         "",
+		ModuleYaml:   "name: test",
+		TemplateYaml: "kind: GameTemplate",
+	}
+	jb, _ := json.Marshal(reqBody)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing name, got %d", w.Code)
+	}
+
+	// Missing ModuleYaml
+	reqBody.Name = "test"
+	reqBody.ModuleYaml = ""
+	jb, _ = json.Marshal(reqBody)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing moduleYaml, got %d", w.Code)
+	}
+
+	// Missing TemplateYaml
+	reqBody.ModuleYaml = "name: test"
+	reqBody.TemplateYaml = ""
+	jb, _ = json.Marshal(reqBody)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing templateYaml, got %d", w.Code)
+	}
+
+	// Bad ModuleYaml YAML syntax
+	reqBody.TemplateYaml = "kind: GameTemplate"
+	reqBody.ModuleYaml = "invalid: [yaml"
+	jb, _ = json.Marshal(reqBody)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid moduleYaml syntax, got %d", w.Code)
+	}
+}
+
+func TestBuilderExport_InstallToCluster_UpdateAndConflicts(t *testing.T) {
+	uploadSource := newUploadSource("uploads")
+	r, k8s := setupTestBuilderRouter(t, uploadSource)
+
+	validModule := "apiVersion: gameplane.local/module/v1\nname: cs2-match\ndisplayName: CS2 Match\nversion: 1.0.0\ngame: cs2\nsummary: A CS2 server\ncategories:\n  - Shooter\n"
+	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  game: cs2\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
+
+	// 1. TargetSource does not exist -> 404
+	reqBody := BuilderExportRequest{
+		Name:         "cs2-match",
+		ModuleYaml:   validModule,
+		TemplateYaml: validTemplate,
+		TargetSource: "nonexistent",
+	}
+	jb, _ := json.Marshal(reqBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jb))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for nonexistent source, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 2. Pre-create ConfigMap with labelModuleUpload="true" -> successfully updates
+	existingCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "module-upload-cs2-match",
+			Namespace: "gameplane-system",
+			Labels: map[string]string{
+				labelModuleUpload:     "true",
+				labelUploadModuleName: "cs2-match",
+			},
+		},
+	}
+	_, err := k8s.CoreV1().ConfigMaps("gameplane-system").Create(context.Background(), existingCM, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("failed to create existing ConfigMap: %v", err)
+	}
+
+	reqBody.TargetSource = "uploads"
+	reqBody.IconBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" // 1x1 png
+	jb, _ = json.Marshal(reqBody)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for update existing, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 3. Pre-create ConfigMap WITHOUT labelModuleUpload -> conflict 409
+	nonUploadCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "module-upload-other",
+			Namespace: "gameplane-system",
+			Labels:    map[string]string{},
+		},
+	}
+	_, _ = k8s.CoreV1().ConfigMaps("gameplane-system").Create(context.Background(), nonUploadCM, metav1.CreateOptions{})
+
+	validModuleOther := "apiVersion: gameplane.local/module/v1\nname: other\ndisplayName: Other\nversion: 1.0.0\ngame: other\nsummary: Other server\ncategories:\n  - Other\n"
+	validTemplateOther := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: other\nspec:\n  game: other\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
+	reqBodyOther := BuilderExportRequest{
+		Name:         "other",
+		ModuleYaml:   validModuleOther,
+		TemplateYaml: validTemplateOther,
+		TargetSource: "uploads",
+	}
+	jb, _ = json.Marshal(reqBodyOther)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/modules/builder/export", bytes.NewReader(jb))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for conflict, got %d: %s", w.Code, w.Body.String())
 	}
 }

@@ -48,8 +48,8 @@ describe("BuildModuleDialog", () => {
     expect(screen.getByText("Generic Container")).toBeInTheDocument();
 
     const nameInput = screen.getByPlaceholderText("e.g. cs2-match");
-    expect(nameInput).toHaveValue("my-game");
-    expect(screen.getByText("✓ Valid DNS-1123 label")).toBeInTheDocument();
+    expect(nameInput).toHaveValue("");
+    expect(screen.getByRole("button", { name: /Continue to Container & Ports/i })).toBeDisabled();
 
     // Invalid DNS name
     fireEvent.change(nameInput, { target: { value: "INVALID_UPPERCASE" } });
@@ -72,6 +72,11 @@ describe("BuildModuleDialog", () => {
     renderWithQuery(
       <BuildModuleDialog open onOpenChange={() => undefined} sources={["uploads"]} />
     );
+
+    // Provide valid module name
+    fireEvent.change(screen.getByPlaceholderText("e.g. cs2-match"), {
+      target: { value: "my-game" },
+    });
 
     // Step 1 -> Step 2
     fireEvent.click(screen.getByRole("button", { name: /Continue to Container & Ports/i }));
@@ -107,6 +112,11 @@ describe("BuildModuleDialog", () => {
     renderWithQuery(
       <BuildModuleDialog open onOpenChange={onOpenChange} sources={["uploads"]} onInstalled={onInstalled} />
     );
+
+    // Provide valid module name
+    fireEvent.change(screen.getByPlaceholderText("e.g. cs2-match"), {
+      target: { value: "my-game" },
+    });
 
     // Navigate to step 3
     fireEvent.click(screen.getByRole("button", { name: /Continue to Container & Ports/i }));
