@@ -33,6 +33,10 @@ export async function capture(page: Page, id: string): Promise<void> {
     }
   }
 
+  await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    if (el && !el.closest('[role="dialog"],[role="listbox"],[role="menu"],[data-open="true"]')) el.blur();
+  });
   await page.screenshot({ path: screenshotPath, animations: "disabled" });
 }
 
@@ -55,5 +59,9 @@ export async function captureLocator(page: Page, id: string, locator: Locator): 
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await expect(locator).toBeVisible();
   await locator.scrollIntoViewIfNeeded();
+  await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    if (el && !el.closest('[role="dialog"],[role="listbox"],[role="menu"],[data-open="true"]')) el.blur();
+  });
   await locator.screenshot({ path: screenshotPath, animations: "disabled", caret: "hide" });
 }

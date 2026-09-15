@@ -169,15 +169,17 @@ export function ServersPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <PageHeader
-        title="Servers"
-        subtitle="Manage game server workloads across your cluster."
-        actions={
-          <Link to="/servers/new" className={cn(buttonVariants({ variant: "primary" }), "rounded-full")}>
-            <Plus className="h-4 w-4" /> Create server
-          </Link>
-        }
-      />
+      {!isMobile && (
+        <PageHeader
+          title="Servers"
+          subtitle="Manage game server workloads across your cluster."
+          actions={
+            <Link to="/servers/new" className={cn(buttonVariants({ variant: "primary" }), "rounded-full")}>
+              <Plus className="h-4 w-4" /> Create server
+            </Link>
+          }
+        />
+      )}
 
       {!isMobile && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -219,41 +221,80 @@ export function ServersPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Tabs
-          selectedKey={filter}
-          onSelectionChange={(key) => setFilter(key as FilterKey)}
-          variant="secondary"
-        >
-          <Tabs.List aria-label="Server status filter" className="servers-status-filter">
-            <Tab id="all">
-              <span className="inline-flex items-center gap-1.5">
-                All
-                <span className="servers-status-filter__count rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
-                  {servers.length}
+      {!isMobile && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Tabs
+            selectedKey={filter}
+            onSelectionChange={(key) => setFilter(key as FilterKey)}
+            variant="secondary"
+          >
+            <Tabs.List aria-label="Server status filter" className="servers-status-filter">
+              <Tab id="all">
+                <span className="inline-flex items-center gap-1.5">
+                  All
+                  <span className="servers-status-filter__count rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
+                    {servers.length}
+                  </span>
                 </span>
-              </span>
-            </Tab>
-            <Tab id="running">
-              <span className="inline-flex items-center gap-1.5">
-                Running
-                <span className="servers-status-filter__count rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
-                  {counts.running}
+              </Tab>
+              <Tab id="running">
+                <span className="inline-flex items-center gap-1.5">
+                  Running
+                  <span className="servers-status-filter__count rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
+                    {counts.running}
+                  </span>
                 </span>
-              </span>
-            </Tab>
-            <Tab id="stopped">
-              <span className="inline-flex items-center gap-1.5">
-                Stopped
-                <span className="servers-status-filter__count rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
-                  {counts.stopped}
+              </Tab>
+              <Tab id="stopped">
+                <span className="inline-flex items-center gap-1.5">
+                  Stopped
+                  <span className="servers-status-filter__count rounded-[4px] bg-foreground/10 px-1.5 py-0.5 text-xs leading-none">
+                    {counts.stopped}
+                  </span>
                 </span>
-              </span>
-            </Tab>
-          </Tabs.List>
-        </Tabs>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="relative w-64">
+              </Tab>
+            </Tabs.List>
+          </Tabs>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="relative w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
+              <Input
+                placeholder="Search servers…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full pl-9"
+                aria-label="Search servers"
+              />
+            </div>
+            <FilterPopover
+              games={distinctGames}
+              selectedGames={draftGames}
+              onToggleGame={handleToggleDraftGame}
+              namespaces={distinctNamespaces}
+              selectedNamespaces={draftNamespaces}
+              onToggleNamespace={handleToggleDraftNamespace}
+              onApply={handleApplyFilter}
+              onClear={handleClearFilter}
+              isOpen={isFilterOpen}
+              onOpenChange={handleOpenFilterChange}
+            >
+              <div className="inline-flex items-center gap-2 rounded-[6px] px-3 py-2 text-sm font-medium border border-default-300 bg-default-100 hover:bg-default-200 cursor-pointer transition-colors">
+                <Filter className="h-4 w-4" />
+                Filter
+                {appliedFacetCount > 0 && (
+                  <Chip size="sm" variant="soft" className="ml-1.5">
+                    {appliedFacetCount}
+                  </Chip>
+                )}
+              </div>
+            </FilterPopover>
+          </div>
+        </div>
+      )}
+
+      {isMobile && (
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/60" />
             <Input
               placeholder="Search servers…"
@@ -275,18 +316,17 @@ export function ServersPage() {
             isOpen={isFilterOpen}
             onOpenChange={handleOpenFilterChange}
           >
-            <div className="inline-flex items-center gap-2 rounded-[6px] px-3 py-2 text-sm font-medium border border-default-300 bg-default-100 hover:bg-default-200 cursor-pointer transition-colors">
+            <Button
+              isIconOnly
+              variant="ghost"
+              className="w-10 h-10"
+              aria-label="Filter"
+            >
               <Filter className="h-4 w-4" />
-              Filter
-              {appliedFacetCount > 0 && (
-                <Chip size="sm" variant="soft" className="ml-1.5">
-                  {appliedFacetCount}
-                </Chip>
-              )}
-            </div>
+            </Button>
           </FilterPopover>
         </div>
-      </div>
+      )}
 
       {isMobile ? (
         <div className="space-y-3">
@@ -297,7 +337,7 @@ export function ServersPage() {
             <Card className="p-12 text-center text-sm text-foreground/60">No servers match.</Card>
           )}
           {visible.map((gs) => (
-            <ServerCard key={gs.metadata.name} gs={gs} onAct={act.mutate} />
+            <ServerCard key={`${gs.metadata.namespace ?? "gameplane-games"}/${gs.metadata.name}`} gs={gs} onAct={act.mutate} />
           ))}
 
           {visibleShared.length > 0 && (
@@ -339,7 +379,7 @@ export function ServersPage() {
                   )}
                 >
               {visible.map((gs) => (
-                <Table.Row key={gs.metadata.name}>
+                <Table.Row key={`${gs.metadata.namespace ?? "gameplane-games"}/${gs.metadata.name}`}>
                   <Table.Cell>
                     <div className="flex items-center gap-3">
                       <GameIcon game={gs.spec.templateRef.name} size="sm" />
@@ -591,19 +631,24 @@ function ServerLifecycleActions({
 }
 
 
-// ServerCard is the mobile (< md) stand-in for a table row: name, game,
-// status pill, a row of stat chips, and the same lifecycle actions.
+// ServerCard is the mobile (< md) stand-in for a table row: compact card
+// with name, address, game, status pill, and players/memory chips.
 function ServerCard({
   gs,
-  onAct,
+  onAct: _onAct,
 }: {
   gs: GameServer;
   onAct: (args: { name: string; verb: LifecycleVerb }) => void;
 }) {
-  const { phase, asleep, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel } = serverRowData(gs);
+  const { phase, asleep, isSharedNonDefault, memLabel, playersLabel } = serverRowData(gs);
+
+  // Extract address from the first endpoint, if available
+  const endpoint = gs.status?.endpoints?.[0];
+  const address = endpoint ? `${endpoint.host}:${endpoint.port}` : "—";
 
   return (
-    <Card className="border border-border bg-surface p-4">
+    <Card className="border border-border bg-surface p-3.5">
+      {/* Row 1: Icon + Name + Address on left, Status pill on right */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <GameIcon game={gs.spec.templateRef.name} size="sm" />
@@ -612,37 +657,35 @@ function ServerCard({
               to="/servers/$name"
               params={{ name: gs.metadata.name }}
               search={isSharedNonDefault ? { ns: gs.metadata.namespace } : {}}
-              className="block truncate font-mono text-sm text-foreground hover:text-primary"
+              className="block truncate font-medium text-sm text-foreground hover:text-primary"
             >
               {gs.metadata.name}
             </Link>
-            <div className="truncate text-[11px] text-foreground/60">
-              {gs.spec.templateRef.name} · {gs.metadata.namespace ?? "gameplane-games"}
+            <div className="truncate text-xs text-foreground/60 font-mono">
+              {address}
             </div>
           </div>
         </div>
         <PhaseChip phase={phase} asleep={asleep} />
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        <StatChip icon={<Cpu className="h-3 w-3" />} label="CPU" value={cpuLabel} />
-        <StatChip icon={<HardDrive className="h-3 w-3" />} label="Mem" value={memLabel} />
-        <StatChip icon={<UsersIcon className="h-3 w-3" />} label="Players" value={playersLabel} />
-        <StatChip icon={<ServerIcon className="h-3 w-3" />} label="Node" value={node ?? "—"} />
+      {/* Row 2: Game label */}
+      <div className="mt-2 text-sm text-foreground/60">
+        {gs.spec.templateRef.name}
       </div>
 
-      {!isSharedNonDefault && (
-        <div className="mt-3 flex items-center justify-end border-t border-border pt-3">
-          <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={onAct} />
-        </div>
-      )}
+      {/* Row 3: Two chips - Players and Memory */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <StatChip icon={<UsersIcon className="h-3 w-3" />} label="Players" value={playersLabel} />
+        <StatChip icon={<HardDrive className="h-3 w-3" />} label="Mem" value={memLabel} />
+      </div>
     </Card>
   );
 }
 
 function StatChip({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-default/40 px-2 py-1 text-[11px] text-foreground/60">
+    <span className="inline-flex items-center gap-2 rounded-md bg-default/40 px-2 py-1.5 text-[12px] text-foreground/60">
       {icon}
       {label}
       <span className="font-mono text-foreground">{value}</span>

@@ -84,14 +84,16 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("sZtDi: Server Detail — Mods", async ({ page }) => {
-    // test-server-02 (valheim-default) declares capabilities.mods, which is
-    // what makes the Mods tab visible (see screenshotData.ts).
+    // test-server-02 (minecraft-modded) declares capabilities.mods, which is
+    // what makes the Mods tab visible (see screenshotData.ts). The test
+    // captures the empty mods state (matching design frame sZtDi which shows
+    // "0 installed" / "No mods installed.").
     await page.goto("/servers/test-server-02");
     await expect(page.getByRole("heading", { name: "test-server-02" })).toBeVisible({
       timeout: 10_000,
     });
     await clickTab(page, "Mods");
-    await expect(page.getByText("ValheimPlus.dll")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("No mods installed.")).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(200);
     await capture(page, "sZtDi");
   });
@@ -107,17 +109,17 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("pssCT: Server Detail — Backups", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Backups");
-    await expect(page.getByRole("rowheader", { name: "test-server-01-2026-05-07" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("rowheader", { name: "mc-survival-nightly-0713" })).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(200);
     await capture(page, "pssCT");
   });
 
   test("zhLZN: Backup detail drawer (open)", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Backups");
-    const row = page.getByRole("row", { name: /test-server-01-2026-05-07/i });
+    const row = page.getByRole("row", { name: /mc-survival-nightly-0713/i });
     await expect(row).toBeVisible({ timeout: 10_000 });
     await row.click();
     // zhLZN is a duplicate with slice-3.spec.ts:184 — keep the capture in
@@ -130,7 +132,7 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("VfB0Y: Server Detail — Settings · Resources", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Resources");
     await expect(page.getByText("Memory (GiB)")).toBeVisible({ timeout: 10_000 });
@@ -144,12 +146,12 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
     // treatments (plus ignored/no-manager alert states) vertically in one
     // 2880x4140 export — a single live render can only ever show one of
     // those states at a time. This test captures that one rendered state
-    // (the current test-server-01 assignment) full-page; it is not expected
+    // (the current mc-survival assignment) full-page; it is not expected
     // to pixel-match the multi-state composite 1:1, and switching to
     // captureLocator would not close that gap (element-capture-plan.md,
     // J5pjJ3 section) — a maintainer call on the compare contract is needed
     // before spending more effort here.
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Networking");
     // Provider field only renders when tunnel is enabled in the spec. Use
@@ -160,7 +162,7 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("i1bLR: Server Detail — Settings · Lifecycle", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Lifecycle");
     await expect(page.getByLabel(/enable idle auto-sleep/i)).toBeVisible({ timeout: 10_000 });
@@ -172,7 +174,7 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("KaRFX: Server Detail — Settings · Scheduled backups", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Scheduled backups");
     await expect(page.getByLabel(/enable scheduled backups/i)).toBeVisible({ timeout: 10_000 });
@@ -181,7 +183,7 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("RodrS: Server Detail — Settings · Network capture", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Network capture");
     await expect(page.getByLabel(/enable capture/i)).toBeVisible({ timeout: 10_000 });
@@ -190,7 +192,7 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("Y5cmvI: Server Detail — Settings · Placement", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Placement");
     // PlacementSection is lazy-loaded (Suspense) — wait for its Monaco-based
@@ -202,7 +204,7 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("settings-general: Server Detail — Settings · General", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     // General is the default-selected section — no click needed, but
     // click it anyway so this test doesn't depend on that default.
@@ -215,10 +217,10 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("settings-version: Server Detail — Settings · Version", async ({ page }) => {
-    // test-server-01's template (minecraft-java) declares a version
+    // mc-survival's template (minecraft-java) declares a version
     // catalog (added for this task) — required for the Version tab to
     // appear at all (Settings.tsx filters it out otherwise).
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Version");
     // "Game version" text appears as both a heading and a radiogroup aria-label;
@@ -231,10 +233,10 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("settings-envvars: Server Detail — Settings · Environment", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Environment");
-    // test-server-01 has no spec.env fixture — EnvVarsSection renders its
+    // mc-survival has no spec.env fixture — EnvVarsSection renders its
     // empty state (the "Environment variables" table only mounts once
     // env.length > 0).
     await expect(page.getByText(/no environment variables/i)).toBeVisible({
@@ -245,7 +247,7 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("settings-access: Server Detail — Settings · RBAC & access", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "RBAC & access");
     await expect(page.getByText(/^owner$/i)).toBeVisible({ timeout: 10_000 });
@@ -254,7 +256,7 @@ test.describe("Slice 2b: Mods/Modpacks/Backups + Settings (Desktop — 1440x900)
   });
 
   test("settings-danger: Server Detail — Settings · Danger zone", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
+    await page.goto("/servers/mc-survival");
     await clickTab(page, "Settings");
     await clickTab(page, "Danger zone");
     await expect(page.getByText("Delete server")).toBeVisible({ timeout: 10_000 });

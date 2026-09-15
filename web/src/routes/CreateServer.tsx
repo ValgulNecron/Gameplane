@@ -396,9 +396,13 @@ export function CreateServerWizard() {
 
   return (
     // Fixed inset-0 backdrop over the surrounding app chrome (design W8idqY:
-    // 960×760 centered card at 12px radius over a #000000B3 backdrop).
+    // 960×760 centered card at 12px radius over a #000000B3 backdrop). The
+    // cap is viewport-relative rather than a flat 760px: step content height
+    // varies per step (design f1Vga's Step 4/Network frame is 1170px tall),
+    // so a fixed 760px clips the taller steps' scrollable body instead of
+    // just capping the dialog.
     <div className="fixed inset-0 flex items-center justify-center overflow-auto bg-black/70">
-      <div role="dialog" aria-modal="true" className="w-[960px] max-h-[760px] overflow-hidden rounded-[12px] border border-border bg-card shadow-2xl flex flex-col">
+      <div role="dialog" aria-modal="true" className="w-[960px] max-h-[90vh] overflow-hidden rounded-[12px] border border-border bg-card shadow-2xl flex flex-col">
         <div className="flex shrink-0 items-start justify-between border-b border-border px-7 py-5">
           <div>
             <div className="text-lg font-semibold">New game server</div>

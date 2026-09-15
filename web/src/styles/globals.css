@@ -19,9 +19,17 @@
   --accent-soft-foreground: oklch(52.46% 0.1990 3.96); /* #BE185D */
   --default: oklch(91.89% 0.0320 350.26); /* #F6DCE7 */
   --default-foreground: oklch(21.67% 0.0502 347.62); /* #2A0F1E */
+  --default-soft: oklch(91.89% 0.0320 350.26); /* #F6DCE7 - matches --default's pastel pink, per BV5ei/Rwnu3 design */
+  --default-soft-foreground: #9D3A63; /* mauve/maroon text, per BV5ei/Rwnu3 design */
   --success: oklch(71.98% 0.1918 149.52); /* #21C45D */
+  --success-soft: oklch(96% 0.04 149.52); /* light success-tinted background, mirrors --warning-soft's light-mode pattern */
+  --success-soft-foreground: oklch(45% 0.14 149.52); /* mirrors --warning-soft-foreground's darker-foreground-on-tint pattern */
   --warning: oklch(77.04% 0.1646 70.66); /* #F59F0A */
+  --warning-soft: oklch(96% 0.04 70.66); /* light warning-tinted background, mirrors --accent-soft's light-mode pattern */
+  --warning-soft-foreground: oklch(45% 0.14 70.66); /* mirrors --accent-soft-foreground's darker-foreground-on-tint pattern */
   --danger: oklch(57.85% 0.2138 27.17); /* #DC2828 */
+  --danger-soft: oklch(96% 0.04 27.17); /* light danger-tinted background, mirrors --warning-soft's light-mode pattern */
+  --danger-soft-foreground: #9D3A63; /* mauve, matches BV5ei design */
   --muted: oklch(47.33% 0.0441 343.67); /* #6E5262 */
   --border: oklch(86.09% 0.0556 350.54); /* #EFC3D6 */
   --separator: oklch(86.09% 0.0556 350.54); /* #EFC3D6 */
@@ -52,8 +60,14 @@
   --accent-soft-foreground: oklch(77.75% 0.1553 350.26); /* #FF8AC4 */
   --default: oklch(25.29% 0.0133 298.50); /* #232128 */
   --default-foreground: oklch(93.91% 0.0102 311.17); /* #EDE9F0 */
+  --default-soft: oklch(24.65% 0.0537 348.54); /* #331525 - reuses --accent-soft's dark-tint hue, matches BV5ei/Rwnu3's pink pill */
+  --default-soft-foreground: oklch(77.75% 0.1553 350.26); /* #FF8AC4 - reuses --accent-soft-foreground's hue */
   --success: oklch(71.98% 0.1918 149.52); /* #21C45D */
+  --success-soft: oklch(22.85% 0.0444 149.52); /* mirrors --danger-soft's dark-tint pattern (line 61 below) */
+  --success-soft-foreground: oklch(71.06% 0.1661 149.52); /* mirrors --danger-soft-foreground's pattern */
   --warning: oklch(77.04% 0.1646 70.66); /* #F59F0A */
+  --warning-soft: oklch(26% 0.05 70.66); /* mirrors --danger-soft's dark-tint pattern (line 58) */
+  --warning-soft-foreground: oklch(80% 0.14 70.66); /* mirrors --danger-soft-foreground's pattern (line 59) */
   --danger: oklch(59.64% 0.2093 17.36); /* #E0304F */
   --danger-soft: oklch(22.85% 0.0444 11.86); /* #2E1317 */
   --danger-soft-foreground: oklch(71.06% 0.1661 22.22); /* #F87171 */
@@ -104,8 +118,15 @@
   --color-primary: var(--accent);
   --color-primary-fg: var(--accent-foreground);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
   --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-default-soft: var(--default-soft);
+  --color-default-soft-foreground: var(--default-soft-foreground);
   --color-violet: hsl(258 90% 66%); /* operator role chips */
 
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
@@ -200,7 +221,7 @@ input:-webkit-autofill:focus {
   border: 1px solid var(--field-border);
 }
 
-.chip {
+.chip:not(.rounded-full) {
   border-radius: 4px;
 }
 
@@ -283,6 +304,24 @@ input:-webkit-autofill:focus {
 .modpack-categories [data-active="true"] {
   background-color: var(--accent) !important;
   color: var(--accent-foreground) !important;
+}
+
+/* Overridden provenance badge (R65Xyx): neutral/outlined per the current
+   design — transparent fill, border stroke, muted icon/label — replacing the
+   earlier shared pink treatment. Scoped to this one badge type only:
+   notConfigured (BV5ei) and fromHelm (Rwnu3) still use the pink chip--soft
+   pill via color="danger"/"default" and need no override here.
+   Uses outline instead of border: the design's stroke is inner-aligned
+   (doesn't grow the shape's bounding box — see design-export/json/R65Xyx.json
+   "strokeAlignment":"inner"), and CSS outline never participates in layout
+   sizing regardless of offset, matching that exactly. A real `border` here
+   was pushing the rendered chip ~1.2% wider than the reference, forcing the
+   visual-diff scale-normalization step to resample (and blur) every glyph
+   edge, which is what was driving R65Xyx's diff score, not fill color. */
+[data-slot="chip"][data-type="overridden"] {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+  color: var(--muted);
 }
 
 /* Meter/Progress fill rounded radius */

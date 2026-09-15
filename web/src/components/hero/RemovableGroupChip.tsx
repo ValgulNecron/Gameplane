@@ -48,10 +48,10 @@ export function RemovableGroupChip({
       variant={config.variant}
       size={size}
       data-variant={variant}
-      className={className}
+      className={className ? `rounded-full ${className}` : "rounded-full"}
     >
       <div className="flex items-center gap-1">
-        <span className="text-xs font-medium">{label}</span>
+        <span className="text-[10px] font-medium font-mono">{label}</span>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -61,7 +61,7 @@ export function RemovableGroupChip({
           aria-label={`Remove ${label}`}
           type="button"
         >
-          <X size={12} />
+          <X size={8} />
         </button>
       </div>
     </Chip>

@@ -614,7 +614,7 @@ describe("ServersPage mobile layout", () => {
     window.matchMedia = ORIGINAL_MATCH_MEDIA;
   });
 
-  it("renders a stacked card list (with stat chips and lifecycle actions) instead of the table", async () => {
+  it("renders a stacked card list (with players and memory stats, no lifecycle actions) instead of the table", async () => {
     setMobileViewport();
     server.use(
       http.get("/servers", () =>
@@ -643,11 +643,13 @@ describe("ServersPage mobile layout", () => {
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("3/10")).toBeInTheDocument();
-    expect(screen.getByText("25%")).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
-    expect(screen.getByTitle("Start")).toBeInTheDocument();
-    expect(screen.getByTitle("Stop")).toBeInTheDocument();
-    expect(screen.getByTitle("Restart")).toBeInTheDocument();
+    // CPU chip removed from mobile card
+    expect(screen.queryByText("25%")).not.toBeInTheDocument();
+    // Lifecycle action buttons removed from mobile card
+    expect(screen.queryByTitle("Start")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Stop")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Restart")).not.toBeInTheDocument();
   });
 
   it("shows an empty-state card and a 'Shared with you' section on mobile", async () => {

@@ -10,10 +10,10 @@
   "stroke": "$border/border",
   "strokeWidth": 1,
   "strokeAlignment": "inner",
-  "gap": 6,
+  "gap": 5,
   "padding": [
-    3,
-    10
+    2,
+    8
   ],
   "alignItems": "center",
   "children": [
@@ -21,20 +21,20 @@
       "type": "icon",
       "id": "fz2Rp",
       "name": "pbIcon",
-      "width": 12,
-      "height": 12,
+      "width": 10,
+      "height": 10,
       "icon": "pencil",
       "library": "lucide",
-      "fill": "$muted"
+      "fill": "$foreground/muted"
     },
     {
       "type": "text",
       "id": "QHjWr",
       "name": "pbLabel",
-      "fill": "$muted",
+      "fill": "$foreground/muted",
       "content": "Overridden in dashboard",
       "fontFamily": "$typography/font-mono",
-      "fontSize": 12,
+      "fontSize": 10,
       "fontWeight": "500"
     }
   ]

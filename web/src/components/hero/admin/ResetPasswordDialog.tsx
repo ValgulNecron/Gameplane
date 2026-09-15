@@ -84,7 +84,7 @@ export function ResetPasswordDialog({
 
             <ModalBody className="gap-4">
             <Description>They will need to sign in again with the new password.</Description>
-            <div>
+            <div className="flex flex-col gap-2">
               <Label htmlFor="reset-password" className="text-xs">
                 New password
               </Label>
@@ -94,7 +94,6 @@ export function ResetPasswordDialog({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-                className="mt-1"
                 type="password"
                 disabled={isLoading}
               />
@@ -105,7 +104,7 @@ export function ResetPasswordDialog({
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
-            <Button variant="secondary" size="sm" onPress={handleClose} isDisabled={isLoading}>
+            <Button variant="ghost" size="sm" onPress={handleClose} isDisabled={isLoading}>
               Cancel
             </Button>
             <Button

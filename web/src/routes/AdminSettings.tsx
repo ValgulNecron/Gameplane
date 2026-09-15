@@ -162,14 +162,16 @@ function SectionCard({
   subtitle,
   footer,
   children,
+  className,
 }: {
   title: string;
   subtitle?: string;
   footer?: ReactNode;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <Card className="space-y-4">
+    <Card className={cn("space-y-4", className)}>
       <Card.Header className="space-y-2 pb-2">
         <div className="font-medium text-base">{title}</div>
         {subtitle && <div className="text-xs text-muted">{subtitle}</div>}
@@ -1794,6 +1796,7 @@ function RoleMappingOverridesCard({
       <SectionCard
         title="Role mapping overrides"
         subtitle="Override the Helm-seeded OIDC group mappings per role from here. A change takes effect the next time an affected user logs in — no restart or reinstall needed."
+        className="bg-card"
         footer={
           <div className="flex items-center justify-between w-full">
             <p className="text-xs text-muted">

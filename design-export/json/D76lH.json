@@ -1,0 +1,50 @@
+{
+  "type": "frame",
+  "id": "D76lH",
+  "x": 6540,
+  "y": 11400,
+  "name": "J5pjJ3 states/Address in use",
+  "theme": {
+    "semantic": "dark"
+  },
+  "width": 500,
+  "fill": "$surface/surface",
+  "layout": "vertical",
+  "gap": 8,
+  "padding": 20,
+  "children": [
+    {
+      "type": "frame",
+      "id": "qr3mo",
+      "name": "StatusRow",
+      "width": "fill_container",
+      "gap": 10,
+      "alignItems": "center",
+      "children": [
+        {
+          "id": "kEKPU",
+          "type": "ref",
+          "ref": "Yeemi",
+          "name": "Badge",
+          "descendants": {
+            "fRdhX": {
+              "content": "Address in use"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "id": "cfjyu",
+          "name": "Msg",
+          "fill": "$foreground/foreground",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Requested address 203.0.113.50 is already assigned to another service.",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        }
+      ]
+    }
+  ]
+}

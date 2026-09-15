@@ -110,28 +110,28 @@ const SCREEN_BLOCK_THRESHOLD_OVERRIDES = {
 // from the last local run; the gate allows ±5% (SCALE_BAND_FRACTION) around
 // it in either direction, not just growth.
 const SCALE_ALLOWLIST = {
-  BV5ei: 1.27, // Provenance Badge — Not configured
-  R65Xyx: 1.25, // Provenance Badge — Overridden
-  Rwnu3: 1.22, // Provenance Badge — From Helm
-  XL5ZU: 1.45, // Removable Group Chip — Orange (admin)
-  vStkb: 1.45, // Removable Group Chip — Violet (operator)
-  uw0dB: 1.47, // Removable Group Chip — Secondary (viewer)
-  CqaSq: 1.07, // Role Editor Modal
-  E9EEv0: 1.22, // Restore Backup dialog
-  Kp48V: 1.13, // Confirm Admin Mapping dialog
-  MaoHP: 1.22, // Dialog — Reset Password
-  NLDDv: 1.22, // Dialog — Invite User
-  t3IY3u: 1.22, // Dialog — Edit User
-  // DMnEi (Backup List Item): captured as a table-row element crop against a
-  // 1088-wide reference (downscale, scaleFactor < 1). NOTE (design/export
-  // conflict, not a capture-code bug): design-export/screenshots/DMnEi.png
-  // currently shows the "Add module source" dialog rather than the Backup
-  // List Item this id and MANIFEST.md both describe — see slice-3.spec.ts's
-  // DMnEi test comment. Tracked in issue #376; needs a Pencil re-export, not
-  // a change to this allowlist entry.
-  DMnEi: 0.49,
+  // BV5ei, Rwnu3 (Provenance Badge chips): entries removed after the
+  // ProvenanceBadge typography/sizing fix — that fix makes rendered size
+  // match the design size (~230x34/254x34), so the expected scale factor is
+  // at/near 1.0x (the allowlist default) rather than the old, stale factors
+  // recorded against the previous, larger chip size.
+  R65Xyx: 0.9883, // Provenance Badge (Overridden) — CI-measured post-typography-fix scale
+  XL5ZU: 1.023, // Removable Group Chip — Orange (admin)
+  vStkb: 1.023, // Removable Group Chip — Violet (operator)
+  uw0dB: 1.0349, // Removable Group Chip — Secondary (viewer)
+  CqaSq: 0.9375, // Role Editor Modal
+  E9EEv0: 1.0714, // Restore Backup dialog
+  Kp48V: 0.9821, // Confirm Admin Mapping dialog
+  MaoHP: 1.0714, // Dialog — Reset Password
+  NLDDv: 1.0714, // Dialog — Invite User
+  t3IY3u: 1.0714, // Dialog — Edit User
+  // DMnEi: design frame rebuilt to show full SourceDialog.tsx 9-field layout
+  // (height grew 888->1892px per MANIFEST.md). Tracked in issue #376;
+  // scale factor re-recorded after Pencil export.
+  DMnEi: 1.2143,
   zhLZN: 1.3125, // Backup Detail Drawer
   kIxaJ: 0.6184, // Audit Integrity Banner
+  m1hP1j: 0.562, // Audit Integrity Banner (broken state)
 };
 
 // Allowed deviation from an allowlisted id's recorded scaleFactor, in either

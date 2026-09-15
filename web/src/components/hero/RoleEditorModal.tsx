@@ -97,7 +97,7 @@ export function RoleEditorModal({
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="role-description" className="text-xs">
                 Description
               </Label>
@@ -109,7 +109,7 @@ export function RoleEditorModal({
               />
             </div>
 
-            <div className="border border-border rounded-md p-3 max-h-72 overflow-y-auto space-y-4">
+            <div className="border border-border rounded-md p-3 h-72 overflow-y-auto space-y-3">
               {groups.map((group) => (
                 <div key={group.resource} className="space-y-2">
                   <div className="text-xs font-semibold text-muted uppercase tracking-wider">
@@ -124,7 +124,7 @@ export function RoleEditorModal({
                         <Checkbox.Content>
                           <span className="font-mono text-sm">{perm.key}</span>
                           {perm.namespaced && (
-                            <span className="text-xs text-muted bg-muted bg-opacity-25 px-1 py-0.5 rounded">
+                            <span className="text-xs text-muted bg-muted/25 px-1 py-0.5 rounded">
                               ns
                             </span>
                           )}

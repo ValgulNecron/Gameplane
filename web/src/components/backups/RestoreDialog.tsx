@@ -18,8 +18,9 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  Alert,
 } from "@heroui/react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, AlertCircle } from "lucide-react";
 import { Restores, Servers } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
 import type { Backup } from "@/types";
@@ -100,7 +101,7 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                 <Label htmlFor="source-backup" className="text-xs">
                   Source backup
                 </Label>
-                <div className="mt-1 flex items-center rounded-lg border border-border bg-surface/40 px-3 py-2 font-mono text-xs text-fg">
+                <div className="mt-1.5 flex items-center rounded-lg border border-border bg-surface/40 px-3 py-2 font-mono text-xs text-fg">
                   {backup?.metadata.name}
                 </div>
               </div>
@@ -135,7 +136,7 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                     <PopoverTrigger
                       id="target-server"
                       className={cn(
-                        "mt-1 flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
+                        "mt-1.5 flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
                         "hover:bg-surface transition-colors cursor-pointer",
                       )}
                     >
@@ -172,10 +173,15 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                   on the original server changes.
                 </div>
               ) : (
-                <div className="rounded-md border border-danger/60 bg-danger/10 p-3 text-xs text-danger">
-                  This will overwrite all data on the target server. Players will
-                  be disconnected during the restore.
-                </div>
+                <Alert status="danger" className="text-xs">
+                  <div className="flex gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>
+                      This will overwrite all data on the target server. Players will
+                      be disconnected during the restore.
+                    </span>
+                  </div>
+                </Alert>
               )}
 
               {create.isError && (

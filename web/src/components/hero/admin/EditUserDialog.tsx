@@ -110,7 +110,7 @@ export function EditUserDialog({
               <ModalHeading>Edit user</ModalHeading>
             </ModalHeader>
 
-            <ModalBody className="gap-4">
+            <ModalBody className="gap-3">
             {username && <Description>{username}</Description>}
 
             <div>
@@ -187,7 +187,7 @@ export function EditUserDialog({
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
-            <Button variant="secondary" size="sm" onPress={handleClose} isDisabled={isLoading}>
+            <Button variant="ghost" size="sm" onPress={handleClose} isDisabled={isLoading}>
               Cancel
             </Button>
             <Button

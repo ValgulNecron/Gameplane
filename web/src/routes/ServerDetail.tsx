@@ -157,8 +157,8 @@ export function ServerDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-border bg-background px-6 pb-0 pt-4">
-        <div className="flex flex-wrap items-start justify-between gap-4 pb-4">
+      <header className="border-b border-border bg-background px-6 pb-4 pt-8">
+        <div className="flex flex-wrap items-start justify-between gap-4 pb-8">
           <div className="flex items-start gap-4">
             <GameIcon
               game={gs?.spec.templateRef.name}

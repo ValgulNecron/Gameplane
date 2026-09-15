@@ -1,1 +1,88 @@
-{"id":"t3IY3u","type":"ref","reusable":true,"ref":"x3beP","name":"Gameplane/Dialog/Edit User","x":-16505,"y":29203,"descendants":{"E7Whx":{"content":"Edit user"},"qzcst":{"enabled":true,"content":"operator-01"},"Nht52":{"type":"frame","id":"Kpqa4","name":"mBody","width":"fill_container","layout":"vertical","gap":12,"padding":[16,0,0,0],"children":[{"type":"frame","id":"LOCNS","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"QTLgc","fill":"$foreground/foreground","content":"Display name","fontFamily":"$typography/font-sans","fontSize":12,"fontWeight":"500"},{"id":"t3NhbD","type":"ref","ref":"D0cDM","name":"Input","width":"fill_container","descendants":{"PJERm":{"content":"Smoke Collaborator","fill":"#F5F5F5"}}}]},{"type":"frame","id":"HzjxM","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"MmWht","fill":"$foreground/foreground","content":"Email","fontFamily":"$typography/font-sans","fontSize":12,"fontWeight":"500"},{"id":"u76vDz","type":"ref","ref":"D0cDM","name":"Input","width":"fill_container","descendants":{"PJERm":{"content":"smoke@example.com","fill":"#F5F5F5"}}}]},{"type":"frame","id":"XijpL","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"PhLYl","fill":"$foreground/foreground","content":"Primary role (cluster-wide)","fontFamily":"$typography/font-sans","fontSize":12,"fontWeight":"500"},{"id":"I2Shpp","type":"ref","ref":"AT7ya","name":"Select","width":"fill_container","descendants":{"cFsFk":{"content":"viewer"}}}]},{"type":"frame","id":"uwKhS","name":"Grants Divider","width":"fill_container","height":1,"fill":"$border/border"},{"type":"frame","id":"gEXCo","name":"Namespace Grants","width":"fill_container","layout":"vertical","gap":8,"children":[{"type":"text","id":"VqyMf","name":"Section Label","fill":"$muted","content":"NAMESPACE GRANTS","fontFamily":"$typography/font-sans","fontSize":11,"fontWeight":"600","letterSpacing":0.55},{"type":"frame","id":"n7mZCs","name":"Grant Row","width":"fill_container","gap":8,"alignItems":"center","children":[{"type":"text","id":"NAr7G","name":"Grant Role","fill":"$foreground/foreground","content":"operator","fontFamily":"$typography/font-mono","fontSize":12,"fontWeight":"normal"},{"type":"text","id":"gfJVo","name":"Grant In","fill":"$muted","content":"in","fontFamily":"$typography/font-sans","fontSize":12,"fontWeight":"normal"},{"type":"text","id":"QdISf","name":"Grant Namespace","fill":"$foreground/foreground","content":"game-servers","fontFamily":"$typography/font-mono","fontSize":12,"fontWeight":"normal"},{"type":"icon","id":"e2HAI","name":"Remove Grant","width":14,"height":14,"icon":"trash-2","library":"lucide","fill":"$muted"}]},{"type":"frame","id":"afhD0","name":"Add Grant Row","width":"fill_container","gap":8,"alignItems":"center","children":[{"id":"Co5v8","type":"ref","ref":"AT7ya","name":"Grant Role Select","width":120,"height":32,"descendants":{"cFsFk":{"content":"operator"}}},{"id":"L5IzVL","type":"ref","ref":"D0cDM","name":"Grant Namespace Input","width":"fill_container","height":32,"descendants":{"PJERm":{"content":"namespace"}}},{"id":"s5pUg","type":"ref","ref":"J09iP","name":"Add Grant Button","descendants":{"eWkIT/WtPjS":{"enabled":false},"eWkIT/r4VbAi":{"content":"Add"}}}]}]}]},"TZ7Ef":{"content":"Save changes"}}}
+{
+  "id": "t3IY3u",
+  "type": "ref",
+  "reusable": true,
+  "ref": "x3beP",
+  "name": "Gameplane/Dialog/Edit User",
+  "x": -16505,
+  "y": 29203,
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000000"
+  },
+  "descendants": {
+    "E7Whx": {"content": "Edit user"},
+    "qzcst": {"enabled": true, "content": "operator-01"},
+    "Nht52": {
+      "type": "frame",
+      "id": "Kpqa4",
+      "name": "mBody",
+      "width": "fill_container",
+      "layout": "vertical",
+      "gap": 12,
+      "padding": [16, 0, 0, 0],
+      "children": [
+        {
+          "type": "frame",
+          "id": "LOCNS",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {"type": "text", "id": "QTLgc", "fill": "$foreground/foreground", "content": "Display name", "fontFamily": "$typography/font-sans", "fontSize": 12, "fontWeight": "500"},
+            {"id": "t3NhbD", "type": "ref", "ref": "D0cDM", "name": "Input", "width": "fill_container", "descendants": {"PJERm": {"content": "Smoke Collaborator", "fill": "#F5F5F5"}}}
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "HzjxM",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {"type": "text", "id": "MmWht", "fill": "$foreground/foreground", "content": "Email", "fontFamily": "$typography/font-sans", "fontSize": 12, "fontWeight": "500"},
+            {"id": "u76vDz", "type": "ref", "ref": "D0cDM", "name": "Input", "width": "fill_container", "descendants": {"PJERm": {"content": "smoke@example.com", "fill": "#F5F5F5"}}}
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "XijpL",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {"type": "text", "id": "PhLYl", "fill": "$foreground/foreground", "content": "Primary role (cluster-wide)", "fontFamily": "$typography/font-sans", "fontSize": 12, "fontWeight": "500"},
+            {"id": "I2Shpp", "type": "ref", "ref": "AT7ya", "name": "Select", "width": "fill_container", "descendants": {"cFsFk": {"content": "operator"}}}
+          ]
+        },
+        {"type": "frame", "id": "uwKhS", "name": "Grants Divider", "width": "fill_container", "height": 1, "fill": "$border/border"},
+        {
+          "type": "frame",
+          "id": "gEXCo",
+          "name": "Namespace Grants",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {"type": "text", "id": "VqyMf", "name": "Section Label", "fill": "$muted", "content": "NAMESPACE GRANTS", "fontFamily": "$typography/font-sans", "fontSize": 11, "fontWeight": "600", "letterSpacing": 0.55},
+            {
+              "type": "frame",
+              "id": "afhD0",
+              "name": "Add Grant Row",
+              "width": "fill_container",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {"id": "Co5v8", "type": "ref", "ref": "AT7ya", "name": "Grant Role Select", "width": 120, "height": 32, "descendants": {"cFsFk": {"content": "operator"}}},
+                {"id": "L5IzVL", "type": "ref", "ref": "D0cDM", "name": "Grant Namespace Input", "width": "fill_container", "height": 32, "descendants": {"PJERm": {"content": "namespace"}}},
+                {"id": "s5pUg", "type": "ref", "ref": "J09iP", "name": "Add Grant Button", "descendants": {"eWkIT/WtPjS": {"enabled": false}, "eWkIT/r4VbAi": {"content": "Add"}}}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TZ7Ef": {"content": "Save changes"}
+  }
+}

@@ -23,7 +23,7 @@ export function AuditIntegrityBanner({
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-foreground p-1">
         <Activity className="h-5 w-5 text-danger-foreground" />
       </div>
-      <span className="flex-1 text-base font-medium leading-normal text-danger-foreground">
+      <span className="text-base font-medium leading-normal text-danger-foreground">
         {message}
       </span>
       <div className="flex items-center gap-2">

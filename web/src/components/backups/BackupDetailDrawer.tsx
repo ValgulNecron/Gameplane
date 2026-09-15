@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Drawer, Button } from "@heroui/react";
+import { RotateCcw } from "lucide-react";
 import { Backups } from "@/lib/endpoints";
 import { formatRelative } from "@/lib/utils";
 import type { Backup } from "@/types";
@@ -42,24 +43,28 @@ export function BackupDetailDrawer({ name, onClose, onRestore }: Props) {
     >
       <Drawer.Backdrop>
         <Drawer.Content placement="right" className="w-[440px]">
-          <Drawer.Dialog className="flex flex-col h-full">
-            <Drawer.Header className="flex items-start justify-between border-b border-border p-5">
+          <Drawer.Dialog className="flex flex-col max-h-full">
+            <Drawer.Header className="shrink-0 flex items-start justify-between border-b border-border p-5">
               <div className="space-y-1">
                 <Drawer.Heading className="text-base font-semibold">Backup details</Drawer.Heading>
                 <div className="font-mono text-xs text-muted">{name}</div>
               </div>
-              <Button
-                isIconOnly
-                variant="ghost"
-                size="sm"
-                onPress={onClose}
-                aria-label="Close backup details"
-              >
-                ✕
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  isDisabled={!restorable}
+                  onPress={() => backup && onRestore(backup)}
+                  className="gap-1.5"
+                  aria-label="Restore backup"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Restore
+                </Button>
+              </div>
             </Drawer.Header>
 
-            <Drawer.Body className="flex-1 space-y-4 overflow-y-auto p-5 text-sm">
+            <Drawer.Body className="min-h-0 space-y-4 overflow-y-auto p-5 text-sm">
               {error && <ErrorBanner err={error} />}
               {backup && (
                 <>
@@ -92,7 +97,7 @@ export function BackupDetailDrawer({ name, onClose, onRestore }: Props) {
               {remove.error && <ErrorBanner err={remove.error} />}
             </Drawer.Body>
 
-            <Drawer.Footer className="flex items-center justify-end gap-2 border-t border-border p-4">
+            <Drawer.Footer className="shrink-0 flex items-center justify-end gap-2 border-t border-border p-4">
               <Button
                 variant="danger"
                 size="sm"

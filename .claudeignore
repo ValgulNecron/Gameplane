@@ -1,0 +1,53 @@
+# Paths AI agents should not read. Derived from CLAUDE.md rules and the
+# actual contents of this checkout. Enforcement lives in
+# .claude/settings.json permissions.deny; keep the two in sync.
+
+# CLAUDE.md rule 2 — .pen files are Pencil-MCP-only (multi-MB JSON)
+*.pen
+design.pen.bak
+
+# Dependencies (web/node_modules is ~644 MB)
+node_modules/
+
+# Build output
+/bin/
+/dist/
+operator/bin/
+web/dist/
+web/.vite/
+web/.turbo/
+website/dist/
+website/.astro/
+
+# Test/coverage artifacts (rule 8 — never run locally; stale outputs)
+coverage/
+coverage.*
+*.out
+*.prof
+*.test
+web/coverage/
+web/playwright-report/
+web/test-results/
+
+# Lockfiles / checksums
+package-lock.json
+go.sum
+go.work.sum
+
+# Secrets and cluster credentials
+.env
+.env.*
+!.env.mock
+*.pem
+*.key
+cosign.key
+kubeconfig
+kubeconfig-*
+.kube/
+test/e2e/.kube/
+
+# Logs / editor noise
+*.log
+*.swp
+*~
+.DS_Store

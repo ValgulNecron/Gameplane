@@ -91,7 +91,7 @@ export function ConfirmDialog({
 
             <AlertDialogFooter className="flex items-center justify-end gap-2">
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 isDisabled={busy}
                 onPress={() => onOpenChange(false)}

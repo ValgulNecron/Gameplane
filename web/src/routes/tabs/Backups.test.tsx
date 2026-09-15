@@ -253,7 +253,7 @@ describe("BackupsTab", () => {
     await userEvent.click(await screen.findByText("alpha-2026-05-07"));
     await screen.findByText("Snapshot ID");
     // The close button should be clickable
-    const closeBtn = screen.getByRole("button", { name: /close/i });
+    const closeBtn = screen.getByRole("button", { name: /Dismiss/i });
     await userEvent.click(closeBtn);
     await waitFor(() => {
       expect(screen.queryByText("Snapshot ID")).not.toBeInTheDocument();
@@ -266,7 +266,7 @@ describe("BackupsTab", () => {
     await userEvent.click(await screen.findByText("alpha-2026-05-07"));
     await screen.findByText("Snapshot ID");
     // Click Restore button in drawer
-    const restoreInDrawer = screen.getByRole("button", { name: /restore/i });
+    const restoreInDrawer = screen.getByRole("button", { name: /^restore$/i });
     await userEvent.click(restoreInDrawer);
     // Drawer should close and restore dialog should open
     await waitFor(() => {

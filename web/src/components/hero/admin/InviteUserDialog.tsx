@@ -136,14 +136,14 @@ export function InviteUserDialog({
               <ModalHeading>Invite user</ModalHeading>
             </ModalHeader>
 
-            <ModalBody className="gap-4">
+            <ModalBody className="gap-3">
             {contactFieldsOptional && (
               <Description>
                 Create a local account. Leave password blank to send an OIDC invite later.
               </Description>
             )}
 
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="invite-username" className="text-xs">
                 Username
               </Label>
@@ -154,12 +154,11 @@ export function InviteUserDialog({
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="alice"
-                className="mt-1"
                 disabled={isLoading}
               />
             </div>
 
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="invite-display-name" className="text-xs">
                 Display name
               </Label>
@@ -169,12 +168,11 @@ export function InviteUserDialog({
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Alice Operator"
-                className="mt-1"
                 disabled={isLoading}
               />
             </div>
 
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="invite-email" className="text-xs">
                 Email
               </Label>
@@ -184,13 +182,12 @@ export function InviteUserDialog({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="alice@example.com"
-                className="mt-1"
                 type="email"
                 disabled={isLoading}
               />
             </div>
 
-            <div>
+            <div className="space-y-1.5">
               <Label htmlFor="invite-password" className="text-xs">
                 Initial password
               </Label>
@@ -200,7 +197,6 @@ export function InviteUserDialog({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-                className="mt-1"
                 type="password"
                 disabled={isLoading}
               />
@@ -236,7 +232,7 @@ export function InviteUserDialog({
           </ModalBody>
 
           <ModalFooter className="flex items-center justify-end gap-2">
-            <Button variant="secondary" size="sm" onPress={handleClose} isDisabled={isLoading}>
+            <Button variant="ghost" size="sm" onPress={handleClose} isDisabled={isLoading}>
               Cancel
             </Button>
             <Button

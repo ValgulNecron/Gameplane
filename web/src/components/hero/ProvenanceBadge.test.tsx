@@ -113,10 +113,10 @@ describe("ProvenanceBadge", () => {
     expect(chip).not.toBeNull();
   });
 
-  // Test 15: Chip uses secondary variant
-  it("uses secondary variant", () => {
+  // Test 15: Chip uses tertiary variant
+  it("uses tertiary variant", () => {
     const { container } = render(<ProvenanceBadge type="overridden" />);
     const chip = container.querySelector('[data-slot="chip"]');
-    expect(chip?.className).toContain("chip--secondary");
+    expect(chip?.className).toContain("chip--tertiary");
   });
 });

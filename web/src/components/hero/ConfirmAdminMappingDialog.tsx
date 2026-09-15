@@ -19,7 +19,7 @@ export function ConfirmAdminMappingDialog({
 }: ConfirmAdminMappingDialogProps) {
   const description: ReactNode = (
     <div className="space-y-4">
-      <div className="rounded-md border border-warning/40 bg-warning/10 p-3 flex gap-3">
+      <div className="rounded-md border border-warning/40 bg-warning-soft p-3 flex gap-3">
         <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
         <div className="text-xs">
           <div className="font-medium text-warning mb-1">Full admin access</div>

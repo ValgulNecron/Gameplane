@@ -28,7 +28,6 @@ import {
   AlertDialogBackdrop,
   AlertDialogContainer,
   Alert,
-  Separator,
 } from "@heroui/react";
 import {
   KeyRound,
@@ -667,7 +666,6 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
 
   return (
     <div className="space-y-2 pt-3">
-      <Separator className="mb-3" />
       <div className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
         Namespace grants
       </div>

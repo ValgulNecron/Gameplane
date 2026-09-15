@@ -269,6 +269,7 @@ export const screenshotServers: GameServer[] = [
         wakeWindows: ["0 17 * * *", "0 9 * * 6,0"],
         wakeOnConnect: true,
       },
+      capture: { enabled: true },
     },
     status: {
       phase: "Running",
@@ -378,6 +379,13 @@ export const screenshotServers: GameServer[] = [
   }),
   makeServer({
     metadata: {
+      // Distinct from the "mc-survival" entry above: this fixture
+      // pre-dates that rename (commit 07ed2333) and was itself the
+      // "primary mock server" the rename was targeting under its old
+      // name. Renaming both to "mc-survival" duplicated the fixture
+      // (same namespace/name), which double-rendered its row/card and
+      // its <Link to="/servers/$name"> in the Servers list — restore
+      // the pre-rename name here to keep the fixture set unique.
       name: "test-server-01",
       namespace: "gameplane-games",
       annotations: { "gameplane.local/node": "kubelab-control" },
@@ -752,7 +760,7 @@ export const screenshotAuditEvents: AuditEvent[] = [
     actor: "test-user-01",
     method: "POST",
     path: "/api/v1/servers",
-    target: "test-server-01",
+    target: "mc-survival",
     status: 201,
     ip: "<internal>",
   }),
@@ -761,8 +769,8 @@ export const screenshotAuditEvents: AuditEvent[] = [
     ts: "2026-09-02T14:25:03Z",
     actor: "admin-demo",
     method: "PUT",
-    path: "/api/v1/servers/test-server-01",
-    target: "test-server-01",
+    path: "/api/v1/servers/mc-survival",
+    target: "mc-survival",
     status: 200,
     ip: "<internal>",
   }),
@@ -771,8 +779,8 @@ export const screenshotAuditEvents: AuditEvent[] = [
     ts: "2026-09-02T14:31:42Z",
     actor: "operator-01",
     method: "POST",
-    path: "/api/v1/servers/test-server-01:start",
-    target: "test-server-01",
+    path: "/api/v1/servers/mc-survival:start",
+    target: "mc-survival",
     status: 202,
     ip: "<internal>",
   }),
@@ -781,8 +789,8 @@ export const screenshotAuditEvents: AuditEvent[] = [
     ts: "2026-09-02T14:35:18Z",
     actor: "test-user-01",
     method: "GET",
-    path: "/api/v1/servers/test-server-01",
-    target: "test-server-01",
+    path: "/api/v1/servers/mc-survival",
+    target: "mc-survival",
     status: 200,
     ip: "<internal>",
   }),
@@ -792,7 +800,7 @@ export const screenshotAuditEvents: AuditEvent[] = [
     actor: "admin-demo",
     method: "POST",
     path: "/api/v1/backups",
-    target: "test-server-01",
+    target: "mc-survival",
     status: 201,
     ip: "<internal>",
   }),
@@ -811,8 +819,8 @@ export const screenshotAuditEvents: AuditEvent[] = [
     ts: "2026-09-02T15:05:21Z",
     actor: "test-user-01",
     method: "DELETE",
-    path: "/api/v1/backups/test-server-01-2026-05-07",
-    target: "test-server-01-2026-05-07",
+    path: "/api/v1/backups/mc-survival-nightly-0713",
+    target: "mc-survival-nightly-0713",
     status: 204,
     ip: "<internal>",
   }),
@@ -851,7 +859,7 @@ export const screenshotAuditEvents: AuditEvent[] = [
     ts: "2026-09-02T15:31:28Z",
     actor: "test-user-01",
     method: "POST",
-    path: "/api/v1/servers/test-server-01/players/kick",
+    path: "/api/v1/servers/mc-survival/players/kick",
     target: "Player-01",
     status: 200,
     ip: "<internal>",
@@ -941,7 +949,7 @@ export const screenshotSchedules = [
   makeSchedule({
     metadata: { name: "test-server-01-daily", namespace: "default" },
     spec: {
-      serverRef: { name: "test-server-01" },
+      serverRef: { name: "mc-survival" },
       schedule: "0 3 * * *",
       retention: { keepLast: 7 },
     },
@@ -960,8 +968,8 @@ export const screenshotRestores = [
   makeRestore({
     metadata: { name: "restore-test-server-01-1", namespace: "default" },
     spec: {
-      backupRef: { name: "test-server-01-2026-05-07" },
-      serverRef: { name: "test-server-01" },
+      backupRef: { name: "mc-survival-nightly-0713" },
+      serverRef: { name: "mc-survival" },
     },
   }),
 ];
@@ -1056,6 +1064,21 @@ export function screenshotConfigEmptyStorageClass(): AllConfig {
   };
 }
 
+// Variant of screenshotConfig() with only CurseForge configured (no Steam).
+// Backs the Wj0V4 (Admin Settings — Mod registries) screenshot, selected via
+// the "e2e_admin_config_variant=registries-curseforge" cookie — see
+// screenshotConfigWithOidc()'s comment on why a cookie, not page.route, is
+// the override mechanism here.
+export function screenshotConfigCurseforgeOnly(): AllConfig {
+  const base = screenshotConfig();
+  return {
+    ...base,
+    modRegistries: {
+      registries: [{ provider: "curseforge" }],
+    },
+  };
+}
+
 // ============================================================================
 // System Log Lines for Admin — System Logs screen (control-plane logs)
 // ============================================================================
@@ -1067,7 +1090,7 @@ export const screenshotSystemLogLines = [
   '{"level":"info","ts":"2026-09-06T12:01:15Z","msg":"request","method":"GET","path":"/api/v1/servers","status":200,"duration_ms":4}',
   '{"level":"info","ts":"2026-09-06T12:01:22Z","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"duration_ms":112}',
   '{"level":"warn","ts":"2026-09-06T12:03:47Z","msg":"slow query","table":"audit_events","duration_ms":340}',
-  '{"level":"info","ts":"2026-09-06T12:05:00Z","msg":"reconciled gameserver","name":"test-server-01","phase":"Running"}',
+  '{"level":"info","ts":"2026-09-06T12:05:00Z","msg":"reconciled gameserver","name":"mc-survival","phase":"Running"}',
 ];
 
 // ============================================================================
@@ -1094,43 +1117,45 @@ export const screenshotLogLines = [
 export const screenshotConsoleOutput: string[] = [];
 
 // ============================================================================
-// Installed Mods for test-server-02 (Valheim)
+// Installed Mods for test-server-02 (Minecraft, Fabric)
 // ============================================================================
+
+export const screenshotEmptyMods: InstalledMod[] = [];
 
 export const screenshotInstalledMods: InstalledMod[] = [
   {
-    name: "ValheimPlus.dll",
+    name: "fabric-api-0.100.8+1.21.jar",
     size: 1_482_240,
     modTime: "2026-08-30T19:12:00Z",
     meta: {
-      provider: "thunderstore",
-      projectId: "Grantapher-ValheimPlus",
-      projectName: "ValheimPlus",
-      versionNumber: "0.9.16.1",
+      provider: "modrinth",
+      projectId: "P7dR8mSH",
+      projectName: "Fabric API",
+      versionNumber: "0.100.8+1.21",
       installedAt: "2026-08-30T19:12:00Z",
     },
   },
   {
-    name: "EquipmentAndQuickSlots.dll",
+    name: "sodium-fabric-0.5.11+mc1.21.jar",
     size: 212_992,
     modTime: "2026-08-30T19:14:00Z",
     meta: {
-      provider: "thunderstore",
-      projectId: "RandyKnapp-EquipmentAndQuickSlots",
-      projectName: "EquipmentAndQuickSlots",
-      versionNumber: "2.1.15",
+      provider: "modrinth",
+      projectId: "AANobbMI",
+      projectName: "Sodium",
+      versionNumber: "0.5.11+mc1.21",
       installedAt: "2026-08-30T19:14:00Z",
     },
   },
   {
-    name: "PlantEverything.dll",
+    name: "lithium-fabric-0.13.0+mc1.21.jar",
     size: 356_352,
     modTime: "2026-09-01T08:05:00Z",
     meta: {
-      provider: "thunderstore",
-      projectId: "Advize-PlantEverything",
-      projectName: "PlantEverything",
-      versionNumber: "1.18.3",
+      provider: "modrinth",
+      projectId: "gvQqBUqZ",
+      projectName: "Lithium",
+      versionNumber: "0.13.0+mc1.21",
       installedAt: "2026-09-01T08:05:00Z",
     },
   },
@@ -1260,6 +1285,69 @@ export const screenshotRegistryProjects: RegistryProject[] = [
     downloads: 1_500_000,
     pageUrl: "https://thunderstore.io/c/valheim/p/blaxxun/Groups/",
     provider: "thunderstore",
+  },
+];
+
+export const screenshotModrinthProjects: RegistryProject[] = [
+  {
+    id: "fabulously-optimized",
+    slug: "fabulously-optimized",
+    title: "Fabulously Optimized",
+    description: "Fast, beautiful, and convenient modpack for Minecraft Java Edition",
+    author: "Iskallia",
+    downloads: 18_500_000,
+    pageUrl: "https://modrinth.com/modpack/fabulously-optimized",
+    provider: "modrinth",
+  },
+  {
+    id: "vanilla-perfected",
+    slug: "vanilla-perfected",
+    title: "Vanilla Perfected",
+    description: "Enhanced vanilla experience with quality-of-life improvements",
+    author: "Kadzaitl",
+    downloads: 12_300_000,
+    pageUrl: "https://modrinth.com/modpack/vanilla-perfected",
+    provider: "modrinth",
+  },
+  {
+    id: "optifabric",
+    slug: "optifabric",
+    title: "OptiFabric",
+    description: "Use OptiFine shaders with Fabric mods",
+    author: "modmuss50",
+    downloads: 9_800_000,
+    pageUrl: "https://modrinth.com/modpack/optifabric",
+    provider: "modrinth",
+  },
+  {
+    id: "remarkably-optimized",
+    slug: "remarkably-optimized",
+    title: "Remarkably Optimized",
+    description: "Optimized performance with essential mods",
+    author: "KidneySteal",
+    downloads: 7_600_000,
+    pageUrl: "https://modrinth.com/modpack/remarkably-optimized",
+    provider: "modrinth",
+  },
+  {
+    id: "fps-modpack",
+    slug: "fps-modpack",
+    title: "FPS Modpack",
+    description: "Maximize performance with optimization mods",
+    author: "Sebi",
+    downloads: 6_200_000,
+    pageUrl: "https://modrinth.com/modpack/fps-modpack",
+    provider: "modrinth",
+  },
+  {
+    id: "fresh-smooth",
+    slug: "fresh-smooth",
+    title: "Fresh & Smooth",
+    description: "Balanced modpack for smooth gameplay",
+    author: "JustAzurez",
+    downloads: 5_100_000,
+    pageUrl: "https://modrinth.com/modpack/fresh-smooth",
+    provider: "modrinth",
   },
 ];
 

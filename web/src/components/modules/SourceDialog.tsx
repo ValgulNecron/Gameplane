@@ -230,13 +230,13 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
             </ModalHeading>
           </ModalHeader>
 
-          <ModalBody className="gap-4 max-h-[60vh] overflow-y-auto">
+          <ModalBody className="gap-4 max-h-[80vh] overflow-y-auto">
             <Description className="text-sm text-muted">
               Where the operator discovers and pulls module bundles from.
             </Description>
 
             {!editing && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label htmlFor="source-name" className="text-xs">
                   Name
                 </Label>
@@ -253,7 +253,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
               </div>
             )}
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Select
                 value={f.type}
                 onChange={(v) => set({ type: v as ModuleSourceType })}
@@ -279,7 +279,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
 
             {f.type === "oci" && (
               <>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="oci-url" className="text-xs">
                     Registry URL
                   </Label>
@@ -292,7 +292,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   />
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="oci-modules" className="text-xs">
                     Modules
                   </Label>
@@ -308,7 +308,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   </Description>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="oci-secret" className="text-xs">
                     Pull secret
                   </Label>
@@ -338,7 +338,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   </Checkbox.Content>
                 </Checkbox>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Select
                     value={f.verifyMode}
                     onChange={(v) => set({ verifyMode: v as VerifyMode })}
@@ -366,7 +366,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                 </div>
 
                 {f.verifyMode === "keyed" && (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label htmlFor="verify-key-secret" className="text-xs">
                       Public key secret
                     </Label>
@@ -385,7 +385,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
 
                 {f.verifyMode === "keyless" && (
                   <>
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <Label htmlFor="verify-issuer" className="text-xs">
                         OIDC issuer
                       </Label>
@@ -401,7 +401,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                       </Description>
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <Label htmlFor="verify-identity" className="text-xs">
                         Certificate identity
                       </Label>
@@ -423,7 +423,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
 
             {f.type === "git" && (
               <>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="git-url" className="text-xs">
                     Clone URL
                   </Label>
@@ -436,7 +436,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   />
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="git-ref" className="text-xs">
                     Ref
                   </Label>
@@ -452,7 +452,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   </Description>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="git-subpath" className="text-xs">
                     Subdirectory
                   </Label>
@@ -468,7 +468,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   </Description>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="git-secret" className="text-xs">
                     Credentials secret
                   </Label>
@@ -488,7 +488,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
 
             {f.type === "http" && (
               <>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="http-url" className="text-xs">
                     Archive URL
                   </Label>
@@ -504,7 +504,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   </Description>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <Label htmlFor="http-secret" className="text-xs">
                     Credentials secret
                   </Label>
@@ -537,7 +537,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
             )}
 
             {f.type === "local" && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label htmlFor="local-path" className="text-xs">
                   Path
                 </Label>
@@ -561,7 +561,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
               </div>
             )}
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label htmlFor="allow-list" className="text-xs">
                 Allow list
               </Label>
@@ -577,7 +577,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
               </Description>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label htmlFor="refresh-interval" className="text-xs">
                 Refresh interval
               </Label>
