@@ -162,8 +162,8 @@ subjects:
   - kind: ServiceAccount
     name: gameplane-api
     namespace: {{ .Release.Namespace }}
+{{- if and (eq .Values.api.db.driver "sqlite") (not .Values.api.storage.existingClaim) }}
 ---
-{{- if eq .Values.api.db.driver "sqlite" }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -378,7 +378,7 @@ spec:
       volumes:
         - name: data
           {{- if eq .Values.api.db.driver "sqlite" }}
-          persistentVolumeClaim: { claimName: gameplane-api-data }
+          persistentVolumeClaim: { claimName: {{ .Values.api.storage.existingClaim | default "gameplane-api-data" }} }
           {{- else }}
           emptyDir: {}
           {{- end }}

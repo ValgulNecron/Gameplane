@@ -119,6 +119,7 @@ Top-level knobs (see `values.yaml` for the full list):
   `--set operator.gameDataStorage.storageClassName=fast-nvme`
 - `api.db.driver` — `sqlite` (default, production-tested) or `postgres` [experimental] (work-in-progress)
 - `api.db.dsn` — connection string; SQLite default persists to a PVC
+- `api.storage.existingClaim` — pre-existing PVC to mount for the API's SQLite database instead of letting Helm create `gameplane-api-data` (default `""`)
 - `api.oidc.enabled` + the following settings — wire OIDC login from Helm (shows
   up as the read-only `helm` provider). Providers can also be added at runtime
   under **Admin Settings → Authentication** — no Helm values or restart needed;

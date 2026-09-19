@@ -135,6 +135,9 @@ api:
   storage:
     size: 2Gi
     storageClassName: ""
+    # Pre-existing PersistentVolumeClaim to mount for the SQLite database.
+    # When set, PVC creation is skipped and this claim is mounted instead.
+    existingClaim: ""
 
   # Audit-event retention. 0 keeps audit rows forever (default); set a
   # positive number of days to have the API prune older events daily so the
