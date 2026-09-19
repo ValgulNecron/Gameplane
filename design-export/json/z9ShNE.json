@@ -5,13 +5,7 @@
   "y": 26108,
   "name": "Gameplane/Button/Small/Default",
   "reusable": true,
-  "height": 32,
   "fill": "#00000000",
-  "gap": 8,
-  "padding": [
-    0,
-    12
-  ],
   "justifyContent": "center",
   "alignItems": "center",
   "children": [

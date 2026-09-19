@@ -75,8 +75,6 @@
           "width": "fill_container",
           "padding": [
             0,
-            0,
-            0,
             24
           ],
           "descendants": {
@@ -124,7 +122,7 @@
                     },
                     "QdcEm": {
                       "icon": "users",
-                      "fill": "#21C45D",
+                      "fill": "$success/success",
                       "library": "lucide",
                       "enabled": false
                     },

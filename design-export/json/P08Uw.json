@@ -75,8 +75,6 @@
           "width": "fill_container",
           "padding": [
             0,
-            0,
-            0,
             24
           ],
           "descendants": {
@@ -330,6 +328,226 @@
                     {
                       "type": "text",
                       "id": "aLa7x",
+                      "name": "Time",
+                      "fill": "$muted",
+                      "content": "3m ago",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "YAgDH",
+                  "name": "Event Row 3",
+                  "width": "fill_container",
+                  "stroke": "$border/border",
+                  "strokeWidth": {
+                    "bottom": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    16,
+                    24
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "vSy9B",
+                      "name": "Event Main",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "AUBJB",
+                          "name": "Dot",
+                          "fill": "$accent/accent",
+                          "width": 8,
+                          "height": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "WGWDU",
+                          "name": "Event Text",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "DA0El",
+                              "name": "Message",
+                              "fill": "$foreground/foreground",
+                              "content": "Started: Container started",
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "WzCz8",
+                              "name": "Source",
+                              "fill": "$muted",
+                              "content": "kubelet",
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "l5jk6u",
+                      "name": "Time",
+                      "fill": "$muted",
+                      "content": "3m ago",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "I9BWKJ",
+                  "name": "Event Row 4",
+                  "width": "fill_container",
+                  "stroke": "$border/border",
+                  "strokeWidth": {
+                    "bottom": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    16,
+                    24
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "N1i1u",
+                      "name": "Event Main",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "dOUyZ",
+                          "name": "Dot",
+                          "fill": "$accent/accent",
+                          "width": 8,
+                          "height": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ZSvEz",
+                          "name": "Event Text",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "M2QtSI",
+                              "name": "Message",
+                              "fill": "$foreground/foreground",
+                              "content": "Scheduled: Successfully assigned gameplane-games/mc-survival-0 to kubelab-control",
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "QCTtX",
+                              "name": "Source",
+                              "fill": "$muted",
+                              "content": "default-scheduler",
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "y0vbE",
+                      "name": "Time",
+                      "fill": "$muted",
+                      "content": "3m ago",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Bzfrx",
+                  "name": "Event Row 5",
+                  "width": "fill_container",
+                  "padding": [
+                    16,
+                    24
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "wSCE3",
+                      "name": "Event Main",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "W1BdO",
+                          "name": "Dot",
+                          "fill": "$accent/accent",
+                          "width": 8,
+                          "height": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "UoJPT",
+                          "name": "Event Text",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "TkXOQ",
+                              "name": "Message",
+                              "fill": "$foreground/foreground",
+                              "content": "SuccessfulCreate: Create Pod mc-survival-0 …",
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "BLlsK",
+                              "name": "Source",
+                              "fill": "$muted",
+                              "content": "statefulset-controller",
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "Da09g",
                       "name": "Time",
                       "fill": "$muted",
                       "content": "3m ago",

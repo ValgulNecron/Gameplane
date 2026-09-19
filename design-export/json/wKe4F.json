@@ -1,0 +1,69 @@
+{
+  "type": "frame",
+  "id": "wKe4F",
+  "x": -13350.0544367535,
+  "y": 27334.997924316056,
+  "name": "Gameplane/Backups Filter Row",
+  "reusable": true,
+  "width": 1152,
+  "gap": 12,
+  "justifyContent": "space_between",
+  "alignItems": "center",
+  "children": [
+    {
+      "type": "frame",
+      "id": "l6xS3",
+      "name": "Filters",
+      "gap": 8,
+      "alignItems": "center",
+      "children": [
+        {
+          "id": "b719F",
+          "type": "ref",
+          "ref": "Lmaf1",
+          "name": "Search",
+          "width": 320,
+          "descendants": {
+            "EJMtX": {
+              "content": "Search by name or server…"
+            }
+          }
+        },
+        {
+          "id": "OdvSz",
+          "type": "ref",
+          "ref": "AT7ya",
+          "name": "Select",
+          "width": 176,
+          "descendants": {
+            "cFsFk": {
+              "content": "All servers"
+            }
+          }
+        },
+        {
+          "id": "KRDcn",
+          "type": "ref",
+          "ref": "AT7ya",
+          "name": "Select",
+          "width": 144,
+          "descendants": {
+            "cFsFk": {
+              "content": "All phases"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "g9iDB",
+      "name": "Result Count",
+      "fill": "$muted",
+      "content": "0 of 0 backups",
+      "fontFamily": "$typography/font-sans",
+      "fontSize": 12,
+      "fontWeight": "normal"
+    }
+  ]
+}

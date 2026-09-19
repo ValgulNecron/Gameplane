@@ -96,14 +96,14 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
           <ModalDialog>
           <ModalHeader>
             <ModalHeading>Upload module</ModalHeading>
-          </ModalHeader>
-
-          <ModalBody className="gap-4">
             <Description className="text-sm text-muted">
               A .tar.gz or .zip holding one module directory (module.yaml +
               template.yaml). Stored in the cluster; the catalog indexes it
               immediately.
             </Description>
+          </ModalHeader>
+
+          <ModalBody className="gap-4">
 
             {sources.length > 1 && (
               <div className="space-y-1">
@@ -168,7 +168,7 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
 
           <ModalFooter className="flex items-center justify-end gap-2">
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onPress={() => onOpenChange(false)}
               isDisabled={busy}

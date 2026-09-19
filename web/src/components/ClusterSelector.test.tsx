@@ -112,7 +112,10 @@ describe("ClusterSelector", () => {
     // The "Local" option should be selected initially (default cluster)
     // Check that the menu has been rendered with cluster items
     const menu = screen.getByRole("menu");
-    expect(within(menu).getByText("Local")).toBeInTheDocument();
+    const localItem = within(menu).getByRole("menuitem", { name: /Local/ });
+    const checkSvg = localItem.querySelector("svg.lucide-check");
+    expect(checkSvg).toBeInTheDocument();
+    expect(checkSvg).toHaveClass("h-3.5", "w-3.5", "text-primary", "shrink-0");
   });
 
   it("calls setCurrentCluster and clears the query cache when a cluster is selected", async () => {

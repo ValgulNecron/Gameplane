@@ -25,6 +25,7 @@ Binding for `web/src/styles/globals.css` and for the HeroUI variable values in `
 | `--field-foreground` | `$field/foreground` | `#FCFCFC` | `#2A0F1E` | input text |
 | `--field-placeholder` | `$field/placeholder` | `#7B7584` | `#8A6C7B` | input placeholder text |
 | `--focus` | `$focus` | `#A78BFA` | `#7C3AED` | focus ring (purple); Asleep status indicator on public share page |
+| `--chart-stat` | `$chart/stat` | `#8B5CF6` | `#8B5CF6` | stat-card icon accent (purple); OD-9, settled 2026-09-16 |
 | `--link` | `$foreground/link` | `#7DB4FF` | `#2563EB` | hyperlink text |
 | `--surface-tertiary` | `$surface/tertiary` | `#141317` | `#F8DDE9` | deepest surface variant |
 | `--segment` | `$segment/segment` | `#1D1B22` | `#FFFFFF` | segmented control backgrounds |
@@ -42,7 +43,7 @@ The original palette (R-01, orange accent `#F97316`) was superseded on 2026-09-0
 
 `--color-violet` (hsl 258 90% 66%) stays in the `@theme` block permanently for the operator-role chips (`vStkb`, `c:rjvI1` today). It is not a HeroUI token.
 
-Stat-card icon color is a hardcoded design value: purple `#8B5CF6` (pending a formal token definition — open question).
+Stat-card icon color is the dedicated `--chart-stat` / `$chart/stat` token (`#8B5CF6`, same value in light and dark). It is a HeroUI-style semantic token distinct from `--color-violet` above — OD-9, settled 2026-09-16.
 
 ## Legacy alias policy (transition only)
 

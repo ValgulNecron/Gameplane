@@ -45,6 +45,20 @@ short-lived per-pod agent sidecar.
 └────────────────────────────────────────────┘
 ```
 
+## Dashboard component layer
+
+The dashboard (`web/`) builds its UI on **HeroUI** (`@heroui/react`, `@heroui/styles`) rather than hand-rolled or Radix-based primitives. Two families make up the visual layer:
+
+- **HeroUI base components** — imported directly from `@heroui/react` (Button, Card, Modal, Table, Tabs, Chip, Alert, Dropdown, Popover, and the rest of the library) wherever a screen needs a stock form control, layout primitive, or overlay.
+- **Gameplane compositions** (`web/src/components/ui/`) — HeroUI components pre-wired with Gameplane's brand tokens, copy, and behavior for patterns that recur across the dashboard, grouped by role:
+  - *Authenticated shell*: `AppShell`, `Sidebar`, `TopBar`, `Breadcrumbs`, `NotificationsPanel`, `GlobalSearch`, `AppearanceToggle`, `AppLoadingSkeleton`
+  - *Status & data display*: `StatCard`, `PhaseChip`, `Meter`, `Sparkline`, `GameIcon`, `SlackIcon`, `ResourceInput`, `ProvenanceBadge`
+  - *Feedback surfaces*: `LoadingCard`, `ErrorCard`, `ErrorBanner`, `AuditIntegrityBanner`, `CaptureWarningBanner`
+  - *Dialogs, menus & overlays*: `ConfirmDialog`, `ConfirmAdminMappingDialog`, `RoleEditorModal`, `DropdownMenu`, `FilterPopover`, `PageHeader`, `RemovableGroupChip`
+  - *Admin dialogs* (`admin/`): `InviteUserDialog`, `EditUserDialog`, `ResetPasswordDialog`
+
+Brand tokens (orange accent, dark-default with light mode supported) map onto HeroUI's semantic token layer — see `specs/014-heroui-web-rebuild/contracts/theme-tokens.md` for the mapping and `web/specs.md`'s "HeroUI Component Layer" section for the full component inventory. Design changes still originate in `design.pen` (CLAUDE.md rule 1) before either layer is touched in code.
+
 ## Why two control planes?
 
 The operator handles everything a cluster admin expects from a K8s

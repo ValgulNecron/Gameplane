@@ -32,7 +32,7 @@ The Gameplane dashboard is a React SPA providing a UI layer over the Gameplane A
 
 ## HeroUI Component Layer
 
-The dashboard's visual surface composes twelve foundational atom components built on `@heroui/react` 3.2.4 primitives and Gameplane brand design tokens. These atoms reside in `web/src/components/hero/` and form the basis for all rebuilt screens:
+The dashboard's visual surface composes its foundational atom components on `@heroui/react` (HeroUI v3) primitives, `@heroui/styles`, and Gameplane brand design tokens. These atoms reside in `web/src/components/ui/` — the Gameplane composition layer over HeroUI — and form the basis for every screen:
 
 - **StatCard** — displays a metric with label, value, and optional trend indicator
 - **PhaseChip** — status badge rendering server phase (Running/Stopped/Pending/Failed) with semantic color
@@ -49,7 +49,7 @@ The dashboard's visual surface composes twelve foundational atom components buil
 
 Each atom composes HeroUI's headless react-aria-components (Adobe React Aria) and applies Gameplane's brand palette — orange accent, dark default mode, light mode supported — via HeroUI's semantic token layer. Token mapping from Gameplane brand values to HeroUI variables is documented in `specs/014-heroui-web-rebuild/contracts/theme-tokens.md` (FR-013).
 
-During the multi-slice rebuild transition, the previous Radix-based primitives remain in `web/src/components/ui/` and are used only by un-rebuilt screens. **No single screen mixes the HeroUI (`hero/`) and legacy (`ui/`) component families** — this is enforced mechanically at review (FR-012: any rebuilt file importing from `components/ui/` fails).
+The multi-slice rebuild is complete: the previous Radix-based primitives that used to live in `web/src/components/ui/` have been deleted, and `web/src/components/hero/` was renamed to `web/src/components/ui/` to become the permanent HeroUI composition layer (OD-7, Settled 2026-09-03). **No screen imports `@radix-ui/*` or `class-variance-authority`** — this was enforced mechanically at review throughout the rebuild (FR-012) and is now enforced by their absence from `web/package.json`.
 
 ## T057 — Login Privacy Compliance (FR-005)
 
@@ -66,8 +66,8 @@ During the multi-slice rebuild transition, the previous Radix-based primitives r
 
 2. **HeroUI components in pre-auth context:**
    - Only `Input`, `Label`, `InputGroup` from `@heroui/react` are used before auth (lines 17–18)
-   - No other hero/* components are rendered pre-auth (AppLayout, Sidebar, TopBar, etc. all require `useMe()`, which 401-redirects unauthenticated users)
-   - All HeroUI imports follow FR-012 (from "@heroui/react" only; no radix-ui/ui/CVA leakage)
+   - No other ui/* components are rendered pre-auth (AppLayout, Sidebar, TopBar, etc. all require `useMe()`, which 401-redirects unauthenticated users)
+   - All HeroUI imports follow FR-012 (from "@heroui/react" and "@/components/ui/" only; no @radix-ui or class-variance-authority leakage)
 
 3. **SSO button labels (SSOButtons, lines 249–267; MarketingRow, lines 269–278):**
    - Provider display names come from the pre-auth `Auth.providers()` API response (`p.label`, line 262 in SSOButtons)
@@ -78,7 +78,7 @@ During the multi-slice rebuild transition, the previous Radix-based primitives r
 
 ## T058 — Slice 1: Shell + Login Architecture
 
-**Scope:** Slice 1 (tasks T040–T053, feature 014) rebuilds the authenticated shell (AppLayout, Sidebar, TopBar) and the login page on HeroUI, establishing the visual layer for all downstream screens. Old Radix-based primitives remain in `web/src/components/ui/` until slices 2–5 migrate their respective screens.
+**Scope:** Slice 1 (tasks T040–T053, feature 014) rebuilt the authenticated shell (AppLayout, Sidebar, TopBar) and the login page on HeroUI, establishing the visual layer for all downstream screens. The old Radix-based primitives that used to live in `web/src/components/ui/` were fully removed once slices 2–5 migrated their respective screens (see T198, T201).
 
 ### Components Added (T045–T052)
 
@@ -86,16 +86,16 @@ During the multi-slice rebuild transition, the previous Radix-based primitives r
 - **`AppLayout.tsx` (T042)** — layout orchestrator: composes `AppShell` (layout), `Sidebar` (fixed or drawer variant), `TopBar` (breadcrumbs + cluster selector + search + notifications), and the authenticated page outlet. Owns `useMe()`, 401-redirect logic, permission gating for nav items (admin/operator/viewer), `useClusterInfo()` (cluster stats cache), and `useTheme()` integration for appearance mode.
 
 **New layout atoms (T045–T048, T050, T052):**
-- **`hero/AppShell.tsx` (T045)** — pure layout wrapper: renders sidebar fixed-width, topbar + main content in flex column. No mobile logic (owned by Sidebar's drawer variant).
-- **`hero/Sidebar.tsx` (T046, T052)** — left navigation: fixed variant (always visible on desktop) or drawer variant (mobile off-canvas). Renders nav groups + items, active route highlighting, appearance toggle footer, and user-info footer with logout. Permission gating is computed by AppLayout; Sidebar renders whatever nav items it receives.
-- **`hero/TopBar.tsx` (T047)** — horizontal header: hamburger (mobile), breadcrumb slot, cluster selector slot, global search slot, notifications slot, user menu (avatar + logout). All four slots are ReactNode — each slot component fetches its own data (no centralized fetching in TopBar).
-- **`hero/Breadcrumbs.tsx` (T048)** — route-hierarchy breadcrumbs: renders the tree path (gameplane / Servers / my-server) using `buildCrumbs` logic kept from the old AppLayout. Distinct from `hero/PageHeader.tsx`'s internal page-level breadcrumbs.
-- **`hero/NotificationsPanel.tsx` (T049)** — bell icon + popover + SSE notification list: owns the `openEventStream` subscription and local state (same as today's `Notifications()` in AppLayout). Fetching moved into the component, not centralized in AppLayout.
-- **`hero/GlobalSearch.tsx` (T050)** — search field + results popover: owns the `useQuery` call for servers list and client-side filter. Kept from today's AppLayout.
-- **`hero/AppearanceToggle.tsx` (T052)** — three-state appearance mode selector (light/dark/system): dispatches `onChange` to parent (AppLayout), which owns the `useTheme()` hook. Uses HeroUI `ToggleButtonGroup` or fallback three-button set.
+- **`ui/AppShell.tsx` (T045)** — pure layout wrapper: renders sidebar fixed-width, topbar + main content in flex column. No mobile logic (owned by Sidebar's drawer variant).
+- **`ui/Sidebar.tsx` (T046, T052)** — left navigation: fixed variant (always visible on desktop) or drawer variant (mobile off-canvas). Renders nav groups + items, active route highlighting, appearance toggle footer, and user-info footer with logout. Permission gating is computed by AppLayout; Sidebar renders whatever nav items it receives.
+- **`ui/TopBar.tsx` (T047)** — horizontal header: hamburger (mobile), breadcrumb slot, cluster selector slot, global search slot, notifications slot, user menu (avatar + logout). All four slots are ReactNode — each slot component fetches its own data (no centralized fetching in TopBar).
+- **`ui/Breadcrumbs.tsx` (T048)** — route-hierarchy breadcrumbs: renders the tree path (gameplane / Servers / my-server) using `buildCrumbs` logic kept from the old AppLayout. Distinct from `ui/PageHeader.tsx`'s internal page-level breadcrumbs.
+- **`ui/NotificationsPanel.tsx` (T049)** — bell icon + popover + SSE notification list: owns the `openEventStream` subscription and local state (same as today's `Notifications()` in AppLayout). Fetching moved into the component, not centralized in AppLayout.
+- **`ui/GlobalSearch.tsx` (T050)** — search field + results popover: owns the `useQuery` call for servers list and client-side filter. Kept from today's AppLayout.
+- **`ui/AppearanceToggle.tsx` (T052)** — three-state appearance mode selector (light/dark/system): dispatches `onChange` to parent (AppLayout), which owns the `useTheme()` hook. Uses HeroUI `ToggleButtonGroup` or fallback three-button set.
 
 **Refactored on HeroUI:**
-- **`PageHeader.tsx` (T043)** — route-level page header: thin wrapper around `hero/PageHeader` (slice-0 atom), passing through `title/subtitle/actions/breadcrumbs` unchanged. Called by ~30+ route pages; no changes required in call sites.
+- **`PageHeader.tsx` (T043)** — route-level page header: thin wrapper around `ui/PageHeader` (slice-0 atom), passing through `title/subtitle/actions/breadcrumbs` unchanged. Called by ~30+ route pages; no changes required in call sites.
 - **`ClusterSelector.tsx` (T044)** — multi-cluster dropdown: refactored from `DropdownMenu` to HeroUI `Select`, keeping all permission/state logic, phase color mapping, and "Add cluster" action.
 - **`Login.tsx` (T040)** — login form: refactored from raw DOM to HeroUI `TextField`/`Label`/`Input`/`InputGroup`, `Alert` for errors, `Button` for actions. Kept all state, error handling, SSO provider rendering, and marketing panel. Verified compliant with FR-005 (login privacy).
 - **`Dashboard.tsx` (T041)** — landing page loading + empty state: narrowed scope to loading skeleton and empty frame only (full content deferred to slice 2+). Keeps the same cache keys and queries so downstream slices reuse prepared data.
@@ -104,14 +104,13 @@ During the multi-slice rebuild transition, the previous Radix-based primitives r
 
 Every file touched in slice 1 imports **only** from:
 - `@heroui/react` (HeroUI components)
-- `@/components/hero/` (new slice-1 atom components)
+- `@/components/ui/` (Gameplane compositions over HeroUI)
 
-**Forbidden imports:**
-- `@/components/ui/*` (legacy Radix-based primitives)
+**Forbidden imports (removed from the dependency tree entirely):**
 - `@radix-ui/*` (raw Radix)
 - `class-variance-authority` (replaced by HeroUI's variant system)
 
-This rule is enforced by lint and review: any rebuilt file importing from forbidden sources fails CI.
+This rule was enforced by lint and review throughout the rebuild: any rebuilt file importing from forbidden sources failed CI. Both packages have since been removed from `web/package.json`.
 
 ### Theme Integration & Boot Script (T053)
 
@@ -146,18 +145,9 @@ Selectors updated to query by role (`getByRole("textbox", { name: /username/i })
 
 **Status:** Clean — `npx tsc --noEmit` passes with no errors across all Playwright specs (`e2e/specs/*.spec.ts`, `e2e/globalSetup.ts`, `e2e/globalTeardown.ts`, `e2e/pages/*.ts`).
 
-### Legacy Primitives Still in Use
+### Legacy Primitives (Removed)
 
-Until slices 2–5 migrate their screens, the old Radix-based `ui/` components remain:
-- `web/src/components/ui/button.tsx`
-- `web/src/components/ui/card.tsx`
-- `web/src/components/ui/input.tsx`
-- `web/src/components/ui/dialog.tsx`
-- `web/src/components/ui/select.tsx`
-- `web/src/components/ui/tabs.tsx`
-- (and ~20+ others)
-
-These are used only by Servers, ServerDetail, Modules, Cluster, Users, AdminSettings, AuditLog, AdminLogs, Backups pages — which remain un-rebuilt until their respective slices. **No single screen mixes both families** (enforced by import rule FR-012).
+The old Radix-based `ui/` components that shipped before this rebuild — `button.tsx`, `card.tsx`, `input.tsx`, `dialog.tsx`, `select.tsx`, `tabs.tsx`, and ~30 others (full list in T198) — were deleted once slices 2–5 finished migrating every screen that used them (Servers, ServerDetail, Modules, Cluster, Users, AdminSettings, AuditLog, AdminLogs, Backups). No screen ever mixed the HeroUI and legacy Radix families at the same time (enforced by import rule FR-012 during the migration).
 
 ### Deviation Notes
 
@@ -167,7 +157,7 @@ These are used only by Servers, ServerDetail, Modules, Cluster, Users, AdminSett
 
 ## T066–T088 — Slice 2a: Servers List and ServerDetail Screens
 
-**Scope:** Slice 2a (tasks T066–T088, `specs/014-heroui-web-rebuild/tasks.md`) rebuilds two core screens — the Servers list page and the ServerDetail (full server view with tabbed interface) — on HeroUI components. This is the primary user-facing surface after login, showing all game server instances and their live status. The slice composes existing hero/ atoms from slice 0 with new HeroUI form/table/dialog components.
+**Scope:** Slice 2a (tasks T066–T088, `specs/014-heroui-web-rebuild/tasks.md`) rebuilds two core screens — the Servers list page and the ServerDetail (full server view with tabbed interface) — on HeroUI components. This is the primary user-facing surface after login, showing all game server instances and their live status. The slice composes existing ui/ atoms from slice 0 with new HeroUI form/table/dialog components.
 
 ### Screens and Routes
 
@@ -182,19 +172,19 @@ These are used only by Servers, ServerDetail, Modules, Cluster, Users, AdminSett
 2. **ServerDetail Page** (`web/src/routes/ServerDetail.tsx`, 289 lines)
    - Full server view with header showing phase chip, uptime, player count, and action buttons
    - Tabbed interface (HeroUI Tabs) routing to nine sub-views: Overview, Events, Console, Logs, Files, Mods, Modpacks, Players, Backups, Capture, Settings
-   - Phase chip from hero/PhaseChip; game icon from hero/GameIcon
+   - Phase chip from ui/PhaseChip; game icon from ui/GameIcon
    - Lifecycle action buttons (start/stop/restart) gated by phase state
 
 ### Design-Imported Compositions
 
-**Slice 2a uses the following hero/ atom compositions from slice 0** (line numbers below are the `import` line in each file, verified by grep against the current tree):
+**Slice 2a uses the following ui/ atom compositions from slice 0** (line numbers below are the `import` line in each file, verified by grep against the current tree):
 
 - **StatCard** — metric display (players online, server uptime, resource usage gauges) in Servers list summary and Overview tab (`web/src/routes/tabs/Overview.tsx` line 7, `web/src/routes/Servers.tsx` line 23)
 - **PhaseChip** — server phase badge (Running/Stopped/Pending/Failed) in Servers list rows and ServerDetail header (`web/src/routes/Servers.tsx` line 24, `web/src/routes/ServerDetail.tsx` line 16)
 - **FilterPopover** — filter controls in Servers list (phase, template, namespace) (`web/src/routes/Servers.tsx` line 25)
 - **GameIcon** — cached game-specific icon in Servers list rows and ServerDetail header (`web/src/routes/Servers.tsx` line 26, `web/src/routes/ServerDetail.tsx` line 17)
 - **DropdownMenu** (`DropdownMenu`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuSeparator`, `DropdownMenuTrigger`) — context menu (clone/transfer/wipe/delete) via ServerActionsMenu (`web/src/components/server/ServerActionsMenu.tsx` lines 12–17)
-- **ConfirmDialog** — used in **DeleteServerDialog.tsx** (`web/src/components/server/DeleteServerDialog.tsx` line 2) and the file-delete confirmation in Files (`web/src/routes/tabs/Files.tsx` line 35). CloneServerDialog, TransferServerDialog and WipeServerDialog do **not** use hero/ConfirmDialog — they build their own dialogs directly from HeroUI `Modal`/`AlertDialog` primitives (see Server Component Helpers below).
+- **ConfirmDialog** — used in **DeleteServerDialog.tsx** (`web/src/components/server/DeleteServerDialog.tsx` line 2) and the file-delete confirmation in Files (`web/src/routes/tabs/Files.tsx` line 35). CloneServerDialog, TransferServerDialog and WipeServerDialog do **not** use ui/ConfirmDialog — they build their own dialogs directly from HeroUI `Modal`/`AlertDialog` primitives (see Server Component Helpers below).
 - **ErrorBanner** — form/request error display in Files and Players tabs (`web/src/routes/tabs/Files.tsx` line 36, `web/src/routes/tabs/Players.tsx` line 16)
 - **ErrorCard** — error state display in Console tab ("No console available") (`web/src/routes/tabs/Console.tsx` line 5)
 - **LoadingCard** — skeleton placeholder in Console tab while data loads (`web/src/routes/tabs/Console.tsx` line 4)
@@ -217,7 +207,7 @@ Six of the nine ServerDetail tabs are rebuilt in this slice:
 1. **Overview** (`web/src/routes/tabs/Overview.tsx`, 411 lines)
    - Composes `ServerStatusCard`, `ServerSleepCard`, `ServerActionsCard`, `EventList` (imports at lines 9–12) for status, sleep state, lifecycle actions, and recent pod events
    - Live metrics: CPU %, memory %, disk % via StatCard + Sparkline (`Sparkline` used at line 332)
-   - Uses HeroUI Card/CardHeader/CardTitle/CardContent/CardFooter/Alert (line 6); hero/ StatCard, Sparkline (lines 7–8)
+   - Uses HeroUI Card/CardHeader/CardTitle/CardContent/CardFooter/Alert (line 6); ui/ StatCard, Sparkline (lines 7–8)
 
 2. **Events** (`web/src/routes/tabs/Events.tsx`, 86 lines)
    - Kubernetes events (image pull, scheduling, crash-loops, agent startup) rendered via `EventList` (`web/src/components/server/EventList.tsx`, imported line 6)
@@ -227,7 +217,7 @@ Six of the nine ServerDetail tabs are rebuilt in this slice:
 3. **Console** (`web/src/routes/tabs/Console.tsx`, 157 lines)
    - Interactive RCON/PTY terminal (xterm.js, lazy-loaded, NOT rebuilt — uses existing engine)
    - LoadingCard during template resolution (line 28); ErrorCard if no console available (line 35)
-   - Uses hero/ LoadingCard, ErrorCard only (lines 4–5); console I/O engine unchanged
+   - Uses ui/ LoadingCard, ErrorCard only (lines 4–5); console I/O engine unchanged
 
 4. **Logs** (`web/src/routes/tabs/Logs.tsx`, 299 lines)
    - Pod stdout or configured game log file stream (WebSocket, NOT rebuilt — uses existing engine)
@@ -238,15 +228,15 @@ Six of the nine ServerDetail tabs are rebuilt in this slice:
 5. **Files** (`web/src/routes/tabs/Files.tsx`, 602 lines)
    - File browser and editor (Monaco, lazy-loaded, NOT rebuilt)
    - Create folder/file dialogs via HeroUI Modal/ModalBackdrop/ModalContainer/ModalDialog/ModalHeader/ModalBody/ModalFooter (lines 9–19)
-   - Delete confirmation via hero/ ConfirmDialog (line 35, used at line 408)
-   - Error display via hero/ ErrorBanner (line 36, used at line 261)
+   - Delete confirmation via ui/ ConfirmDialog (line 35, used at line 408)
+   - Error display via ui/ ErrorBanner (line 36, used at line 261)
    - Monaco editor unchanged
 
 6. **Players** (`web/src/routes/tabs/Players.tsx`, 386 lines)
    - Online player snapshot, ban list, whitelist management
-   - Player count summary via hero/ StatCard (line 15)
+   - Player count summary via ui/ StatCard (line 15)
    - Kick/ban/unban actions with reason input via HeroUI Input (line 14)
-   - Error display via hero/ ErrorBanner (line 16, used at line 131)
+   - Error display via ui/ ErrorBanner (line 16, used at line 131)
 
 **Three tabs remain un-rebuilt (used only from legacy primitives or not yet touched):**
 
@@ -263,14 +253,14 @@ Console input/output and Logs streaming use existing bidirectional WebSocket (co
 
 **Slice 2a adds/updates helper components in `web/src/components/server/`** (line counts are the file's current total, since internal structure shifts with every edit and precision there is not load-bearing):
 
-- **ServerActionsMenu.tsx** (116 lines) — Dropdown menu context menu (clone/transfer/wipe/delete) using hero/ DropdownMenu (import lines 12–17, usage lines 48–86); wires the four dialogs below
-- **CloneServerDialog.tsx** (138 lines) — Clone form (name, description, template selector) built directly from HeroUI `Modal`/`ModalBackdrop`/`ModalContainer`/`ModalDialog`/`ModalHeader`/`ModalHeading`/`ModalBody`/`ModalFooter`/`Button`/`Input`/`Label`/`Description`/`FieldError` (import lines 4–17) — not hero/ConfirmDialog
-- **TransferServerDialog.tsx** (143 lines) — Transfer form (destination picker) from the HeroUI `Modal` family plus `ListBox`/`ListBoxItem`/`Popover`/`PopoverTrigger`/`PopoverContent` (import lines 3–16) — not hero/ConfirmDialog
-- **WipeServerDialog.tsx** (123 lines) — Wipe-world confirmation from the HeroUI `AlertDialog` family plus `Checkbox` (import lines 3–14) — not hero/ConfirmDialog
-- **DeleteServerDialog.tsx** (52 lines) — Delete server confirmation via hero/ ConfirmDialog (line 2)
+- **ServerActionsMenu.tsx** (116 lines) — Dropdown menu context menu (clone/transfer/wipe/delete) using ui/ DropdownMenu (import lines 12–17, usage lines 48–86); wires the four dialogs below
+- **CloneServerDialog.tsx** (138 lines) — Clone form (name, description, template selector) built directly from HeroUI `Modal`/`ModalBackdrop`/`ModalContainer`/`ModalDialog`/`ModalHeader`/`ModalHeading`/`ModalBody`/`ModalFooter`/`Button`/`Input`/`Label`/`Description`/`FieldError` (import lines 4–17) — not ui/ConfirmDialog
+- **TransferServerDialog.tsx** (143 lines) — Transfer form (destination picker) from the HeroUI `Modal` family plus `ListBox`/`ListBoxItem`/`Popover`/`PopoverTrigger`/`PopoverContent` (import lines 3–16) — not ui/ConfirmDialog
+- **WipeServerDialog.tsx** (123 lines) — Wipe-world confirmation from the HeroUI `AlertDialog` family plus `Checkbox` (import lines 3–14) — not ui/ConfirmDialog
+- **DeleteServerDialog.tsx** (52 lines) — Delete server confirmation via ui/ ConfirmDialog (line 2)
 - **ServerStatusCard.tsx** (73 lines) — Status summary card in Overview tab, built on HeroUI Card (line 3)
 - **ServerActionsCard.tsx** (487 lines) — Lifecycle action card in Overview tab; HeroUI Button/Card/CardHeader/CardContent/Modal family/Input/Label/Select/ListBox/ListBoxItem/Checkbox/Description/FieldError (import lines 20–39)
-- **ServerSleepCard.tsx** (170 lines) — Server sleep/idle state summary; HeroUI Card/Alert (line 2) plus a `Chip` re-exported from hero/PhaseChip (line 6)
+- **ServerSleepCard.tsx** (170 lines) — Server sleep/idle state summary; HeroUI Card/Alert (line 2) plus a `Chip` re-exported from ui/PhaseChip (line 6)
 - **EventList.tsx** (43 lines) — Kubernetes event list renderer, used from both Events.tsx (line 6) and Overview.tsx (line 12)
 - **PortOverridesEditor.tsx** (80 lines) — Port configuration helper; HeroUI Input/Button (line 1) (Settings tab, deferred)
 
@@ -278,9 +268,9 @@ Console input/output and Logs streaming use existing bidirectional WebSocket (co
 
 Every file in slice 2a follows the import rule:
 
-- ✅ Imports **only** from `@heroui/react` and `@/components/hero/` (no `@radix-ui/*`, no `@/components/ui/*`)
+- ✅ Imports **only** from `@heroui/react` and `@/components/ui/` (no `@radix-ui/*`, no `class-variance-authority`)
 - ✅ No mixed families within a single file
-- ✅ Verified by grep: `grep -rE '@/components/ui/|@radix-ui' web/src/routes/{Servers,ServerDetail}.tsx web/src/routes/tabs/{Overview,Events,Console,Logs,Files,Players}.tsx web/src/components/server/ 2>/dev/null` returns **zero results**
+- ✅ Verified by grep: `grep -rE '@radix-ui|class-variance-authority' web/src/routes/{Servers,ServerDetail}.tsx web/src/routes/tabs/{Overview,Events,Console,Logs,Files,Players}.tsx web/src/components/server/ 2>/dev/null` returns **zero results**
 
 **Mechanics:** Lint and review enforce the rule; any rebuilt file importing from forbidden sources fails CI.
 
@@ -301,7 +291,7 @@ Selectors updated to query by role (`getByRole("button", { name: /clone/i })`, `
 
 ### Deviation Notes
 
-CloneServerDialog, TransferServerDialog and WipeServerDialog do not route through hero/ConfirmDialog the way DeleteServerDialog and the Files delete confirmation do — each builds its own dialog directly from HeroUI `Modal`/`AlertDialog` primitives, since their forms need bespoke fields (name/description/template picker, destination picker, wipe checkbox) that hero/ConfirmDialog's fixed layout does not support. This is a real, verified divergence from the atom-reuse framing above, not a workaround pending cleanup — no forbidden-import (`@/components/ui/`, `@radix-ui`) is involved, per the Design Import Rule grep above.
+CloneServerDialog, TransferServerDialog and WipeServerDialog do not route through ui/ConfirmDialog the way DeleteServerDialog and the Files delete confirmation do — each builds its own dialog directly from HeroUI `Modal`/`AlertDialog` primitives, since their forms need bespoke fields (name/description/template picker, destination picker, wipe checkbox) that ui/ConfirmDialog's fixed layout does not support. This is a real, verified divergence from the atom-reuse framing above, not a workaround pending cleanup — no forbidden-import (`@radix-ui`, `class-variance-authority`) is involved, per the Design Import Rule grep above.
 
 ## T097–T120 — Slice 2b: Mods, Modpacks, Backups Tab, and Settings
 
@@ -313,9 +303,9 @@ CloneServerDialog, TransferServerDialog and WipeServerDialog do not route throug
    - Browse installed mods (idList or file-based, per template capability)
    - Install from registry or upload custom mods via dialogs
    - Per-mod actions: upgrade, reinstall, uninstall using HeroUI Button + Dropdown
-   - Registry browser (CurseForge/Modrinth) picker via hero/ composition
+   - Registry browser (CurseForge/Modrinth) picker via ui/ composition
    - Rendering strategy differs by game: ARK/Project Zomboid use idList editor; others show file list
-   - Uses HeroUI Button, Input, Chip; hero/ ConfirmDialog (for destructive actions)
+   - Uses HeroUI Button, Input, Chip; ui/ ConfirmDialog (for destructive actions)
 
 2. **Modpacks Tab** (`web/src/routes/tabs/Modpacks.tsx`, 230 lines)
    - Modpack-capable games render a selector/browser
@@ -326,7 +316,7 @@ CloneServerDialog, TransferServerDialog and WipeServerDialog do not route throug
    - Per-server backup list (snapshots created via the /backups page or on-demand)
    - Table columns: backup name, phase (Pending/Succeeded/Failed), size, completion time, actions
    - Open backup detail drawer, trigger restore dialog, delete backup
-   - Uses HeroUI Table, Button, Modal (restore trigger), hero/ PhaseChip
+   - Uses HeroUI Table, Button, Modal (restore trigger), ui/ PhaseChip
 
 4. **Settings Tab** (`web/src/routes/tabs/Settings.tsx`, 289 lines)
    - Sub-section navigation tabs (11 sections below) via HeroUI Tabs
@@ -344,21 +334,21 @@ All 11 sections render form controls from HeroUI (TextField, Select, Slider, Swi
 5. **Environment** (`web/src/routes/tabs/settings/EnvVars.tsx`) — Environment variable key/value editor (table, add/delete rows) via HeroUI Table + TextField
 6. **Lifecycle** (`web/src/routes/tabs/settings/Lifecycle.tsx`) — Auto-pause threshold, idle sleep settings, quiesce strategy selector via HeroUI Switch/Select/Slider
 7. **Scheduled backups** (`web/src/routes/tabs/settings/Backups.tsx`) — Retention days selector, retention policy dropdown via HeroUI Select/TextField
-8. **Network capture** (`web/src/routes/tabs/settings/NetworkCapture.tsx`) — Capture enabled toggle, BPF filter input, retention policy via HeroUI Switch/TextField/Select; warning banner via hero/ component
+8. **Network capture** (`web/src/routes/tabs/settings/NetworkCapture.tsx`) — Capture enabled toggle, BPF filter input, retention policy via HeroUI Switch/TextField/Select; warning banner via ui/ component
 9. **Placement** (`web/src/routes/tabs/settings/Placement.tsx`) — Node affinity rules, pod-node-selector builder via HeroUI form components
 10. **RBAC & access** (`web/src/routes/tabs/settings/Access.tsx`) — Per-role read/exec/admin permissions toggle matrix via HeroUI Switch grid
-11. **Danger zone** (`web/src/routes/tabs/settings/Danger.tsx`) — Destructive action buttons (Delete server, Wipe world, Transfer ownership to another user) wired to confirmation dialogs via HeroUI Button (danger variant) + hero/ ConfirmDialog
+11. **Danger zone** (`web/src/routes/tabs/settings/Danger.tsx`) — Destructive action buttons (Delete server, Wipe world, Transfer ownership to another user) wired to confirmation dialogs via HeroUI Button (danger variant) + ui/ ConfirmDialog
 
 ### New Components (T112–T115)
 
-- **CaptureWidget.tsx** (T112) — Status display for active network packet capture; download + stop buttons via HeroUI Button; capture warning banner via hero/ component
+- **CaptureWidget.tsx** (T112) — Status display for active network packet capture; download + stop buttons via HeroUI Button; capture warning banner via ui/ component
 - **registry-browser.tsx** (T113) — Shared mod registry browser (Mods + Modpacks tabs); search, category filter, mod list via HeroUI Table/SearchField/Chip; provider logo display
 - **modules/InstallDialog.tsx** (T114) — Modal dialog for installing a module (name field pre-filled, version selector) via HeroUI Modal/TextField/Select/Button
 - **modules/UploadModuleDialog.tsx** (T115) — Modal dialog for uploading custom module (file input, version field) via HeroUI Modal/Input/TextField/Button
 
 ### HeroUI Components Imported
 
-All rebuilt Slice 2b files import **only** from `@heroui/react` and `@/components/hero/`:
+All rebuilt Slice 2b files import **only** from `@heroui/react` and `@/components/ui/`:
 
 - **Table** — Mods/Modpacks/Backups/Settings tabs (Networking, EnvVars, etc.) use HeroUI Table + Table.Header/Table.Column/Table.Body/Table.Row/Table.Cell (no `align`, `classNames`, `emptyContent`, `isLoading` props per HeroUI v3)
 - **Modal, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter** — Module dialogs (install/upload), restore/delete confirmations
@@ -382,7 +372,7 @@ All rebuilt Slice 2b files import **only** from `@heroui/react` and `@/component
 **CaptureWidget.tsx** (T112) is a per-server status indicator:
 - Displays "Capture running" state with live frame count
 - Shows download button (downloads captured PCAPNG) and stop button (halts capture)
-- Displays warning banner (hero/ component) if capture is in progress
+- Displays warning banner (ui/ component) if capture is in progress
 - Used in ServerDetail header or a separate Capture tab (depends on template capability)
 
 ### State Preservation Rule
@@ -397,9 +387,9 @@ Each Settings sub-section independently owns its form state (no shared parent pr
 
 ### Design Import Rule (FR-012)
 
-Every file in slice 2b imports **only** from `@heroui/react` and `@/components/hero/` (no `@radix-ui/*`, no `@/components/ui/*`):
+Every file in slice 2b imports **only** from `@heroui/react` and `@/components/ui/` (no `@radix-ui/*`, no `class-variance-authority`):
 
-- ✅ Verified by `grep -rl -e '@/components/ui/' -e '@radix-ui' web/src/routes/tabs/{Mods,Modpacks,Backups,Settings}.tsx web/src/routes/tabs/settings/ web/src/components/{CaptureWidget,registry-browser}.tsx web/src/components/modules/{InstallDialog,UploadModuleDialog}.tsx 2>/dev/null` must return **zero results** (task T120)
+- ✅ Verified by `grep -rl -e '@radix-ui' -e 'class-variance-authority' web/src/routes/tabs/{Mods,Modpacks,Backups,Settings}.tsx web/src/routes/tabs/settings/ web/src/components/{CaptureWidget,registry-browser}.tsx web/src/components/modules/{InstallDialog,UploadModuleDialog}.tsx 2>/dev/null` must return **zero results** (task T120)
 ## T119–T137 — Slice 3: Create Server Wizard, Modules Catalog, and Backups Management
 
 **Scope:** Slice 3 (tasks T119–T137, `specs/014-heroui-web-rebuild/tasks.md`) rebuilds three onboarding and operational management surfaces on HeroUI components: the multi-step Create Server wizard (Steps 1–5), the Modules library catalog, and the Backups management interface (index, schedules, restores). This slice completes the foundational surfaces for server creation and backup operations, applying the same HeroUI component family and theme tokens established in slices 0–2a.
@@ -434,7 +424,7 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/h
 
 ### Design-Imported Compositions
 
-**Slice 3 uses the following hero/ atom compositions from slice 0:**
+**Slice 3 uses the following ui/ atom compositions from slice 0:**
 
 - **StatCard** — metric display (total backups, schedule count, retention summary) in backup/schedule list headers (`web/src/routes/Backups.tsx` line 23)
 - **PhaseChip** — backup/restore phase badge (Completed/Failed/Pending) in Backups and Restores tables (`web/src/components/backups/BackupRow.tsx` line 8, `web/src/routes/Backups.tsx` line 24)
@@ -498,7 +488,7 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/h
 - Upload section: bulk file upload dialog; ModuleSourcesPanel for source CRUD
 
 **ModuleCard.tsx (reusable card):**
-- Game icon (hero/GameIcon); module name, description
+- Game icon (ui/GameIcon); module name, description
 - Version badge (current, latest available)
 - Install button (if not installed) → opens InstallDialog
 - Manage button (if installed) → opens version picker or uninstall confirmation
@@ -584,15 +574,15 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/h
 
 Every file in slice 3 follows the import rule:
 
-- ✅ Imports **only** from `@heroui/react` and `@/components/hero/` (no `@radix-ui/*`, no `@/components/ui/*`)
+- ✅ Imports **only** from `@heroui/react` and `@/components/ui/` (no `@radix-ui/*`, no `class-variance-authority`)
 - ✅ No mixed families within a single file
-- ✅ Verified by grep: `grep -rE '@/components/ui/|@radix-ui' web/src/routes/{CreateServer,Modules,Backups}.tsx web/src/components/{modules,backups}/ 2>/dev/null` returns **zero results**
+- ✅ Verified by grep: `grep -rE '@radix-ui|class-variance-authority' web/src/routes/{CreateServer,Modules,Backups}.tsx web/src/components/{modules,backups}/ 2>/dev/null` returns **zero results**
 
 **Mechanics:** Lint and review enforce the rule; any rebuilt file importing from forbidden sources fails CI.
 
 ### T139 Compliance Findings (post-hoc, 2026-09-06)
 
-T139's original check above only greps for the forbidden **import paths** (`@/components/ui/`, `@radix-ui`) — it passes, and that finding stands. It does not check that the HeroUI v3 **API surface** is used correctly, and a tier+1 review found real v2-API and syntax defects it missed:
+T139's original check above greps for the forbidden **import paths** (`@/components/ui/`, `@radix-ui`) — it passes, and that finding stands. After T198/T201 (2026-09-16), the old `ui/` directory was deleted, `hero/` became `ui/`, and the forbidden list is now `@radix-ui` and `class-variance-authority`. It does not check that the HeroUI v3 **API surface** is used correctly, and a tier+1 review found real v2-API and syntax defects it missed:
 
 - **`web/src/routes/Backups.tsx`** — the file's largest offender:
   - Curly-quote syntax corruption (smart quotes `” ‘ ’ “` in place of straight `"`) makes the file unparseable as written, at minimum lines 116, 126, 129–137, 142–143 (e.g. `aria-label=”Backups”`, `classNames={{ table: “bg-transparent” }}`, `key=”actions” align=”end”`). Same defect class as T128/T134.
@@ -660,8 +650,8 @@ src/
                             # Settings sub-sections: General, Version, Resources, Networking,
                             # Environment, Lifecycle, Backups (scheduled), Placement, Access (RBAC), Danger
   components/
-    ui/                     # Radix + shadcn-style primitives: button, card, input, select, tabs,
-                            # switch, slider, textarea, dialog, confirm-dialog, stat, etc.
+    ui/                     # Gameplane compositions over HeroUI (@heroui/react): button, card, input,
+                            # select, tabs, switch, slider, textarea, dialog, confirm-dialog, stat, etc.
     server/                 # Server-detail helpers: ServerActionsMenu, tab components
     backups/                # Backup-flow components: restore wizard, destination selector
     modules/                # Module catalog, install flow, upload preview
@@ -847,7 +837,7 @@ The warning is shown regardless of how many groups are being added (single or mu
     - Five states: loading (spinner), up (server online), asleep-start (sleeping, can start), asleep-viewonly (sleeping, view-only), starting (waking up), invalid (link unavailable)
     - Respects stored appearance preference (light/dark/system); no theme toggle shown
     - Uses HeroUI Card, Button, Chip, Spinner; brand header with ShieldCheck icon; address copy button
-    - Built directly from HeroUI primitives; no hero/ atom components
+    - Built directly from HeroUI primitives; no ui/ atom components
 
 ## ServerDetail Tabs
 
@@ -1028,10 +1018,10 @@ openEventStream(opts: EventStreamOptions)
 - `@tanstack/react-router@1.75.0` — file-based routing (via tree.tsx)
 - `@tanstack/react-query@5.59.0` — data fetching, caching, invalidation
 - `@tanstack/react-virtual@3.10.8` — virtualized lists for large tables
-- `@radix-ui/*` — dialog, dropdown-menu, label, slot, tabs, toast (headless, unstyled)
+- `@heroui/react@3.2.4` — component library (Button, Card, Modal, Table, Tabs, etc.); underlies every atom in `web/src/components/ui/`
+- `@heroui/styles` — HeroUI's semantic token / theme layer, mapped to Gameplane brand tokens (see `specs/014-heroui-web-rebuild/contracts/theme-tokens.md`)
 - `clsx@2.1.1` — conditional classNames
 - `tailwind-merge@2.5.2` — Tailwind class conflict resolution
-- `class-variance-authority@0.7.0` — component variant system
 - `tailwindcss@3.4.13` — utility-first CSS framework
 - `lucide-react@0.445.0` — SVG icon library
 - `@monaco-editor/react@4.6.0` — code editor (lazy-loaded, file/config edit tabs)

@@ -800,14 +800,16 @@ describe("NamespaceGrants", () => {
     expect(await screen.findByText("Permission denied")).toBeInTheDocument();
   });
 
-  it("shows message when no namespace grants exist", async () => {
+  it("shows no empty-state line when no namespace grants exist", async () => {
     const user = userEvent.setup();
     bindings.mockResolvedValue([]);
     renderPage();
     await user.click(await screen.findByLabelText("Actions for alice"));
     await user.click(await screen.findByText("Edit user"));
 
-    expect(await screen.findByText("No per-namespace grants.")).toBeInTheDocument();
+    expect(await screen.findByText("Namespace grants")).toBeInTheDocument();
+    expect(screen.queryByText("No per-namespace grants.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Grant role/i })).toBeInTheDocument();
   });
 
   it("removes a namespace grant", async () => {
@@ -840,13 +842,13 @@ describe("NamespaceGrants", () => {
     await user.click(await screen.findByLabelText("Actions for alice"));
     await user.click(await screen.findByText("Edit user"));
 
-    // The grant-role <select> here defaults to roles[0] ("admin"), not
-    // alice's own primary role ("operator") — the primary-role <select>
-    // also displays "operator" for alice, but selecting on THAT one would
-    // change her cluster-wide role instead of the per-namespace grant, and
-    // addBinding would never see roleName "viewer".
-    const select = await screen.findByDisplayValue("admin");
-    await user.selectOptions(select, "viewer");
+    // The grant-role Select (aria-label "Grant role") defaults to
+    // "operator". Target it by name, not the Primary role Select: picking
+    // on that one would change alice's cluster-wide role instead of the
+    // per-namespace grant, and addBinding would never see roleName "viewer".
+    const grantSelect = await screen.findByRole("button", { name: /Grant role/i });
+    await user.click(grantSelect);
+    await user.click(await screen.findByRole("option", { name: "viewer" }));
 
     const nsInput = await screen.findByPlaceholderText("namespace");
     await user.type(nsInput, "custom-ns");

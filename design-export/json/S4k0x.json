@@ -149,6 +149,7 @@
           "type": "ref",
           "ref": "J3iWV8",
           "name": "Btn More",
+          "strokeWidth": 0,
           "descendants": {
             "xjGeb": {
               "icon": "ellipsis"

@@ -38,12 +38,12 @@ import {
   TextField,
   Alert,
 } from "@heroui/react";
-import { PageHeader } from "@/components/hero/PageHeader";
-import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
-import { ConfirmAdminMappingDialog } from "@/components/hero/ConfirmAdminMappingDialog";
-import { RemovableGroupChip } from "@/components/hero/RemovableGroupChip";
-import { ProvenanceBadge } from "@/components/hero/ProvenanceBadge";
-import { SlackIcon } from "@/components/hero/SlackIcon";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ConfirmAdminMappingDialog } from "@/components/ui/ConfirmAdminMappingDialog";
+import { RemovableGroupChip } from "@/components/ui/RemovableGroupChip";
+import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
+import { SlackIcon } from "@/components/ui/SlackIcon";
 import { cn, formatRelative } from "@/lib/utils";
 import { errorText } from "@/lib/errors";
 import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications } from "@/lib/endpoints";
@@ -162,14 +162,16 @@ function SectionCard({
   subtitle,
   footer,
   children,
+  className,
 }: {
   title: string;
   subtitle?: string;
   footer?: ReactNode;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <Card className="space-y-4">
+    <Card className={cn("space-y-4", className)}>
       <Card.Header className="space-y-2 pb-2">
         <div className="font-medium text-base">{title}</div>
         {subtitle && <div className="text-xs text-muted">{subtitle}</div>}
@@ -443,11 +445,11 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
  */
 function AdminGroupsInlineWarning() {
   return (
-    <div className="rounded-md border border-warning/40 bg-warning/10 p-3 flex gap-3">
+    <div className="rounded-md border border-warning-soft-foreground bg-warning-soft p-3 flex gap-3">
       <Megaphone className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
       <div className="text-xs">
         <div className="font-medium text-warning mb-1">Full admin access</div>
-        <p className="text-warning/80">
+        <p className="text-warning-soft-foreground">
           Groups added here will be mapped to the admin role and get full cluster
           control from their next login. You&apos;ll be asked to confirm before this is saved.
         </p>
@@ -1794,6 +1796,7 @@ function RoleMappingOverridesCard({
       <SectionCard
         title="Role mapping overrides"
         subtitle="Override the Helm-seeded OIDC group mappings per role from here. A change takes effect the next time an affected user logs in — no restart or reinstall needed."
+        className="bg-card"
         footer={
           <div className="flex items-center justify-between w-full">
             <p className="text-xs text-muted">

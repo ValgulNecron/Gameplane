@@ -91,16 +91,7 @@
                       "id": "e2td4t",
                       "type": "ref",
                       "ref": "rNhll",
-                      "name": "Audit Log Button",
-                      "descendants": {
-                        "Q57b2/FCYQ9": {
-                          "library": "lucide",
-                          "icon": "scroll-text"
-                        },
-                        "Q57b2/GqVun": {
-                          "content": "Audit log"
-                        }
-                      }
+                      "name": "Audit Log Button"
                     },
                     {
                       "id": "B3LHZf",
@@ -122,141 +113,11 @@
               }
             },
             {
-              "type": "frame",
-              "id": "PN5Yw",
+              "id": "F943u",
+              "type": "ref",
+              "ref": "tkoqz",
               "name": "Filter Row",
-              "width": "fill_container",
-              "gap": 12,
-              "justifyContent": "space_between",
-              "alignItems": "center",
-              "children": [
-                {
-                  "id": "H8abpr",
-                  "type": "ref",
-                  "ref": "Dx8S8",
-                  "name": "tabsWrap",
-                  "children": [
-                    {
-                      "id": "R6ky95",
-                      "type": "ref",
-                      "ref": "CEWo3",
-                      "name": "tabUsers",
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "n2L7J",
-                          "name": "Label",
-                          "fill": "$foreground/segment",
-                          "content": "Users",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "type": "frame",
-                          "id": "CbGiB",
-                          "name": "count",
-                          "fill": "$surface/surface",
-                          "cornerRadius": 4,
-                          "padding": [
-                            0,
-                            6
-                          ],
-                          "justifyContent": "center",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "DJCN6",
-                              "fill": "$foreground/segment",
-                              "content": "2",
-                              "fontFamily": "$typography/font-mono",
-                              "fontSize": 10,
-                              "fontWeight": "normal"
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "id": "Wf51j",
-                      "type": "ref",
-                      "ref": "qAFbJ",
-                      "name": "tabRoles",
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "jnziG",
-                          "name": "Label",
-                          "fill": "$muted",
-                          "content": "Roles",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "type": "frame",
-                          "id": "MUaLx",
-                          "name": "count",
-                          "fill": "$surface/surface",
-                          "cornerRadius": 4,
-                          "padding": [
-                            0,
-                            6
-                          ],
-                          "justifyContent": "center",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "dh92F",
-                              "fill": "$muted",
-                              "content": "3",
-                              "fontFamily": "$typography/font-mono",
-                              "fontSize": 10,
-                              "fontWeight": "normal"
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "id": "J2akV",
-                      "type": "ref",
-                      "ref": "qAFbJ",
-                      "name": "tabService",
-                      "descendants": {
-                        "VcxMI": {
-                          "content": "Service accounts"
-                        }
-                      }
-                    },
-                    {
-                      "id": "M5vmRw",
-                      "type": "ref",
-                      "ref": "qAFbJ",
-                      "name": "tabIdp",
-                      "descendants": {
-                        "VcxMI": {
-                          "content": "Identity providers"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "id": "ylY7N",
-                  "type": "ref",
-                  "ref": "Lmaf1",
-                  "name": "Search",
-                  "width": 256,
-                  "descendants": {
-                    "EJMtX": {
-                      "content": "Search users…"
-                    }
-                  }
-                }
-              ]
+              "width": "fill_container"
             },
             {
               "id": "D3UdE",

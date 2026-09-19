@@ -4,7 +4,6 @@
   "x": -16881,
   "y": 25506,
   "name": "Gameplane/Dropdown Menu",
-  "theme": {},
   "reusable": true,
   "width": 220,
   "fill": "$surface/surface",
@@ -27,169 +26,70 @@
   "padding": 4,
   "children": [
     {
-      "type": "frame",
       "id": "Cii7d",
+      "type": "ref",
+      "ref": "W8XiN",
       "name": "Menu Item/Default",
       "width": "fill_container",
-      "height": 36,
-      "cornerRadius": "$radius/2xl",
-      "gap": 12,
-      "padding": [
-        6,
-        8
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "icon",
-          "id": "Cii7d/Sr2Q5",
-          "name": "menuIcon",
-          "width": 16,
-          "height": 16,
-          "icon": "copy",
-          "library": "lucide",
-          "fill": "$foreground/foreground"
+      "descendants": {
+        "Sr2Q5": {
+          "icon": "copy"
         },
-        {
-          "type": "text",
-          "id": "Cii7d/Ra9NK",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Clone server",
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
+        "Ra9NK": {
+          "content": "Clone server"
         }
-      ]
+      }
     },
     {
-      "type": "frame",
       "id": "NhChV",
+      "type": "ref",
+      "ref": "W8XiN",
       "name": "Menu Item/Default",
       "width": "fill_container",
-      "height": 36,
-      "cornerRadius": "$radius/2xl",
-      "gap": 12,
-      "padding": [
-        6,
-        8
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "icon",
-          "id": "NhChV/Sr2Q5",
-          "name": "menuIcon",
-          "width": 16,
-          "height": 16,
-          "icon": "arrow-right-left",
-          "library": "lucide",
-          "fill": "$foreground/foreground"
+      "descendants": {
+        "Sr2Q5": {
+          "icon": "arrow-right-left"
         },
-        {
-          "type": "text",
-          "id": "NhChV/Ra9NK",
-          "name": "Label",
-          "fill": "$foreground/foreground",
-          "content": "Transfer ownership",
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
+        "Ra9NK": {
+          "content": "Transfer ownership"
         }
-      ]
+      }
     },
     {
-      "type": "frame",
       "id": "V7Slhc",
+      "type": "ref",
+      "ref": "W8XiN",
       "name": "Menu Item/Default",
       "width": "fill_container",
-      "height": 36,
-      "cornerRadius": "$radius/2xl",
-      "gap": 12,
-      "padding": [
-        6,
-        8
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "icon",
-          "id": "V7Slhc/Sr2Q5",
-          "name": "menuIcon",
-          "width": 16,
-          "height": 16,
+      "descendants": {
+        "Sr2Q5": {
           "icon": "eraser",
-          "library": "lucide",
           "fill": "$danger/danger"
         },
-        {
-          "type": "text",
-          "id": "V7Slhc/Ra9NK",
-          "name": "Label",
-          "fill": "$danger/danger",
+        "Ra9NK": {
           "content": "Wipe world data",
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
+          "fill": "$danger/danger"
         }
-      ]
+      }
     },
     {
-      "type": "frame",
       "id": "s5z5i",
+      "type": "ref",
+      "ref": "z1N6Y",
       "name": "Menu Divider",
-      "width": "fill_container",
-      "layout": "vertical",
-      "padding": [
-        4,
-        0
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "rectangle",
-          "id": "s5z5i/gxoCL",
-          "fill": "$separator/separator",
-          "width": "fill_container",
-          "height": 1
-        }
-      ]
+      "width": "fill_container"
     },
     {
-      "type": "frame",
       "id": "kdfaC",
+      "type": "ref",
+      "ref": "xjWNb",
       "name": "Menu Item/Danger",
       "width": "fill_container",
-      "height": 36,
-      "cornerRadius": "$radius/2xl",
-      "gap": 12,
-      "padding": [
-        6,
-        8
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "icon",
-          "id": "kdfaC/wwl45",
-          "width": 16,
-          "height": 16,
-          "icon": "trash-2",
-          "library": "lucide",
-          "fill": "$danger/danger"
-        },
-        {
-          "type": "text",
-          "id": "kdfaC/aJmcn",
-          "name": "Label",
-          "fill": "$danger/danger",
-          "content": "Delete server",
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
+      "descendants": {
+        "aJmcn": {
+          "content": "Delete server"
         }
-      ]
+      }
     }
   ]
 }

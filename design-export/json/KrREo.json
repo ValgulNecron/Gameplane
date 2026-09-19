@@ -6,6 +6,7 @@
   "name": "Gameplane/Dialog/Install Module",
   "x": -15905,
   "y": 27237,
+  "theme": {},
   "descendants": {
     "E7Whx": {
       "content": "Install Minecraft (Java Edition)"

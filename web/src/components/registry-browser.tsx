@@ -70,11 +70,13 @@ export function RegistryBrowser({
   type,
   categories,
   renderItem,
+  pillButtons,
 }: {
   name: string;
   type?: "mod" | "modpack";
   categories?: { value: string; label: string }[];
   renderItem: (project: RegistryProject, provider: string) => ReactNode;
+  pillButtons?: boolean;
 }) {
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -164,7 +166,7 @@ export function RegistryBrowser({
           onSelectionChange={(key) => setSort(key as RegistrySort)}
           isDisabled={!!debounced}
           aria-label={debounced ? "Sort (disabled, sorted by relevance while searching)" : "Sort"}
-          className="max-w-xs"
+          className="w-[220px]"
         >
           <SelectTrigger>
             <SelectValue />
@@ -195,7 +197,7 @@ export function RegistryBrowser({
                   size="sm"
                   variant="soft"
                   aria-disabled="true"
-                  className="cursor-not-allowed opacity-50"
+                  className="cursor-not-allowed rounded-full opacity-50"
                   title={`Category filtering isn't available for ${providerLabel(provider ?? "")}.`}
                 >
                   {c.label}
@@ -208,6 +210,11 @@ export function RegistryBrowser({
                 size="sm"
                 color={active ? "accent" : "default"}
                 variant={active ? "primary" : "soft"}
+                className={
+                  active
+                    ? "rounded-full"
+                    : "rounded-full border border-foreground/20 bg-transparent text-muted"
+                }
                 onClick={() => setCategory(c.value)}
                 role="button"
                 tabIndex={0}
@@ -245,6 +252,7 @@ export function RegistryBrowser({
               <Button
                 variant="outline"
                 size="sm"
+                className={pillButtons ? "rounded-full" : undefined}
                 onPress={() => void q.fetchNextPage()}
                 isDisabled={!q.hasNextPage || q.isFetchingNextPage}
               >

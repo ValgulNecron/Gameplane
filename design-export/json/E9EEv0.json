@@ -1,1 +1,143 @@
-{"id":"E9EEv0","type":"ref","reusable":true,"ref":"x3beP","name":"Gameplane/Dialog/Restore Backup","x":-16525,"y":28535,"descendants":{"E7Whx":{"content":"Restore backup"},"qzcst":{"content":"The target server will be suspended, the volume restored from the snapshot, then resumed."},"Nht52":{"type":"frame","id":"Q2QDV","name":"mBody","width":"fill_container","layout":"vertical","gap":16,"padding":[16,0,0,0],"children":[{"type":"frame","id":"Lvs4o","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"MIgc1","fill":"$muted","content":"Source backup","fontFamily":"$typography/font-sans","fontSize":12,"fontWeight":"normal"},{"id":"mazee","type":"ref","ref":"D0cDM","name":"Input","width":"fill_container","descendants":{"PJERm":{"content":"mc-survival-nightly-0713","fill":"#949494"}}}]},{"type":"frame","id":"jP975","width":"fill_container","layout":"vertical","gap":6,"children":[{"type":"text","id":"eN292","fill":"$muted","content":"Target game server","fontFamily":"$typography/font-sans","fontSize":12,"fontWeight":"normal"},{"id":"D5Vwg2","type":"ref","ref":"AT7ya","name":"Target server select","width":"fill_container","descendants":{"cFsFk":{"content":"Select a server…"}}}]},{"id":"TH6mC","type":"ref","ref":"f7KBn","name":"Restore warning","width":"fill_container","descendants":{"IAKLq":{"content":"This will overwrite all data on the target server. Players will be disconnected during the restore.","enabled":false},"CotwO":{"enabled":true,"content":"This will overwrite all data on the target server. Players will be disconnected during the restore.","fill":"$danger/danger"},"sYqNu":{"enabled":false}}}]},"TZ7Ef":{"content":"Restore"}}}
+{
+  "id": "E9EEv0",
+  "type": "ref",
+  "reusable": true,
+  "ref": "x3beP",
+  "name": "Gameplane/Dialog/Restore Backup",
+  "x": -16525,
+  "y": 28535,
+  "effect": {
+    "type": "shadow",
+    "shadowType": "outer",
+    "color": "#00000000"
+  },
+  "theme": {},
+  "descendants": {
+    "E7Whx": {
+      "content": "Restore backup"
+    },
+    "qzcst": {
+      "content": "The target server will be suspended, the volume restored from the snapshot, then resumed."
+    },
+    "Nht52": {
+      "type": "frame",
+      "id": "Q2QDV",
+      "name": "mBody",
+      "width": "fill_container",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": [
+        16,
+        0,
+        0,
+        0
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "Lvs4o",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "MIgc1",
+              "fill": "$foreground/foreground",
+              "content": "Source backup",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "id": "mazee",
+              "type": "ref",
+              "ref": "D0cDM",
+              "name": "Input",
+              "width": "fill_container",
+              "height": 34,
+              "descendants": {
+                "PJERm": {
+                  "content": "mc-survival-nightly-0713",
+                  "fill": "$foreground/foreground",
+                  "fontFamily": "$typography/font-mono",
+                  "fontSize": 12
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "jP975",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "eN292",
+              "fill": "$foreground/foreground",
+              "content": "Target game server",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "id": "D5Vwg2",
+              "type": "ref",
+              "ref": "AT7ya",
+              "name": "Target server select",
+              "width": "fill_container",
+              "height": 38,
+              "descendants": {
+                "cFsFk": {
+                  "content": "Select a server…",
+                  "fill": "$muted"
+                },
+                "mULN8": {
+                  "fill": "$muted"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "TH6mC",
+          "type": "ref",
+          "ref": "f7KBn",
+          "name": "Restore warning",
+          "width": "fill_container",
+          "fill": "$surface/secondary",
+          "gap": 8,
+          "descendants": {
+            "dMZea": {
+              "padding": 0
+            },
+            "IAKLq": {
+              "content": "This will overwrite all data on the target server. Players will be disconnected during the restore.",
+              "enabled": false
+            },
+            "CotwO": {
+              "enabled": true,
+              "content": "This will overwrite all data on the target server. Players will be disconnected during the restore.",
+              "fill": "$danger/danger",
+              "fontSize": 12,
+              "lineHeight": 1.333
+            },
+            "sYqNu": {
+              "enabled": false
+            }
+          }
+        }
+      ]
+    },
+    "V7HYp": {
+      "fill": "$danger/danger"
+    },
+    "TZ7Ef": {
+      "content": "Restore",
+      "fill": "$danger/foreground"
+    }
+  }
+}

@@ -58,6 +58,9 @@
           "descendants": {
             "Gl7AY": {
               "content": "mc-survival"
+            },
+            "ZGIQD": {
+              "fill": "#000000"
             }
           }
         },
@@ -1176,7 +1179,7 @@
                       "height": 18,
                       "icon": "circle-check-big",
                       "library": "lucide",
-                      "fill": "#21C45D"
+                      "fill": "#000000"
                     }
                   ]
                 },

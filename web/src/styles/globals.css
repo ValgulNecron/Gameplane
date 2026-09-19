@@ -19,9 +19,17 @@
   --accent-soft-foreground: oklch(52.46% 0.1990 3.96); /* #BE185D */
   --default: oklch(91.89% 0.0320 350.26); /* #F6DCE7 */
   --default-foreground: oklch(21.67% 0.0502 347.62); /* #2A0F1E */
+  --default-soft: oklch(91.89% 0.0320 350.26); /* #F6DCE7 - matches --default's pastel pink, per BV5ei/Rwnu3 design */
+  --default-soft-foreground: #9D3A63; /* mauve/maroon text, per BV5ei/Rwnu3 design */
   --success: oklch(71.98% 0.1918 149.52); /* #21C45D */
+  --success-soft: oklch(96% 0.04 149.52); /* light success-tinted background, mirrors --warning-soft's light-mode pattern */
+  --success-soft-foreground: oklch(45% 0.14 149.52); /* mirrors --warning-soft-foreground's darker-foreground-on-tint pattern */
   --warning: oklch(77.04% 0.1646 70.66); /* #F59F0A */
+  --warning-soft: #FEF3C7; /* design $warning/soft */
+  --warning-soft-foreground: #D97706; /* design $warning/soft-foreground */
   --danger: oklch(57.85% 0.2138 27.17); /* #DC2828 */
+  --danger-soft: #FEE2E2; /* design $danger/soft */
+  --danger-soft-foreground: #EF4444; /* design $danger/soft-foreground */
   --muted: oklch(47.33% 0.0441 343.67); /* #6E5262 */
   --border: oklch(86.09% 0.0556 350.54); /* #EFC3D6 */
   --separator: oklch(86.09% 0.0556 350.54); /* #EFC3D6 */
@@ -29,7 +37,9 @@
   --field-border: oklch(86.09% 0.0556 350.54); /* #EFC3D6 */
   --field-placeholder: oklch(56.55% 0.0436 347.05); /* #8A6C7B */
   --field-foreground: oklch(21.67% 0.0502 347.62); /* #2A0F1E */
-  --focus: oklch(54.13% 0.2466 293.01); /* #7C3AED */
+  --sleep: oklch(54.13% 0.2466 293.01); /* #7C3AED — Asleep/sleep status color (violet) */
+  --focus: var(--accent); /* input focus ring uses theme accent, per OD-16 */
+  --chart-stat: oklch(60.56% 0.2189 292.72); /* #8B5CF6 — stat-card icon accent, OD-9 */
   --link: oklch(54.61% 0.2152 262.88); /* #2563EB */
   --segment: oklch(100.00% 0.0000 89.88); /* #FFFFFF */
   --segment-foreground: oklch(21.67% 0.0502 347.62); /* #2A0F1E */
@@ -52,8 +62,14 @@
   --accent-soft-foreground: oklch(77.75% 0.1553 350.26); /* #FF8AC4 */
   --default: oklch(25.29% 0.0133 298.50); /* #232128 */
   --default-foreground: oklch(93.91% 0.0102 311.17); /* #EDE9F0 */
+  --default-soft: oklch(24.65% 0.0537 348.54); /* #331525 - reuses --accent-soft's dark-tint hue, matches BV5ei/Rwnu3's pink pill */
+  --default-soft-foreground: oklch(77.75% 0.1553 350.26); /* #FF8AC4 - reuses --accent-soft-foreground's hue */
   --success: oklch(71.98% 0.1918 149.52); /* #21C45D */
+  --success-soft: oklch(22.85% 0.0444 149.52); /* mirrors --danger-soft's dark-tint pattern (line 61 below) */
+  --success-soft-foreground: oklch(71.06% 0.1661 149.52); /* mirrors --danger-soft-foreground's pattern */
   --warning: oklch(77.04% 0.1646 70.66); /* #F59F0A */
+  --warning-soft: oklch(26% 0.05 70.66); /* mirrors --danger-soft's dark-tint pattern (line 58) */
+  --warning-soft-foreground: oklch(80% 0.14 70.66); /* mirrors --danger-soft-foreground's pattern (line 59) */
   --danger: oklch(59.64% 0.2093 17.36); /* #E0304F */
   --danger-soft: oklch(22.85% 0.0444 11.86); /* #2E1317 */
   --danger-soft-foreground: oklch(71.06% 0.1661 22.22); /* #F87171 */
@@ -64,7 +80,9 @@
   --field-border: oklch(28.79% 0.0167 300.56); /* #2C2932 */
   --field-placeholder: oklch(57.28% 0.0238 303.75); /* #7B7584 */
   --field-foreground: oklch(99.11% 0.0000 89.88); /* #FCFCFC */
-  --focus: oklch(70.90% 0.1592 293.54); /* #A78BFA */
+  --sleep: oklch(70.90% 0.1592 293.54); /* #A78BFA — Asleep/sleep status color (light violet) */
+  --focus: var(--accent); /* input focus ring uses theme accent, per OD-16 */
+  --chart-stat: oklch(60.56% 0.2189 292.72); /* #8B5CF6 — stat-card icon accent, OD-9 */
   --link: oklch(76.21% 0.1231 256.39); /* #7DB4FF */
   --segment: oklch(22.75% 0.0137 298.37); /* #1D1B22 */
   --segment-foreground: oklch(96.68% 0.0057 308.40); /* #F5F3F7 */
@@ -104,9 +122,18 @@
   --color-primary: var(--accent);
   --color-primary-fg: var(--accent-foreground);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
   --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-default-soft: var(--default-soft);
+  --color-default-soft-foreground: var(--default-soft-foreground);
+  --color-sleep: var(--sleep); /* Asleep/sleep status color */
   --color-violet: hsl(258 90% 66%); /* operator role chips */
+  --color-chart-stat: var(--chart-stat); /* stat-card icon accent, OD-9 — settled 2026-09-16 */
 
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -122,11 +149,11 @@ body {
   color: var(--foreground);
 }
 
-/* Focus status indicator (used for Asleep status on share page) */
+/* Sleep status indicator (used for Asleep status on share page) */
 .status-focus {
-  border-color: var(--focus);
-  background-color: color-mix(in srgb, var(--focus) 15%, transparent);
-  color: var(--focus);
+  border-color: var(--sleep);
+  background-color: color-mix(in srgb, var(--sleep) 15%, transparent);
+  color: var(--sleep);
 }
 
 /* Invisible by default scrollbars, subtle on hover (dashboards need space) */
@@ -144,7 +171,7 @@ body {
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -157,15 +184,17 @@ input:-webkit-autofill:active {
 }
 
 /* Same override, but while focused: keep the fill-color patch AND add the
-   standard --focus ring back on top of it. Without the extra ring layer here,
-   the !important inset shadow above replaces status-focused-field's ring
-   entirely, so a browser-autofilled + focused field (username/password on the
-   login form) painted no focus ring at all while the identical .input inside
-   a modal — never autofilled — kept it. */
+   input focus ring back on top of it. Without the extra ring layer here,
+   the !important inset shadow above replaces the ring entirely, so a
+   browser-autofilled + focused field (username/password on the login form)
+   painted no focus ring at all while the identical .input inside a modal —
+   never autofilled — kept it. Uses --accent (not --sleep): the app-wide
+   input focus ring is the theme accent color. The violet --sleep token is
+   reserved for Asleep status treatment (see .status-focus above). */
 input:-webkit-autofill:focus {
   box-shadow:
     inset 0 0 0 1000px var(--field-background),
-    0 0 0 2px var(--focus) !important;
+    0 0 0 2px var(--accent) !important;
   -webkit-text-fill-color: var(--field-foreground) !important;
 }
 
@@ -200,7 +229,7 @@ input:-webkit-autofill:focus {
   border: 1px solid var(--field-border);
 }
 
-.chip {
+.chip:not(.rounded-full) {
   border-radius: 4px;
 }
 
@@ -211,6 +240,73 @@ input:-webkit-autofill:focus {
 
 .card[data-danger-zone] {
   border-radius: 6px;
+}
+
+/* Mobile Servers filter trigger (design DWztv U4ZPD, cornerRadius $radius/xl)
+   — an OD-17 exception to the 6px button rule above. */
+.button.filter-trigger {
+  border-radius: 12px;
+}
+
+/* ==========================================================================
+   Dialog geometry — pinned to Gameplane/Modal (design-export/json/x3beP.json):
+   padding 20, header gap 4, body padding-top 16 + gap 16, footer padding-top
+   20 + gap 8. HeroUI's ModalHeader/ModalBody/ModalFooter are not column-flex
+   containers on their own, so per-dialog `gap-*` utilities passed to
+   <ModalBody> were inert and every field group collapsed onto the one above
+   it. Unlayered, like the radius block above, so it beats HeroUI's
+   @layer components rules. */
+.modal__dialog {
+  padding: 20px;            /* x3beP padding 20 — HeroUI's default measures ~24px */
+  gap: 0;                   /* spacing comes only from the x3beP section paddings */
+}
+
+.modal__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;                 /* x3beP mDescWrap padding [4,0,0,0] */
+  padding: 0;               /* x3beP: title sits directly under the dialog's 20px padding */
+}
+
+.modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;                /* x3beP mBody gap */
+  padding: 16px 0 0;        /* x3beP mBody padding [16,0,0,0] */
+  margin: 0;
+}
+
+/* Per-dialog gap overrides some callers already pass to <ModalBody> — kept
+   working now that .modal__body is a flex column instead of being inert. */
+.modal__body.gap-3 { gap: 12px; }
+.modal__body.gap-4 { gap: 16px; }
+
+.modal__footer {
+  display: flex;
+  justify-content: flex-end; /* x3beP mFooter justifyContent end */
+  align-items: center;
+  padding: 20px 0 0;         /* x3beP mFooter padding [20,0,0,0] */
+  margin: 0;
+  gap: 8px;                  /* x3beP mFooter gap */
+}
+
+/* Field controls inside dialogs — Gameplane/Input (D0cDM) / Gameplane/Select
+   (AT7ya) are 36px tall with a white field fill; HeroUI's Input/Select render
+   40px tall with a --surface-secondary fill. .select__trigger already gets
+   border-radius: 6px from the shared radius rule above (~line 224) — this
+   adds the remaining size/fill/border properties rather than duplicating
+   that declaration. */
+.modal__dialog .input,
+.modal__dialog .select__trigger {
+  height: 36px;
+}
+
+.select__trigger {
+  padding: 0 12px;
+  font-size: 14px;
+  background-color: var(--field-background);
+  border: 1px solid var(--field-border);
+  color: var(--field-foreground);
 }
 
 .dropdown__popover {
@@ -267,15 +363,16 @@ input:-webkit-autofill:focus {
   color: var(--accent);
 }
 
-/* Asleep phase chip (q31B6w): render with the violet focus treatment used
+/* Asleep phase chip (q31B6w): render with the violet sleep treatment used
    everywhere else for Asleep status (share page badge, Server Detail
    header badge) rather than the accent/pink used for other filled chips.
    Scoped to HeroUI chips only to avoid styling other elements. */
 [data-slot="chip"][data-asleep="true"] {
-  border-color: var(--focus) !important;
-  background-color: color-mix(in srgb, var(--focus) 20%, transparent) !important;
-  color: var(--focus) !important;
+  border-color: var(--sleep) !important;
+  background-color: color-mix(in srgb, var(--sleep) 20%, transparent) !important;
+  color: var(--sleep) !important;
 }
+
 
 /* Modpack category pills (tY6RD): selected pill is filled accent, others
    are outline. Scoped to the category row so this does not leak into other
@@ -283,6 +380,24 @@ input:-webkit-autofill:focus {
 .modpack-categories [data-active="true"] {
   background-color: var(--accent) !important;
   color: var(--accent-foreground) !important;
+}
+
+/* Overridden provenance badge (R65Xyx): neutral/outlined per the current
+   design — transparent fill, border stroke, muted icon/label — replacing the
+   earlier shared pink treatment. Scoped to this one badge type only:
+   notConfigured (BV5ei) and fromHelm (Rwnu3) still use the pink chip--soft
+   pill via color="danger"/"default" and need no override here.
+   Uses outline instead of border: the design's stroke is inner-aligned
+   (doesn't grow the shape's bounding box — see design-export/json/R65Xyx.json
+   "strokeAlignment":"inner"), and CSS outline never participates in layout
+   sizing regardless of offset, matching that exactly. A real `border` here
+   was pushing the rendered chip ~1.2% wider than the reference, forcing the
+   visual-diff scale-normalization step to resample (and blur) every glyph
+   edge, which is what was driving R65Xyx's diff score, not fill color. */
+[data-slot="chip"][data-type="overridden"] {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+  color: var(--muted);
 }
 
 /* Meter/Progress fill rounded radius */
@@ -333,3 +448,4 @@ input:-webkit-autofill:focus {
 .checkbox.flex-row {
   flex-direction: row;
 }
+

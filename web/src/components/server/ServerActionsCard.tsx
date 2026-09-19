@@ -406,7 +406,7 @@ function ActionDialog({
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button variant="secondary" onPress={onCancel} isDisabled={pending}>
+              <Button variant="ghost" onPress={onCancel} isDisabled={pending}>
                 Cancel
               </Button>
               <Button

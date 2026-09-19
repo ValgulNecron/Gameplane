@@ -11,7 +11,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button, buttonVariants, Card, CardHeader, CardContent, CardFooter, Chip } from "@heroui/react";
-import { GameIcon } from "@/components/hero/GameIcon";
+import { GameIcon } from "@/components/ui/GameIcon";
+import { useGameCodes } from "@/lib/useGameCodes";
 import { resolveCategories } from "@/lib/games";
 import type { EntryVerify } from "@/lib/verify";
 import type { CatalogEntry } from "@/types";
@@ -46,6 +47,7 @@ export function ModuleCard({
   onRemoveUpload,
   busy,
 }: ModuleCardProps) {
+  const { gameCodes, byName } = useGameCodes();
   const upgradeAvailable =
     entry.installed &&
     entry.installedVersion &&
@@ -92,7 +94,12 @@ export function ModuleCard({
     <Card className="flex flex-col h-full">
       <CardHeader className="flex flex-col gap-3 pb-0">
         <div className="flex items-center justify-between gap-3">
-          <GameIcon game={entry.game ?? entry.name} size="md" />
+          <GameIcon
+            game={entry.moduleName ?? entry.game ?? entry.name}
+            icon={byName.get(entry.moduleName ?? entry.game ?? entry.name)?.spec.icon}
+            code={gameCodes.get(entry.moduleName ?? entry.game ?? entry.name)}
+            size="md"
+          />
           <div className="flex items-center gap-1.5">
             {verify && <VerifyBadge verify={verify} />}
             <StatusPill entry={entry} />

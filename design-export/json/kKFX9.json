@@ -4,7 +4,6 @@
   "x": -17185,
   "y": 25039,
   "name": "Gameplane/App Sidebar",
-  "theme": {},
   "reusable": true,
   "width": 260,
   "height": "fill_container(900)",
@@ -374,6 +373,7 @@
           "id": "oByLP",
           "name": "Toggle Row",
           "width": "fill_container",
+          "justifyContent": "center",
           "alignItems": "center",
           "children": [
             {

@@ -107,6 +107,7 @@ export function ModpacksTab({
           name={name}
           type="modpack"
           categories={MODPACK_CATEGORIES}
+          pillButtons={true}
           renderItem={(p, provider) => (
             <Card className="flex flex-row items-center gap-3 p-4">
               <div className="shrink-0">
@@ -128,6 +129,7 @@ export function ModpacksTab({
                 <Button
                   size="sm"
                   variant="primary"
+                  className="rounded-full"
                   isDisabled={!canManage || busy !== null}
                   onPress={() => install(p, provider)}
                 >

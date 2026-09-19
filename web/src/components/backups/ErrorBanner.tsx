@@ -7,8 +7,8 @@ export function ErrorBanner({ err }: { err: unknown }) {
   return (
     <Alert status="danger" className="text-xs">
       <div className="flex gap-2">
-        <AlertCircle className="h-4 w-4 flex-shrink-0" />
-        <span>{msg}</span>
+        <AlertCircle className="h-4 w-4 flex-shrink-0 text-danger" />
+        <span className="text-danger">{msg}</span>
       </div>
     </Alert>
   );

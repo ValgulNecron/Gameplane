@@ -30,6 +30,9 @@ import {
   screenshotConfigWithOidc,
   screenshotConfigOidcEmptyMappings,
   screenshotConfigEmptyStorageClass,
+  screenshotConfigCurseforgeOnly,
+  screenshotEmptyMods,
+  screenshotModrinthProjects,
 } from "./screenshotData";
 
 export const INVALID_BPF_FILTER_FIXTURE = "tcp prot 8080 foo";
@@ -44,6 +47,18 @@ export const handlers = [
     // deterministically. No-op for the unit suite (no cookie set).
     if (cookies.e2e_force_401 === "1") {
       return new HttpResponse("unauthorized\n", { status: 401 });
+    }
+    // e2e affordance: rbacEnforcement.spec.ts needs /users/me to report a
+    // specific role from the moment the SPA loads. MSW's Service Worker
+    // answers this route itself, so a page.route() override can't inject
+    // the role — a cookie the test sets (and which survives navigation)
+    // selects one deterministically. No-op for the unit suite.
+    if (
+      cookies.e2e_me_role === "admin" ||
+      cookies.e2e_me_role === "operator" ||
+      cookies.e2e_me_role === "viewer"
+    ) {
+      return HttpResponse.json(makeUser({ role: cookies.e2e_me_role }));
     }
     return HttpResponse.json(makeUser());
   }),
@@ -78,7 +93,7 @@ export const handlers = [
     HttpResponse.json({
       providers: [
         { kind: "local", label: "Local account" },
-        { kind: "oidc", label: "OIDC" },
+        { kind: "oidc", label: "Keycloak" },
       ],
     }),
   ),
@@ -104,9 +119,23 @@ export const handlers = [
     });
   }),
 
-  http.get("/cluster", () => HttpResponse.json(makeClusterView())),
+  http.get("/cluster", ({ cookies }) => {
+    // e2e affordance: errorHandling.spec.ts needs /cluster to return 500
+    // to verify the error UI. MSW's Service Worker answers this route
+    // itself, so a page.route() override can't inject the status — a
+    // cookie the test sets forces the failure deterministically.
+    if (cookies.e2e_cluster_500 === "1") {
+      return new HttpResponse("boom\n", { status: 500 });
+    }
+    return HttpResponse.json(makeClusterView());
+  }),
   http.get("/cluster/info", () => HttpResponse.json(makeClusterInfo())),
-  http.get("/cluster/stats", () => HttpResponse.json(makeClusterStats())),
+  http.get("/cluster/stats", ({ cookies }) => {
+    if (cookies.e2e_cluster_500 === "1") {
+      return new HttpResponse("boom\n", { status: 500 });
+    }
+    return HttpResponse.json(makeClusterStats());
+  }),
   http.get("/clusters", () =>
     HttpResponse.json({
       items: [{ name: "local", displayName: "local", phase: "Healthy" as const }],
@@ -885,7 +914,7 @@ export function buildScreenshotHandlers() {
           captures: [
             {
               captureId: "cap-001",
-              serverName: "test-server-01",
+              serverName: "mc-survival",
               phase: "Completed",
               startedAt: "2026-09-12T14:00:00Z",
               completedAt: "2026-09-12T14:15:00Z",
@@ -897,7 +926,7 @@ export function buildScreenshotHandlers() {
             },
             {
               captureId: "cap-002",
-              serverName: "test-server-01",
+              serverName: "mc-survival",
               phase: "Completed",
               startedAt: "2026-09-11T10:30:00Z",
               completedAt: "2026-09-11T10:45:00Z",
@@ -919,7 +948,7 @@ export function buildScreenshotHandlers() {
       if (cookies.e2e_capture_variant === "running") {
         return HttpResponse.json({
           captureId: "cap-running",
-          serverName: "test-server-01",
+          serverName: "mc-survival",
           phase: "Running",
           startedAt: "2026-09-13T12:30:00Z",
           completedAt: null,
@@ -1000,7 +1029,7 @@ export function buildScreenshotHandlers() {
 
     // Backups
     // T118 (specs/014-heroui-web-rebuild/tasks.md): both entries' spec.serverRef
-    // is pinned to "test-server-01" (previously left at makeBackup()'s "alpha"
+    // is pinned to "mc-survival" (previously left at makeBackup()'s "alpha"
     // default despite the metadata.name already reading "test-server-01-…") so
     // ServerDetail's per-server Backups tab (which filters by
     // spec.serverRef.name) actually has rows to render for the screenshot.
@@ -1008,12 +1037,12 @@ export function buildScreenshotHandlers() {
       HttpResponse.json({
         items: [
           makeBackup({
-            metadata: { name: "test-server-01-2026-05-07", namespace: "default" },
-            spec: { serverRef: { name: "test-server-01" } },
+            metadata: { name: "mc-survival-nightly-0713", namespace: "default" },
+            spec: { serverRef: { name: "mc-survival" } },
           }),
           makeBackup({
-            metadata: { name: "test-server-01-2026-05-06", namespace: "default" },
-            spec: { serverRef: { name: "test-server-01" } },
+            metadata: { name: "mc-survival-nightly-0712", namespace: "default" },
+            spec: { serverRef: { name: "mc-survival" } },
             status: {
               phase: "Failed",
               startTime: "2026-05-06T03:00:00Z",
@@ -1023,9 +1052,38 @@ export function buildScreenshotHandlers() {
         ],
       }),
     ),
-    http.get("/backups/:name", ({ params }) =>
-      HttpResponse.json(makeBackup({ metadata: { name: String(params.name) } })),
-    ),
+    http.get("/backups/:name", ({ params }) => {
+      const name = String(params.name);
+      if (name === "mc-survival-nightly-0713") {
+        return HttpResponse.json(
+          makeBackup({
+            metadata: { name, namespace: "default" },
+            spec: { serverRef: { name: "mc-survival" } },
+            status: {
+              phase: "Succeeded",
+              startTime: "2026-07-13T00:12:04Z",
+              completionTime: "2026-07-13T00:14:41Z",
+              size: "1.4 GiB",
+              snapshotID: "a1b2c3d4e5f6",
+            },
+          }),
+        );
+      }
+      if (name === "mc-survival-nightly-0712") {
+        return HttpResponse.json(
+          makeBackup({
+            metadata: { name, namespace: "default" },
+            spec: { serverRef: { name: "mc-survival" } },
+            status: {
+              phase: "Failed",
+              startTime: "2026-05-06T03:00:00Z",
+              completionTime: "2026-05-06T03:00:30Z",
+            },
+          }),
+        );
+      }
+      return HttpResponse.json(makeBackup({ metadata: { name } }));
+    }),
     http.post("/backups", async ({ request }) => {
       const body = (await request.json().catch(() => null)) as {
         metadata?: { name?: string; generateName?: string };
@@ -1163,18 +1221,28 @@ export function buildScreenshotHandlers() {
     http.get("/servers/:name/mods/registry/providers", ({ params }) =>
       // test-server-09 (template minecraft-modded) declares two registries
       // — modrinth + hangar — so the Mods browse screen (design GayoL) can
-      // capture the provider tabs and category pills (specs/014h). Every
-      // other server keeps the pre-existing single-provider default.
+      // capture the provider tabs and category pills (specs/014h).
+      // test-server-02 (template minecraft-modded) uses modrinth for the
+      // mods-tab screenshot test (design tY6RD).
+      // Every other server keeps the pre-existing single-provider default.
       HttpResponse.json(
         String(params.name) === "test-server-09"
           ? [
               { provider: "modrinth", available: true, modpacks: true },
               { provider: "hangar", available: true, modpacks: false },
             ]
-          : [{ provider: "thunderstore", available: true, modpacks: true }],
+          : String(params.name) === "test-server-02"
+            ? [{ provider: "modrinth", available: true, modpacks: true }]
+            : [{ provider: "thunderstore", available: true, modpacks: true }],
       ),
     ),
-    http.get("/servers/:name/mods/registry/search", () => HttpResponse.json(data.registryProjects)),
+    http.get("/servers/:name/mods/registry/search", ({ params }) =>
+      HttpResponse.json(
+        String(params.name) === "test-server-02"
+          ? screenshotModrinthProjects
+          : data.registryProjects,
+      ),
+    ),
     http.get("/servers/:name/mods/registry/projects/:project/versions", () =>
       HttpResponse.json([]),
     ),
@@ -1182,7 +1250,13 @@ export function buildScreenshotHandlers() {
       HttpResponse.json({ checkedAt: "2026-09-02T15:40:00Z", updates: [] }),
     ),
     http.get("/servers/:name/mods/ids", () => HttpResponse.json([])),
-    http.get("/servers/:name/mods", () => HttpResponse.json(data.installedMods)),
+    http.get("/servers/:name/mods", ({ params }) =>
+      // test-server-02 (template minecraft-modded) is used by the sZtDi
+      // screenshot test to capture the empty mods state (matching design
+      // frame sZtDi which shows "0 installed" / "No mods installed.").
+      // Every other server keeps the pre-existing fixture with 3 Fabric mods.
+      HttpResponse.json(String(params.name) === "test-server-02" ? screenshotEmptyMods : data.installedMods)
+    ),
 
     // Players
     http.get("/servers/:name/players", () =>
@@ -1355,8 +1429,8 @@ export function buildScreenshotHandlers() {
         return HttpResponse.json({
           ok: false,
           checked: 42,
-          firstBadId: 17,
-          message: "Integrity check failed — chain breaks at event #17",
+          firstBadId: 286,
+          message: "Integrity check failed — chain breaks at event #286",
         });
       }
       return HttpResponse.json({ ok: true, checked: data.auditEvents.length, message: "audit chain intact" });
@@ -1372,6 +1446,8 @@ export function buildScreenshotHandlers() {
           return HttpResponse.json(screenshotConfigOidcEmptyMappings());
         case "empty-storage-class":
           return HttpResponse.json(screenshotConfigEmptyStorageClass());
+        case "registries-curseforge":
+          return HttpResponse.json(screenshotConfigCurseforgeOnly());
         default:
           return HttpResponse.json(data.config());
       }

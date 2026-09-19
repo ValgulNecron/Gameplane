@@ -5,15 +5,10 @@
   "y": 26203,
   "name": "Gameplane/Button/Outline",
   "reusable": true,
-  "height": 36,
+  "fill": "#00000000",
   "stroke": "#00000000",
   "strokeWidth": 1,
   "strokeAlignment": "inner",
-  "gap": "$spacing/2",
-  "padding": [
-    8,
-    "$spacing/4"
-  ],
   "justifyContent": "center",
   "alignItems": "center",
   "children": [

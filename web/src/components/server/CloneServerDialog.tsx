@@ -81,12 +81,12 @@ export function CloneServerDialog({
           <ModalDialog>
             <ModalHeader>
               <ModalHeading>Clone server</ModalHeading>
-            </ModalHeader>
-
-            <ModalBody className="gap-4">
               <Description className="text-sm text-muted">
                 Creates a new server with the same configuration. World data is not copied.
               </Description>
+            </ModalHeader>
+
+            <ModalBody className="gap-4">
 
               <TextField isInvalid={!valid || clone.isError}>
                 <Label className="text-xs">New name</Label>
@@ -113,7 +113,7 @@ export function CloneServerDialog({
 
             <ModalFooter className="flex items-center justify-end gap-2">
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 onPress={() => onOpenChange(false)}
                 isDisabled={clone.isPending}

@@ -6,7 +6,7 @@ import {
   ListBoxItem,
   Switch,
 } from "@heroui/react";
-import { X, AlertCircle, Check, Loader2 } from "lucide-react";
+import { X, AlertCircle, Check, Loader2, Megaphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -601,14 +601,12 @@ function AddressAssignmentSection({
       />
 
       {condition?.reason === "IgnoredForExposureMode" && (
-        <div className="rounded-md border-l-4 border-warning bg-warning/10 p-3 text-sm">
-          <div className="flex gap-2">
-            <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
-            <div>
-              <div className="font-medium text-warning">Address preference ignored</div>
-              <div className="pt-0.5 text-xs text-warning/80">
-                Expose is set to {net.expose || "ClusterIP"}. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer.
-              </div>
+        <div className="flex items-start gap-4 rounded-lg border border-warning-soft-foreground bg-warning-soft px-5 py-4 text-sm">
+          <Megaphone className="mt-0.5 h-4 w-4 shrink-0 text-warning-soft-foreground" />
+          <div className="flex-1">
+            <div className="mb-0.5 font-medium text-warning">Address preference ignored</div>
+            <div className="text-xs text-warning-soft-foreground">
+              Expose is set to {net.expose || "ClusterIP"}. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer.
             </div>
           </div>
         </div>
@@ -1025,7 +1023,7 @@ function TunnelCredentialField({
             </>
           )}
         </Button>
-        <Button size="sm" variant="secondary" onPress={onCancel} isDisabled={isLoading}>
+        <Button size="sm" variant="ghost" onPress={onCancel} isDisabled={isLoading}>
           Cancel
         </Button>
       </div>

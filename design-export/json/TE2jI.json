@@ -72,7 +72,7 @@
             },
             "N3nc2n/YXoPG": {
               "content": "Asleep",
-              "fill": "#A78BFA"
+              "fill": "$focus"
             },
             "EvWbj": {
               "enabled": false
@@ -103,8 +103,6 @@
           "name": "Tabs Bar",
           "width": "fill_container",
           "padding": [
-            0,
-            0,
             0,
             24
           ],
@@ -761,12 +759,12 @@
                                   "height": 18,
                                   "icon": "moon",
                                   "library": "lucide",
-                                  "fill": "#A78BFA"
+                                  "fill": "$focus"
                                 },
                                 {
                                   "type": "text",
                                   "id": "mCDsY",
-                                  "fill": "#A78BFA",
+                                  "fill": "$focus",
                                   "content": "Asleep",
                                   "fontFamily": "$typography/font-sans",
                                   "fontSize": 16,

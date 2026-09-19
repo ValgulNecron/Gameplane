@@ -234,16 +234,12 @@ React 18 + TypeScript strict + Vite dashboard (`web/package.json` version
 - `@tanstack/react-virtual` `^3.14.10` — `useVirtualizer` in `src/routes/tabs/Logs.tsx`, virtualizes the log-line list.
 - `@tanstack/router-devtools` (dev) — **no import found anywhere in `src/`**. Installed but apparently unused; flag as a candidate for removal or an intentionally-deferred addition.
 
-**UI primitives (Radix + shadcn-style wrappers)**
-- `@radix-ui/react-dialog` `^1.1.23` — underlies `src/components/ui/confirm-dialog.tsx` and every modal/drawer (`UploadModuleDialog`, `InstallDialog`, `CloneServerDialog`, `TransferServerDialog`, `SourceDialog`, `RestoreDialog`, `BackupDetailDrawer`, and more).
-- `@radix-ui/react-dropdown-menu` `^2.1.24` — wrapped in `src/components/ui/dropdown-menu.tsx`, used by `ClusterSelector.tsx` and others.
-- `@radix-ui/react-slot` `^1.3.3` — `Slot` in `src/components/ui/button.tsx`, supports the Button's `asChild` polymorphism.
-- `class-variance-authority` `^0.7.1` — `cva()` in `src/components/ui/button.tsx` defines button variant/size classes (unchanged).
-- `clsx` `^2.1.1` + `tailwind-merge` `^3.6.0` — combined into the `cn()` helper in `src/lib/utils.ts`, used app-wide for conditional/merged Tailwind classes.
+**UI primitives (HeroUI v3)**
+- `@heroui/react` `^3.2.4` — foundational component library (Button, Input, Select, Modal, Table, etc.); composed and themed in `src/components/ui/` (Gameplane's composition layer over HeroUI).
+- `@heroui/styles` `^3.2.4` — companion style package with semantic token infrastructure for light/dark modes and brand customization; `@heroui/styles` is imported in `src/main.tsx` for global theme setup.
+- `clsx` `^2.1.1` + `tailwind-merge` `^3.6.0` — combined into the `cn()` helper in `src/lib/utils.ts`, used app-wide for conditional/merged Tailwind classes and with HeroUI's theme tokens.
 - `lucide-react` `^1.37.0` — icon set, imported in roughly 35 files (`AppLayout`, `Dashboard`, `Login`, dialogs, etc.).
-- `@radix-ui/react-label` `^2.1.15` — **no import found**; forms use a plain `<label>` in `field.tsx`/`password-input.tsx` instead.
-- `@radix-ui/react-tabs` `^1.1.21` — **no import found**; `src/components/ui/tabs.tsx` is a hand-rolled tab bar over plain `<button>`s, not Radix Tabs.
-- `@radix-ui/react-toast` `^1.2.23` — **no import found**; there is no toast/notification component in `src/` currently.
+- `react-aria` — peer dependency of HeroUI, providing accessibility primitives (via `react-aria-components`) used by HeroUI atoms.
 
 **Editors / terminals**
 - `@monaco-editor/react` `^4.7.0` — the `Editor` component in `src/routes/tabs/Files.tsx` (in-browser file editor) and `Placement.tsx`; given its own `manualChunks` bundle in `vite.config.ts`.

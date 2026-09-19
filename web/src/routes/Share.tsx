@@ -8,7 +8,7 @@ import {
 import { ShieldCheck, Copy, Check } from "lucide-react";
 import { Shares } from "@/lib/api";
 import type { ShareLinkPublic } from "@/types";
-import type { AppearanceMode } from "@/components/hero/AppearanceToggle";
+import type { AppearanceMode } from "@/components/ui/AppearanceToggle";
 
 // localStorage key for appearance preference (must match AppLayout)
 const THEME_STORAGE_KEY = "gameplane-theme";

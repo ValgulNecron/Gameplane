@@ -212,18 +212,16 @@ describe("SourceDialog", () => {
 
   it("validates before submitting", async () => {
     const onConfirm = renderDialog();
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-    await screen.findByText(/name is required/);
+    const submitBtn = screen.getByRole("button", { name: "Add source" });
+    expect(submitBtn).toBeDisabled();
 
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "up" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-    await screen.findByText(/url is required/);
+    expect(submitBtn).toBeDisabled();
 
     fireEvent.change(screen.getByPlaceholderText("ghcr.io/valgulnecron/gameplane-modules"), {
       target: { value: "ghcr.io/x" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-    await screen.findByText(/at least one module/);
+    expect(submitBtn).toBeDisabled();
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
@@ -247,6 +245,24 @@ describe("SourceDialog", () => {
     });
   });
 
+  it("enables submit and confirms once a valid oci source is filled", async () => {
+    const onConfirm = renderDialog();
+    const submitBtn = screen.getByRole("button", { name: "Add source" });
+    expect(submitBtn).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upstream" } });
+    fireEvent.change(screen.getByPlaceholderText("ghcr.io/valgulnecron/gameplane-modules"), {
+      target: { value: "ghcr.io/x" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("minecraft-java, valheim"), {
+      target: { value: "minecraft-java" },
+    });
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+  });
+
   it("reveals keyless verify fields and validates them", async () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upstream" } });
@@ -257,6 +273,9 @@ describe("SourceDialog", () => {
       target: { value: "minecraft-java" },
     });
 
+    const submitBtn = screen.getByRole("button", { name: "Add source" });
+    expect(submitBtn).not.toBeDisabled();
+
     // Keyless reveals issuer + identity inputs.
     await selectVerifyMode("keyless");
     await screen.findByText("OIDC issuer");
@@ -266,13 +285,13 @@ describe("SourceDialog", () => {
     });
 
     // Blank identity blocks submit.
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-    await screen.findByText(/keyless verification needs an issuer and identity/);
+    expect(submitBtn).toBeDisabled();
     expect(onConfirm).not.toHaveBeenCalled();
 
     // Filling it submits the verify block.
     fireEvent.change(identity, { target: { value: "id@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    expect(submitBtn).not.toBeDisabled();
+    fireEvent.click(submitBtn);
     await waitFor(() => expect(onConfirm).toHaveBeenCalled());
     expect(onConfirm).toHaveBeenCalledWith({
       name: "upstream",
@@ -328,20 +347,23 @@ describe("SourceDialog", () => {
       target: { value: "minecraft-java" },
     });
 
+    const submitBtn = screen.getByRole("button", { name: "Add source" });
+    expect(submitBtn).not.toBeDisabled();
+
     // Switch to keyed verify mode.
     await selectVerifyMode("keyed");
     await screen.findByText("Public key secret");
 
     // Blank secret name blocks submit.
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-    await screen.findByText(/keyed verification needs a public key secret name/);
+    expect(submitBtn).toBeDisabled();
     expect(onConfirm).not.toHaveBeenCalled();
 
     // Filling it submits the verify block.
     fireEvent.change(screen.getByPlaceholderText("cosign-pub"), {
       target: { value: "my-cosign-key" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    expect(submitBtn).not.toBeDisabled();
+    fireEvent.click(submitBtn);
     await waitFor(() => expect(onConfirm).toHaveBeenCalled());
     expect(onConfirm).toHaveBeenCalledWith({
       name: "signed-upstream",
@@ -372,8 +394,7 @@ describe("SourceDialog", () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "git-src" } });
     await selectType("git");
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-    await screen.findByText(/url is required/);
+    expect(screen.getByRole("button", { name: "Add source" })).toBeDisabled();
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
@@ -381,8 +402,7 @@ describe("SourceDialog", () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "http-src" } });
     await selectType("http");
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-    await screen.findByText(/url is required/);
+    expect(screen.getByRole("button", { name: "Add source" })).toBeDisabled();
     expect(onConfirm).not.toHaveBeenCalled();
   });
 

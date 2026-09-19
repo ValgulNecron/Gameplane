@@ -145,8 +145,8 @@ test.describe("All-Screens: Settings tabs (Desktop — 1440x900) @screenshots", 
   });
 
   test("hLB9Z: Server Detail — Settings (root)", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -159,8 +159,8 @@ test.describe("All-Screens: Settings tabs (Desktop — 1440x900) @screenshots", 
   });
 
   test("E0ypH: Server Detail — Settings · Resources", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -174,8 +174,8 @@ test.describe("All-Screens: Settings tabs (Desktop — 1440x900) @screenshots", 
   });
 
   test("swxkJ: Server Detail — Settings · Version", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -193,8 +193,8 @@ test.describe("All-Screens: Settings tabs (Desktop — 1440x900) @screenshots", 
   });
 
   test("ugDSa: Server Detail — Settings · Environment", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -212,8 +212,8 @@ test.describe("All-Screens: Settings tabs (Desktop — 1440x900) @screenshots", 
   });
 
   test("i8wib: Server Detail — Settings · Danger zone", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -231,8 +231,8 @@ test.describe("All-Screens: Settings tabs (Desktop — 1440x900) @screenshots", 
   });
 
   test("xCJlu: Server Detail — Settings · Share links", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -425,8 +425,8 @@ test.describe("All-Screens: Capture tab (Desktop — 1440x900) @screenshots", ()
   });
 
   test("dBILX: Server Detail — Capture (Empty)", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -442,8 +442,8 @@ test.describe("All-Screens: Capture tab (Desktop — 1440x900) @screenshots", ()
   });
 
   test("O08uaD: Server Detail — Capture — Start capture", async ({ page }) => {
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -465,8 +465,8 @@ test.describe("All-Screens: Capture tab (Desktop — 1440x900) @screenshots", ()
   });
 
   test("b4eaUf: Server Detail — Capture — Start capture (Invalid filter)", async ({ page }) => {
-    await page.goto("/servers/test-server-01", { waitUntil: "networkidle" });
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival", { waitUntil: "networkidle" });
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -507,8 +507,8 @@ test.describe("All-Screens: Capture tab (Desktop — 1440x900) @screenshots", ()
     await page.addInitScript(() => {
       document.cookie = "e2e_capture_variant=list; path=/";
     });
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 
@@ -527,8 +527,8 @@ test.describe("All-Screens: Capture tab (Desktop — 1440x900) @screenshots", ()
     await page.addInitScript(() => {
       document.cookie = "e2e_capture_variant=running; path=/";
     });
-    await page.goto("/servers/test-server-01");
-    await expect(page.getByRole("heading", { name: "test-server-01" })).toBeVisible({
+    await page.goto("/servers/mc-survival");
+    await expect(page.getByRole("heading", { name: "mc-survival" })).toBeVisible({
       timeout: 10_000,
     });
 

@@ -115,7 +115,7 @@
 - [X] T032b Add light-mode preview frames to design.pen per OD-specific decision: gX7um Login (Light) (restored 2026-09-05 after an out-of-scope deletion, refreshed final 2026-09-05), oyoTs Dashboard Home (Light) (re-created 2026-09-05 after the bare-frame card fix wave, refreshed final 2026-09-05), zFiOW Servers (Light), sSISK Server Detail Overview (Light), DWztv Mobile Servers (Light) (refreshed final 2026-09-05), so both light and dark modes are visible simultaneously without switching appearance in Pencil; note that the original screens remain in dark mode as designed.
 - [X] T032c Re-export design-export/ after the 2026-09-04 theme changes: slice-0 atoms, definitions, and the five light previews (gX7um, oyoTs, zFiOW, sSISK, DWztv as of 2026-09-05 final refresh) exported to design-export/json/<id>.json and design-export/screenshots/<id>.png at depth ≥12 with zero "..." elision markers; no $c: reference remains in the exports of the ids re-pointed in that wave; other screens keep $c: bindings until their own slice (see the T033 note on zFiOW); update design-export/MANIFEST.md with one row per id clarifying the HeroUI token re-point and noting that lunaris library variables are read-only in Pencil.
 - [X] T032d Update web/src/styles/globals.css :root/.dark blocks and web/src/__tests__/theme.test.tsx to the contracts/theme-tokens.md light and dark values (currently carrying legacy orange values from before the re-theme); this is a code follow-up to T032a/T032b/T032c, verified by CI.
-- [ ] T032e Decide OD-9 (purple stat-icon token): verify that StatCard icon background color uses the settled purple #8B5CF6 per the 2026-09-04 decision (was amber before), and ensure theme.test.tsx covers this token value in both light and dark modes; if the token is not yet settled in OPEN-DECISIONS.md, add the decision with citation to maintainer 2026-09-04 ruling.
+- [X] T032e Decide OD-9 (purple stat-icon token): verify that StatCard icon background color uses the settled purple #8B5CF6 per the 2026-09-04 decision (was amber before), and ensure theme.test.tsx covers this token value in both light and dark modes; if the token is not yet settled in OPEN-DECISIONS.md, add the decision with citation to maintainer 2026-09-04 ruling. — Done 2026-09-16: maintainer ruled a HeroUI semantic token; `--chart-stat`/`$chart/stat` added (OD-9 settled), theme.test.tsx covers light+dark.
 
 **Checkpoint**: Foundation ready - slice 0 PR green on CI and merged; every later slice is a pure translation job
 
@@ -333,7 +333,7 @@
 - [X] T142 [US4] Redraw design screens Wj0V4 n6Xlo uoxQW M2sA4u zM0VF bYDHC (Users, RBAC, role dialogs) from HeroUI definitions per contracts/component-map.md, re-export JSON and PNG, update design-export/MANIFEST.md. — done 2026-09-06 (design waves 2a–5 + fix waves 1–9; exports refreshed)
 - [X] T143 [US4] Redraw design screens e9lV4 TBvTC Dpb9f DxKOh (Audit Log, System Logs, Cluster pages) from HeroUI definitions per contracts/component-map.md, re-export JSON and PNG, update design-export/MANIFEST.md. — done 2026-09-06 (design waves 2a–5 + fix waves 1–9; exports refreshed)
 - [X] T144 [US4] Redraw design screens Bq2Yg j9W8A dxdEi kIxaJ CqaSq NLDDv t3IY3u MaoHP Kp48V uw0dB XL5ZU vStkb R65Xyx Rwnu3 BV5ei (dialogs, modals, badges, chips, banners for admin features) from HeroUI definitions per contracts/component-map.md, re-export JSON and PNG, update design-export/MANIFEST.md. — done 2026-09-06 (design waves 2a–5 + fix waves 1–9; exports refreshed)
-- [ ] T145 [US4] Save design.pen in Pencil GUI after all design edits are complete (required before design commit per Constitution II).
+- [X] T145 [US4] Save design.pen in Pencil GUI after all design edits are complete (required before design commit per Constitution II).
 
 ### Composition & Component Work: Build hero/ compositions
 
@@ -432,7 +432,7 @@
 - [X] T193 [US5] Update web/specs.md: add Share links entry under Routing section (path, public access, no auth required, five states) and under Settings sub-sections (ShareLinks tab, create/list/revoke, permission gate); remove any reference to old share-link primitives if any exist.
 - [X] T194 [US5] Verify FR-005 privacy rule: the public Share.tsx page renders no cluster name, namespace, version string, user names, counts, or server enumeration hints; review the Invalid state and all error mappings in the code match the contract.
 - [X] T195 [US5] Verify FR-012 import rule: grep -rl '@/components/ui/\|@radix-ui' web/src/routes/Share.tsx web/src/routes/tabs/settings/ShareLinks.tsx web/src/lib/api.ts web/src/types.ts must return nothing; all new files import from @heroui/react or @/components/hero/ only.
-- [ ] T196 [US5] Record in PR description: Pencil node ids touched (xCJlu dQV9N C2LQE4 q31B6w qFLfB EcoGD epZO2 atqRh VM7ro S7SCDc), screen verification verdicts table, FR-005 privacy check result, FR-012 import check result, test-count verification (ShareLinks.test.tsx, Share.test.tsx, api.test.ts updated, no test files deleted).
+- [X] T196 [US5] Record in PR description: Pencil node ids touched (xCJlu dQV9N C2LQE4 q31B6w qFLfB EcoGD epZO2 atqRh VM7ro S7SCDc), screen verification verdicts table, FR-005 privacy check result, FR-012 import check result, test-count verification (ShareLinks.test.tsx, Share.test.tsx, api.test.ts updated, no test files deleted). — Done 2026-09-16 in the PR #378 description ("Slice 5 verification").
 
 **Checkpoint**: US5 fully functional, slice PR green on the `web`, `web-e2e-mock` and `e2e-web-live` jobs, screenshot comparison accepted, merged before the next slice is cut
 
@@ -448,34 +448,34 @@
 
 ### Search and Deletion
 
-- [ ] T197 Search web/src/ for remaining imports from @/components/ui/ or @radix-ui/*; log file paths and line counts for review before deletion.
-- [ ] T198 Delete web/src/components/ui/ directory and all its contents (37 files: button.tsx, card.tsx, input.tsx, select.tsx, textarea.tsx, switch.tsx, tabs.tsx, confirm-dialog.tsx, dropdown-menu.tsx, badge.tsx, stat.tsx, meter.tsx, sparkline.tsx, game-icon.tsx, slack-icon.tsx, slider.tsx, resource-input.tsx, password-input.tsx, field.tsx, plus all .test.tsx files).
-- [ ] T199 Update web/package.json to remove @radix-ui/react-dialog, @radix-ui/react-dropdown-menu, @radix-ui/react-label, @radix-ui/react-slot, @radix-ui/react-tabs, react-toast, and class-variance-authority from dependencies; run npm ci and verify no errors.
+- [X] T197 Search web/src/ for remaining imports from @/components/ui/ or @radix-ui/*; log file paths and line counts for review before deletion. — Done 2026-09-16: only `web/src/components/RequireRole.tsx` (button, card) imported the old layer; migrated to `@heroui/react`.
+- [X] T198 Delete web/src/components/ui/ directory and all its contents (37 files: button.tsx, card.tsx, input.tsx, select.tsx, textarea.tsx, switch.tsx, tabs.tsx, confirm-dialog.tsx, dropdown-menu.tsx, badge.tsx, stat.tsx, meter.tsx, sparkline.tsx, game-icon.tsx, slack-icon.tsx, slider.tsx, resource-input.tsx, password-input.tsx, field.tsx, plus all .test.tsx files). — Done 2026-09-16 (18 test files; maintainer sign-off conditional on porting — sonnet review found only the Servers tab count badges uncovered, ported to `routes/Servers.test.tsx`).
+- [X] T199 Update web/package.json to remove @radix-ui/react-dialog, @radix-ui/react-dropdown-menu, @radix-ui/react-label, @radix-ui/react-slot, @radix-ui/react-tabs, react-toast, and class-variance-authority from dependencies; run npm ci and verify no errors. — Done 2026-09-16 (`npm install` refreshed the lockfile).
 
 ### Configuration and Rename
 
-- [ ] T200 Check web/tailwind.config.ts; if Tailwind 4 CSS-first @theme blocks in globals.css make this file redundant, delete it; otherwise leave in place per plan.
-- [ ] T201 Per OD-7 (Settled 2026-09-03), rename web/src/components/hero/ to web/src/components/ui/ to become the new primitive layer (this runs only after T198 deletes the old web/src/components/ui/); update all imports across web/src to reference @/components/ui/ instead of @/components/hero/.
+- [X] T200 Check web/tailwind.config.ts; if Tailwind 4 CSS-first @theme blocks in globals.css make this file redundant, delete it; otherwise leave in place per plan. — Done 2026-09-16: nothing referenced it (no `@config`, postcss uses `@tailwindcss/postcss`); deleted.
+- [X] T201 Per OD-7 (Settled 2026-09-03), rename web/src/components/hero/ to web/src/components/ui/ to become the new primitive layer (this runs only after T198 deletes the old web/src/components/ui/); update all imports across web/src to reference @/components/ui/ instead of @/components/hero/.
 
 ### Documentation Updates
 
-- [ ] T202 Update web/specs.md: remove every mention of lunaris primitives, Radix, and old component files (badge.tsx, button.tsx, card.tsx, confirm-dialog.tsx, dropdown-menu.tsx, input.tsx, select.tsx, slider.tsx, stat.tsx, switch.tsx, tabs.tsx, textarea.tsx); add a section naming HeroUI as the new component layer; note the new Share links section in Settings and public Share route.
-- [ ] T203 Update docs/architecture.md to replace any mention of the old lunaris-based primitives with HeroUI as the component foundation; list the component families and their roles (HeroUI base + Gameplane compositions in @/components/ui/).
-- [ ] T204 Update docs/contributing.md to replace component-building guidance from lunaris/Radix to HeroUI; direct contributors to @heroui/react docs and the Gameplane compositions in web/src/components/ui/.
+- [X] T202 Update web/specs.md: remove every mention of lunaris primitives, Radix, and old component files (badge.tsx, button.tsx, card.tsx, confirm-dialog.tsx, dropdown-menu.tsx, input.tsx, select.tsx, slider.tsx, stat.tsx, switch.tsx, tabs.tsx, textarea.tsx); add a section naming HeroUI as the new component layer; note the new Share links section in Settings and public Share route.
+- [X] T203 Update docs/architecture.md to replace any mention of the old lunaris-based primitives with HeroUI as the component foundation; list the component families and their roles (HeroUI base + Gameplane compositions in @/components/ui/).
+- [X] T204 Update docs/contributing.md to replace component-building guidance from lunaris/Radix to HeroUI; direct contributors to @heroui/react docs and the Gameplane compositions in web/src/components/ui/. — Also updated docs/dependencies.md, README.md and the CLAUDE.md architecture table.
 
 ### Verification: Consumers and Coverage
 
-- [ ] T205 Run grep -rE '@/components/ui/|@radix-ui' web/src --include='*.tsx' against the codebase; confirm zero results to verify SC-002 (no consumers of old primitives remain).
-- [ ] T206 Run git diff master --stat -- 'web/src/**/*.test.ts*' and verify no test file was deleted; list counts of it() cases in each modified test file and confirm counts did not decrease (SC-005).
+- [X] T205 Run grep -rE '@/components/ui/|@radix-ui' web/src --include='*.tsx' against the codebase; confirm zero results to verify SC-002 (no consumers of old primitives remain). — Done 2026-09-16: zero `@radix-ui`/`class-variance-authority` imports; `@/components/ui/` now resolves to the HeroUI compositions per OD-7.
+- [X] T206 Run git diff master --stat -- 'web/src/**/*.test.ts*' and verify no test file was deleted; list counts of it() cases in each modified test file and confirm counts did not decrease (SC-005). — Done 2026-09-16: no test file deleted except the 18 legacy primitive tests removed by T198 (maintainer sign-off); all other modified test files only gained it() cases (theme.test.tsx +3, Servers.test.tsx +1).
 - [ ] T207 Manually navigate the login page, servers list, and server settings using only keyboard (Tab, Enter, arrow keys, Escape) to verify no focus traps, all controls are labeled, and every interactive element is reachable without a mouse (SC-007 keyboard-only pass).
 
 ### Quickstart and Housekeeping
 
-- [ ] T208 Run the quickstart.md validation steps (section 1–4): verify design commit precedes code commits, check JSON exports have no '...' elision markers, run tsc --noEmit, confirm web/e2e-mock and e2e-web-live CI jobs pass. (OD-4's `dashboard-utility` (bJ2cg) / OFfAu deletion and OD-5's `.gitignore` entry were both settled and applied in slice 0 — T004, T005 — so no further action on either is needed here.)
+- [X] T208 Run the quickstart.md validation steps (section 1–4): verify design commit precedes code commits, check JSON exports have no '...' elision markers, run tsc --noEmit, confirm web/e2e-mock and e2e-web-live CI jobs pass. (OD-4's `dashboard-utility` (bJ2cg) / OFfAu deletion and OD-5's `.gitignore` entry were both settled and applied in slice 0 — T004, T005 — so no further action on either is needed here.) — Done 2026-09-16: tsc clean; web, coverage/web, web e2e (mock), e2e web live amd64+arm64 pass on 4ce6e857; design commits land with their exports.
 
 ### PR Labeling
 
-- [ ] T209 Add labels to the slice 5 PR via gh api: type: refactor, area: web, and type: feature (only slice 5 carries type: feature); use the REST API per CLAUDE.md rule 14 since gh pr edit does not work on this repo.
+- [X] T209 Add labels to the slice 5 PR via gh api: type: refactor, area: web, and type: feature (only slice 5 carries type: feature); use the REST API per CLAUDE.md rule 14 since gh pr edit does not work on this repo. — Done 2026-09-16 on PR #378, which carries slice 5's remaining work.
 
 **Checkpoint**: Feature complete: zero consumers of the old primitives, all gates green, spec folder ready for the `done_` rename (CLAUDE.md rule 16)
 

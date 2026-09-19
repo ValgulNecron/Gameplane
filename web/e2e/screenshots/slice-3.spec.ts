@@ -119,20 +119,20 @@ test.describe("Slice 3: Create Server, Modules, Backups (Desktop — 1440x900) @
     await capture(page, "vUqMl");
   });
 
-  test("f1Vga: Create Server — Step 4 Network", async ({ page }) => {
+  test("QQtUD: Create Server — Step 4 Network (as built)", async ({ page }) => {
     await page.goto("/servers/new");
     await page.getByRole("button", { name: /Minecraft Java Edition/i }).click();
     await page.getByRole("button", { name: /continue/i }).click();
     await page.getByRole("button", { name: /1\.21 \(Vanilla\)/i }).click();
     await page.getByRole("button", { name: /continue/i }).click();
-    await page.getByPlaceholder(/mc-hardcore/i).fill("e2e-screenshot-srv");
+    await page.getByPlaceholder(/mc-hardcore/i).fill("mc-survival");
     await page.getByRole("button", { name: /continue/i }).click();
     await expect(page.getByText(/^expose$/i)).toBeVisible({ timeout: 10_000 });
     // Fill in address pool and requested address to trigger the warning alerts
     await page.getByPlaceholder("pool-us-west").fill("pool-us-west");
     await page.getByPlaceholder("203.0.113.50").fill("203.0.113.50");
     await page.waitForTimeout(200);
-    await capture(page, "f1Vga");
+    await capture(page, "QQtUD");
   });
 
   test("UMJli: Create Server — Step 5 Review", async ({ page }) => {
@@ -173,8 +173,8 @@ test.describe("Slice 3: Create Server, Modules, Backups (Desktop — 1440x900) @
     await expect(page.getByRole("heading", { name: /^backups$/i })).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByText("test-server-01-2026-05-07")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("test-server-01-2026-05-06")).toBeVisible();
+    await expect(page.getByText("mc-survival-nightly-0713")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("mc-survival-nightly-0712")).toBeVisible();
     await page.waitForTimeout(200);
     await capture(page, "DPrYX");
   });
@@ -206,8 +206,17 @@ test.describe("Slice 3: Create Server, Modules, Backups (Desktop — 1440x900) @
   test("zhLZN: Backup Detail Drawer", async ({ page }) => {
     // Design PNG is light theme — see setTheme()'s note.
     await setTheme(page, "light");
+    // Freeze the clock so BackupDetailDrawer's formatRelative(startTime) /
+    // formatRelative(completionTime) read "3h ago" (design-export/json/
+    // zhLZN.json) instead of drifting with the real wall clock. The
+    // mc-survival-nightly-0713 fixture (handlers.ts) has startTime
+    // 2026-07-13T00:12:04Z and completionTime 2026-07-13T00:14:41Z — 2m37s
+    // apart — so any fixed "now" in [2026-07-13T03:14:41Z,
+    // 2026-07-13T04:12:04Z) floors both to 3h. setFixedTime must run before
+    // navigation so the drawer's first render already sees it.
+    await page.clock.setFixedTime(new Date("2026-07-13T03:20:00Z"));
     await page.goto("/backups");
-    const nameCell = page.getByText("test-server-01-2026-05-07", { exact: true });
+    const nameCell = page.getByText("mc-survival-nightly-0713", { exact: true });
     await expect(nameCell).toBeVisible({ timeout: 10_000 });
     await nameCell.click();
     await expect(page.getByText(/backup details/i)).toBeVisible({ timeout: 10_000 });
@@ -223,9 +232,9 @@ test.describe("Slice 3: Create Server, Modules, Backups (Desktop — 1440x900) @
     // Design PNG is light theme — see setTheme()'s note.
     await setTheme(page, "light");
     await page.goto("/backups");
-    const row = page.getByRole("row", { name: /test-server-01-2026-05-07/i });
+    const row = page.getByRole("row", { name: /mc-survival-nightly-0713/i });
     await expect(row).toBeVisible({ timeout: 10_000 });
-    // test-server-01-2026-05-07 (default makeBackup()) is Succeeded with a
+    // mc-survival-nightly-0713 (default makeBackup()) is Succeeded with a
     // snapshotID, so BackupRow's "Restore" action is enabled on it.
     await row.getByRole("button", { name: /^restore$/i }).click();
     // RestoreDialog.tsx uses HeroUI's ModalHeading (slot="title"), which does
@@ -238,24 +247,29 @@ test.describe("Slice 3: Create Server, Modules, Backups (Desktop — 1440x900) @
     await captureLocator(page, "E9EEv0", dialog);
   });
 
-  test("DMnEi: Backup List Item", async ({ page }) => {
+  test("DMnEi: Add module source dialog", async ({ page }) => {
     // Design PNG is light theme — see setTheme()'s note.
     await setTheme(page, "light");
-    await page.goto("/backups");
-    const row = page.getByRole("row", { name: /test-server-01-2026-05-07/i });
-    await expect(row).toBeVisible({ timeout: 10_000 });
+    // DMnEi's design panel shows the whole 480px dialog (~881 CSS px tall)
+    // with every field visible. At the suite's 1440x900 viewport, ModalBody's
+    // max-h-[80vh] (SourceDialog.tsx) scrolls the body and captureLocator
+    // screenshots only the visible box, cutting off Allow list / Refresh
+    // interval. Give only this test a taller viewport so the form fits.
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    // #376 resolved: design-export/screenshots/DMnEi.png is genuinely the
+    // "Add module source" dialog (Gameplane/Dialog/Add Module Source,
+    // (-17205,28535)) — MANIFEST.md mislabeled the node "Gameplane/Backup
+    // List Item". This test now captures what the reference actually shows.
+    // ModuleSourcesPanel is rendered in AdminSettings only when the section
+    // state is 'modules' (default is 'general'), so navigate to /admin,
+    // click the nav button to switch to the Module sources section, then
+    // click the Add source button.
+    await page.goto("/admin");
+    await page.getByRole("button", { name: /^Module sources$/i }).click();
+    await page.getByRole("button", { name: /add source/i }).click();
+    const dialog = page.getByRole("dialog", { name: /add module source/i });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(200);
-    // Component-level crop (not a full-page capture): DMnEi is the reusable
-    // backup list item (BackupRow), not a routed screen — see
-    // design-export/MANIFEST.md's "Components/Dialogs" table for this id.
-    //
-    // NOTE (design/export conflict, maintainer/design follow-up needed, not a
-    // capture-code bug): design-export/screenshots/DMnEi.png currently shows
-    // the "Add module source" dialog (SourceDialog.tsx), not the Backup List
-    // Item this test and MANIFEST.md both describe. This capture intentionally
-    // keeps targeting the BackupRow per the spec's own intent and MANIFEST —
-    // the mismatched reference PNG needs a Pencil re-export, not a change here.
-    // Tracked in issue #376.
-    await captureLocator(page, "DMnEi", row);
+    await captureLocator(page, "DMnEi", dialog);
   });
 });

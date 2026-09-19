@@ -6,6 +6,7 @@
   "name": "Gameplane/Dialog/Share Link Created",
   "x": -15865,
   "y": 27934,
+  "theme": {},
   "descendants": {
     "E7Whx": {
       "content": "Share link created"

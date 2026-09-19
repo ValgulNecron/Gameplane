@@ -16,14 +16,14 @@ import { useMe, can } from "@/lib/auth";
 import type { ClusterInfo } from "@/types";
 import { useEffect, useState } from "react";
 import { ClusterSelector } from "@/components/ClusterSelector";
-import { AppShell } from "@/components/hero/AppShell";
-import { Sidebar, type SidebarNavGroup } from "@/components/hero/Sidebar";
-import { TopBar } from "@/components/hero/TopBar";
-import { Breadcrumbs, buildCrumbs } from "@/components/hero/Breadcrumbs";
-import { GlobalSearch } from "@/components/hero/GlobalSearch";
-import { NotificationsPanel } from "@/components/hero/NotificationsPanel";
-import { AppLoadingSkeleton } from "@/components/hero/AppLoadingSkeleton";
-import type { AppearanceMode } from "@/components/hero/AppearanceToggle";
+import { AppShell } from "@/components/ui/AppShell";
+import { Sidebar, type SidebarNavGroup } from "@/components/ui/Sidebar";
+import { TopBar } from "@/components/ui/TopBar";
+import { Breadcrumbs, buildCrumbs } from "@/components/ui/Breadcrumbs";
+import { GlobalSearch } from "@/components/ui/GlobalSearch";
+import { NotificationsPanel } from "@/components/ui/NotificationsPanel";
+import { AppLoadingSkeleton } from "@/components/ui/AppLoadingSkeleton";
+import type { AppearanceMode } from "@/components/ui/AppearanceToggle";
 import { useDelayedLoading } from "@/lib/useDelayedLoading";
 
 // The localStorage key the theme boot script in index.html reads before

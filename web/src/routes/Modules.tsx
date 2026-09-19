@@ -7,7 +7,7 @@ import { Button, Input, buttonVariants } from "@heroui/react";
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { InstallDialog } from "@/components/modules/InstallDialog";
 import { UploadModuleDialog } from "@/components/modules/UploadModuleDialog";
-import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";

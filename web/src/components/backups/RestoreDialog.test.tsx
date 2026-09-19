@@ -245,9 +245,10 @@ describe("RestoreDialog", () => {
     await screen.findByText(/Restore backup/i);
     // The selected server should be displayed in the trigger once the
     // servers list has loaded and the trigger label resolves against it.
+    const trigger = screen.getAllByRole("button").find(b => b.getAttribute("id") === "target-server");
+    if (!trigger) throw new Error("target-server trigger not found");
     await waitFor(() => {
-      const allText = screen.getByRole("dialog").textContent || "";
-      expect(allText).toContain("beta");
+      expect(trigger).toHaveTextContent("beta");
     });
   });
 
@@ -270,8 +271,7 @@ describe("RestoreDialog", () => {
     const buttons = screen.getAllByRole("button");
     const restoreBtn = buttons.find((b) => /Restore$/.test(b.textContent ?? ""));
     // HeroUI danger variant should be applied for restic restore
-    expect(restoreBtn).toBeInTheDocument();
-    expect(restoreBtn?.getAttribute("data-variant") || restoreBtn?.className).toBeTruthy();
+    expect(restoreBtn?.className).toContain("button--danger");
   });
 
   it("shows primary variant for volume-snapshot restore button", async () => {
@@ -291,7 +291,7 @@ describe("RestoreDialog", () => {
     );
     const restoreBtn = await screen.findByRole("button", { name: /restore to new server/i });
     // HeroUI primary variant should be applied for volume-snapshot restore
-    expect(restoreBtn).toBeInTheDocument();
+    expect(restoreBtn?.className).toContain("button--primary");
   });
 
   it("updates target when backup changes", async () => {

@@ -112,8 +112,8 @@ test.describe("@screenshots dashboard gallery", () => {
   test("server-overview", async ({ page }) => {
     await loginAsAdmin(page);
 
-    // SERVER OVERVIEW (/servers/test-server-01)
-    await page.goto("/servers/test-server-01");
+    // SERVER OVERVIEW (/servers/mc-survival)
+    await page.goto("/servers/mc-survival");
     // Click Overview tab to ensure we're on the right tab
     await clickTab(page, "Overview");
     // Wait for overview tab panel or a distinctive metric/heading
@@ -144,8 +144,8 @@ test.describe("@screenshots dashboard gallery", () => {
   test("server-console", async ({ page }) => {
     await loginAsAdmin(page);
 
-    // SERVER CONSOLE TAB (/servers/test-server-01)
-    await page.goto("/servers/test-server-01");
+    // SERVER CONSOLE TAB (/servers/mc-survival)
+    await page.goto("/servers/mc-survival");
     // Click Console tab to navigate to the correct tab
     await clickTab(page, "Console");
     // Wait for actual console output from the WebSocket mock stream
@@ -217,8 +217,8 @@ test.describe("@screenshots dashboard gallery", () => {
   test("server-detail-logs", async ({ page }) => {
     await loginAsAdmin(page);
 
-    // SERVER LOGS TAB (/servers/test-server-01)
-    await page.goto("/servers/test-server-01");
+    // SERVER LOGS TAB (/servers/mc-survival)
+    await page.goto("/servers/mc-survival");
     // Click Logs tab to navigate to the correct tab
     await clickTab(page, "Logs");
     // Wait for actual log output from the WebSocket mock stream

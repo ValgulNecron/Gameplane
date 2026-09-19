@@ -5,15 +5,19 @@
   "y": 26228,
   "name": "Gameplane/Provenance Badge/From Helm",
   "reusable": true,
-  "fill": "#00000000",
+  "fill": "$default/default",
   "cornerRadius": 9999,
-  "stroke": "$border/border",
+  "stroke": {
+    "type": "color",
+    "color": "$border/border",
+    "enabled": false
+  },
   "strokeWidth": 1,
   "strokeAlignment": "inner",
-  "gap": 6,
+  "gap": 5,
   "padding": [
-    3,
-    10
+    2,
+    8
   ],
   "alignItems": "center",
   "children": [
@@ -21,20 +25,20 @@
       "type": "icon",
       "id": "kgQwp",
       "name": "pbIcon",
-      "width": 12,
-      "height": 12,
+      "width": 10,
+      "height": 10,
       "icon": "package",
       "library": "lucide",
-      "fill": "$muted"
+      "fill": "#9D3A63"
     },
     {
       "type": "text",
       "id": "d5cgOs",
       "name": "pbLabel",
-      "fill": "$muted",
+      "fill": "#9D3A63",
       "content": "From Helm values",
       "fontFamily": "$typography/font-mono",
-      "fontSize": 12,
+      "fontSize": 10,
       "fontWeight": "500"
     }
   ]

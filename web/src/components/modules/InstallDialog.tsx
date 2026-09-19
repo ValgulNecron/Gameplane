@@ -82,13 +82,13 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
             <ModalHeading className="text-base font-semibold">
               Install {entry.displayName ?? entry.name}
             </ModalHeading>
-          </ModalHeader>
-
-          <ModalBody className="gap-4">
             <Description className="text-sm text-muted">
               Pulls the module bundle and creates a Module resource. The cluster
               operator materializes the GameTemplate in the background.
             </Description>
+          </ModalHeader>
+
+          <ModalBody className="gap-4">
 
             <div className="space-y-4">
               {/* Source */}
@@ -187,7 +187,7 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
 
           <ModalFooter className="flex items-center justify-end gap-2">
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onPress={() => onOpenChange(false)}
               isDisabled={busy}

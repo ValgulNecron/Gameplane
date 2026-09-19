@@ -1,8 +1,8 @@
 {
   "type": "frame",
   "id": "LtgNm",
-  "x": -1981,
-  "y": -1285,
+  "x": 416,
+  "y": -7988,
   "name": "HeroUI: Design System Components",
   "theme": {
     "semantic": "light"
@@ -887,8 +887,10 @@
       "name": "Alert/Warning",
       "reusable": true,
       "width": 540,
-      "fill": "$surface/surface",
-      "cornerRadius": "$radius/3xl",
+      "fill": "$warning/soft",
+      "cornerRadius": 8,
+      "stroke": "$warning/soft-foreground",
+      "strokeWidth": 1,
       "effect": {
         "type": "shadow",
         "shadowType": "outer",
@@ -918,9 +920,9 @@
               "id": "sINBP",
               "width": 16,
               "height": 16,
-              "icon": "triangle-alert",
+              "icon": "megaphone",
               "library": "lucide",
-              "fill": "$warning/warning"
+              "fill": "$warning/soft-foreground"
             }
           ]
         },
@@ -946,7 +948,7 @@
               "type": "text",
               "id": "JmFhb",
               "name": "Description",
-              "fill": "$muted",
+              "fill": "$warning/soft-foreground",
               "textGrowth": "fixed-width",
               "width": "fill_container",
               "content": "You're using 90% of your storage quota. Consider upgrading your plan or removing unused files to avoid service interruption.",
@@ -1071,7 +1073,7 @@
               "fill": "$muted",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "We're experiencing connection issues. Please try the following:\n\u2022  Check your internet connection\n\u2022  Refresh the page\n\u2022  Clear your browser cache",
+              "content": "We're experiencing connection issues. Please try the following:\n•  Check your internet connection\n•  Refresh the page\n•  Clear your browser cache",
               "lineHeight": 1.6,
               "fontFamily": "$typography/font-sans",
               "fontSize": 14,
@@ -5767,7 +5769,7 @@
           "id": "HNAOu",
           "name": "Value",
           "fill": "$foreground/foreground",
-          "content": "Cell value",
+          "content": "No backups yet. Use “Back up now” to create the first one.",
           "fontFamily": "$typography/font-sans",
           "fontSize": 14,
           "fontWeight": "normal"
@@ -8692,18 +8694,7 @@
               "fill": "$default/default",
               "cornerRadius": "$radius/xl",
               "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "icon",
-                  "id": "dMh6x",
-                  "width": 16,
-                  "height": 16,
-                  "icon": "x",
-                  "library": "lucide",
-                  "fill": "$muted"
-                }
-              ]
+              "alignItems": "center"
             }
           ]
         }
@@ -9294,16 +9285,6 @@
               "name": "Label",
               "fill": "$foreground/foreground",
               "content": "Volume",
-              "fontFamily": "$typography/font-sans",
-              "fontSize": 14,
-              "fontWeight": "500"
-            },
-            {
-              "type": "text",
-              "id": "S07mY",
-              "name": "Output",
-              "fill": "$foreground/foreground",
-              "content": "65%",
               "fontFamily": "$typography/font-sans",
               "fontSize": 14,
               "fontWeight": "500"

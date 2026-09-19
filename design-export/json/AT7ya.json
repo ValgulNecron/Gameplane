@@ -4,7 +4,6 @@
   "x": -16485,
   "y": 25822,
   "name": "Gameplane/Select",
-  "theme": {},
   "reusable": true,
   "width": 280,
   "height": 36,
@@ -35,7 +34,7 @@
       "id": "cFsFk",
       "name": "selectValue",
       "fill": "$field/placeholder",
-      "content": "Select an option…",
+      "content": "operator",
       "fontFamily": "$typography/font-sans",
       "fontSize": 14,
       "fontWeight": "normal"

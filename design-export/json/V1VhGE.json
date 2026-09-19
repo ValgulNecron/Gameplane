@@ -178,7 +178,7 @@
                           "id": "p65oXc",
                           "name": "Subtitle",
                           "fill": "$muted",
-                          "content": "Upload a mod file from your machine into the server's mods directory.",
+                          "content": "Upload a mod file from your machine into the server’s mods directory.",
                           "fontFamily": "$typography/font-sans",
                           "fontSize": 11,
                           "fontWeight": "normal"
@@ -327,7 +327,7 @@
                   "id": "Dzo2f",
                   "name": "Dropzone Hint",
                   "fill": "$muted",
-                  "content": "Accepted: .jar · lands in the active loader's mod volume",
+                  "content": "Accepted: .jar · lands in the active loader’s mod volume",
                   "fontFamily": "$typography/font-sans",
                   "fontSize": 11,
                   "fontWeight": "normal"
@@ -341,7 +341,7 @@
               "fill": "$muted",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "Uploads are recorded as provider \"upload\" in the manifest — they're never update-checked.",
+              "content": "Uploads are recorded as provider “upload” in the manifest — they’re never update-checked.",
               "fontFamily": "$typography/font-sans",
               "fontSize": 11,
               "fontWeight": "normal"

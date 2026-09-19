@@ -53,6 +53,34 @@ describe("ServersPage", () => {
     expect(screen.getByText("beta")).toBeInTheDocument();
   });
 
+  it("shows the correct count badge on each status filter tab", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "r1", namespace: "gameplane-games" }, status: { phase: "Running" } }),
+            makeServer({ metadata: { name: "r2", namespace: "gameplane-games" }, status: { phase: "Running" } }),
+            makeServer({ metadata: { name: "s1", namespace: "gameplane-games" }, status: { phase: "Stopped" } }),
+            makeServer({ metadata: { name: "p1", namespace: "gameplane-games" }, status: { phase: "Pending" } }),
+          ],
+        }),
+      ),
+      http.get("/cluster/stats", () => HttpResponse.json(makeClusterStats())),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("r1");
+
+    // All = every server (4), Running = phase Running (2), Stopped = Stopped
+    // + Suspended + Failed folded together by countByState (1). Pending
+    // counts toward All but neither Running nor Stopped.
+    const allTab = screen.getByRole("tab", { name: /All/i });
+    expect(within(allTab).getByText("4")).toBeInTheDocument();
+    const runningTab = screen.getByRole("tab", { name: /Running/i });
+    expect(within(runningTab).getByText("2")).toBeInTheDocument();
+    const stoppedTab = screen.getByRole("tab", { name: /Stopped/i });
+    expect(within(stoppedTab).getByText("1")).toBeInTheDocument();
+  });
+
   // Regression: usedStorageBytes/totalStorageBytes are provisioned-vs-physical,
   // not used-vs-total, so networked storage can legitimately read >100% — that
   // must present as an explicit overcommit state, not a silently broken meter.
@@ -614,7 +642,7 @@ describe("ServersPage mobile layout", () => {
     window.matchMedia = ORIGINAL_MATCH_MEDIA;
   });
 
-  it("renders a stacked card list (with stat chips and lifecycle actions) instead of the table", async () => {
+  it("renders a stacked card list (with players and memory stats, no lifecycle actions) instead of the table", async () => {
     setMobileViewport();
     server.use(
       http.get("/servers", () =>
@@ -643,11 +671,13 @@ describe("ServersPage mobile layout", () => {
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("3/10")).toBeInTheDocument();
-    expect(screen.getByText("25%")).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
-    expect(screen.getByTitle("Start")).toBeInTheDocument();
-    expect(screen.getByTitle("Stop")).toBeInTheDocument();
-    expect(screen.getByTitle("Restart")).toBeInTheDocument();
+    // CPU chip removed from mobile card
+    expect(screen.queryByText("25%")).not.toBeInTheDocument();
+    // Lifecycle action buttons removed from mobile card
+    expect(screen.queryByTitle("Start")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Stop")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Restart")).not.toBeInTheDocument();
   });
 
   it("shows an empty-state card and a 'Shared with you' section on mobile", async () => {

@@ -4,7 +4,7 @@ import { Copy, Cpu, HardDrive, MemoryStick, AlertCircle } from "lucide-react";
 import type { GameServer, GameTemplate, PlayersResp } from "@/types";
 import { Players, Servers } from "@/lib/endpoints";
 import { Card, CardHeader, CardContent, Alert } from "@heroui/react";
-import { Sparkline } from "@/components/hero/Sparkline";
+import { Sparkline } from "@/components/ui/Sparkline";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
 import { ServerStatusCard } from "@/components/server/ServerStatusCard";
 import { ServerSleepCard } from "@/components/server/ServerSleepCard";

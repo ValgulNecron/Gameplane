@@ -56,7 +56,7 @@
           "width": "fill_container",
           "descendants": {
             "Gl7AY": {
-              "content": "mc-survival"
+              "content": "test-server-02"
             }
           }
         },
@@ -77,9 +77,18 @@
               "ref": "S4k0x",
               "name": "Detail Header",
               "width": "fill_container",
+              "padding": [
+                8,
+                0,
+                16,
+                0
+              ],
               "descendants": {
+                "tiIi2": {
+                  "content": "test-server-02"
+                },
                 "UpnRk": {
-                  "content": "minecraft-java · fabric 1.21.4 · ns: gameplane-games · up 3d 4h"
+                  "content": "minecraft-modded · ns: default · up 13d 4h"
                 }
               }
             },
@@ -89,12 +98,7 @@
               "ref": "I9kvlZ",
               "name": "Tabs Bar",
               "width": "fill_container",
-              "padding": [
-                0,
-                0,
-                0,
-                24
-              ],
+              "padding": 0,
               "descendants": {
                 "Wp6q1": {
                   "fill": "#00000000"
@@ -157,6 +161,9 @@
                   "name": "Search",
                   "width": "fill_container",
                   "descendants": {
+                    "vXxT5": {
+                      "enabled": false
+                    },
                     "EJMtX": {
                       "content": "Search modpacks…"
                     }
@@ -199,7 +206,7 @@
                     {
                       "type": "text",
                       "id": "k8f19w",
-                      "fill": "#FFFFFF",
+                      "fill": "$accent/foreground",
                       "content": "All",
                       "fontFamily": "$typography/font-sans",
                       "fontSize": 11,
@@ -355,12 +362,12 @@
                       "name": "Card Fabulously Optimized",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "cornerRadius": 4,
+                      "cornerRadius": "$radius/xl",
                       "stroke": "$border/border",
                       "strokeWidth": 1,
                       "strokeAlignment": "inner",
                       "gap": 12,
-                      "padding": 10,
+                      "padding": "$spacing/4",
                       "alignItems": "center",
                       "children": [
                         {
@@ -369,19 +376,20 @@
                           "name": "Cover",
                           "width": 36,
                           "height": 36,
-                          "fill": "#8B5CF6",
+                          "fill": "#00000000",
                           "cornerRadius": 4,
                           "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "text",
-                              "id": "rNlUe",
-                              "fill": "$foreground/foreground",
-                              "content": "FO",
-                              "fontFamily": "$typography/font-mono",
-                              "fontSize": 14,
-                              "fontWeight": "700"
+                              "type": "icon",
+                              "id": "uPiGK",
+                              "name": "Icon",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "package",
+                              "library": "lucide",
+                              "fill": "$muted"
                             }
                           ]
                         },
@@ -434,12 +442,12 @@
                       "name": "Card Vanilla Perfected",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "cornerRadius": 4,
+                      "cornerRadius": "$radius/xl",
                       "stroke": "$border/border",
                       "strokeWidth": 1,
                       "strokeAlignment": "inner",
                       "gap": 12,
-                      "padding": 10,
+                      "padding": "$spacing/4",
                       "alignItems": "center",
                       "children": [
                         {
@@ -448,19 +456,20 @@
                           "name": "Cover",
                           "width": 36,
                           "height": 36,
-                          "fill": "#22A559",
+                          "fill": "#00000000",
                           "cornerRadius": 4,
                           "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "text",
-                              "id": "bz9ci",
-                              "fill": "$foreground/foreground",
-                              "content": "VP",
-                              "fontFamily": "$typography/font-mono",
-                              "fontSize": 14,
-                              "fontWeight": "700"
+                              "type": "icon",
+                              "id": "SiLKq",
+                              "name": "Icon",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "package",
+                              "library": "lucide",
+                              "fill": "$muted"
                             }
                           ]
                         },
@@ -522,12 +531,12 @@
                       "name": "Card OptiFabric",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "cornerRadius": 4,
+                      "cornerRadius": "$radius/xl",
                       "stroke": "$border/border",
                       "strokeWidth": 1,
                       "strokeAlignment": "inner",
                       "gap": 12,
-                      "padding": 10,
+                      "padding": "$spacing/4",
                       "alignItems": "center",
                       "children": [
                         {
@@ -536,19 +545,20 @@
                           "name": "Cover",
                           "width": 36,
                           "height": 36,
-                          "fill": "#3B82F6",
+                          "fill": "#00000000",
                           "cornerRadius": 4,
                           "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "text",
-                              "id": "D3VYvA",
-                              "fill": "$foreground/foreground",
-                              "content": "OF",
-                              "fontFamily": "$typography/font-mono",
-                              "fontSize": 14,
-                              "fontWeight": "700"
+                              "type": "icon",
+                              "id": "ivPjl",
+                              "name": "Icon",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "package",
+                              "library": "lucide",
+                              "fill": "$muted"
                             }
                           ]
                         },
@@ -601,12 +611,12 @@
                       "name": "Card Remarkably Optimized",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "cornerRadius": 4,
+                      "cornerRadius": "$radius/xl",
                       "stroke": "$border/border",
                       "strokeWidth": 1,
                       "strokeAlignment": "inner",
                       "gap": 12,
-                      "padding": 10,
+                      "padding": "$spacing/4",
                       "alignItems": "center",
                       "children": [
                         {
@@ -615,19 +625,20 @@
                           "name": "Cover",
                           "width": 36,
                           "height": 36,
-                          "fill": "#F59E0B",
+                          "fill": "#00000000",
                           "cornerRadius": 4,
                           "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "text",
-                              "id": "km0Ru",
-                              "fill": "$foreground/foreground",
-                              "content": "RO",
-                              "fontFamily": "$typography/font-mono",
-                              "fontSize": 14,
-                              "fontWeight": "700"
+                              "type": "icon",
+                              "id": "D0gl9l",
+                              "name": "Icon",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "package",
+                              "library": "lucide",
+                              "fill": "$muted"
                             }
                           ]
                         },
@@ -689,12 +700,12 @@
                       "name": "Card FPS Modpack",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "cornerRadius": 4,
+                      "cornerRadius": "$radius/xl",
                       "stroke": "$border/border",
                       "strokeWidth": 1,
                       "strokeAlignment": "inner",
                       "gap": 12,
-                      "padding": 10,
+                      "padding": "$spacing/4",
                       "alignItems": "center",
                       "children": [
                         {
@@ -703,19 +714,20 @@
                           "name": "Cover",
                           "width": 36,
                           "height": 36,
-                          "fill": "#EF4444",
+                          "fill": "#00000000",
                           "cornerRadius": 4,
                           "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "text",
-                              "id": "Y8Q3mg",
-                              "fill": "$foreground/foreground",
-                              "content": "FP",
-                              "fontFamily": "$typography/font-mono",
-                              "fontSize": 14,
-                              "fontWeight": "700"
+                              "type": "icon",
+                              "id": "qf6kJ",
+                              "name": "Icon",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "package",
+                              "library": "lucide",
+                              "fill": "$muted"
                             }
                           ]
                         },
@@ -768,12 +780,12 @@
                       "name": "Card Fresh & Smooth",
                       "width": "fill_container",
                       "fill": "$surface/surface",
-                      "cornerRadius": 4,
+                      "cornerRadius": "$radius/xl",
                       "stroke": "$border/border",
                       "strokeWidth": 1,
                       "strokeAlignment": "inner",
                       "gap": 12,
-                      "padding": 10,
+                      "padding": "$spacing/4",
                       "alignItems": "center",
                       "children": [
                         {
@@ -782,19 +794,20 @@
                           "name": "Cover",
                           "width": 36,
                           "height": 36,
-                          "fill": "#14B8A6",
+                          "fill": "#00000000",
                           "cornerRadius": 4,
                           "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "text",
-                              "id": "mYJsr",
-                              "fill": "$foreground/foreground",
-                              "content": "FS",
-                              "fontFamily": "$typography/font-mono",
-                              "fontSize": 14,
-                              "fontWeight": "700"
+                              "type": "icon",
+                              "id": "I1QtY",
+                              "name": "Icon",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "package",
+                              "library": "lucide",
+                              "fill": "$muted"
                             }
                           ]
                         },

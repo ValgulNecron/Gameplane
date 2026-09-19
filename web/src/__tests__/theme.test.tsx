@@ -99,15 +99,39 @@ describe("theme tokens", () => {
     }
   });
 
-  describe("focus and link are explicit values", () => {
-    it("light mode: --focus and --link have explicit oklch values", () => {
-      expect(lightTokens["--focus"]).toBe("oklch(54.13% 0.2466 293.01)");
+  describe("sleep is an explicit value for Asleep status (split from focus)", () => {
+    it("light mode: --sleep has the explicit oklch value for violet Asleep color", () => {
+      expect(lightTokens["--sleep"]).toBe("oklch(54.13% 0.2466 293.01)");
+    });
+
+    it("dark mode: --sleep has the explicit oklch value for violet Asleep color", () => {
+      expect(darkTokens["--sleep"]).toBe("oklch(70.90% 0.1592 293.54)");
+    });
+  });
+
+  describe("focus and link are explicit or aliased values", () => {
+    it("light mode: --focus uses --accent (focus ring per OD-16), --link is explicit", () => {
+      expect(lightTokens["--focus"]).toBe("var(--accent)");
       expect(lightTokens["--link"]).toBe("oklch(54.61% 0.2152 262.88)");
     });
 
-    it("dark mode: --focus and --link have explicit oklch values", () => {
-      expect(darkTokens["--focus"]).toBe("oklch(70.90% 0.1592 293.54)");
+    it("dark mode: --focus uses --accent (focus ring per OD-16), --link is explicit", () => {
+      expect(darkTokens["--focus"]).toBe("var(--accent)");
       expect(darkTokens["--link"]).toBe("oklch(76.21% 0.1231 256.39)");
+    });
+  });
+
+  describe("chart-stat is an explicit value (OD-9)", () => {
+    it("light mode: --chart-stat has the explicit oklch value for #8B5CF6", () => {
+      expect(lightTokens["--chart-stat"]).toBe("oklch(60.56% 0.2189 292.72)");
+    });
+
+    it("dark mode: --chart-stat has the explicit oklch value for #8B5CF6", () => {
+      expect(darkTokens["--chart-stat"]).toBe("oklch(60.56% 0.2189 292.72)");
+    });
+
+    it("light and dark chart-stat values match (single-value token, no theme split)", () => {
+      expect(lightTokens["--chart-stat"]).toBe(darkTokens["--chart-stat"]);
     });
   });
 });

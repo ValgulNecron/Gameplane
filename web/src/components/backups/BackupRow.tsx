@@ -1,7 +1,7 @@
 import { Button, Table } from "@heroui/react";
 import { formatRelative } from "@/lib/utils";
 import type { Backup } from "@/types";
-import { PhaseChip } from "@/components/hero/PhaseChip";
+import { PhaseChip } from "@/components/ui/PhaseChip";
 
 interface Props {
   backup: Backup;

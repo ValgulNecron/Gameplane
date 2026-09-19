@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import "@xterm/xterm/css/xterm.css";
 
-import { LoadingCard } from "@/components/hero/LoadingCard";
-import { ErrorCard } from "@/components/hero/ErrorCard";
+import { LoadingCard } from "@/components/ui/LoadingCard";
+import { ErrorCard } from "@/components/ui/ErrorCard";
 import { api } from "@/lib/api";
 import { resolveConsoleMode } from "@/lib/capabilities";
 import type { GameServer, GameTemplate } from "@/types";

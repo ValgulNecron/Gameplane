@@ -3,8 +3,7 @@ import { ShieldAlert, PlugZap } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { APIError } from "@/lib/api";
 import { useMe, can, type Role } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Button, Card } from "@heroui/react";
 
 function isUnauthorized(error: unknown): boolean {
   return error instanceof APIError && error.status === 401;
@@ -56,7 +55,7 @@ export function RequirePermission({ perm, children }: PermProps) {
 function RoleSkeleton() {
   return (
     <div className="p-6">
-      <Card className="h-32 animate-pulse" />
+      <Card className="h-32 animate-pulse">{null}</Card>
     </div>
   );
 }

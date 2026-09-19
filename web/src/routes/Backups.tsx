@@ -25,14 +25,14 @@ import {
 } from "@heroui/react";
 import { PageHeader } from "@/components/PageHeader";
 import { formatRelative } from "@/lib/utils";
-import { PhaseChip } from "@/components/hero/PhaseChip";
+import { PhaseChip } from "@/components/ui/PhaseChip";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
 import { ScheduleForm } from "@/components/backups/ScheduleForm";
 import { RestoreDialog } from "@/components/backups/RestoreDialog";
 import { BackupDetailDrawer } from "@/components/backups/BackupDetailDrawer";
 import { BackupRow } from "@/components/backups/BackupRow";
 import { BackupFilters } from "@/components/backups/BackupFilters";
-import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { Backup } from "@/types";
 
 type TabKey = "backups" | "schedules" | "restores";
@@ -293,7 +293,7 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button variant="secondary" onPress={onClose} isDisabled={createNow.isPending}>
+              <Button variant="ghost" onPress={onClose} isDisabled={createNow.isPending}>
                 Cancel
               </Button>
               <Button

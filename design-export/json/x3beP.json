@@ -4,7 +4,6 @@
   "x": -16135,
   "y": 25462,
   "name": "Gameplane/Modal",
-  "theme": {},
   "reusable": true,
   "width": 480,
   "fill": "$surface/surface",
@@ -155,6 +154,7 @@
           "type": "frame",
           "id": "SBdeH",
           "name": "btnCancel",
+          "opacity": 0.5,
           "height": 32,
           "cornerRadius": 6,
           "padding": [
@@ -179,6 +179,7 @@
           "type": "frame",
           "id": "V7HYp",
           "name": "btnPrimary",
+          "opacity": 0.5,
           "height": 32,
           "fill": "$accent/accent",
           "cornerRadius": 6,

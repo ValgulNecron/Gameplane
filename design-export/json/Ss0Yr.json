@@ -17,7 +17,27 @@
       "type": "ref",
       "ref": "kKFX9",
       "name": "App Sidebar",
-      "height": "fill_container"
+      "height": "fill_container",
+      "descendants": {
+        "iTbd8": {
+          "fill": "#00000000"
+        },
+        "iTbd8/ghUsw": {
+          "fill": "$foreground/foreground"
+        },
+        "iTbd8/bpSQ7": {
+          "fill": "$foreground/foreground"
+        },
+        "i8Z1B": {
+          "fill": "$accent/soft"
+        },
+        "i8Z1B/Sr2Q5": {
+          "fill": "$accent/soft-foreground"
+        },
+        "i8Z1B/Ra9NK": {
+          "fill": "$accent/soft-foreground"
+        }
+      }
     },
     {
       "type": "frame",
@@ -33,7 +53,12 @@
           "type": "ref",
           "ref": "gu5WY",
           "name": "Top Bar",
-          "width": "fill_container"
+          "width": "fill_container",
+          "descendants": {
+            "Gl7AY": {
+              "content": "mc-survival"
+            }
+          }
         },
         {
           "type": "frame",
@@ -69,7 +94,21 @@
                 0,
                 0,
                 24
-              ]
+              ],
+              "descendants": {
+                "Wp6q1": {
+                  "fill": "#00000000"
+                },
+                "Wp6q1/YUR8N": {
+                  "fill": "$muted"
+                },
+                "RfiZy": {
+                  "fill": "$segment"
+                },
+                "RfiZy/VcxMI": {
+                  "fill": "$foreground/segment"
+                }
+              }
             },
             {
               "type": "frame",

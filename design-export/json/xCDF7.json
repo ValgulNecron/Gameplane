@@ -4,7 +4,6 @@
   "x": -15672,
   "y": 25039,
   "name": "Gameplane/Page Header",
-  "theme": {},
   "reusable": true,
   "width": "fill_container(900)",
   "fill": "$background/background",

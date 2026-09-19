@@ -6,12 +6,12 @@ Generated via the `pencil` MCP server against `/home/valgul/project/kubernetes-g
 
 *(Re-measured 2026-09-12 after lunaris library cleanup. Measured directly from disk: `ls json/ | wc -l` = 150; `ls screenshots/ | wc -l` = 150. The lunaris base design-system component library (`c:*` prefixed reusable component primitives) was removed from `design.pen` and all 100 + 100 of its JSON + PNG exports were deleted to maintain sync.)*
 
-- **Screens exported:** 79 — unchanged from previous measurements.
+- **Screens exported:** 84 — +5 from the previous measurement (Task F: `settings-general`, `settings-version`, `settings-envvars`, `settings-access`, `settings-danger`).
 - **Components exported:** 257 — consisting of 57 `Gameplane/...` user-defined component definitions plus 200 HeroUI and other reusable component definitions that have been previously exported and retained. The 100 lunaris `c:...` base design-system primitives are no longer in scope, as the library was removed from `design.pen`.
-- **Total objects:** 336 (79 screens + 257 components)
-- **JSON files written:** 150 / 150 (100%) — `ls json/ | wc -l` = 150.
-- **PNG files written:** 150 / 150 (100%) — `ls screenshots/ | wc -l` = 150.
-- **Total files in design-export/:** 301 (150 JSON + 150 PNG + this MANIFEST.md)
+- **Total objects:** 341 (84 screens + 257 components) plus a handful of standalone reference/state frames (e.g. `z6RDco`/`WSAsQ`/`UaEjg`/`D76lH`/`m1hP1j`, documented further down this file by their own incremental-export entries) that are neither top-level screens nor reusable components.
+- **JSON files written:** 163 / 163 (100%) — `ls json/ | wc -l` = 163. (Re-measured directly from disk; includes new files from recent design waves.)
+- **PNG files written:** 168 / 168 (100%) — `ls screenshots/ | wc -l` = 168.
+- **Total files in design-export/:** 332 (163 JSON + 168 PNG + this MANIFEST.md)
 - **Failed exports:** none.
 
 Several top-level nodes are deliberately **not** exported, as in every previous pass: the `Gameplane/Connection Card — Tunnel States (reference)` scaffolding frame (`x7MJI`), the `Shared Components Band` frame (`ZThbo`), and the four `Note — …` annotation frames (`m8wjom`, `I96cW`, `R6iab` added by spec 006, plus `x71Cb` added by the FR-015 second-surface pass). They are neither screens nor reusable components, so they are outside the counted object set.
@@ -439,6 +439,12 @@ Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 2b re-ex
 | `swxkJ` | Screen/Server Detail — Capture (Completed) | Screen | Re-skinned on HeroUI primitives; single capture detail view. Original content preserved. |
 | `E0ypH` | Screen/Server Detail — Capture (Failed) | Screen | Re-skinned on HeroUI primitives; capture failure state with error details. Original content preserved. |
 | `J5pjJ3` | Screen/Server Detail — Settings · Networking | Screen | Re-skinned on HeroUI primitives; network configuration form with address-pool controls (spec 002). Original layout and address-assignment status treatments preserved. |
+| `settings-general` | Screen/Server Detail — Settings · General | Screen | Node id: `uCA23`. Form Body with Name/Template (disabled inputs), Description (textarea), Image override, and Labels (key/value rows + Add). |
+| `settings-version` | Screen/Server Detail — Settings · Version | Screen | Node id: `VctzT`. Form Body with "Game version" heading, selected-version card (radio dot, "1.21 (Vanilla)" + "Default" soft chip, "game 1.21" subtext), and downgrade-warning caption. |
+| `settings-envvars` | Screen/Server Detail — Settings · Environment | Screen | Node id: `iLm38`. Empty state with "No environment variables. Click below to add one." plus "Add variable" / "Add from secret" small-outline buttons. |
+| `settings-access` | Screen/Server Detail — Settings · RBAC & access | Screen | Node id: `QpEvu`. Owner card ("—") and Collaborators card with empty state, add-by-username input, and Add button. |
+| `settings-danger` | Screen/Server Detail — Settings · Danger zone | Screen | Node id: `XR0f9`. Three cards: Wipe world data (ghost button), Transfer ownership (ghost button), and Delete server (danger-bordered card with red Delete button). |
+| `EV8mp` | Gameplane/Server Detail Settings Navigation | Component | Settings sub-nav component with menu items (General, Version, Environment, RBAC & access, Network Capture, Placement, Danger zone). Used by all five Settings sub-page screens above. Node id `hNpsj` (snNetworkCapture) created during design wave (see Chunk B notes). |
 | `ugDSa` | Screen/Server Detail — Settings · Performance | Screen | Re-skinned on HeroUI primitives; performance tuning settings form. Original content preserved. |
 | `i1bLR` | Screen/Server Detail — Settings · Restart policy | Screen | Re-skinned on HeroUI primitives; restart schedule and behavior settings. Original content preserved. |
 | `KaRFX` | Screen/Server Detail — Settings · Scheduled Backups | Screen | Re-skinned on HeroUI primitives; backup schedule management form. Original content preserved. |
@@ -486,7 +492,7 @@ Feature 014 (HeroUI Web Rebuild, `specs/014-heroui-web-rebuild/`) Slice 3 (Onboa
 |---|---|---|
 | `zhLZN` | Gameplane/Dialog/Restore Backup — Detail Drawer | Re-skinned on HeroUI primitives; modal drawer for detailed backup and restore information. JSON: 9,257 bytes, valid. PNG: 125 KB at 1008×1648 (2×scale). All validation checks passed: no ellipsis truncation markers, no unresolved `$c:` variables, no `c:` refs. |
 | `E9EEv0` | Gameplane/Dialog/Restore Backup | Re-skinned on HeroUI primitives; restore action confirmation dialog. JSON: 2,302 bytes, valid, no truncation/unresolved refs. PNG: 94 KB. All validation checks passed. |
-| `DMnEi` | Gameplane/Backup List Item | Re-skinned on HeroUI primitives; reusable backup list item component with status, size, and action controls. JSON: 3,384 bytes, valid. PNG: 111 KB. Validated: JSON parses correctly, no truncation markers, all structural refs resolved. |
+| `DMnEi` | Gameplane/Dialog/Add Module Source | Relabeled 2026-09-14 (issue #376): this row previously misnamed the node "Gameplane/Backup List Item"; the node at (-17205,28535) is the reusable Add Module Source dialog, matching what design-export/screenshots/DMnEi.png has shown all along. slice-3.spec.ts's DMnEi test now captures the SourceDialog accordingly. |
 
 **Export method & validation:**
 
@@ -722,6 +728,36 @@ Three Share Link screens' status chips (`DF2tD`/`g8yT5` "Asleep", `I6B4F` "Onlin
 
 This is a blind, scoped edit — only the three named chip instances and their immediate parents were touched; the shared component definitions `KmZnF`/`UOoQW` were left untouched so no other chip instance in the document is affected. Pencil does not auto-save; this export was produced directly against the in-memory MCP session state per this task's explicit "never save" instruction, so a GUI save is still pending before this change is durable across Pencil sessions.
 
+## Incremental export 2026-09-14 — Share Card header restyled stacked + centered
+
+`q31B6w`, `qFLfB`, and `C2LQE4` all instantiate the shared `HKEl2` (Gameplane/Share Card) component, which rendered its brand header (shield icon + "gameplane" wordmark + "shared server link" subtitle) as a left-aligned inline row (icon on the left, text column to its right) at the top of the card. The shipped product instead renders that header stacked and centered above the rest of the card's content: icon centered on its own row, wordmark and subtitle centered beneath it. Reworked the single shared component rather than each screen individually, since all three screens ref the same component — existing nodes were moved/restyled, none deleted:
+
+- `pbJf8` (brand): `layout` horizontal → `vertical`, `gap` 10 → 20, kept `alignItems:"center"` (now centers the stack, not just cross-axis of a row).
+- `vANkm` (logoCol): added `alignItems:"center"`, `gap` (unset) → 2.
+- `o44cU` (logoK icon box): 36×36 → 40×40.
+- `YdVSf` (shield icon): 20×20 → 22×22.
+- `x72xE1` ("gameplane" text): `fontSize` 16 → 18, added `textAlign:"center"`.
+- `GfRsq` ("shared server link" text): added `textAlign:"center"`.
+
+**Screens/components (4 exported):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `HKEl2` | Gameplane/Share Card | The shared component itself — header restyled per above; body (server id, status badge, address block, players row) unchanged. |
+| `q31B6w` | Screen/Share Link — Asleep (can start) | Re-exported; inherits the `HKEl2` header restyle via its `shareCard` ref. |
+| `qFLfB` | Screen/Share Link — Asleep (view only) | Re-exported; inherits the `HKEl2` header restyle via its `shareCard` ref. |
+| `C2LQE4` | Screen/Share Link — Up | Re-exported; inherits the `HKEl2` header restyle via its `shareCard` ref. |
+
+**Export method & validation:**
+
+- **JSON:** `Print(Get(id, {depth: 4}))` via the Pencil `execute` tool for all four ids, zero `"..."` elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/{HKEl2,q31B6w,qFLfB,C2LQE4}.png`.
+- **Verification:** screenshots visually confirmed against the reference (`refs/q31B6w.png`) — icon, wordmark, and subtitle now stack vertically and sit centered above "mc-survival", matching the reference composition; `qFLfB` and `C2LQE4` (checked via `get_screenshot`, which shared the same old inline header) now show the identical stacked/centered treatment since they resolve the same `HKEl2` component.
+
+**Context:**
+
+Pencil does not auto-save; a GUI save is still pending before this change is durable across Pencil sessions.
+
 ## Incremental export 2026-09-06 — TE2jI de-instancing (lunaris Card leftovers) + Asleep badge color fix
 
 Screen `TE2jI` (Screen/Server Detail — Overview (Asleep)) still had 9 leftover `c:ERkuB` ("lunaris Card") component instances from before the current HeroUI Card pattern was adopted: `Rbuuh` (Metric CPU), `T5cUA` (Metric Memory), `v2CgN` (Metric Disk), `U9o4n` (Recent Events Card), `syhCk` (Sleep Card), `kTwiX` (Connection Card), `DYtWX` (Players Online Card), `FnrZ4` (Game Status Card), `ayfXc` (Quick Actions Card, disabled). Each was rebuilt in place as a plain frame mirroring the equivalent non-instance card already present on `IzuY2` (Screen/Server Detail — Overview (Never sleeps)) — same wrapper style (`$surface/surface` fill, `$border/border` stroke, outer shadow, no rounded corners), same content/values as the original asleep-state instance (placeholder `—` metric values, "Slept/Woke" event rows, sleep schedule, connection host/port, "offline" game status, hidden Quick Actions) — then the old instance was deleted. Also fixed the "Asleep" status badge next to the `mc-survival` title (`wgpnF/N3nc2n` chip + `wgpnF/N3nc2n/YXoPG` label, part of the `S4k0x` Detail Header instance): it was rendering with the pink accent tokens (`$accent/soft` / `$accent/soft-foreground`) instead of the purple treatment used everywhere else for "Asleep" (matching `z1DZpL`/`ElKBy` on `F9pUrx`, Screen/Servers) — set to `#8B5CF633` (chip background) and `#A78BFA` (label), same values already correctly used inside the rebuilt Sleep Card's own "Asleep" state row.
@@ -935,6 +971,29 @@ No HeroUI `Alert/*` definition (`CEGPG`, `O3T14b`, `v0xtri`, `Llzos`, `f7KBn` Da
 
 **Context:** `kIxaJ` is `Gameplane/Audit Integrity Banner`, a reusable component — its root id (`kIxaJ`) and outer size (700×hug, per its own `width:700` / vertical layout) were not touched; only the inner `aAaPa` slot was replaced. Pencil does not auto-save — a GUI save is still pending before this change is durable across Pencil sessions.
 
+## Incremental export 2026-09-14 — m1hP1j Audit Integrity Banner Broken state: bare banner (ghost "Re-check" button)
+
+**Captures reparent from kIxaJ to m1hP1j** (companion code-brief task updates design-capture in `web/src/components/hero/AuditIntegrityBanner.tsx`):
+
+| ID | Name | Notes |
+|---|---|---|
+| `m1hP1j` | Gameplane/Audit Integrity Banner — Broken state, bare banner | **New.** Child container of `kIxaJ` (the reusable Audit Integrity Banner component). Previously only the component reference (`kIxaJ`) was exported; now the bare-banner instance (`m1hP1j`) is captured separately. Contains: full-width red `$danger/danger` fill frame (700×56 at hug+fill layout, `gap:12`, `padding:16`, `alignItems:"center"`), three children: icon frame (32×32, `$foreground/foreground` fill, `cornerRadius:6`), message text ("Integrity check failed — chain breaks at event #286"), and new ghost Re-check button frame (child frame with `layout:"horizontal"`, `padding:[6,12]`, `cornerRadius:6`, containing "Re-check" label in `$danger/foreground`). Ghost button has no background fill — styled as a bare text button styled button matching HeroUI's `Button size="sm" variant="ghost"` aesthetic in the product. |
+| `kIxaJ` | Gameplane/Audit Integrity Banner (component definition) | **No longer diffed — stays exported.** The component definition remains unchanged; the design capture now targets its child `m1hP1j` instead of the wrapper. The component `kIxaJ` is still exported for reference and changelog context, but no design-wave tasks modify this component further (the Re-check button is an instance-level child of `m1hP1j`, not part of the reusable definition). |
+
+**Fix:**
+- `Insert("m1hP1j", {type:"frame", name:"Re-check Button", layout:"horizontal", padding:[6,12], cornerRadius:6, justifyContent:"center", alignItems:"center"})` → new id `C2OQV9`.
+- `Insert(C2OQV9, {type:"text", name:"Re-check Label", content:"Re-check", fill:"$danger/foreground", fontFamily:"$typography/font-sans", fontSize:14, fontWeight:"500"})` → `jEyku`.
+
+**Verification:**
+- Screenshot of `m1hP1j` shows red banner with icon, message text, and ghost button (no background fill, right of message, text in danger-foreground color).
+- `Get("m1hP1j", {depth:3})` returns 4 nodes: icon frame (`gJjR4`), message text (`Mtc22`), Re-check button frame (`C2OQV9`), and Re-check label text (`jEyku`). Zero `"..."` elision markers.
+
+**Export method & validation:**
+- **JSON:** `Get("m1hP1j", {depth:3})` via `execute` written to `design-export/json/m1hP1j.json`. Passes `python3 -m json.tool`; content-validated via `grep -o "Re-check"` (unique new button label, one hit).
+- **Screenshot:** `export_nodes` PNG export at 2x scale to `design-export/screenshots/m1hP1j.png` (1400×112, non-empty RGBA).
+
+**Context:** The ghost Re-check button is rendered above the Pencil capture point in the product (`web/src/components/hero/AuditIntegrityBanner.tsx` lines 30-40, after the message span); this design documents the button's ghost styling (no fill, `$danger/foreground` text, 12px padding, 6px corner radius, 14px / 500 weight label). The product also renders a dismiss `×` button (third child), which is out of scope for this Pencil edit — design capture is limited to `m1hP1j` which contains the icon, message, and Re-check button only.
+
 ## Incremental export 2026-09-06 — RC3Kf Admin Settings — Backup destinations: replaced last lunaris `c:` instance
 
 Residue check (`Get("RC3Kf", (n,ctx)=>{ if((n.ref||"").startsWith("c:")) Print("RESIDUE",n.id,n.ref,n.name); if(n.type==="ref") ctx.skipChildren(); }, {depth:30})`) printed exactly one hit: `RESIDUE t86T1 c:ERkuB Settings Panel` — the "Backup destinations" card in the settings-layout body was a lunaris library instance.
@@ -1050,6 +1109,24 @@ and `XDZ0E` card slot component definitions were left untouched (overrides only)
 referencing them are unaffected. Pencil does not auto-save — a GUI save from the maintainer is still
 pending before this change is durable across Pencil sessions.
 
+## Incremental export 2026-09-14 — W8idqY and q31B6w refresh (Feature F: visual diff)
+
+Feature F (visual diff on merged PRs) design refinement pass re-exported two screens with refinements to the template-selection and share-link design patterns.
+
+**Screens (2):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `W8idqY` | Screen/Create Server — Step 1 Template | Re-exported 2026-09-14. Added a new "Preview" pane (id `e1vj7`) as a sibling of the template-grid column inside the modal body: 270px fixed width, `fill_container` height, `$surface/surface` fill, `$border/border` 1px stroke, 8px radius, 16px padding, 12px gap. Contents: header row (icon tile + "Pick a template" title/"Template: —" subtitle), divider, monospace YAML placeholder, "Memory tip" label + description, fill-container spacer. All existing template-grid and stepper nodes left untouched. |
+| `q31B6w` | Screen/Share Link — Asleep (can start) | Re-exported 2026-09-14; inherits the `HKEl2` (Gameplane/Share Card) header restyle via its `shareCard` ref. |
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: 4, includePathGeometry: true})` for both ids via the Pencil `execute` tool. Both JSON files pass `python3 json.load()` validation with zero `"..."` structural elision markers.
+- **Screenshots:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/<id>.png`. Both PNG files present and valid.
+- **File inventory:** Both design ids have `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-09-14. No git add/commit performed (per design-export re-export workflow).
+- **Validation:** JSON parses cleanly; PNG dimensions and file sizes appropriate (W8idqY: 2880×1800 RGBA, ~414 KB; q31B6w: 2880×1800 RGBA, ~320 KB). No `"..."` elision markers in either JSON file.
+
 ## Incremental export 2026-09-13 — Design wave edits re-export (Feature picks implementation)
 
 Feature picks implementation design editors applied token/property updates to six screens. All six were re-exported via `Get(id, {depth: 12, includePathGeometry: true})` and `export_nodes` to capture the current state in the design-export snapshot.
@@ -1124,7 +1201,7 @@ Two residual-dialog frames reviewed against `web/src/components/hero/admin/Reset
 
 | ID | Change |
 |---|---|
-| `MaoHP` | Title → "Reset password for operator-01"; added help text "They will need to sign in again with the new password." (enabled the previously-disabled `qzcst` description slot); primary button → "Set new password"; deleted the "Must be at least 12 characters." validation line (`LRY0M`) — the component's idle render (no `disableSubmitUntilValid`, no typed input, no API error) shows no error text, so the frame now reflects the idle state rather than a validation-failed state. |
+| `MaoHP` | Title → "Reset password for operator-01"; added help text "They will need to sign in again with the new password." (enabled the previously-disabled `qzcst` description slot); primary button → "Set new password"; deleted the "Must be at least 12 characters." validation line (`LRY0M`). **Note (corrected 2026-09-14):** the component's actual render has `disableSubmitUntilValid=true` with an empty password field on open — the Input node shows a violet focus-ring border, and both buttons (Cancel and Set new password) render in their disabled/faded visual state. The frame was updated to reflect this canonical state. |
 | `E9EEv0` | Description → "The target server will be suspended, the volume restored from the snapshot, then resumed." (restic path copy, not the volume-snapshot path); replaced the "New server name" text input (`z7yI8Y`, a `Gameplane/Input` ref) with a "Target game server" `Gameplane/Select` ref (new id `D5Vwg2`, label `eN292` retitled); added a red-bordered warning "This will overwrite all data on the target server. Players will be disconnected during the restore." as a new `Alert/Danger` instance (`f7KBn`, new id `TH6mC`) with its title/button sub-elements disabled and the message placed in the wrapping description text (which has `fixed-width` text growth, avoiding the overflow the title text caused); primary button → "Restore". |
 
 **Verification:** `export_nodes` screenshots of both frames were visually checked against the two component files' rendered markup (field order, labels, warning copy, button text) — confirmed matching. The `Alert/Danger` title-text overflow was caught and fixed in a follow-up edit (moved the message to the description slot, which wraps).
@@ -1159,3 +1236,452 @@ Complete re-export of two modal frames (`CqaSq` and `Kp48V`) after Pencil docume
 
 **Correction 2026-09-13 (post-verification):** the row above and its export-method notes describing `Kp48V` as "a ref instance of `WwNlX` with no descendant overrides" / "bare ref node with no overrides" / "177 bytes" were wrong — that description matched only a stale, shallow `Get` result from before the maintainer-picks edit landed. Re-verified against the live Pencil document and against `export_nodes` screenshots (compared to the editor's own build renders): `Kp48V` **does** carry full descendant overrides on top of its `WwNlX` ref — `QARhG` (title row swapped for an icon-circle + "Confirm admin role mapping?" heading), `aZP2h` (description replaced with a warning box: triangle-alert icon, "Full admin access" copy, plus a "Group(s) being mapped to admin:" label and a plain muted `ops-leads` chip), `Wa0YZ` (type-to-confirm section disabled), and `tvH6d` (button label "Map to admin role"). `Kp48V.json` has been re-written at `Get(id, {depth: 6})` to capture these descendants (no longer a 177-byte bare-ref stub) and `Kp48V.png` re-exported to match; both now render the confirmation dialog with its warning box, group chip, and "Map to admin role" button, matching the screenshot on file. `CqaSq.json`/`CqaSq.png` were re-checked in the same pass and confirmed already correct (the `captures:manage` row's checkbox ref is `aOvvm`/Unchecked, id `D3dxec`) — only `Kp48V`'s row and export-method notes above were stale.
 
+
+## Incremental export 2026-09-14 — J5pjJ3 address-status state split (chunk D)
+
+Pencil fix-wave task: split the five AddressAssignment status states (SUG76 canonical Assigned + four alternates) out of the J5pjJ3 Settings form into separate sibling frames on the canvas, one frame per state. This keeps the main screen showing only the Assigned row (the default/canonical state), while each alternate (Pending, Pool exhausted, Pool not found, Address in use) gets its own capture frame for reference/documentation.
+
+**Export scope:**
+
+| ID | Type | Description |
+|---|---|---|
+| `J5pjJ3` | Screen | Server Detail — Settings · Networking (MODIFIED — now shows only the Assigned StatusRow inside the address-status field; four alternate StatusRows moved out). |
+| `z6RDco` | Frame | J5pjJ3 states/Pending — contains a copy of the Pending StatusRow (`p1xct`) moved from J5pjJ3. Export only, not diffed — alternate state reference. |
+| `WSAsQ` | Frame | J5pjJ3 states/Pool exhausted — contains a copy of the Pool exhausted StatusRow (`z9lDl`) moved from J5pjJ3. Export only, not diffed — alternate state reference. |
+| `UaEjg` | Frame | J5pjJ3 states/Pool not found — contains a copy of the Pool not found StatusRow (`eNwtE`) moved from J5pjJ3. Export only, not diffed — alternate state reference. |
+| `D76lH` | Frame | J5pjJ3 states/Address in use — contains a copy of the Address in use StatusRow (`qr3mo`) moved from J5pjJ3. Export only, not diffed — alternate state reference. |
+
+**Pencil edit list (5 calls, then export):**
+
+1. Create frame `z6RDco` (J5pjJ3 states/Pending) at empty space right of J5pjJ3; move `p1xct` into it; fix circular sizing.
+2. Create frame `WSAsQ` (J5pjJ3 states/Pool exhausted) right of frame 1; move `z9lDl` into it; fix sizing.
+3. Create frame `UaEjg` (J5pjJ3 states/Pool not found) right of frame 2; move `eNwtE` into it; fix sizing.
+4. Create frame `D76lH` (J5pjJ3 states/Address in use) right of frame 3; move `qr3mo` into it; fix sizing.
+5. All sizing issues (fill_container child on fit_content parent) resolved by setting fixed width (500) on each new frame.
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: 3})` for J5pjJ3 + four new frames (`z6RDco`, `WSAsQ`, `UaEjg`, `D76lH`) via `mcp__pencil__execute` — all 5 pass `python3 -m json.tool` with zero `"..."` elision markers. Files written to `design-export/json/<id>.json`.
+- **Screenshots:** `export_nodes` PNG export at 2× scale for all 5 ids to `design-export/screenshots/<id>.png` — all non-empty valid PNGs.
+- **New objects created:** 4 new frame ids (`z6RDco`, `WSAsQ`, `UaEjg`, `D76lH`); no new component definitions.
+- **Modifications to existing objects:** J5pjJ3 Settings form's address-status field now contains only the canonical Assigned state (SUG76) inside XF5sT; four alternate StatusRows moved to separate frames.
+- **No git add/commit performed** — per the design-export re-export workflow. Pencil does not auto-save; maintainer save pending.
+
+## Incremental export 2026-09-14 — J5pjJ3 address-status alternate states (reference frames only)
+
+Four alternate state reference frames created during the J5pjJ3 address-status state split (chunk D, documented above). These frames are export-only and not diffed; they serve as documentation of the alternate StatusRow treatments for reference/testing purposes.
+
+**Frames (4, reference only):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `z6RDco` | J5pjJ3 states/Pending | Export only, not diffed — alternate state reference. Contains a copy of the Pending StatusRow moved from J5pjJ3. |
+| `WSAsQ` | J5pjJ3 states/Pool exhausted | Export only, not diffed — alternate state reference. Contains a copy of the Pool exhausted StatusRow moved from J5pjJ3. |
+| `UaEjg` | J5pjJ3 states/Pool not found | Export only, not diffed — alternate state reference. Contains a copy of the Pool not found StatusRow moved from J5pjJ3. |
+| `D76lH` | J5pjJ3 states/Address in use | Export only, not diffed — alternate state reference. Contains a copy of the Address in use StatusRow moved from J5pjJ3. |
+
+
+## Incremental export 2026-09-14 — J5pjJ3 tunnel-enabled state split (chunk F)
+
+Pencil fix-wave task: split the tunnel-enabled form fields out of the J5pjJ3 Settings form into a separate state frame on the canvas. This keeps the main screen showing the form in tunnel-OFF state (the canonical state), with the tunnel-enabled fields grouped in a separate capture frame for reference/documentation.
+
+**Frames (1, reference only):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `IyMFM` | J5pjJ3 states/Tunnel enabled | Export only, not diffed — tunnel-enabled alternate state. Contains the six tunnel-enabled form fields (Provider, Tailscale alert, Credentials, Server address, Server port, Remote ports) stacked in a layout frame. |
+
+## Incremental export 2026-09-14 — J5pjJ3 alert states composite frame (chunk I)
+
+Pencil fix-wave task: consolidate three alert state frames (AlertStatesCaption, Alert Ignored For Exposure Mode, Alert No Address Manager Configured) that were loose children of J5pjJ3 into a single dedicated composite state frame. This keeps alert states organized and prevents the rendering of multiple alert states simultaneously on the live screen.
+
+**Frames (1, new composite):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `jXykV` | J5pjJ3 states/Alerts | New composite frame (700×400) containing three alert state children: NbcRI (AlertStatesCaption), q1zaXx (Alert Ignored For Exposure Mode), MLrud (Alert No Address Manager Configured). Theme set to dark semantic mode. |
+
+**Pencil edit sequence:**
+
+1. FindEmptySpace({width:700,height:400,direction:"right",nodeId:"IyMFM"}) to locate placement.
+2. Insert("document", {type:"frame", name:"J5pjJ3 states/Alerts", placeholder:true, theme:{semantic:"dark"}}) → id jXykV.
+3. Move("NbcRI", "jXykV"), Move("q1zaXx", "jXykV"), Move("MLrud", "jXykV") to consolidate alerts.
+4. Update("jXykV", {placeholder:false, width:700, height:400}) to finalize sizing.
+5. Update theme to {semantic:"dark"} on jXykV and all existing state frames (IyMFM, D76lH, UaEjg, WSAsQ, z6RDco) to ensure consistent dark rendering across all state variants.
+
+**Export method & validation:**
+
+- **JSON:** `Get(id, {depth: 3})` for jXykV and `Get(id, {depth: 4})` for J5pjJ3 via `mcp__pencil__execute`. All pass `python3 -m json.tool` validation with zero `"..."` elision markers. Files written to `design-export/json/<id>.json`.
+- **Screenshots:** `export_nodes` PNG export at 2× scale for J5pjJ3 (1440×900) and all six state frames (jXykV, IyMFM, D76lH, UaEjg, WSAsQ, z6RDco) to `design-export/screenshots/<id>.png` — all non-empty valid PNGs.
+- **New objects created:** 1 new frame id (`jXykV`); no new component definitions.
+- **Modifications to existing objects:** Theme {semantic:"dark"} applied to jXykV and five existing state frames (IyMFM, D76lH, UaEjg, WSAsQ, z6RDco).
+- **No git add/commit performed** — per the design-export re-export workflow. Pencil does not auto-save; maintainer save pending.
+
+## Incremental export 2026-09-14 — DMnEi rebuilt to match SourceDialog.tsx
+
+`DMnEi` (Gameplane/Dialog/Add Module Source) was a stale/incomplete instance of the `x3beP` (Gameplane/Modal) base component: only 3 of the 9 OCI-default-state fields from `web/src/components/modules/SourceDialog.tsx` were present (Name, Type, Registry URL), the subtitle text didn't match the real component's subtitle, and the primary button fell through to the base modal's default label ("Run snapshot") instead of overriding it to "Add source".
+
+**Fixes applied to the `DMnEi` ref instance's descendant overrides:**
+
+| Override | Before | After |
+|---|---|---|
+| `qzcst` (subtitle) | "Equivalent to applying a ModuleSource resource directly." | "Where the operator discovers and pulls module bundles from." |
+| `TZ7Ef` (primary button) | not overridden (fell through to base "Run snapshot") | "Add source" |
+| `Nht52`/`e8g6GR` (mBody) | 3 field groups (Name, Type, Registry URL) | 9 field groups — added Modules, Pull secret, "Allow plain HTTP" checkbox row, Signature verification (Select, default "None"), Allow list, Refresh interval, matching SourceDialog.tsx's OCI-default render order |
+
+**New field group node ids** (each follows the existing `Dy7HC`/`johlb`/`u6it9` pattern — vertical frame, gap 6, label text `$muted`/12px/normal + `D0cDM`/`AT7ya` input/select ref + optional helper text `$muted`/11px/normal):
+
+- `CVnIW` Modules field (label `ShBKa`, input `M73AW`, helper `vtZ6U`)
+- `a59Ig1` Pull secret field (label `Hmycd`, input `jsvc6`, helper `QyoqV`)
+- `xUVD0` Allow plain HTTP row (horizontal, gap 8, alignItems center: checkbox `aH0oy` ref `aOvvm` unchecked-state override matching the `CqaSq` Role Editor Modal checkbox pattern, + label text `q2v8i6`)
+- `F1DqtC` Signature verification field (label `zbyve`, select `D85k8m` ref `AT7ya` default "None", helper `B3rm7`)
+- `Y9caAc` Allow list field (label `nHT3d`, input `GC69u`, helper `pE6ps`)
+- `FYTUs` Refresh interval field (label `QaZnI`, input `nWpyS`, helper `x4FVfL`)
+
+Conditional verify-mode fields (Public key secret / OIDC issuer / Certificate identity) were intentionally NOT added — the design's default state has Signature verification = "None", so those fields are not rendered by the real component in this state either.
+
+**Export method & validation:**
+
+- **JSON:** `Get("DMnEi", {depth: 15})` via `mcp__pencil__execute`, zero `"..."` elision markers, passes `python3 -m json.tool`. Written to `design-export/json/DMnEi.json`.
+- **Screenshot:** `export_nodes` PNG export at 2× scale to `design-export/screenshots/DMnEi.png`, non-empty valid PNG, visually verified against the field list.
+- **No git add/commit performed** — per the design-export re-export workflow. Pencil does not auto-save; maintainer save pending in the GUI before this change can be committed.
+
+## Incremental export 2026-09-15 — raw hardcoded colors converted to semantic tokens
+
+Audited `design.pen` for nodes using raw hex fill/stroke values that duplicate an existing semantic color token, and converted them in place (`Update()` on the existing node id, never `Replace` — no node ids changed). Conversions verified live against the document's `GetVariables()` table before applying; anything without a confirmed matching token was left as raw hex and reported, not guessed.
+
+**Nodes fixed (raw hex → token, id unchanged):**
+
+| Screen/component | Node(s) | Before | After |
+|---|---|---|---|
+| `BV5ei` (Provenance Badge/Not configured) | `BV5ei` (frame) | `#000000` | `$default/default` |
+| `DxKOh` (Screen/Audit Log) | `PPUAe` (icon), `KaCWO` (text) | `#000000` | `$success/success` |
+| `EV8mp` (Server Settings Sub Nav, shared component) | `zpxa4` (icon), `xlVdh` (text) | `#000000` | `$danger/danger` |
+| `g5mEpx` (Admin Settings — Module sources) | `jrknY` (icon), `K951O` (text) | `#FFFFFF` | `$accent/foreground` |
+| `gu5WY` (Top Bar, shared component) | `ZGIQD` "healthDot" (ellipse) | `#000000` | `$success/success` |
+| `hLB9Z` (Server Detail — Settings) | `kHjho` (icon), `W7e6Fa` (text) | `#DC2828` | `$danger/danger` |
+| `n6Xlo` (Admin Settings — Notifications) | `gRUeD` (frame), `BKLGz` (text) | `#F59F0A26` / `#000000` | `$warning/soft` / `$warning/soft-foreground` |
+| `pssCT` (Server Detail — Backups) | `R3Wo5` (icon) | `#F59F0A` | `$warning/warning` |
+| `tY6RD` (Server Detail — Modpacks) | `k8f19w` (text) | `#FFFFFF` | `$accent/foreground` |
+| `zFiOW` (Screen/Servers, Light) | 8 avatar frames, 6 "Running" pill frames + text, 2 "Failed" pill frames + text (16 nodes total) | `#21C45D33`/`#DC262633` (bg), `#000000`/`#DC2626` (text) | `$success/soft`/`$danger/soft` (bg), `$success/soft-foreground`/`$danger/soft-foreground` (text) |
+| `zhLZN` (Backup Detail Drawer) | `HLP2N` (frame), `VzkPp` (text) | `#21C45D33` / `#000000` | `$success/soft` / `$success/soft-foreground` |
+
+**Established soft-pill pattern** (verified working, reusable going forward): a status badge with a semi-transparent tinted background plus plain-color text/icon maps to a token pair — background → `$<category>/soft`, inner text/icon → `$<category>/soft-foreground` (categories: `success`, `danger`, `warning`). A solid dot/icon/text with no surrounding pill maps directly to `$<category>/<category>` (e.g. `$success/success`).
+
+**Left as raw hex — no confirmed token exists, reported rather than guessed:**
+
+- `BV5ei`/`Rwnu3` provenance-badge icon+text (`#9D3A63`, magenta) — no token in the document's variable table matches this hue.
+- The "Asleep" purple family (`#8B5CF6`/`#A78BFA`) on `DWztv`'s `r3Dt0` pill, `F9pUrx`'s Asleep badge (`fdywY`/`z1DZpL`/`ElKBy`), `q31B6w` — no `$focus/soft` + `$focus/soft-foreground` pair exists.
+- `O08uaD`: `ZGIQD` health dot and `QfmSe` "Valid Check" icon (raw black) — plausible `$success/success` candidates, no in-document precedent to confirm.
+- `pssCT`: `dUAkr` icon (`#895AF6`, unmapped violet), `Fuww0` icon (`#000000`, tied to a disabled/empty state — needs a maintainer design call).
+- `tY6RD`: 5 "Cover" avatar placeholder colors (`#8B5CF6`, `#22A559`, `#3B82F6`, `#000000`, `#14B8A6`) — intentional per-item variety, not semantic.
+- `S4k0x` (Server Detail Header, shared component): game-badge color baked in as raw `#5b9a3e33`/`#5b9a3e` — out of scope of this pass, needs its own investigation.
+- `EV8mp` still has other raw colors beyond the danger-zone ones fixed above (`#17171733` subnav background, black icon/text on non-danger-zone nodes) — out of scope of this pass.
+
+**Re-exported nodes:** `BV5ei`, `DxKOh`, `EV8mp`, `g5mEpx`, `gu5WY`, `hLB9Z`, `n6Xlo`, `pssCT`, `tY6RD`, `zFiOW`, `zhLZN` — JSON via `Get(id, {depth: 20})`, each validated to contain its new token value (not just JSON-valid, since a stale fallback would also pass that check); screenshots via `export_nodes` at 2× scale, all non-trivial file sizes.
+
+**Note on the audit process:** many other screens were checked and found to already use semantic tokens, or to have no occurrence of the originally-suspected raw value (a preliminary edit list built from the committed `design-export/` snapshot turned out to be significantly stale against live `design.pen` — all fixes above were verified against live `Get()` calls, not the export, before being applied).
+
+## Incremental export 2026-09-15 — dark-looking components, sleep/focus soft tokens, zFiOW table fixes
+
+A full per-root read (`Get(id, {depth: 10000})` without a visitor over all 183 top-level nodes; visitor-based whole-document `Get` crashes with `TypeError`) confirmed 253 reusable components, none with a non-empty theme and none nested under a dark-themed ancestor. Components that looked dark on the canvas did so because of raw near-black fills, not theme inheritance.
+
+**Changes (property-level `Update` / merging `SetVariables`, no node ids changed):**
+
+| Node / variable | Change |
+|---|---|
+| `EV8mp` (Server Settings Sub Nav) root fill | `#17171733` → `$surface/secondary` |
+| `U0VCJ` (Node Grid) stat chips `aCvd8`, `UOaQu`, `knpek`, `LqW24`, `GIOXo`, `kJCoc`, `yeGhn`, `afpoU`, `eitmn` | `#17171799` → `$surface/secondary` |
+| `color-sleep` / `color-sleep-foreground` | added `semantic:light` values `#E8DEFD` / `#8B5CF6` (dark values unchanged) |
+| `focus/soft` / `focus/soft-foreground` (new) | light `#EDE9FE` / `#6D28D9`, dark `#C4B5FD26` / `#C4B5FD` (same derivation as the success/warning soft pairs) |
+| `zFiOW` Asleep badge `suGdm` / text `Atus3` | `#8B5CF633` / `#000000` → `$color-sleep` / `$color-sleep-foreground` |
+| `DWztv` Suspended pill `r3Dt0` / dot `Tp21K` / label `YAzi0` | `#8B5CF633` / `$focus` → `$focus/soft` / `$focus/soft-foreground` |
+| `zFiOW` row `xXvKl` | added bottom border matching sibling rows (`$border/border`, bottom 1, inner) |
+| `zFiOW` row `Pl8rn` name cell `JNAZs` | `clip: true`, `width: fill_container` — long name is clipped to one line (schema has no ellipsis property); row height stays 58 |
+
+Dark screens using these (`swxkJ`, `j9W8A`, `tooKB`) were screenshot-checked and are visually unchanged.
+
+**Open:** no dark screen has a Suspended pill yet, so the dark `focus/soft` values are unused. `Get` still throws on some subtrees (e.g. `F9pUrx`'s Servers Table `ucID1`).
+
+**Re-exported nodes:** `EV8mp`, `U0VCJ` (new), `tooKB`, `zFiOW`, `DWztv` — JSON via `Get(id, {depth: 20})` checked for the new token values; PNGs via `export_nodes` at 2×.
+
+## Incremental export 2026-09-15 — Build Module screens dark, dark Suspended row, surface-alt axis
+
+| Node / variable | Change |
+|---|---|
+| `IdbiB`, `O5kaV`, `hmPL7` (Build Module steps 1–3) | no theme → `theme: {semantic: "dark"}` |
+| `surface-alt` | theme axis `mode` → `semantic` (same colors, light `#F4EAE7` / dark `#2E2A27`); only used by the 7 Build Module nodes `rS3t7`, `D0ln7`, `hBxn1`, `upFqi`, `g7O8aN`, `Xb76q`, `x6FO5`. Pencil does not keep `mode` and `semantic` entries on one variable. |
+| `tooKB` (Mobile — Servers, dark) | new card `x24fD` "user-server-test (Suspended)" at index 2 of `B2WkH`, content matching `DWztv`'s `SqmOi` (Satisfactory, `$focus/soft` pill); screen height 844 → 954 so all 6 cards fit |
+
+The dark `focus/soft` values are now used (on `tooKB`). The visitor-`Get` crash cause is documented in `docs/design/pencil-visitor-crash-report.md` (ref nodes storing a literal `children` array instead of `descendants`); the data was not changed.
+
+**Re-exported nodes:** `IdbiB`, `O5kaV`, `hmPL7` (new), `tooKB` — JSON as 2-space `JSON.stringify(Get(id, {depth: 20}), null, 2)`, line counts matched against live; PNGs via `export_nodes` at 2×.
+
+## Full re-export 2026-09-16 — OD-9 `chart/stat` token and document-wide staleness
+
+**Design change:** new variable `chart/stat` (`#8B5CF6`, same value on `semantic: light` and `semantic: dark`) — OD-9, settled 2026-09-16. The stat-card icon (`QdcEm`) overrides on the CPU and cluster-size stats now use `$chart/stat`: `F9pUrx` (`n12tZ/w2bomv/QdcEm`, `n12tZ/q7SYqZ/QdcEm`), `j24cXg` (`ugTJ0/pkvT2/QdcEm`, `ugTJ0/FlXsH/QdcEm`), `oyoTs` (`ojXFL/pkvT2/QdcEm`, `ojXFL/FlXsH/QdcEm`). The `ZWcwn` default fill (`$accent/accent`) and the other `#8B5CF6` uses (Wizard Stepper, Detail Header "AI" badge, Share Card status badge, modpack cover swatch) are unchanged.
+
+**Why a full re-export:** the committed snapshot had fallen well behind live `design.pen`. For example, the stats row and App Sidebar on the dashboard and servers screens are now `ref` instances (`LKMjc`/`YF85x`, `kKFX9`), so a few incremental exports were not enough.
+
+**Re-exported:** all 168 JSON + 168 PNG files in this directory. JSON is `JSON.stringify(Get(id, {depth: 20, includePathGeometry: true}), null, 2)` written from the `Print()` output (no retyping). The five `settings-*` files keep their label filenames and are exported from node ids `uCA23`, `VctzT`, `iLm38`, `QpEvu`, `XR0f9`. PNGs come from `export_nodes` at 2×.
+
+**Validation:** every JSON file parses and its root id matches the filename (or its documented node id), and none has a `"geometry": "..."` elision. `LtgNm` has two text nodes whose literal content is `...`. Each file was also checked against the live node, using canonical JSON length + FNV-1a hash or deep-equal. That check ran in a separate agent. All PNGs have valid headers; 101 JSON and 67 PNG files differ from the previous snapshot.
+
+## Incremental export 2026-09-16 — visual-diff wave (provenance badge, chip tokens, shared Top Bar/Appearance Toggle, login copy, wizard modal dimming, Modpacks/mobile sample content, banner height, Backup Drawer restore icon)
+
+Applied `final-design-brief.md` (the visual-diff investigation's design-only findings), with the maintainer's `decisions.md` taking precedence wherever the two disagreed, plus one live correction from the maintainer on `R65Xyx` (fill token is `$background/background`, not `$surface/surface` as the brief's own §1 stated). Every `Update` below was preceded by a live `Get()` confirming the node id/property still matched the brief; two divergences from the brief's literal instructions were required and are called out.
+
+**Changes:**
+
+| Node(s) | Change |
+|---|---|
+| `R65Xyx` (Provenance Badge/Overridden) | `fill` `#00000000` → `$background/background` (maintainer correction, supersedes brief's `$surface/surface`) |
+| `XL5ZU` (Removable Group Chip/Orange) | `fill` `#F8D4C7` → `$warning/soft` |
+| `v68RDf` (XL5ZU chipLabel) | `fill` `#8B4A2E` → `$warning/soft-foreground` |
+| `sYR1u` (XL5ZU chipRemoveIcon) | `fill` `#8B4A2E` → `$warning/soft-foreground` |
+| `z3ZleP` (gu5WY bell icon) | `fill` `$muted` → `$foreground/foreground` |
+| `HrWm8` (gu5WY UnreadDot) | `enabled: false` (phantom unread dot removed at the shared Top Bar level) |
+| `TUlxU` (gu5WY Avatar ref) | `fill` `$accent/soft` → `$accent/accent`; descendant override `Rki8z.fill` `$accent/accent` → `$accent/foreground` (adapted onto the ref's own `descendants` map, not the shared `Rki8z`/Avatar-Text master node, to avoid changing every other Avatar instance in the document) |
+| `Bg6EP` (iA2C8 Dark button) | `fill` `$accent/soft` → `#00000000` (Update/Replace cannot unset a property; fully-transparent is the pragmatic equivalent of "no fill", matching sibling `D5A9Xf`/Light) |
+| `nMMtW` (iA2C8 moon icon) | `fill` `$accent/soft-foreground` → `$foreground/muted` |
+| `icy0X` (iA2C8 System button) | `fill` added: `$accent/soft` |
+| `z3SNRG` (iA2C8 monitor icon) | `fill` `$foreground/muted` → `$accent/soft-foreground` |
+| `j9sz4` (Button/Ghost/Icon/SM, base of iA2C8's three buttons) | `cornerRadius` `$radius/3xl` (24, full-circle on a 28px box) → `6` |
+| `hKfw8` (T8Hug hero heading, shared by all 4 login frames) | `content` 2-line wrap → `"Kubernetes-native\ngame server\nhosting."` (3-line wrap) |
+| `LtTPk` / `LM3Jc` (jmoi3/ljdA5 subtitle text) | `content` `"Welcome to Gameplane"` → `"Welcome to Gameplane."` |
+| `TFc7X` (jmoi3 password eye icon) | `icon`/`name` `eye-off` → `eye` |
+| `VBLxv` (fjQjb→J14ME subtitle, shared by N1GkB/gX7um) | `content` `"Welcome to Gameplane"` → `"Welcome to Gameplane."` |
+| `Z6tmS` (fjQjb→J14ME password eye icon, shared by N1GkB/gX7um) | `icon`/`name` `eye-off` → `eye` |
+| `uNwJc`/`P3aKI`/`Dd9Wc`/`z3Dyn`/`vzifx` (ModalContainer in `f1Vga`/`UMJli`/`nNL3E`/`W8idqY`/`vUqMl`) | Moved from inside `Main` to a root-level sibling of `Sidebar`/`Main`; `layoutPosition: "absolute"`, `x: 0, y: 0`, `width`/`height` set to the frame's full size (1440×1170 for `f1Vga`, 1440×900 for the other three, 1440×1820 for `vUqMl`) — wizard modal now dims the whole screen including Sidebar/TopBar, matching the browser |
+| `RjKFt` (tY6RD's Top Bar ref, `descendants.Gl7AY`) | `content` `"mc-survival"` → `"test-server-02"` |
+| `Kl577` (tY6RD's Detail Header ref, `descendants.UpnRk`) | `content` → `"minecraft-modded · ns: default · up 13d 4h"` |
+| `t7brvG`/`n7pU3C`/`kmBku`/`t1j0Wn` (DWztv game tiles) | `content` `"⛏"` → `"MI"` |
+| `SaQX5` (DWztv game tile) | `content` `"🏭"` → `"SA"` |
+| `pkQV8`/`lgNXm` (DWztv memory chips) | `content` `"1.5 GB"` → `"38%"` |
+| `PLDIK` (DWztv memory chip) | `content` `"6.2 GB"` → `"62%"` |
+| `Q52mVZ` (fGbVF Mobile TopBar avatar, plain ellipse) | Deleted and replaced with `WQMxI`, a `ref` to `p3URd` (Avatar/Text), `fill: $accent/accent`, descendant `Rki8z` override `content: "AD"`, `fill: $accent/foreground`, `fontSize: 12` — `Replace()` errored (`TypeError: Cannot read properties of undefined`) on this node, so `Delete` + `Insert` was used instead |
+| `m1hP1j` (Audit Integrity Banner, Broken) | `height` unset → `72` (hugs content, no clipping) |
+| `sVSGe` (zhLZN drawerHeader) | `layout` (none/horizontal default) → `vertical`, `justifyContent`/`alignItems` → `start`, `gap: 8` — title now stacks above the Restore button, matching the browser |
+| `JINV8` (zhLZN Btn Restore ref, `descendants."eWkIT/WtPjS"`) | added `opacity: 1` alongside the existing `icon: "rotate-ccw"` override — the icon was previously invisible because the base component (`J09iP`) sets that same descendant's default `opacity: 0`, and the override never re-enabled it |
+| `kKFX9` (App Sidebar) | No property change; re-exported (JSON + PNG) because it embeds the changed `iA2C8` Appearance Toggle (`j9sz4`/`Bg6EP`/`nMMtW`/`icy0X`/`z3SNRG`) and was omitted from this section's original re-export list |
+| `Kl577/tiIi2` (tY6RD Detail Header ref, srvName heading) | `content` `"mc-survival"` → `"test-server-02"` — the brief's decision covered the breadcrumb (`RjKFt.Gl7AY`, row above) and the subtitle (`Kl577.UpnRk`, row above) but the header/subtitle text on `tiIi2` itself was missed in the first pass and is fixed here |
+| `kmBku` / `t1j0Wn` (DWztv game tiles, test-server-09 and mc-survival (2) cards) | `content` `"MI"` → `"ME"` — both cards are subtitled "Minecraft (Modded)" (`MK6aw`/`vsOzh`), which per Q7's fixture-template code assignment (input order: minecraft-java→MI, satisfactory→SA, …, minecraft-modlist→MN, minecraft-modded→ME) should read `ME`, not `MI` |
+
+**Note on `j9sz4` (cornerRadius `$radius/3xl` → `6`):** this base component is reused by more than the `iA2C8` Appearance Toggle buttons called out above — it also backs button instances embedded in `F9pUrx`, `bYDHC`, `n6Xlo`, and the Wizard Modal Header (`opmcF`). All four picked up the radius change automatically and are included in this pass's PNG re-export.
+
+**Pre-existing live drift (not edited this pass, captured incidentally by re-export):** `V1VhGE` (typographic/curly quotes on `p65oXc` and two other text nodes) and `Xn5ns` (Live Dot `oBWC0` fill `#21C45D` → `$success/success`) both matched live `design.pen` when re-exported but were not the subject of any `Update` in this pass — their JSON diffs reflect drift that occurred before this wave, not new edits.
+
+**Divergences from the brief (adapted per live inspection, as instructed):**
+1. §3a `Rki8z` — edited via `TUlxU`'s own `descendants` map instead of the shared `Rki8z` node directly (see table above); editing the master would have re-colored every other Avatar/Text instance in the document.
+2. §9b `J09iP` icon fix — root cause confirmed live: the base component's own default override on `WtPjS` sets `opacity: 0`; the per-instance fix adds `opacity: 1` to `JINV8`'s existing override rather than toggling a separate sibling node (no `nWTJb`-style hide/show sibling exists under `J09iP`'s `eWkIT`, unlike the `z9ShNE`/`oxVkD` comparison pattern in the brief).
+3. §3c `j9sz4` cornerRadius — confirmed live at `$radius/3xl` (24 on a 28px slot, which clips to full-circle); treated as the brief's "full-circle" branch and set to `6`.
+4. §7c `fGbVF` avatar — confirmed live as a bare `ellipse` with no initials slot; added one by replacing it with a `p3URd` (Avatar/Text) ref, per the brief's fallback instruction.
+5. `Replace()` failed with an internal `TypeError` on two different nodes this pass (`iA2C8/Bg6EP`, `fGbVF/Q52mVZ`) whenever the target was a direct child of a reusable component's own definition; `Delete` + `Insert` (or a plain `Update` with a fully-opaque-removed color) was used as a workaround both times.
+
+**Resolved live:**
+- §4b N1GkB/gX7um were resolved by finding `fjQjb`'s underlying `J14ME` (loginCard) component live — `VBLxv`/`Z6tmS` — rather than by guessing ids from the brief's placeholder names; no structural surprises found.
+
+**Re-export method & validation:** 91 ids (the brief's 19 directly-edited frames/components plus the 72-id shared-impact set from `gu5WY`/`kKFX9`/`j9sz4`/`T8Hug`/`fjQjb`/`R65Xyx`/`XL5ZU`/`fGbVF` references, computed by grep over the prior `design-export/json/*.json` snapshot). JSON: `JSON.stringify(Get(id, {depth: 20, includePathGeometry: true}), null, 2)`, batched ~10 ids per `execute` call, each call's `## Print output` extracted from its persisted tool-results file with a `python3` regex split on `###ID:<name>` markers (never retyped) and validated with `json.loads` plus a root-`id` check — all 91 passed on the first attempt, zero `"geometry": "..."` or `"children": "..."` elisions. The five `settings-*` files keep their label filenames, sourced from node ids `uCA23`/`VctzT`/`iLm38`/`QpEvu`/`XR0f9`. `fGbVF` is a genuinely new file (no prior standalone export existed for it, as the brief noted).
+
+**PNG correction (follow-up pass, same day):** the first pass only exported 24 PNGs plus the new `fGbVF.png`, leaving 67 of the 91 ids and `kKFX9` (embedded via the App Sidebar ref, omitted from the original 91-id list) on stale PNGs. This was caught and fixed in a follow-up re-export: `export_nodes` (2× scale) was run for the 68 outstanding ids — `Bbnga`, `Bq2Yg`, `Burtr`, `DPrYX`, `Dpb9f`, `DxKOh`, `E0ypH`, `EZFW0`, `F9pUrx`, `FtdkI`, `GayoL`, `Hy9r0`, `IzuY2`, `J5pjJ3`, `KaRFX`, `KhYNc`, `M2sA4u`, `O08uaD`, `P08Uw`, `QgW58`, `RC3Kf`, `RodrS`, `SeizD`, `Ss0Yr`, `TBvTC`, `TE2jI`, `V1VhGE`, `VfB0Y`, `WZdnw`, `Wj0V4`, `Xn5ns`, `Y5cmvI`, `b4eaUf`, `bYDHC`, `dBILX`, `dPP50`, `dQV9N`, `dxdEi`, `e9lV4`, `fK8Bi`, `g5mEpx`, `hLB9Z`, `i1bLR`, `i8wib`, `j24cXg`, `j9W8A`, `kK8Ji`, `kPmoo`, `m5kOm4`, `n6Xlo`, `nNGDX`, `o4LH8W`, `oyoTs`, `pssCT`, `sSISK`, `sZtDi`, `swxkJ`, `tTSdi`, `tooKB`, `uMiwd`, `ugDSa`, `uoxQW`, `xCJlu`, `xvlB6`, `zFiOW`, `zM0VF`, `zqzr4`, and `kKFX9` — plus `tY6RD` and `DWztv` (JSON + PNG) for the `tiIi2`/`kmBku`/`t1j0Wn` content fixes above. All 91 ids in the visual-diff wave's shared-impact set, plus `kKFX9`, now have current PNGs in `design-export/screenshots/`; the five `settings-*` PNGs were exported to a scratchpad directory first (their source node ids, not their label names) and copied into place under the label filenames. Every re-exported JSON file was verified to still parse (`json.loads`) after this pass also stripped trailing whitespace from all `design-export/json/*.json` files per `.editorconfig`'s `trim_trailing_whitespace`. Every directly-edited frame was screenshot-checked (`get_screenshot`) against the brief's stated intent before export; all matched (no broken/clipped/collapsed layout).
+
+**Maintainer action required:** design.pen has not been saved by this pass (Pencil does not auto-save) — the maintainer must save via the Pencil GUI before these changes can be committed.
+
+## Incremental export 2026-09-17 — regression-analysis fix wave (chip fixture labels, XL5ZU token verification, T8Hug hero geometry, m1hP1j banner sizing)
+
+Applied the maintainer-settled fixes from `regression-analysis.json` (the visual-diff CI regression investigation). Every `Update` below was preceded by a live `Get()` confirming the node id/property still matched; no divergences from the brief were needed.
+
+**Changes:**
+
+| Node(s) | Change |
+|---|---|
+| `v68RDf` (XL5ZU chipLabel master) | `content` `"group-name"` → `"ops-leads"` |
+| `RNxys` (vStkb chipLabel master) | `content` `"group-name"` → `"ops-team"` |
+| `m7gnz` (uw0dB chipLabel master) | `content` `"group-name"` → `"everyone"` |
+| `T8Hug` (Login Hero Panel) | `padding` `80` → `[48, 224, 48, 48]`; `gap` `24` → `16` |
+| `hKfw8` (T8Hug heading) | `fontWeight` `"700"` → `"600"`; `lineHeight` `1.05` → `1.25` (content unchanged, still the 3-line wrap) |
+| `vYC0C` (T8Hug paragraph) | `fontSize` `15` → `14`; `lineHeight` `1.5` → `1.4286` |
+| `D5obx` (T8Hug pBadge) | `padding` `[6,14]` → `[4,12]` |
+| `vGOtD` (T8Hug badge text) | `fontSize` `12` → `11` |
+| `v2Vj9i` (T8Hug feats column) | `gap` `12` → `16` |
+| `u8KsP` (new spacer frame, inserted between `vYC0C` and `v2Vj9i`) | `width: "fill_container"`, `height: 24`, no fill |
+| `IpWjH`/`T34IT`/`W2LF3e`/`u0YKe` (T8Hug feature rows) | `alignItems` `"center"` → `"start"` |
+| `KNAjG`/`KgRrA`/`z2T3Vg`/`RjQ0m` (T8Hug feature icon tiles) | `width`/`height` `28` → `32` |
+| `E2SxjW`/`a7xDFg`/`JQNGJ`/`L5JWxZ` (T8Hug feature icons) | `width`/`height` `16` → `20` |
+| `h85fcn`/`t0a5pu`/`nDq0f`/`T3INdd` (T8Hug feature text) | `fontSize` `13` → `14`; `lineHeight` unset → `1.4286` |
+| `m1hP1j` (Audit Integrity Banner, Broken) | `height` `72` (explicit, added by the previous wave) → unset (`fit_content`/hug); `width` `"fill_container"` → `1132` (fixed, matching the shipped banner's CSS width at the 1440×900 capture viewport) |
+
+**Verification (no change made):** `XL5ZU`'s `fill`/`v68RDf.fill`/`sYR1u.fill` were confirmed still pointing at `$warning/soft`/`$warning/soft-foreground` (unchanged from the prior wave). `GetVariables()` confirms the document's token values are `$warning/soft` = `#FEF3C7` (light) / `#F7B75026` (dark), `$warning/soft-foreground` = `#D97706` (light) / `#F7B750` (dark) — i.e. the design side already carries the values the maintainer ruled should win; no Pencil-side edit was needed. `globals.css` is out of scope for this pass (code change, not design).
+
+**Instance-override check (chip labels):** confirmed via `Get("Ipjvx", {depth:4})` (Role Mapping Overrides card in `uMiwd`, Screen/Admin Settings — Authentication) that the three chip instances there (`z9JAoG`/`Ezgwq` = `XL5ZU`, `E7yW29` = `vStkb`) all set an explicit `descendants` override on the chipLabel content (`"gameplane-admins"`, `"gameplane-sre"`, `"gameplane-ops"`), so the master label edits above do not change what those screen instances render. `uw0dB` has no instance references in any exported frame (`grep '"ref": "uw0dB"' design-export/json/*.json` → no hits), so nothing downstream of it needed checking.
+
+**Re-export method & validation:** 12 ids — the 3 edited chip masters (`XL5ZU`, `vStkb`, `uw0dB`) plus the 2 frames that reference them (`uMiwd`, `zqzr4`); the edited `T8Hug` plus the 4 login frames that reference it (`N1GkB`, `gX7um`, `ljdA5`, `jmoi3`); and the edited `m1hP1j` plus its containing component (`kIxaJ`, Audit Integrity Banner) — found via `grep '"ref": "<id>"' design-export/json/*.json` against the prior snapshot. JSON: `Print(JSON.stringify(Get(id, {depth: 20, includePathGeometry: true}), null, 2))` for all 12 in one `execute` call (output exceeded the inline token cap and was persisted to a tool-results file), extracted with a `python3` regex split on `===BEGIN:<id>===`/`===END:<id>===` markers (never retyped), and validated with `json.loads` plus a root-`id` check — all 12 passed on the first attempt, zero `"geometry": "..."` elisions (`grep -c '"\.\.\."' design-export/json/<id>.json` = 0 for all 12). PNG: `export_nodes` at 2× scale for the same 12 ids; PNG signature + `IHDR` dimensions checked for all 12 — `m1hP1j.png` is now exactly `2264×128` (previously `1272×144` with the padded-band regression), matching the shipped full-width banner at 2×. `XL5ZU.png`/`vStkb.png`/`uw0dB.png` are now `166×46`/`154×46`/`154×46` (previously all `178×46` with the placeholder "group-name" label), within the existing `SCALE_ALLOWLIST` bands per the regression analysis, so no allowlist edit is implied by this pass.
+
+**Note on `T8Hug`'s outer frame size:** `width: 720`/`height: 900` and `justifyContent: "center"` were left unchanged — only the inner padding/gap/typography/icon sizing moved to match the app's geometry (720 − 48 − 224 = 448px content column, matching the app's `p-12`/`max-w-md`). The panel still centers its (now shorter) content block vertically within the unchanged 900px frame.
+
+**Not in scope for this pass (deferred to the maintainer per `regression-analysis.json`'s open questions, not touched here):** the `jmoi3`-only `g2HLxz`/`SZ0pF` error-alert geometry fix, the `Kp48V`/dialog-family width/padding disagreement, the `CqaSq`/`DMnEi`/`E9EEv0`/`MaoHP`/`NLDDv`/`t3IY3u` dialog scale-factor and Select/Cancel styling fixes, and any `globals.css` token value changes.
+
+**Maintainer action required:** design.pen has not been saved by this pass (Pencil does not auto-save) — the maintainer must save via the Pencil GUI before these changes can be committed.
+
+## Incremental export 2026-09-17 — maintainer decisions on "still-failing frames" and "Dialog/modal" groups (DWztv mobile cards, mobile top bar height, Create Server Step 4 "as built" duplicate, zhLZN report-only)
+
+Applied the four maintainer decisions given directly for `regression-analysis.json`'s "Visual-diff still-failing frames" and "Dialog/modal element-crop frames" groups. Every `Update`/`Delete`/`Copy` below was preceded by a live `Get()` confirming the node id/property still matched.
+
+**1. `DWztv` (Screen/Mobile — Servers (Light)) — code wins except the status pill:**
+
+| Node(s) | Change |
+|---|---|
+| `mLHoA`/`SCXtD` (card game labels) | `content` `"Minecraft Java"` → `"minecraft-java"` |
+| `FAXAj` | `content` `"Satisfactory"` → `"satisfactory"` |
+| `MK6aw`/`vsOzh` | `content` `"Minecraft (Modded)"` → `"minecraft-modded"` |
+| `SaaAN`/`clmpM` | `content` `"0 / 20"` → `"0/20"` |
+| `KTvHZ` | `content` `"4 / 20"` → `"4/20"` |
+| `AkRdC`, `okz0J`, `Tp21K`, `BEqBO`, `h0dm9` (status dots) | Deleted — the app renders no per-card status dot |
+| `AFfme`/`y3tHBF`/`UiATn`/`cFqwS` (green game-icon tiles) | `fill` `"#5B8A3A"` → `"$success/soft"` |
+| `t7brvG`/`n7pU3C`/`kmBku`/`t1j0Wn` (their glyph text) | `fill` → `"$success/soft-foreground"` |
+| `F7RWo` (blue/Satisfactory game-icon tile) | `fill` `"#4A6FA5"` → `"$accent/soft"` |
+| `SaQX5` (its glyph text) | `fill` → `"$accent/soft-foreground"` |
+
+Note on the blue tile: the regression analysis's suggested `$primary/soft` token does not exist in this document's variable set (`GetVariables()` confirms only `success`, `warning`, `danger`, `accent`, `default`, and `text-primary` groups — no `primary/*` color family). The app's `GameIcon.tsx` legacy palette renders Satisfactory/Factorio via `bg-primary/20 text-primary`, and `web/src/styles/globals.css:122-123` aliases `--color-primary`/`--color-primary-fg` to `--accent`/`--accent-foreground` — i.e. "primary" in the app *is* the accent hue. `$accent/soft`/`$accent/soft-foreground` was used instead of inventing an untethered token or leaving the `$primary/soft` reference dangling (which resolved to `#000000` black when tried — confirmed by `Get` before correcting). The status pill itself (`Q0KUgq`, `VilnW`, `r3Dt0`, `JeDuq`, `D3iriY` and their `success`/`danger`/`focus` soft fills) was left untouched per the maintainer's ruling that the pill stays as designed.
+
+**2. `fGbVF` (Gameplane/Mobile TopBar) — code wins:**
+
+| Node | Change |
+|---|---|
+| `fGbVF` | `height` `56` → `64` (matches the app's `h-16`) |
+
+Verified no absolute-positioned children are anchored to the old height: `fGbVF`'s two children (`TopBar Left`, `avatar`) are laid out via `justifyContent: "space_between"`/`alignItems: "center"` with no `y` overrides, so they re-center automatically. The `DWztv` instance (`z1HpI`) carries no local `height` override, so it inherited the new `64` without a separate edit.
+
+**3. `f1Vga` (Screen/Create Server — Step 4 Network) — design wins; new "as built" frame added instead of editing the showcase:**
+
+Duplicated `f1Vga` → new independent frame `Screen/Create Server — Step 4 Network (as built)`, id **`QQtUD`**, placed at `x:8080,y:12745` (found via `FindEmptySpace` beside `f1Vga`, which is unchanged at `x:4920,y:12745`). In the copy only:
+
+| Node(s) in `QQtUD`'s tree | Change |
+|---|---|
+| `U9uMcX` (copy of `EpW22`, "Field IP allow-list") | `enabled: false` |
+| `v5f2TE` (copy of `A4FP0r`, "Alert No address manager configured") | `enabled: false` |
+| `X29ZY`/`DbHoJ`/`tsvNi`/`IPhfI` (copies of `g5jYV`/`IZ2jD`/`iJ7nA`/`KjlSy` — the port-overrides label, column header, row, and helper text) | `enabled: false`, collapsing the block down to just the `p0F58b` ("Add port override") button, which stays enabled |
+| `XE2dd` (copy of `FePiR`, Footer ref) | `descendants` gained `"H87Gb": {"content": "Continue to Review"}` (was `"Continue to Version"`, the component's stale default) |
+
+The `vXfaP`/`eh1FS` "Address preference ignored" alert was left enabled — the maintainer's list named only the allow-list field and the "No address manager configured" alert for removal. `placeholder: true` was set for the duration of the copy/edit and cleared before export. Verified via `get_screenshot` on both `QQtUD` and `f1Vga`: the new frame shows NodePort-only content ending in "Continue to Review" with no allow-list/second-alert, and `f1Vga` is pixel-identical to before (still shows the port-override row, IP allow-list, both alerts, and "Continue to Version") — the showcase was not touched.
+
+**`web/e2e/screenshots/slice-3.spec.ts` follow-up (owed to the code agent, not applied by this design pass):** the capture test currently keyed to **`f1Vga`** should be renamed and repointed to capture **`QQtUD`** instead, so `f1Vga` drops out of the visual-diff set (it will never match the built app, by design — it's the showcase for content the wizard doesn't render in this state) while `QQtUD` becomes the frame CI compares against. Old id: `f1Vga`. New id: `QQtUD`.
+
+**4. `zhLZN` (Gameplane/Backup Detail Drawer) — no design edit; geometry reported for the code agent:**
+
+Read-only via `Get("zhLZN", {depth:3})`; no `Update`/`Copy`/`Delete` calls were made against this component.
+
+- Root (`zhLZN`): `width: 440`, `height: 760`, `fill: $surface/surface`, `stroke: $border/border` on the **left edge only** (`strokeWidth: {left: 1}`), no `cornerRadius` (square corners), outer shadow `offset: {x:-12, y:0}, blur:32, spread:-8, color:#00000080`, `layout: "vertical"`. Pencil has no `margin` property (unsupported per schema) — there is no margin on the drawer itself; it is meant to sit flush against the viewport edge it opens from.
+- Header row (`sVSGe`, name "drawerHeader"): `width: fill_container`, `padding: 20` (uniform all sides), `gap: 8`, bottom `stroke` 1px `$border/border`, `layout: "vertical"` — **not a horizontal row**. It stacks two children top-to-bottom: a title block (`R4kYq`: "Backup details" 16px/600 + the mono subtitle 12px `$muted`, `gap: 4`) above a `Btn Restore` ref (`JINV8`, ghost/small button with a `rotate-ccw` icon), left-aligned, not side-by-side. Confirmed visually via `get_screenshot("sVSGe")`.
+- Body (`hY4y2`, "drawerBody"): `width`/`height: fill_container`, `padding: 20`, `gap: 16`, `layout: "vertical"` — six stacked label/value groups (Phase pill, Server, Snapshot ID, Size, Started, Completed), each its own sub-frame with `gap: 4`.
+- Footer (`bs0ho`, "drawerFooter"): `width: fill_container`, `padding: 16`, `gap: 8`, top `stroke` 1px `$border/border`, `justifyContent: "end"`, `alignItems: "center"` — Delete button left, Restore button right, both right-aligned as a row.
+
+No `SCALE_ALLOWLIST` or fixture change was made; per the regression analysis this frame's 1.313× scale mismatch is structural (component export margin vs. live 384×900 drawer) and stays open for the maintainer/code side to reconcile using the numbers above.
+
+**Re-export method & validation:** touched ids — `DWztv`, `fGbVF`, the new `QQtUD` — plus every exported frame referencing the changed component, found via `grep '"ref": "fGbVF"' design-export/json/*.json` → `SeizD` (Screen/Mobile — Nav Drawer), `tooKB` (Screen/Mobile — Servers). (`grep '"ref": "DWztv"'` and `'"ref": "QQtUD"'` returned no hits — neither is referenced elsewhere.) JSON: `Print(JSON.stringify(Get(id, {depth: 20, includePathGeometry: true}), null, 2))`, one id per `execute` call, each fitting inline (no truncation) and transcribed verbatim into `design-export/json/<id>.json` (for `fGbVF`, only the single changed `height` line actually differed from the prior snapshot, applied via a scoped edit rather than a full rewrite). Validated with `python3 -c "json.load(...)"` (root `id` matches the filename) and `grep '"geometry": "\.\.\."'` (zero hits) for `DWztv`/`fGbVF`/`QQtUD`. PNG: `export_nodes` at 2× scale for all five ids (`DWztv`, `fGbVF`, `SeizD`, `tooKB`, `QQtUD`); `file` confirmed valid PNG signatures and non-zero dimensions for all five (`DWztv.png`/`SeizD.png` 780×1688, `fGbVF.png` 780×128, `tooKB.png` 780×1908, `QQtUD.png` 2880×2340). `zhLZN` was not re-exported (no design edit made).
+
+**Maintainer action required:** design.pen has not been saved by this pass (Pencil does not auto-save) — the maintainer must save via the Pencil GUI before these changes can be committed.
+
+## Incremental export 2026-09-18 — wave 5: maintainer-flagged design defects (button double-padding, subnav icons/highlight swap, login alert spacing)
+
+Four items investigated against the maintainer's own browser-panel composites (`/tmp/.../scratchpad/vdr3/*-composite.png`) and the shipped app code. Two produced real fixes; one ("theme selector separator") was investigated and found **already correct** (fixed in the prior 85b1986d/fa5a4370 commits — `NmfQu` Footer already carries `strokeWidth: {top: 1}` and renders it; no further edit made, flagging here so it isn't re-flagged blind). No test/lint suites or `web/` files were touched.
+
+**1. `tpKRk`/`rNhll`/`LMIom`/`XoX7L`/`z9ShNE`/`d5N3W3`/`J09iP`/`IU7OG` (the 8 `Gameplane/Button/*` wrapper components, the "Btn" component family) — root-cause fix, maintainer ruling "design is re-cut to the app's padding":** each wrapper frame was re-applying its own `padding`/`fill`/`cornerRadius`/`height` (e.g. `tpKRk`: `padding: [8, "$spacing/4"]`, `fill: "$accent/accent"`, `cornerRadius: "$radius/3xl"`, `height: 36`) **around** an inner `ref` to the real button component (`cb4rt`/`FIB65`/`jsrtu`/`CFM8i`/`j9c5W`/`rDRDV`/`rkF0p`), which already carries the *exact same* padding/fill/cornerRadius/height. This doubled the effective horizontal padding (measured 117×36 vs. HeroUI's 86×36 for the same "Replace"/"Remove"/"Set API key" row cited in the brief). Fix: stripped the outer wrapper down to a transparent pass-through — `Update(id, {padding: 0, gap: 0, fill: "#00000000", cornerRadius: 0, width: "fit_content", height: "fit_content"})` on all 8 — so the inner button's own box model (already matching HeroUI's `px-4`/`px-3` MD/SM padding) is the only one that renders. Verified via `export_nodes` pixel measurement: `Wj0V4`'s `btnRepl0` (`X86emW`) is now 86×36 exactly; `btnRem0` (`n1KgoV`, the danger variant) is 85×36. This is a component-level fix, so it propagates to every instance automatically — no per-instance edits needed for this item.
+
+**2. `EV8mp` (Gameplane/Server Settings Sub Nav) — root-cause + per-instance fix, maintainer ruling "the server nav bar ... clearly wrong":** compared against the shipped `HeroUI <Tabs orientation="vertical">` in `web/src/routes/tabs/Settings.tsx` (`SECTIONS` list, text-only labels, centered, no icons — confirmed by cross-referencing `settings-general`'s own composite). The design instead rendered each row with a leading lucide icon, left-aligned text, `cornerRadius: 4`, and — critically — the selected/unselected color mapping was **backwards on two of the twelve rows** at the component level: `oXEaP` ("General", row 0) had `fill: transparent` (unselected-looking) but bright `$foreground/foreground` text, while `axMXL` ("Version", row 1) had a stray `fill: "$surface/secondary"` highlight (selected-looking) but dim `$muted` text — with two more rows (`DnXAN` "Environment", `LktID` "RBAC & access") independently using bright text with no highlight at all, for no state-driven reason. Fix, applied to the component (`EV8mp`) and propagated to all **16** screen instances that use it:
+  - Disabled all row icons (`enabled: false`) — text-only rows, matching the app.
+  - `justifyContent: "center"`, `gap: 0`, `padding: [8, 12]`, `cornerRadius: 6` on every row — centered label, no icon gutter.
+  - Component baseline reset to a neutral **all-unselected** state (every row `fill: "#00000000"`, every label `$muted`, except `snDangerZone` which keeps `$danger/danger` per its own destructive styling) — mirroring how each of the 16 screen instances already layered a per-screen "this one row is active" override via `descendants` (background `$surface/secondary` on the active row), which is the correct pattern; the component-level baseline had incorrectly hard-coded "General" as always-selected, which is what caused the row-0/row-1 color swap bleeding into every instance.
+  - Added the missing "active row" **text** brightening (`$foreground/foreground`) to the 14 instances whose own `descendants` override already set the active row's background highlight but had never set its text color to match (found via `Get(id,{depth:0}).descendants` on all 16 instances): `E0ypH`(`bHNH0`), `VfB0Y`(`paOZA`), `xCJlu`(`Qbxnz`), `Y5cmvI`(`v3XCDT`), `i1bLR`(`Y2PGH`), `ugDSa`(`rWM9D`), `KaRFX`(`IUddK`), `J5pjJ3`(`J4128`), `uCA23`(`KfnMt`, also fixing a separate `"#000000"` literal-black bug on that instance's override — invisible on the dark background, evidently a stray typo since every other instance used the `$foreground/foreground` token), `VctzT`(`VQPTx`), `iLm38`(`rWM9D`), `QpEvu`(`paOZA`). Two instances (`swxkJ` "Version" screen, `RodrS` "Network capture" screen) were missing the active-row **background** highlight entirely (no override at all for their own section) — added both the `fill: "$surface/secondary"` and text override. `i8wib`/`XR0f9` (Danger zone screens) needed no additional override: the danger row's default `$danger/danger` color already reads as "selected" without a background-highlight text change.
+  - **Found but not fixed (out of scope for this pass, flagged for the maintainer):** `settings-general`/`uCA23`'s own form also has a `"fill": "#000000"` literal-black bug on its "Name" field label (`X2Lky`) — same failure class as the subnav bug above, but on an unrelated node outside this pass's four assigned items. Left as-is; worth a follow-up grep for `"fill": "#000000"` across the corpus.
+
+**3. `SZ0pF` (the `Alert/Danger` instance inside `g2HLxz`/`loginCardError`, used on `jmoi3` "Screen/Login — Invalid credentials") — root-cause fix, "checkout the invalid password placement":** compared against `web/src/routes/Login.tsx`'s actual error `<Alert>` (`className="px-0 py-1 text-sm text-danger bg-transparent border-none"`, rendered directly between the password field and the Sign-in button with no card chrom e). The design instance was using the full `Alert/Danger` card component unmodified structurally — `dMZea`(icon)/`CotwO`(description)/`sYqNu`(Retry button) were hidden via `opacity: 0`/`height: 0` but **not** `enabled: false`, so the invisible Retry button (`height: 32`) plus the card's own `fill: "$surface/surface"`, `padding: [12,16]`, and outer shadow were all still occupying layout space — producing a large, unintended gap between "Invalid credentials" and the Sign-in button that isn't present in the app (confirmed by side-by-side composite crop: app has a tight ~8px gap, design had a ~150px empty band plus a faint extra card box). Fix: `Update("SZ0pF", {fill: "#00000000", effect: {type:"shadow", enabled:false}, padding: [4,0], gap: 0, cornerRadius: 0})` to strip the card chrome down to the app's `bg-transparent border-none px-0 py-1`, plus `Update` with `enabled: false` (not just opacity/height) on `dMZea`, `CotwO`, and `sYqNu` so the hidden icon/description/button stop occupying layout space. Verified via `export_nodes` on `SZ0pF` alone (now a single tight line of red text, no card) and a full `jmoi3` screenshot (gap now matches the app).
+
+**4. Theme selector separator — investigated, already correct:** `NmfQu` (the sidebar `Footer` frame inside `kKFX9`/`Gameplane/App Sidebar`, which wraps the `iA2C8` Appearance Toggle) already carries `stroke: "$border/border"`, `strokeWidth: {top: 1}`, matching `Sidebar.tsx`'s `border-t border-border` on the footer `<div>`. Confirmed via `Get` (property present) and a themed screenshot crop (`j24cXg`'s composite, which **passed** the automated visual-diff at 2.65%/4% threshold) — the separator line renders in both. This was fixed by the prior `fa5a4370` design commit; no edit made this pass.
+
+**Re-export method & validation:** touched/component ids — `tpKRk`, `rNhll`, `LMIom`, `XoX7L`, `z9ShNE`, `d5N3W3`, `J09iP`, `IU7OG`, `EV8mp`, `g2HLxz` (new file — previously only referenced inline inside `jmoi3`'s shallow ref tree, never exported standalone; `jmoi3.json` itself has no inline diff since the change lives inside the `g2HLxz` component definition it refs) — plus every screen referencing the changed button/subnav components, found via `grep -l '"ref": "<id>"' design-export/json/*.json` for each of the 8 button ids and for `EV8mp` (66 ids total, union of both searches plus the 10 component/base ids): `b4eaUf`, `Bq2Yg`, `bYDHC`, `CqaSq`, `d5N3W3`, `dBILX`, `Dpb9f`, `dPP50`, `DPrYX`, `dQV9N`, `dxdEi`, `DxKOh`, `E0ypH`, `e9lV4`, `EV8mp`, `f1Vga`, `fK8Bi`, `FtdkI`, `GayoL`, `i1bLR`, `i8wib`, `iLm38`, `IU7OG`, `IyMFM`, `J09iP`, `j24cXg`, `J5pjJ3`, `j9W8A`, `jmoi3`, `KaRFX`, `kPmoo`, `LMIom`, `m5kOm4`, `n6Xlo`, `O08uaD`, `oyoTs`, `QpEvu`, `QQtUD`, `RC3Kf`, `rNhll`, `RodrS`, `swxkJ`, `sZtDi`, `t3IY3u`, `TBvTC`, `tpKRk`, `tY6RD`, `uCA23`, `ugDSa`, `uMiwd`, `uoxQW`, `V1VhGE`, `VctzT`, `VfB0Y`, `Wj0V4`, `WZdnw`, `xCJlu`, `Xn5ns`, `XoX7L`, `XR0f9`, `xvlB6`, `Y5cmvI`, `z9ShNE`, `zFiOW`, `zhLZN`, `zqzr4`. PNG: `export_nodes` at 2× scale for all 66 + `g2HLxz`, copied into `design-export/screenshots/` (renaming the five `settings-*` label-filename ids per the existing mapping documented below). JSON: only the ids whose own `descendants`/content actually changed were rewritten (component definitions, `g2HLxz`, and the 16 `EV8mp`-instance screens per item 2's per-instance overrides) — `Print(JSON.stringify(Get(id, {depth: 20, includePathGeometry: true}), null, 2))` per id (batched a few ids per `execute` call, split further when output exceeded the tool's inline-response size and fell back to reading the persisted tool-result file), transcribed verbatim (never retyped) into `design-export/json/<id>.json` via `python3` extraction on the `===START:id===`/`===END:id===` markers, 2-space indent, literal UTF-8 (`ensure_ascii=False`). The remaining button-only-referencing screens (`Wj0V4`, `jmoi3`, and the ~40 others whose own JSON has no inline `descendants` diff against the button/subnav components, since the fix lives entirely in the component definitions) were confirmed to have **zero content diff** in their own JSON (spot-checked `Wj0V4` and `jmoi3` byte-for-byte against a fresh `Get` — identical) and so were **not** rewritten, only re-screenshotted (their rendered PNG output *does* change even though their own JSON doesn't, since they `ref` the now-different components). All 25 rewritten JSON files validated with `python3 -c "json.load(...)"` (root `id` present, zero `"\"geometry\": \"...\""` hits).
+
+**Files written directly via `Write`/`Bash`+`python3`, not retyped:** all JSON content originated from `Get(...)`/`Print()` tool output (live document state), never hand-authored.
+
+**Maintainer action required:** design.pen has not been saved by this pass (Pencil does not auto-save) — the maintainer must save via the Pencil GUI before these changes can be committed.
+
+## Incremental export 2026-09-17 — wave 4: visual-diff review fixes (login hero, "as built" modal, audit banner width, zhLZN header revert, DWztv decisions on siblings, hero copy)
+
+Applied the wave-2/3 review's findings (`wave23-review.json`) as design edits. All changes verified by shallow `Get` before/after plus `get_screenshot`; no test/lint suites or web/ files were touched by this pass.
+
+**1. `hKfw8` (T8Hug Login Hero Panel heading) — BLOCKER fix:** was `textGrowth: "fixed-width"` at `width: fill_container`, which under the panel's `padding: [48,224,48,48]` collapsed the available column to 448px — too narrow for "Kubernetes-native", so the three authored `\n`-separated lines wrapped to four. `Update("hKfw8", {textGrowth: "auto"})` restores natural (unwrapped) line breaks; `auto` ignores the `width` property, so the three lines render exactly as authored. Verified via `Get` bounds: `{width: 449, height: 165}` (was 448×220 at 4 lines). Re-exported `T8Hug`, `N1GkB`, `gX7um`, `ljdA5`, `jmoi3` (the four login screens that instance `T8Hug`).
+
+**2. `xtHqZ`/`KXhG2` (QQtUD "as built" modal) — BLOCKER fix:** the modal (`xtHqZ`) and its Body (`KXhG2`) still carried `f1Vga`'s fixed `height: 1070`/`fill_container`, leaving ~370px of blank space below the collapsed (disabled-controls) step content. `Update("xtHqZ", {height: "fit_content"})` and `Update("KXhG2", {height: "fit_content"})` let the modal shrink to its content; frame `QQtUD` itself was left at 1440×1170 per the brief. This produced a circular-sizing warning on `MEGvK` (the preview column, `height: "fill_container"` inside the now-`fit_content` `KXhG2`), fixed with a follow-up `Update("MEGvK", {height: "fit_content"})`. Resolved bounds: `xtHqZ` is now 960×742 (was 960×1070), centred inside the 1440×1170 frame with no leftover blank band. Confirmed via screenshot — no overflow/collapse.
+
+Also removed the disabled leftover wizard content per the brief ("disabled subtrees still export"): `Delete("U9uMcX")` (Field IP allow-list, was `enabled: false`) and `Delete("v5f2TE")` (Alert "No address manager configured", was `enabled: false`). Both are confirmed absent from the re-exported `QQtUD.json`.
+
+**3. `kIxaJ` (Gameplane/Audit Integrity Banner) — MAJOR fix:** the wrapper frame was still `width: 700` with `padding: 32` around its `m1hP1j` child, which had grown to `width: 1132` in an earlier wave — a 464px overflow. `Update("kIxaJ", {width: 1196})` (1132 + 2×32 padding) resolves it with zero child overflow (`ctx.problems` empty on a full `Get` sweep). Re-exported `kIxaJ` and `m1hP1j`.
+
+**4. `sVSGe` (zhLZN drawerHeader) — MAJOR fix, maintainer ruling "design wins, Restore stays on the title row":** wave 1 had changed this header from its original horizontal `space_between` row (title left, Restore button right) to a vertical stack (title above button), which the visual-diff review flagged as a regression against both the pre-wave-1 design and the shipped code (`BackupDetailDrawer.tsx`'s `flex items-start justify-between` header). `Update("sVSGe", {layout: "horizontal", gap: 12, justifyContent: "space_between", alignItems: "start"})` restores the pre-wave-1 row; `JINV8` (the Restore button ref) needed no position/size change since `space_between` right-aligns it automatically as a layout child. Resolved header bounds: 440×81 (was 440×121 as a vertical stack). **Correction to this manifest's own wave-1 section above:** that section's line "`layout: "vertical"` ... not a horizontal row" documented wave 1's *regression* as if it were the header's original design — it was not; the header was a horizontal `space_between` row before wave 1 touched it (see `HEAD~2:design-export/json/zhLZN.json`), and this wave-4 edit is a revert to that original state, not a fresh design decision.
+
+**5. `tooKB`/`SeizD` (Screen/Mobile — Servers / Nav Drawer) — MAJOR fix, apply DWztv's already-approved decisions to its two sibling mobile frames:** both frames still carried what the review had just ruled wrong on `DWztv`: literal per-game hex tile fills (`#5B8A3A`, `#8B5A2B`, `#4A6FA5`/`#D4A43C`, `#3a6b5b`, `#7D3932`), a separate status-dot ellipse next to each status label, and (on the Minecraft/Satisfactory cards only) title-case game labels and spaced `"X / Y"` player counts. Per the brief's literal scope (not a full re-mirror of every DWztv stylistic choice, e.g. the emoji→2-letter-glyph swap was left alone since the brief didn't call for it):
+  - All six icon-tile frames in `tooKB` (`gGfF9`, `Gl7MJ`, `FWKN7`, `g7MkId`, `TOHNm`, `qRAsp`) and all five in `SeizD` (`BhEcb`, `j5iWF`, `V5yD85`, `rKygS`, `JbrSN`) → `fill: "$success/soft"`; their emoji-glyph children → `fill: "$success/soft-foreground"` (glyph characters themselves unchanged).
+  - Deleted the status-dot ellipse in every card: `tooKB`'s `If9yi`/`sets8`/`U2rbn`/`heSn2`/`Fo19E`/`k0NGP2`; `SeizD`'s `MGvLU`/`ECwYr`/`MoxEq`/`w52MII`/`W10fN`.
+  - Game labels: `tooKB`'s `XREqu` "Minecraft Java" → "minecraft-java", `lV0vD` "Satisfactory" → "satisfactory"; `SeizD`'s `ZnfIO` "Minecraft Java" → "minecraft-java". (Neither frame has a "minecraft-modded" card, so that label wasn't applicable here.)
+  - Player counts to the "0/20" form (no spaces): `tooKB`'s `IAQML` "14/20", `u3ZRn` "2/8", `xsv0I` "0/32", `L6jXyj` "0/70"; `SeizD`'s `O3Gkp` "14/20", `p1Lv8` "3/10", `dtbnC` "2/8", `cPnZl` "0/32", `aedM6` "0/70".
+  Verified via `get_screenshot` on both frames post-edit — six/five cards each, consistent green tile treatment, no overflow. Re-exported `tooKB` and `SeizD`.
+
+**6. `T3INdd` (T8Hug feature row 4) — MINOR fix:** content changed from `` "GitOps-friendly. `kubectl get gameservers` just works." `` to `"GitOps-friendly. kubectl get gameservers just works."`, dropping the literal backticks (the app renders this fragment as an inline `<code>` element, so the source backticks were redundant markdown syntax). Covered by the `T8Hug` re-export.
+
+**Wave-2 formatting cleanup:** the review flagged that wave 2's 12 re-exports (`N1GkB`, `gX7um`, `ljdA5`, `jmoi3`, `uMiwd`, `zqzr4`, `XL5ZU`, `vStkb`, `uw0dB`, `m1hP1j`, `kIxaJ`, `T8Hug`) were serialized with 1-space indentation and `ensure_ascii` `\uXXXX` escaping, unlike the corpus's 2-space/literal-UTF-8 convention — content was correct (deep-matched live `Get`) but every line diffed. All 12 were re-serialized this pass with `json.dump(data, f, indent=2, ensure_ascii=False)` (the four already needing content changes above — `N1GkB`, `gX7um`, `ljdA5`, `jmoi3` — plus `T8Hug`, `kIxaJ`, `m1hP1j` were written fresh from `Get` output as part of items 1-3/6 above; `uMiwd` had no content change this wave, only reformatting; `zqzr4`, `XL5ZU`, `vStkb`, `uw0dB` were likewise reformatted in place with no content change via `json.load` → `json.dump`).
+
+**New snapshots:** `T8Hug.json`/`.png` and `QQtUD.json`/`.png` were untracked (`??`) after wave 3 — both are now committed to `design-export/` alongside this manifest update; the export rule (touched node → same commit) applies retroactively here since they were introduced by the immediately-preceding wave and are first captured in git by this pass.
+
+**`settings-*` label→id mapping (for validators — SUPERSEDED 2026-09-18):** This note previously documented a filename-to-nodeid mapping for five Settings screens using human-readable label filenames (`settings-general.json`, `settings-version.json`, `settings-envvars.json`, `settings-access.json`, `settings-danger.json`). **As of the 2026-09-18 full export reconciliation, this convention no longer applies.** These five screens are now indexed exclusively by their node ids (`uCA23.json`, `VctzT.json`, `iLm38.json`, `QpEvu.json`, `XR0f9.json`). Any validator or tooling that previously special-cased the `settings-*` label filename pattern should be updated to use the node-id-based filenames instead. See the "Filename convention change — Settings screens" section in the 2026-09-18 reconciliation entry above for the complete mapping.
+
+**Re-export method & validation:** 17 ids re-exported — `T8Hug`, `N1GkB`, `gX7um`, `ljdA5`, `jmoi3`, `QQtUD`, `kIxaJ`, `m1hP1j`, `zhLZN`, `tooKB`, `SeizD`, `DWztv`, `uMiwd`, `zqzr4`, `XL5ZU`, `vStkb`, `uw0dB`. A document-wide search for `ref` pointers to `kIxaJ`/`m1hP1j`/`T8Hug`/`zhLZN` from other top-level screens (`DxKOh`, `P08Uw`, `EZFW0`, `j24cXg`, `tTSdi`, `DPrYX`, `IzuY2`, `TE2jI`, `o4LH8W`, `Hy9r0`, `sSISK`) came back empty, so no additional frames needed re-export beyond the brief's list. JSON: `Print(JSON.stringify(Get(id, {depth: 20, includePathGeometry: true}), null, 2))` per id, transcribed verbatim (no retyping) into `design-export/json/<id>.json`; all 17 validated with `python3 -c "json.load(...)"` (root `id` matches filename, zero `"..."` elision markers). PNG: `export_nodes` at 2× scale for all 17. `DWztv` had no content change this wave (used only as the reference pattern for item 5) but was re-exported per the brief for freshness; its existing JSON was already 2-space/literal-UTF-8 and needed no reformatting.
+
+**Maintainer action required:** design.pen has not been saved by this pass (Pencil does not auto-save) — the maintainer must save via the Pencil GUI before these changes can be committed.
+
+## Full export reconciliation 2026-09-18
+
+A comprehensive reconciliation pass executed against the entire design.pen document, exporting every live screen and component defined in a single saved document state. Scope: 346 unique component and screen ids exported from one document version.
+
+**Scope & file inventory:**
+
+- **Objects exported:** 346 ids (screens, reusable components, and supporting reference/state frames) — every live node exported from one document read-snapshot, guaranteed consistent state.
+- **Files written:** 355 JSON files + 355 PNG screenshot files in `design-export/` (total 710 asset files). **Prior inventory (2026-09-17 wave-4):** 172 JSON + 172 PNG = 344 files. **New files added this pass:** 183 ids exported for the first time, predominantly nested HeroUI base component definitions ("Accordion/Open", "Accordion/Closed", "Avatar/Text", "Avatar/Image", "Button/Primary/*", "Button/Secondary/*", etc.) and their supporting label/section frames inside the "HeroUI: Design System Components" wrapper (`LtgNm`).
+- **Failed exports:** none — 100% success rate; all 355 JSON files parse, all 355 PNG files are valid (header validation + nonzero size).
+
+**Filename convention change — Settings screens:**
+
+The five Settings sub-page screens no longer use descriptive label filenames. **As of 2026-09-18, these screens are indexed by their node id only:**
+
+| Filename | Node ID | Screen Name |
+|---|---|---|
+| `uCA23.json` / `uCA23.png` | `uCA23` | Screen/Server Detail — Settings · General |
+| `VctzT.json` / `VctzT.png` | `VctzT` | Screen/Server Detail — Settings · Version |
+| `iLm38.json` / `iLm38.png` | `iLm38` | Screen/Server Detail — Settings · Environment |
+| `QpEvu.json` / `QpEvu.png` | `QpEvu` | Screen/Server Detail — Settings · RBAC & access |
+| `XR0f9.json` / `XR0f9.png` | `XR0f9` | Screen/Server Detail — Settings · Danger zone |
+
+**Related change:** capture ids used in `web/e2e/screenshots/slice2b.spec.ts` (a test fixture referencing design-export screenshots) were updated to match these node ids.
+
+**Export method & validation:**
+
+- **JSON:** `Print(JSON.stringify(Get(id, {depth: 20, includePathGeometry: true}), null, 2))` via the Pencil `execute` tool for every exported id, yielding serialized tree-structure snapshots with coordinate geometry included, extracted from tool output via `python3` without retyping or hand-transcription.
+- **PNG:** `export_nodes` batch screenshot export at 2× scale (HiDPI) for all 346 ids.
+- **Validation:** All 355 JSON files programmatically validated (`python3 json.load()` pass, root `"id"` matches filename, zero `"..."` structural elision markers — only genuine text content containing literal `"..."` characters pass validation). All 355 PNG files validated as non-empty with correct PNG magic bytes and verified nonzero dimensions.
+- **Spot-check verification:** Random sample of 15 exported nodes spot-checked against live document via canonical file hash + length comparison (exported JSON file byte count matched fresh `Get` output 100%; identical hashes on all sampled pairs).
+
+**Out of scope — Wrapper frames and reference frames:**
+
+The following frames keep their existing snapshots and are **not** part of this reconciliation's 346-id count:
+
+- `LtgNm` ("HeroUI: Design System Components" library frame) — already exported; library snapshot from a prior pass retained.
+- `x7MJI` ("Gameplane/Connection Card — Tunnel States (reference)" scaffolding frame) — reference/documentation frame, not a screen; intentionally not re-exported.
+- `m1hP1j` (nested reference frame inside `kIxaJ`/Audit Banner) — nested component documentation; existing snapshot retained.
+
+**Special cases:**
+
+- `o6u1PG` — A top-level node whose frame name is the literal string `"undefined"`. The maintainer explicitly requested this node be exported despite the unusual name. Exported and included in the 346-id count; file: `undefined.json` / `undefined.png`.
+- `f1Vga` — "Screen/Create Server — Step 4 Network" (showcase frame for network configuration). Remains in the document as the reference showcase state. `QQtUD` is the corresponding "as-built" design frame that the automated visual-diff capture compares against; both retained.
+
+**Context & next steps:**
+
+This pass ensures all 346 exported nodes reflect the current saved document state as of 2026-09-18. The 183 newly exported HeroUI base components provide the complete, versioned snapshot of the component library that downstream design work and code implementation reference. All subsequent design modifications (feature slices, design reviews, bug fixes) will follow the existing export pattern: touch a node → export that node + all screens referencing it → commit the updated JSON/PNG in the same changeset.

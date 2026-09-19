@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Servers } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
 

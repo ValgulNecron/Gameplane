@@ -171,203 +171,22 @@
               }
             },
             {
-              "type": "frame",
-              "id": "KPt3l",
-              "name": "Tabs",
-              "width": "fill_container",
-              "stroke": "$border/border",
-              "strokeWidth": {
-                "bottom": 1
-              },
-              "strokeAlignment": "inner",
-              "strokeLinejoin": "round",
-              "gap": 4,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "ScYGZ",
-                  "name": "tabBackups",
-                  "height": 36,
-                  "padding": [
-                    0,
-                    12
-                  ],
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "KyaPW",
-                      "fill": "$muted",
-                      "content": "Backups",
-                      "fontFamily": "$typography/font-sans",
-                      "fontSize": 14,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "MZ8vW",
-                  "name": "tabSchedules",
-                  "height": 36,
-                  "padding": [
-                    0,
-                    12
-                  ],
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "MC67E",
-                      "fill": "$muted",
-                      "content": "Schedules",
-                      "fontFamily": "$typography/font-sans",
-                      "fontSize": 14,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "d9QRW",
-                  "name": "tabRestores",
-                  "height": 36,
-                  "stroke": "$accent/accent",
-                  "strokeWidth": {
-                    "bottom": 2
-                  },
-                  "strokeAlignment": "inner",
-                  "strokeLinejoin": "round",
-                  "padding": [
-                    0,
-                    12
-                  ],
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "cotSV",
-                      "fill": "$foreground/foreground",
-                      "content": "Restores",
-                      "fontFamily": "$typography/font-sans",
-                      "fontSize": 14,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                }
-              ]
+              "id": "w3qR27",
+              "type": "ref",
+              "ref": "oIJGu",
+              "name": "tabsBar"
             },
             {
-              "type": "frame",
-              "id": "JHWDJ",
+              "id": "DmMs9",
+              "type": "ref",
+              "ref": "wKe4F",
               "name": "Filter Row",
               "width": "fill_container",
-              "height": "fill_container",
-              "gap": 12,
-              "justifyContent": "space_between",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "keTJo",
-                  "name": "Filters",
-                  "height": "fill_container",
-                  "gap": 8,
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "id": "mgxeI",
-                      "type": "ref",
-                      "ref": "Um9IB",
-                      "name": "Search",
-                      "width": 320,
-                      "height": 36,
-                      "descendants": {
-                        "oYXAU": {
-                          "content": "",
-                          "opacity": 0,
-                          "height": 0,
-                          "enabled": false
-                        },
-                        "I3Cns": {
-                          "height": 36,
-                          "width": "fill_container"
-                        },
-                        "lz6sn": {
-                          "content": "Search by name or server…"
-                        },
-                        "Cu8Yj": {
-                          "enabled": false
-                        }
-                      }
-                    },
-                    {
-                      "id": "F600q",
-                      "type": "ref",
-                      "ref": "cY9fV",
-                      "name": "Select",
-                      "width": 176,
-                      "descendants": {
-                        "mgenn": {
-                          "content": "",
-                          "opacity": 0,
-                          "height": 0,
-                          "enabled": false
-                        },
-                        "c94wTj": {
-                          "content": "All servers"
-                        },
-                        "t1Te9C": {
-                          "x": 148
-                        },
-                        "d7Cyay": {
-                          "enabled": false,
-                          "height": 0
-                        }
-                      }
-                    },
-                    {
-                      "id": "d6RxQ",
-                      "type": "ref",
-                      "ref": "cY9fV",
-                      "name": "Select",
-                      "width": 144,
-                      "descendants": {
-                        "mgenn": {
-                          "content": "",
-                          "opacity": 0,
-                          "height": 0,
-                          "enabled": false
-                        },
-                        "c94wTj": {
-                          "content": "All phases"
-                        },
-                        "t1Te9C": {
-                          "x": 116
-                        },
-                        "d7Cyay": {
-                          "enabled": false,
-                          "height": 0
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "oJpx7",
-                  "name": "Result Count",
-                  "fill": "$muted",
-                  "content": "2 of 2 restores",
-                  "fontFamily": "$typography/font-sans",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
+              "descendants": {
+                "g9iDB": {
+                  "content": "2 of 2 restores"
                 }
-              ]
+              }
             },
             {
               "id": "s0L2d",

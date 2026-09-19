@@ -12,9 +12,10 @@ import {
   Terminal,
 } from "lucide-react";
 import { Servers, Templates, type LifecycleVerb } from "@/lib/endpoints";
+import { useGameCodes } from "@/lib/useGameCodes";
 import { resolveConsoleMode, serverHasMods, serverHasModpacks } from "@/lib/capabilities";
-import { PhaseChip } from "@/components/hero/PhaseChip";
-import { GameIcon } from "@/components/hero/GameIcon";
+import { PhaseChip } from "@/components/ui/PhaseChip";
+import { GameIcon } from "@/components/ui/GameIcon";
 import { capitalize, formatUptime } from "@/lib/utils";
 import { ServerActionsMenu } from "@/components/server/ServerActionsMenu";
 import { CaptureWidget } from "@/components/CaptureWidget";
@@ -73,6 +74,8 @@ export function ServerDetailPage() {
     queryFn: () => Templates.get(templateName as string),
     enabled: !!templateName,
   });
+
+  const { gameCodes } = useGameCodes();
 
   const act = useMutation({
     mutationFn: (verb: LifecycleVerb) => Servers.lifecycle(name, verb, ns),
@@ -157,11 +160,13 @@ export function ServerDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-border bg-background px-6 pb-0 pt-4">
-        <div className="flex flex-wrap items-start justify-between gap-4 pb-4">
+      <header className="border-b border-border bg-background px-6 pb-4 pt-8">
+        <div className="flex flex-wrap items-start justify-between gap-4 pb-8">
           <div className="flex items-start gap-4">
             <GameIcon
               game={gs?.spec.templateRef.name}
+              icon={tmpl?.spec.icon}
+              code={gameCodes.get(gs?.spec.templateRef.name ?? "")}
               accentColor={tmpl?.spec.accentColor}
               size="lg"
             />
@@ -195,6 +200,7 @@ export function ServerDetailPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
+              className="rounded-full"
               onPress={() => act.mutate("restart")}
               isDisabled={!running || act.isPending}
             >
@@ -202,23 +208,34 @@ export function ServerDetailPage() {
             </Button>
             <Button
               variant="outline"
+              className="rounded-full"
               onPress={() => act.mutate("stop")}
               isDisabled={(!running && !asleep) || act.isPending}
             >
               <Square className="h-4 w-4" /> Stop
             </Button>
             {asleep && (
-              <Button variant="primary" onPress={() => act.mutate("wake")} isDisabled={act.isPending}>
+              <Button
+                variant="primary"
+                className="rounded-full"
+                onPress={() => act.mutate("wake")}
+                isDisabled={act.isPending}
+              >
                 <Sunrise className="h-4 w-4" /> Wake
               </Button>
             )}
             {canStart && (
-              <Button variant="outline" onPress={() => act.mutate("start")} isDisabled={act.isPending}>
+              <Button
+                variant="outline"
+                className="rounded-full"
+                onPress={() => act.mutate("start")}
+                isDisabled={act.isPending}
+              >
                 <Play className="h-4 w-4" /> Start
               </Button>
             )}
             {consoleAvailable && (
-              <Button onPress={() => setTab("console")}>
+              <Button className="rounded-full" onPress={() => setTab("console")}>
                 <Terminal className="h-4 w-4" /> Open console
               </Button>
             )}

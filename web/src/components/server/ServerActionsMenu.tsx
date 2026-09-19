@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/hero/DropdownMenu";
+} from "@/components/ui/DropdownMenu";
 import { useMe, can } from "@/lib/auth";
 import { OWNER_ID_ANNOTATION } from "@/lib/annotations";
 import { CloneServerDialog } from "./CloneServerDialog";

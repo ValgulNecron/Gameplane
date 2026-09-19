@@ -147,7 +147,7 @@
                           "name": "Retention",
                           "fill": "$muted",
                           "content": "Captures will auto-delete after 24 hours",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "Geist",
                           "fontSize": 13,
                           "fontWeight": "normal"
                         },
@@ -157,7 +157,7 @@
                           "name": "Configure Retention Link",
                           "fill": "$accent/accent",
                           "content": "Configure retention",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "Geist",
                           "fontSize": 13,
                           "fontWeight": "500"
                         }
@@ -256,7 +256,7 @@
                           "name": "Section Title",
                           "fill": "$muted",
                           "content": "Captures",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "Geist",
                           "fontSize": 14,
                           "fontWeight": "normal"
                         }
@@ -1215,7 +1215,7 @@
                           "name": "Footer Text",
                           "fill": "$muted",
                           "content": "Showing 3 of 3 captures",
-                          "fontFamily": "$c:--font-secondary",
+                          "fontFamily": "Geist",
                           "fontSize": 12,
                           "fontWeight": "normal"
                         }

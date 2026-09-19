@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -11,13 +11,14 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { ModuleCard } from "./ModuleCard";
 import { makeCatalog } from "@/test/factories";
+import { renderWithQuery } from "@/test/render";
 
 const handlers = { onInstall: vi.fn(), onUpgrade: vi.fn(), onUninstall: vi.fn() };
 
 describe("ModuleCard", () => {
   it("not-installed shows Install action", async () => {
     const onInstall = vi.fn();
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({ installed: false })}
         {...handlers}
@@ -30,7 +31,7 @@ describe("ModuleCard", () => {
   });
 
   it("installed at current version shows Deploy + Uninstall", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -49,7 +50,7 @@ describe("ModuleCard", () => {
 
   it("upgrade-available shows Upgrade button", async () => {
     const onUpgrade = vi.fn();
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -67,7 +68,7 @@ describe("ModuleCard", () => {
   });
 
   it("Failed phase shows danger pill and last-error message", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -83,7 +84,7 @@ describe("ModuleCard", () => {
 
   it("VersionUnavailable Failed offers an Update instead of a dead error", async () => {
     const onUpgrade = vi.fn();
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -113,7 +114,7 @@ describe("ModuleCard", () => {
     // Right after clicking Update: spec.version=2.0.4 (available) but the CR
     // status hasn't caught up (still Failed with the old error). Neither the
     // raw error nor the update affordance should show.
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -134,7 +135,7 @@ describe("ModuleCard", () => {
   });
 
   it("VersionUnavailable with no latestVersion does not show update pill", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -154,7 +155,7 @@ describe("ModuleCard", () => {
   });
 
   it("Pulling with a leftover lastError does not show the stale error", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -172,7 +173,7 @@ describe("ModuleCard", () => {
   });
 
   it("in-flight (phase != Ready) disables Uninstall", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -186,7 +187,7 @@ describe("ModuleCard", () => {
 
   it("Failed module (terminal state) enables Uninstall", async () => {
     const onUninstall = vi.fn();
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,
@@ -204,7 +205,7 @@ describe("ModuleCard", () => {
   });
 
   it("multiple sources renders 'N sources'", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({ sources: [{ name: "a", type: "oci" }, { name: "b", type: "git" }, { name: "c", type: "upload" }] })}
         {...handlers}
@@ -214,7 +215,7 @@ describe("ModuleCard", () => {
   });
 
   it("enforced verification renders a solid 'verified' badge (keyed)", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({})}
         verify={{ mode: "keyed", enforced: true, mixed: false }}
@@ -229,7 +230,7 @@ describe("ModuleCard", () => {
   });
 
   it("enforced keyless verification keeps the 'verified' label, with keyless in the tooltip", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({})}
         verify={{ mode: "keyless", enforced: true, mixed: false }}
@@ -241,7 +242,7 @@ describe("ModuleCard", () => {
   });
 
   it("policy-declared (not installed) renders a softer outline 'policy' badge", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({})}
         verify={{ mode: "keyed", enforced: false, mixed: false }}
@@ -255,7 +256,7 @@ describe("ModuleCard", () => {
   });
 
   it("keyless policy carries keyless in the tooltip", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({})}
         verify={{ mode: "keyless", enforced: false, mixed: false }}
@@ -268,7 +269,7 @@ describe("ModuleCard", () => {
 
   it("mixed candidate sources suppress the badge (no over-claim)", () => {
     for (const mode of ["keyless", "keyed"] as const) {
-      const { unmount } = render(
+      const { unmount } = renderWithQuery(
         <ModuleCard
           entry={makeCatalog({})}
           verify={{ mode, enforced: false, mixed: true }}
@@ -282,7 +283,7 @@ describe("ModuleCard", () => {
   });
 
   it("renders no verify badge when unsigned", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({})}
         verify={{ mode: "none", enforced: false, mixed: false }}
@@ -294,7 +295,7 @@ describe("ModuleCard", () => {
   });
 
   it("shows the bundle digest and rollback target", () => {
-    render(
+    renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
           installed: true,

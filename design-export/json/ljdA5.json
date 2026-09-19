@@ -13,19 +13,16 @@
   "fill": "$background/background",
   "children": [
     {
-      "type": "frame",
-      "id": "Ft9zK",
+      "id": "l1lWmf",
+      "type": "ref",
+      "ref": "fjQjb",
       "name": "loginL",
       "width": "fill_container",
       "height": "fill_container",
-      "layout": "vertical",
-      "padding": 80,
-      "justifyContent": "center",
-      "alignItems": "center",
       "children": [
         {
           "type": "frame",
-          "id": "B24gS",
+          "id": "ohWEp",
           "name": "loginCard",
           "width": 420,
           "fill": "$surface/surface",
@@ -39,7 +36,7 @@
           "children": [
             {
               "type": "frame",
-              "id": "fnizm",
+              "id": "nYWDP",
               "name": "loginLogo",
               "width": "fill_container",
               "gap": 10,
@@ -47,7 +44,7 @@
               "children": [
                 {
                   "type": "frame",
-                  "id": "gDPwp",
+                  "id": "z62HJ3",
                   "name": "logoK",
                   "width": 36,
                   "height": 36,
@@ -58,7 +55,7 @@
                   "children": [
                     {
                       "type": "icon",
-                      "id": "FZ26X",
+                      "id": "ccs8u",
                       "name": "shield",
                       "width": 20,
                       "height": 20,
@@ -70,13 +67,14 @@
                 },
                 {
                   "type": "frame",
-                  "id": "YCrTN",
+                  "id": "rMYtK",
                   "name": "logoCol",
                   "layout": "vertical",
                   "children": [
                     {
                       "type": "text",
-                      "id": "F4eh5",
+                      "id": "KZ9wI",
+                      "name": "appName",
                       "fill": "$foreground/foreground",
                       "content": "gameplane",
                       "fontFamily": "$typography/font-mono",
@@ -85,7 +83,8 @@
                     },
                     {
                       "type": "text",
-                      "id": "XLibN",
+                      "id": "bmOsI",
+                      "name": "appDesc",
                       "fill": "$muted",
                       "content": "game server control panel",
                       "fontFamily": "$typography/font-sans",
@@ -98,7 +97,7 @@
             },
             {
               "type": "frame",
-              "id": "z18vz",
+              "id": "gAb79",
               "name": "loginTitle",
               "width": "fill_container",
               "layout": "vertical",
@@ -106,7 +105,8 @@
               "children": [
                 {
                   "type": "text",
-                  "id": "Me10c",
+                  "id": "k09XT",
+                  "name": "titleText",
                   "fill": "$foreground/foreground",
                   "content": "Sign in",
                   "fontFamily": "$typography/font-mono",
@@ -115,9 +115,10 @@
                 },
                 {
                   "type": "text",
-                  "id": "q3Yi5",
+                  "id": "LM3Jc",
+                  "name": "subtitleText",
                   "fill": "$muted",
-                  "content": "Welcome to Gameplane",
+                  "content": "Welcome to Gameplane.",
                   "fontFamily": "$typography/font-sans",
                   "fontSize": 13,
                   "fontWeight": "normal"
@@ -125,7 +126,7 @@
               ]
             },
             {
-              "id": "HYXcs",
+              "id": "R1E5h",
               "type": "ref",
               "ref": "QcB8d",
               "name": "oidc",
@@ -142,9 +143,10 @@
               }
             },
             {
-              "id": "p9uFf",
+              "id": "a0ckWm",
               "type": "ref",
               "ref": "QcB8d",
+              "name": "google",
               "descendants": {
                 "IruuA": {
                   "enabled": true,
@@ -159,7 +161,8 @@
             },
             {
               "type": "text",
-              "id": "n2Q7d",
+              "id": "feGL9",
+              "name": "footer",
               "fill": "$muted",
               "textGrowth": "fixed-width",
               "width": "fill_container",
@@ -174,257 +177,12 @@
       ]
     },
     {
-      "type": "frame",
-      "id": "EzqAU",
+      "id": "B7L9d9",
+      "type": "ref",
+      "ref": "T8Hug",
       "name": "loginR",
       "width": "fill_container",
-      "height": "fill_container",
-      "fill": "$surface/secondary",
-      "layout": "vertical",
-      "gap": 24,
-      "padding": 80,
-      "justifyContent": "center",
-      "children": [
-        {
-          "type": "frame",
-          "id": "SAZp7",
-          "name": "pBadge",
-          "cornerRadius": 999,
-          "stroke": "$border/border",
-          "strokeWidth": 1,
-          "strokeAlignment": "inner",
-          "gap": 8,
-          "padding": [
-            6,
-            14
-          ],
-          "alignItems": "center",
-          "children": [
-            {
-              "type": "ellipse",
-              "id": "X1Wkb5",
-              "fill": "$accent/accent",
-              "width": 6,
-              "height": 6
-            },
-            {
-              "type": "text",
-              "id": "L9foxP",
-              "fill": "$muted",
-              "content": "AGPL-3.0",
-              "fontFamily": "$typography/font-mono",
-              "fontSize": 12,
-              "fontWeight": "normal"
-            }
-          ]
-        },
-        {
-          "type": "text",
-          "id": "s6J9Q",
-          "fill": "$foreground/foreground",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Kubernetes-native\ngame server hosting.",
-          "lineHeight": 1.05,
-          "fontFamily": "$typography/font-mono",
-          "fontSize": 44,
-          "fontWeight": "700"
-        },
-        {
-          "type": "text",
-          "id": "x8V4sn",
-          "fill": "$muted",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "An open-source alternative to proprietary game panels — CRDs, Operators, and StatefulSets all the way down.",
-          "lineHeight": 1.5,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 15,
-          "fontWeight": "normal"
-        },
-        {
-          "type": "frame",
-          "id": "Eh1So",
-          "name": "feats",
-          "width": "fill_container",
-          "layout": "vertical",
-          "gap": 12,
-          "children": [
-            {
-              "type": "frame",
-              "id": "g4LuJo",
-              "name": "f1",
-              "width": "fill_container",
-              "gap": 12,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "vjlTa",
-                  "width": 28,
-                  "height": 28,
-                  "fill": "$default/default",
-                  "cornerRadius": 6,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon",
-                      "id": "Z6CP4j",
-                      "width": 16,
-                      "height": 16,
-                      "icon": "dns",
-                      "library": "Material Symbols Sharp",
-                      "weight": 400,
-                      "fill": "$accent/accent"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "upPVW",
-                  "fill": "$foreground/foreground",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "Deploy any game. Minecraft, Valheim, Factorio, Palworld, ARK, CS2, Terraria, and more.",
-                  "fontFamily": "$typography/font-mono",
-                  "fontSize": 13,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "AFFlp",
-              "name": "f2",
-              "width": "fill_container",
-              "gap": 12,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "C2Hw1",
-                  "width": 28,
-                  "height": 28,
-                  "fill": "$default/default",
-                  "cornerRadius": 6,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon",
-                      "id": "hSDxA",
-                      "width": 16,
-                      "height": 16,
-                      "icon": "hub",
-                      "library": "Material Symbols Sharp",
-                      "weight": 400,
-                      "fill": "$accent/accent"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "He0Nc",
-                  "fill": "$foreground/foreground",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "Scale from single-node k3s to multi-node bare metal or cloud.",
-                  "fontFamily": "$typography/font-mono",
-                  "fontSize": 13,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "V3NAMY",
-              "name": "f3",
-              "width": "fill_container",
-              "gap": 12,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "KwZmT",
-                  "width": 28,
-                  "height": 28,
-                  "fill": "$default/default",
-                  "cornerRadius": 6,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon",
-                      "id": "J1rus",
-                      "width": 16,
-                      "height": 16,
-                      "icon": "backup",
-                      "library": "Material Symbols Sharp",
-                      "weight": 400,
-                      "fill": "$accent/accent"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "awq4V",
-                  "fill": "$foreground/foreground",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "Backups, auto-restart, rolling upgrades, RBAC. Production-grade defaults.",
-                  "fontFamily": "$typography/font-mono",
-                  "fontSize": 13,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "OEk43",
-              "name": "f4",
-              "width": "fill_container",
-              "gap": 12,
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "cG4Tn",
-                  "width": 28,
-                  "height": 28,
-                  "fill": "$default/default",
-                  "cornerRadius": 6,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon",
-                      "id": "Eqck3",
-                      "width": 16,
-                      "height": 16,
-                      "icon": "code",
-                      "library": "Material Symbols Sharp",
-                      "weight": 400,
-                      "fill": "$accent/accent"
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "D2Cyy",
-                  "fill": "$foreground/foreground",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "GitOps-friendly. `kubectl get gameservers` just works.",
-                  "fontFamily": "$typography/font-mono",
-                  "fontSize": 13,
-                  "fontWeight": "normal"
-                }
-              ]
-            }
-          ]
-        }
-      ]
+      "height": "fill_container"
     }
   ]
 }

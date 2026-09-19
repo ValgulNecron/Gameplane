@@ -123,7 +123,7 @@ export function TransferServerDialog({ name, ns, open, onOpenChange, onTransferr
 
             <ModalFooter className="flex items-center justify-end gap-2">
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 isDisabled={transfer.isPending}
                 onPress={() => onOpenChange(false)}

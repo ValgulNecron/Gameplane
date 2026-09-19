@@ -21,23 +21,13 @@ async function loginIfNeeded(page: Page): Promise<void> {
 }
 
 async function stubMeRole(page: Page, role: "admin" | "operator" | "viewer"): Promise<void> {
-  // Intercept /users/me at the network layer so the SPA observes the
-  // requested role from the moment it loads.
-  await page.route(/\/users\/me$/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        id: 1,
-        username: `e2e-${role}`,
-        displayName: `E2E ${role}`,
-        email: "",
-        role,
-        provider: "local",
-        createdAt: "2026-01-01T00:00:00Z",
-      }),
-    });
-  });
+  // Cookie-selected, not page.route: MSW's Service Worker (msw/browser)
+  // answers /users/me itself in mock mode, so Playwright can't intercept
+  // a request it has already resolved (see handlers.ts's e2e_me_role
+  // branch). The cookie survives the page.goto() navigation below.
+  await page.context().addCookies([
+    { name: "e2e_me_role", value: role, url: "http://localhost:5173" },
+  ]);
 }
 
 test.describe("RBAC enforcement", () => {

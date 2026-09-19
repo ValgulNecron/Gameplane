@@ -172,7 +172,7 @@ export function LoginPage() {
                 <Alert
                   role="alert"
                   status="danger"
-                  className="px-0 py-1 text-sm text-danger"
+                  className="px-0 py-1 text-sm text-danger bg-transparent border-none"
                 >
                   {err}
                 </Alert>

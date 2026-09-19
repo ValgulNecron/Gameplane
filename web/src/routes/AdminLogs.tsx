@@ -4,7 +4,7 @@ import { Select, Switch, ListBox, ListBoxItem, Tabs, Tab as TabComponent, Button
 import { APIError } from "@/lib/api";
 import { errorTextWithStatus } from "@/lib/errors";
 import { withCluster } from "@/lib/endpoints";
-import { PageHeader } from "@/components/hero/PageHeader";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 type LogComponent = "api" | "operator";
 

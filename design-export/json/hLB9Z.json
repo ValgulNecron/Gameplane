@@ -455,12 +455,12 @@
                           "icon": "triangle-alert",
                           "library": "lucide",
                           "weight": 400,
-                          "fill": "#DC2828"
+                          "fill": "$danger/danger"
                         },
                         {
                           "type": "text",
                           "id": "W7e6Fa",
-                          "fill": "#DC2828",
+                          "fill": "$danger/danger",
                           "content": "Danger zone",
                           "fontFamily": "$typography/font-sans",
                           "fontSize": 14,

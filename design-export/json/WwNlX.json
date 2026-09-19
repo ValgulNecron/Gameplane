@@ -4,7 +4,6 @@
   "x": -16135,
   "y": 25764,
   "name": "Gameplane/Confirm Dialog",
-  "theme": {},
   "reusable": true,
   "width": 440,
   "fill": "$surface/surface",

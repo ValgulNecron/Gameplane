@@ -41,7 +41,7 @@
       "name": "Dark",
       "width": 28,
       "height": 28,
-      "fill": "$accent/soft",
+      "fill": "#00000000",
       "children": [
         {
           "type": "icon",
@@ -51,7 +51,7 @@
           "height": 16,
           "icon": "moon",
           "library": "lucide",
-          "fill": "$accent/soft-foreground"
+          "fill": "$foreground/muted"
         }
       ]
     },
@@ -62,6 +62,7 @@
       "name": "System",
       "width": 28,
       "height": 28,
+      "fill": "$accent/soft",
       "children": [
         {
           "type": "icon",
@@ -71,7 +72,7 @@
           "height": 16,
           "icon": "monitor",
           "library": "lucide",
-          "fill": "$foreground/muted"
+          "fill": "$accent/soft-foreground"
         }
       ]
     }

@@ -24,16 +24,19 @@
       "type": "ref",
       "ref": "Dx8S8",
       "name": "tabsBar",
-      "width": "fit_content",
+      "width": "fill_container",
       "children": [
         {
           "id": "Wp6q1",
           "type": "ref",
           "ref": "CEWo3",
           "name": "tabOverview",
+          "fill": "$segment",
+          "width": "fill_container",
           "descendants": {
             "YUR8N": {
-              "content": "Overview"
+              "content": "Overview",
+              "fill": "$foreground/segment"
             }
           }
         },
@@ -42,6 +45,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabEvents",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Events"
@@ -53,6 +57,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabConsole",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Console"
@@ -64,6 +69,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabLogs",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Logs"
@@ -75,6 +81,8 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabFiles",
+          "fill": "#00000000",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Files"
@@ -86,6 +94,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabMods",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Mods"
@@ -97,6 +106,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabModpacks",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Modpacks"
@@ -108,6 +118,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabPlayers",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Players"
@@ -119,6 +130,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabBackups",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Backups"
@@ -130,6 +142,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabCapture",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Capture"
@@ -141,6 +154,7 @@
           "type": "ref",
           "ref": "qAFbJ",
           "name": "tabSettings",
+          "width": "fill_container",
           "descendants": {
             "VcxMI": {
               "content": "Settings"

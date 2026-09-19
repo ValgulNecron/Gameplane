@@ -175,46 +175,10 @@
               }
             },
             {
-              "id": "lON5x",
+              "id": "qHX7n",
               "type": "ref",
-              "ref": "Dx8S8",
-              "name": "tabsBar",
-              "width": "fit_content",
-              "children": [
-                {
-                  "id": "GzgSK",
-                  "type": "ref",
-                  "ref": "qAFbJ",
-                  "name": "tabBackups",
-                  "descendants": {
-                    "VcxMI": {
-                      "content": "Backups"
-                    }
-                  }
-                },
-                {
-                  "id": "VkYBa",
-                  "type": "ref",
-                  "ref": "CEWo3",
-                  "name": "tabSchedules",
-                  "descendants": {
-                    "YUR8N": {
-                      "content": "Schedules"
-                    }
-                  }
-                },
-                {
-                  "id": "t6IPma",
-                  "type": "ref",
-                  "ref": "qAFbJ",
-                  "name": "tabRestores",
-                  "descendants": {
-                    "VcxMI": {
-                      "content": "Restores"
-                    }
-                  }
-                }
-              ]
+              "ref": "oIJGu",
+              "name": "tabsBar"
             },
             {
               "type": "frame",
@@ -248,54 +212,17 @@
                       "fontWeight": "500"
                     },
                     {
-                      "type": "frame",
                       "id": "goTCs",
+                      "type": "ref",
+                      "ref": "AT7ya",
                       "name": "selServer",
                       "width": "fill_container",
-                      "height": 36,
-                      "fill": "$field/background",
-                      "cornerRadius": "$radius/xl",
-                      "stroke": "$field/border",
-                      "strokeWidth": 1,
-                      "strokeAlignment": "inner",
-                      "effect": {
-                        "type": "shadow",
-                        "shadowType": "outer",
-                        "color": "#0000000F",
-                        "offset": {
-                          "x": 0,
-                          "y": 1
-                        },
-                        "blur": 2
-                      },
-                      "padding": [
-                        8,
-                        12
-                      ],
-                      "justifyContent": "space_between",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "goTCs/cFsFk",
-                          "name": "selectValue",
-                          "fill": "$field/foreground",
+                      "descendants": {
+                        "cFsFk": {
                           "content": "mc-survival",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "type": "icon",
-                          "id": "goTCs/mULN8",
-                          "name": "selectChevron",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "chevron-down",
-                          "library": "lucide",
-                          "fill": "$field/placeholder"
+                          "fill": "$field/foreground"
                         }
-                      ]
+                      }
                     }
                   ]
                 },
@@ -351,54 +278,17 @@
                           "fontWeight": "500"
                         },
                         {
-                          "type": "frame",
                           "id": "gwOM5",
+                          "type": "ref",
+                          "ref": "AT7ya",
                           "name": "selBackupType",
                           "width": "fill_container",
-                          "height": 36,
-                          "fill": "$field/background",
-                          "cornerRadius": "$radius/xl",
-                          "stroke": "$field/border",
-                          "strokeWidth": 1,
-                          "strokeAlignment": "inner",
-                          "effect": {
-                            "type": "shadow",
-                            "shadowType": "outer",
-                            "color": "#0000000F",
-                            "offset": {
-                              "x": 0,
-                              "y": 1
-                            },
-                            "blur": 2
-                          },
-                          "padding": [
-                            8,
-                            12
-                          ],
-                          "justifyContent": "space_between",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "gwOM5/cFsFk",
-                              "name": "selectValue",
-                              "fill": "$field/foreground",
+                          "descendants": {
+                            "cFsFk": {
                               "content": "Restic snapshot (to a repository)",
-                              "fontFamily": "$typography/font-sans",
-                              "fontSize": 14,
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "icon",
-                              "id": "gwOM5/mULN8",
-                              "name": "selectChevron",
-                              "width": 16,
-                              "height": 16,
-                              "icon": "chevron-down",
-                              "library": "lucide",
-                              "fill": "$field/placeholder"
+                              "fill": "$field/foreground"
                             }
-                          ]
+                          }
                         }
                       ]
                     },
@@ -435,43 +325,17 @@
                                   "fontWeight": "500"
                                 },
                                 {
-                                  "type": "frame",
                                   "id": "qYbno",
+                                  "type": "ref",
+                                  "ref": "D0cDM",
                                   "name": "inputCron",
                                   "width": "fill_container",
-                                  "height": 36,
-                                  "fill": "$field/background",
-                                  "cornerRadius": "$radius/xl",
-                                  "stroke": "$field/border",
-                                  "strokeWidth": 1,
-                                  "strokeAlignment": "inner",
-                                  "effect": {
-                                    "type": "shadow",
-                                    "shadowType": "outer",
-                                    "color": "#0000000F",
-                                    "offset": {
-                                      "x": 0,
-                                      "y": 1
-                                    },
-                                    "blur": 2
-                                  },
-                                  "padding": [
-                                    8,
-                                    12
-                                  ],
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "qYbno/PJERm",
-                                      "name": "inputValue",
-                                      "fill": "$field/foreground",
+                                  "descendants": {
+                                    "PJERm": {
                                       "content": "0 */6 * * *",
-                                      "fontFamily": "$typography/font-sans",
-                                      "fontSize": 14,
-                                      "fontWeight": "normal"
+                                      "fill": "$field/foreground"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             },
@@ -493,54 +357,17 @@
                                   "fontWeight": "500"
                                 },
                                 {
-                                  "type": "frame",
                                   "id": "ysS6m",
+                                  "type": "ref",
+                                  "ref": "AT7ya",
                                   "name": "selDestination",
                                   "width": "fill_container",
-                                  "height": 36,
-                                  "fill": "$field/background",
-                                  "cornerRadius": "$radius/xl",
-                                  "stroke": "$field/border",
-                                  "strokeWidth": 1,
-                                  "strokeAlignment": "inner",
-                                  "effect": {
-                                    "type": "shadow",
-                                    "shadowType": "outer",
-                                    "color": "#0000000F",
-                                    "offset": {
-                                      "x": 0,
-                                      "y": 1
-                                    },
-                                    "blur": 2
-                                  },
-                                  "padding": [
-                                    8,
-                                    12
-                                  ],
-                                  "justifyContent": "space_between",
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "ysS6m/cFsFk",
-                                      "name": "selectValue",
-                                      "fill": "$field/foreground",
+                                  "descendants": {
+                                    "cFsFk": {
                                       "content": "default",
-                                      "fontFamily": "$typography/font-sans",
-                                      "fontSize": 14,
-                                      "fontWeight": "normal"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "ysS6m/mULN8",
-                                      "name": "selectChevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "chevron-down",
-                                      "library": "lucide",
-                                      "fill": "$field/placeholder"
+                                      "fill": "$field/foreground"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -564,43 +391,17 @@
                               "fontWeight": "500"
                             },
                             {
-                              "type": "frame",
                               "id": "LyS5H",
+                              "type": "ref",
+                              "ref": "D0cDM",
                               "name": "inputRepoKey",
                               "width": "fill_container",
-                              "height": 36,
-                              "fill": "$field/background",
-                              "cornerRadius": "$radius/xl",
-                              "stroke": "$field/border",
-                              "strokeWidth": 1,
-                              "strokeAlignment": "inner",
-                              "effect": {
-                                "type": "shadow",
-                                "shadowType": "outer",
-                                "color": "#0000000F",
-                                "offset": {
-                                  "x": 0,
-                                  "y": 1
-                                },
-                                "blur": 2
-                              },
-                              "padding": [
-                                8,
-                                12
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "LyS5H/PJERm",
-                                  "name": "inputValue",
-                                  "fill": "$field/foreground",
+                              "descendants": {
+                                "PJERm": {
                                   "content": "repo",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                                  "fill": "$field/foreground"
                                 }
-                              ]
+                              }
                             }
                           ]
                         },
@@ -646,43 +447,17 @@
                                       "fontWeight": "500"
                                     },
                                     {
-                                      "type": "frame",
                                       "id": "WaUnM",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
                                       "name": "inputKeepLast",
                                       "width": "fill_container",
-                                      "height": 36,
-                                      "fill": "$field/background",
-                                      "cornerRadius": "$radius/xl",
-                                      "stroke": "$field/border",
-                                      "strokeWidth": 1,
-                                      "strokeAlignment": "inner",
-                                      "effect": {
-                                        "type": "shadow",
-                                        "shadowType": "outer",
-                                        "color": "#0000000F",
-                                        "offset": {
-                                          "x": 0,
-                                          "y": 1
-                                        },
-                                        "blur": 2
-                                      },
-                                      "padding": [
-                                        8,
-                                        12
-                                      ],
-                                      "alignItems": "center",
-                                      "children": [
-                                        {
-                                          "type": "text",
-                                          "id": "WaUnM/PJERm",
-                                          "name": "inputValue",
-                                          "fill": "$field/foreground",
+                                      "descendants": {
+                                        "PJERm": {
                                           "content": "7",
-                                          "fontFamily": "$typography/font-sans",
-                                          "fontSize": 14,
-                                          "fontWeight": "normal"
+                                          "fill": "$field/foreground"
                                         }
-                                      ]
+                                      }
                                     }
                                   ]
                                 },
@@ -703,43 +478,16 @@
                                       "fontWeight": "500"
                                     },
                                     {
-                                      "type": "frame",
                                       "id": "HawR9",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
                                       "name": "inputHourly",
                                       "width": "fill_container",
-                                      "height": 36,
-                                      "fill": "$field/background",
-                                      "cornerRadius": "$radius/xl",
-                                      "stroke": "$field/border",
-                                      "strokeWidth": 1,
-                                      "strokeAlignment": "inner",
-                                      "effect": {
-                                        "type": "shadow",
-                                        "shadowType": "outer",
-                                        "color": "#0000000F",
-                                        "offset": {
-                                          "x": 0,
-                                          "y": 1
-                                        },
-                                        "blur": 2
-                                      },
-                                      "padding": [
-                                        8,
-                                        12
-                                      ],
-                                      "alignItems": "center",
-                                      "children": [
-                                        {
-                                          "type": "text",
-                                          "id": "HawR9/PJERm",
-                                          "name": "inputValue",
-                                          "fill": "$field/placeholder",
-                                          "content": "0",
-                                          "fontFamily": "$typography/font-sans",
-                                          "fontSize": 14,
-                                          "fontWeight": "normal"
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "0"
                                         }
-                                      ]
+                                      }
                                     }
                                   ]
                                 },
@@ -760,43 +508,16 @@
                                       "fontWeight": "500"
                                     },
                                     {
-                                      "type": "frame",
                                       "id": "BqIEb",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
                                       "name": "inputDaily",
                                       "width": "fill_container",
-                                      "height": 36,
-                                      "fill": "$field/background",
-                                      "cornerRadius": "$radius/xl",
-                                      "stroke": "$field/border",
-                                      "strokeWidth": 1,
-                                      "strokeAlignment": "inner",
-                                      "effect": {
-                                        "type": "shadow",
-                                        "shadowType": "outer",
-                                        "color": "#0000000F",
-                                        "offset": {
-                                          "x": 0,
-                                          "y": 1
-                                        },
-                                        "blur": 2
-                                      },
-                                      "padding": [
-                                        8,
-                                        12
-                                      ],
-                                      "alignItems": "center",
-                                      "children": [
-                                        {
-                                          "type": "text",
-                                          "id": "BqIEb/PJERm",
-                                          "name": "inputValue",
-                                          "fill": "$field/placeholder",
-                                          "content": "0",
-                                          "fontFamily": "$typography/font-sans",
-                                          "fontSize": 14,
-                                          "fontWeight": "normal"
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "0"
                                         }
-                                      ]
+                                      }
                                     }
                                   ]
                                 }
@@ -826,43 +547,16 @@
                                       "fontWeight": "500"
                                     },
                                     {
-                                      "type": "frame",
                                       "id": "OFwaE",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
                                       "name": "inputWeekly",
                                       "width": "fill_container",
-                                      "height": 36,
-                                      "fill": "$field/background",
-                                      "cornerRadius": "$radius/xl",
-                                      "stroke": "$field/border",
-                                      "strokeWidth": 1,
-                                      "strokeAlignment": "inner",
-                                      "effect": {
-                                        "type": "shadow",
-                                        "shadowType": "outer",
-                                        "color": "#0000000F",
-                                        "offset": {
-                                          "x": 0,
-                                          "y": 1
-                                        },
-                                        "blur": 2
-                                      },
-                                      "padding": [
-                                        8,
-                                        12
-                                      ],
-                                      "alignItems": "center",
-                                      "children": [
-                                        {
-                                          "type": "text",
-                                          "id": "OFwaE/PJERm",
-                                          "name": "inputValue",
-                                          "fill": "$field/placeholder",
-                                          "content": "0",
-                                          "fontFamily": "$typography/font-sans",
-                                          "fontSize": 14,
-                                          "fontWeight": "normal"
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "0"
                                         }
-                                      ]
+                                      }
                                     }
                                   ]
                                 },
@@ -883,43 +577,16 @@
                                       "fontWeight": "500"
                                     },
                                     {
-                                      "type": "frame",
                                       "id": "shBK8",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
                                       "name": "inputMonthly",
                                       "width": "fill_container",
-                                      "height": 36,
-                                      "fill": "$field/background",
-                                      "cornerRadius": "$radius/xl",
-                                      "stroke": "$field/border",
-                                      "strokeWidth": 1,
-                                      "strokeAlignment": "inner",
-                                      "effect": {
-                                        "type": "shadow",
-                                        "shadowType": "outer",
-                                        "color": "#0000000F",
-                                        "offset": {
-                                          "x": 0,
-                                          "y": 1
-                                        },
-                                        "blur": 2
-                                      },
-                                      "padding": [
-                                        8,
-                                        12
-                                      ],
-                                      "alignItems": "center",
-                                      "children": [
-                                        {
-                                          "type": "text",
-                                          "id": "shBK8/PJERm",
-                                          "name": "inputValue",
-                                          "fill": "$field/placeholder",
-                                          "content": "0",
-                                          "fontFamily": "$typography/font-sans",
-                                          "fontSize": 14,
-                                          "fontWeight": "normal"
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "0"
                                         }
-                                      ]
+                                      }
                                     }
                                   ]
                                 },
@@ -940,43 +607,16 @@
                                       "fontWeight": "500"
                                     },
                                     {
-                                      "type": "frame",
                                       "id": "DvOya",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
                                       "name": "inputYearly",
                                       "width": "fill_container",
-                                      "height": 36,
-                                      "fill": "$field/background",
-                                      "cornerRadius": "$radius/xl",
-                                      "stroke": "$field/border",
-                                      "strokeWidth": 1,
-                                      "strokeAlignment": "inner",
-                                      "effect": {
-                                        "type": "shadow",
-                                        "shadowType": "outer",
-                                        "color": "#0000000F",
-                                        "offset": {
-                                          "x": 0,
-                                          "y": 1
-                                        },
-                                        "blur": 2
-                                      },
-                                      "padding": [
-                                        8,
-                                        12
-                                      ],
-                                      "alignItems": "center",
-                                      "children": [
-                                        {
-                                          "type": "text",
-                                          "id": "DvOya/PJERm",
-                                          "name": "inputValue",
-                                          "fill": "$field/placeholder",
-                                          "content": "0",
-                                          "fontFamily": "$typography/font-sans",
-                                          "fontSize": 14,
-                                          "fontWeight": "normal"
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "0"
                                         }
-                                      ]
+                                      }
                                     }
                                   ]
                                 }
@@ -996,947 +636,409 @@
                       "alignItems": "center",
                       "children": [
                         {
-                          "type": "frame",
                           "id": "aOJ8z",
+                          "type": "ref",
+                          "ref": "LMIom",
                           "name": "btnCancel",
-                          "height": 36,
-                          "cornerRadius": "$radius/3xl",
-                          "gap": "$spacing/2",
-                          "padding": [
-                            8,
-                            "$spacing/4"
-                          ],
-                          "justifyContent": "center",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "aOJ8z/vWtyO",
-                              "name": "Button",
-                              "height": 36,
-                              "cornerRadius": "$radius/3xl",
-                              "gap": "$spacing/2",
-                              "padding": [
-                                8,
-                                "$spacing/4"
-                              ],
-                              "justifyContent": "center",
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "icon",
-                                  "id": "aOJ8z/vWtyO/bevQZ",
-                                  "name": "i8",
-                                  "opacity": 0,
-                                  "width": 0,
-                                  "height": 16,
-                                  "icon": "plus",
-                                  "library": "lucide",
-                                  "fill": "$foreground/foreground"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "aOJ8z/vWtyO/ezEy1",
-                                  "name": "Label",
-                                  "fill": "$foreground/foreground",
-                                  "content": "Cancel",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "500"
-                                }
-                              ]
+                          "descendants": {
+                            "vWtyO/bevQZ": {
+                              "opacity": 0,
+                              "width": 0
+                            },
+                            "vWtyO/ezEy1": {
+                              "content": "Cancel"
                             }
-                          ]
+                          }
                         },
                         {
-                          "type": "frame",
                           "id": "usfs8",
+                          "type": "ref",
+                          "ref": "tpKRk",
                           "name": "btnCreateSchedule",
-                          "height": 36,
-                          "fill": "$accent/accent",
-                          "cornerRadius": "$radius/3xl",
-                          "gap": "$spacing/2",
-                          "padding": [
-                            8,
-                            "$spacing/4"
-                          ],
-                          "justifyContent": "center",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "usfs8/q58In",
-                              "name": "Button",
-                              "height": 36,
-                              "fill": "$accent/accent",
-                              "cornerRadius": "$radius/3xl",
-                              "gap": "$spacing/2",
-                              "padding": [
-                                8,
-                                "$spacing/4"
-                              ],
-                              "justifyContent": "center",
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "icon",
-                                  "id": "usfs8/q58In/Xpn7K",
-                                  "name": "i2",
-                                  "opacity": 0,
-                                  "width": 0,
-                                  "height": 16,
-                                  "icon": "plus",
-                                  "library": "lucide",
-                                  "fill": "$accent/foreground"
-                                },
-                                {
-                                  "type": "text",
-                                  "id": "usfs8/q58In/U6q13B",
-                                  "name": "Label",
-                                  "fill": "$accent/foreground",
-                                  "content": "Create schedule",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "500"
-                                }
-                              ]
+                          "descendants": {
+                            "q58In/Xpn7K": {
+                              "opacity": 0,
+                              "width": 0
+                            },
+                            "q58In/U6q13B": {
+                              "content": "Create schedule"
                             }
-                          ]
+                          }
                         }
                       ]
                     }
                   ]
                 },
                 {
-                  "type": "frame",
                   "id": "LQKhV",
+                  "type": "ref",
+                  "ref": "ECbbo",
                   "name": "Schedules Table",
-                  "clip": true,
                   "width": "fill_container",
-                  "fill": "$surface/secondary",
-                  "cornerRadius": 20,
-                  "layout": "vertical",
-                  "padding": [
-                    0,
-                    4,
-                    4,
-                    4
-                  ],
+                  "height": "fit_content",
                   "children": [
                     {
-                      "type": "frame",
                       "id": "V1Qse",
+                      "type": "ref",
+                      "ref": "eafUs",
                       "name": "Head Row",
                       "width": "fill_container",
-                      "fill": "$surface/secondary",
-                      "stroke": "$separator/separator",
-                      "strokeWidth": {
-                        "bottom": 1
-                      },
-                      "strokeAlignment": "inner",
-                      "strokeLinejoin": "round",
                       "children": [
                         {
-                          "type": "frame",
                           "id": "dEmcY",
+                          "type": "ref",
+                          "ref": "DYYKO",
                           "name": "HC NAME",
                           "width": "fill_container",
-                          "fill": "$surface/secondary",
-                          "padding": [
-                            10,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "dEmcY/SIu74",
-                              "name": "Label",
-                              "fill": "$muted",
+                          "descendants": {
+                            "SIu74": {
                               "content": "NAME",
-                              "fontFamily": "$typography/font-sans",
                               "fontSize": 11,
                               "fontWeight": "700",
                               "letterSpacing": 0.55
                             }
-                          ]
+                          }
                         },
                         {
-                          "type": "frame",
                           "id": "xm1kG",
+                          "type": "ref",
+                          "ref": "DYYKO",
                           "name": "HC SERVER",
                           "width": 180,
-                          "fill": "$surface/secondary",
-                          "padding": [
-                            10,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "xm1kG/SIu74",
-                              "name": "Label",
-                              "fill": "$muted",
+                          "descendants": {
+                            "SIu74": {
                               "content": "SERVER",
-                              "fontFamily": "$typography/font-sans",
                               "fontSize": 11,
                               "fontWeight": "700",
                               "letterSpacing": 0.55
                             }
-                          ]
+                          }
                         },
                         {
-                          "type": "frame",
                           "id": "QKVDl",
+                          "type": "ref",
+                          "ref": "DYYKO",
                           "name": "HC CRON",
                           "width": 160,
-                          "fill": "$surface/secondary",
-                          "padding": [
-                            10,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "QKVDl/SIu74",
-                              "name": "Label",
-                              "fill": "$muted",
+                          "descendants": {
+                            "SIu74": {
                               "content": "CRON",
-                              "fontFamily": "$typography/font-sans",
                               "fontSize": 11,
                               "fontWeight": "700",
                               "letterSpacing": 0.55
                             }
-                          ]
+                          }
                         },
                         {
-                          "type": "frame",
                           "id": "We25b",
+                          "type": "ref",
+                          "ref": "DYYKO",
                           "name": "HC LAST RUN",
                           "width": 150,
-                          "fill": "$surface/secondary",
-                          "padding": [
-                            10,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "We25b/SIu74",
-                              "name": "Label",
-                              "fill": "$muted",
+                          "descendants": {
+                            "SIu74": {
                               "content": "LAST RUN",
-                              "fontFamily": "$typography/font-sans",
                               "fontSize": 11,
                               "fontWeight": "700",
                               "letterSpacing": 0.55
                             }
-                          ]
+                          }
                         },
                         {
-                          "type": "frame",
                           "id": "wwEhW",
+                          "type": "ref",
+                          "ref": "DYYKO",
                           "name": "HC NEXT RUN",
                           "width": 150,
-                          "fill": "$surface/secondary",
-                          "padding": [
-                            10,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "wwEhW/SIu74",
-                              "name": "Label",
-                              "fill": "$muted",
+                          "descendants": {
+                            "SIu74": {
                               "content": "NEXT RUN",
-                              "fontFamily": "$typography/font-sans",
                               "fontSize": 11,
                               "fontWeight": "700",
                               "letterSpacing": 0.55
                             }
-                          ]
+                          }
                         },
                         {
-                          "type": "frame",
                           "id": "YgPdv",
+                          "type": "ref",
+                          "ref": "DYYKO",
                           "name": "HC ACTIVE",
                           "width": 90,
-                          "fill": "$surface/secondary",
-                          "padding": [
-                            10,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "YgPdv/SIu74",
-                              "name": "Label",
-                              "fill": "$muted",
+                          "descendants": {
+                            "SIu74": {
                               "content": "ACTIVE",
-                              "fontFamily": "$typography/font-sans",
                               "fontSize": 11,
                               "fontWeight": "700",
                               "letterSpacing": 0.55
                             }
-                          ]
+                          }
                         },
                         {
-                          "type": "frame",
                           "id": "xqW8v",
+                          "type": "ref",
+                          "ref": "DYYKO",
                           "name": "HC ACTIONS",
                           "width": 130,
-                          "fill": "$surface/secondary",
-                          "padding": [
-                            10,
-                            16
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "xqW8v/SIu74",
-                              "name": "Label",
-                              "fill": "$muted",
-                              "fontFamily": "$typography/font-sans",
+                          "descendants": {
+                            "SIu74": {
+                              "content": "",
                               "fontSize": 11,
                               "fontWeight": "700",
                               "letterSpacing": 0.55
                             }
-                          ]
+                          }
                         }
                       ]
                     },
                     {
-                      "type": "frame",
                       "id": "tdiNb",
+                      "type": "ref",
+                      "ref": "GUHQo",
                       "name": "Body",
-                      "clip": true,
                       "width": "fill_container",
-                      "height": "fit_content(120)",
-                      "cornerRadius": "$radius/2xl",
-                      "layout": "vertical",
                       "children": [
                         {
-                          "type": "frame",
                           "id": "d9R2f",
+                          "type": "ref",
+                          "ref": "tDY4O",
                           "name": "Row mc-survival",
                           "width": "fill_container",
                           "height": "fill_container",
                           "children": [
                             {
-                              "type": "frame",
                               "id": "C9rj4",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c1",
                               "width": "fill_container",
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "C9rj4/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$foreground/foreground",
+                              "descendants": {
+                                "HNAOu": {
                                   "content": "mc-survival-nightly",
                                   "fontFamily": "$typography/font-mono",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
+                                  "fontSize": 12
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "PZDBW",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c2",
                               "width": 180,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "PZDBW/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$foreground/foreground",
-                                  "content": "mc-survival",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                              "descendants": {
+                                "HNAOu": {
+                                  "content": "mc-survival"
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "Yl5dZ",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c3",
                               "width": 160,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "Yl5dZ/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$foreground/foreground",
+                              "descendants": {
+                                "HNAOu": {
                                   "content": "0 */6 * * *",
                                   "fontFamily": "$typography/font-mono",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
+                                  "fontSize": 12
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "G5491k",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c4",
                               "width": 150,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "G5491k/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$muted",
+                              "descendants": {
+                                "HNAOu": {
                                   "content": "2h ago",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                                  "fill": "$muted"
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "xwgRg",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c5",
                               "width": 150,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "xwgRg/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$muted",
+                              "descendants": {
+                                "HNAOu": {
                                   "content": "in 4h",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                                  "fill": "$muted"
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "MCWtu",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c6",
                               "width": 90,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
                               "children": [
                                 {
-                                  "type": "frame",
                                   "id": "p3Jfd5",
-                                  "name": "switch",
-                                  "width": 36,
-                                  "height": 20,
-                                  "fill": "$accent/accent",
-                                  "cornerRadius": "$radius/3xl",
-                                  "layout": "none",
-                                  "children": [
-                                    {
-                                      "type": "frame",
-                                      "id": "p3Jfd5/GVXQw",
-                                      "x": 0,
-                                      "y": 0,
-                                      "name": "Track",
-                                      "width": 36,
-                                      "height": 20,
-                                      "fill": "$accent/accent",
-                                      "cornerRadius": 9999,
-                                      "layout": "none",
-                                      "children": [
-                                        {
-                                          "type": "frame",
-                                          "id": "p3Jfd5/rbCJ5",
-                                          "x": 18,
-                                          "y": 2,
-                                          "name": "Thumb",
-                                          "width": 16,
-                                          "height": 16,
-                                          "fill": "$accent/foreground",
-                                          "cornerRadius": 9999,
-                                          "effect": {
-                                            "type": "shadow",
-                                            "shadowType": "outer",
-                                            "color": "#0000001A",
-                                            "offset": {
-                                              "x": 0,
-                                              "y": 1
-                                            },
-                                            "blur": 3
-                                          }
-                                        }
-                                      ]
-                                    }
-                                  ]
+                                  "type": "ref",
+                                  "ref": "hl7R3",
+                                  "name": "switch"
                                 }
                               ]
                             },
                             {
-                              "type": "frame",
                               "id": "oBAGW",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c7",
                               "width": 130,
-                              "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
                               "justifyContent": "end",
-                              "alignItems": "center",
+                              "height": "fill_container",
                               "children": [
                                 {
-                                  "type": "frame",
                                   "id": "G8JQ6J",
+                                  "type": "ref",
+                                  "ref": "J09iP",
                                   "name": "btnDelete",
-                                  "height": 32,
-                                  "cornerRadius": "$radius/md",
-                                  "gap": 8,
-                                  "padding": [
-                                    0,
-                                    12
-                                  ],
-                                  "justifyContent": "center",
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "frame",
-                                      "id": "G8JQ6J/eWkIT",
-                                      "name": "Button/Ghost/SM",
-                                      "height": 32,
-                                      "cornerRadius": "$radius/3xl",
-                                      "gap": 5,
-                                      "padding": [
-                                        8,
-                                        "$spacing/3"
-                                      ],
-                                      "justifyContent": "center",
-                                      "alignItems": "center",
-                                      "children": [
-                                        {
-                                          "type": "icon",
-                                          "id": "G8JQ6J/eWkIT/WtPjS",
-                                          "x": 12,
-                                          "y": 9,
-                                          "name": "i7",
-                                          "enabled": false,
-                                          "opacity": 0,
-                                          "width": 14,
-                                          "height": 14,
-                                          "icon": "pencil",
-                                          "library": "lucide",
-                                          "fill": "$foreground/foreground"
-                                        },
-                                        {
-                                          "type": "text",
-                                          "id": "G8JQ6J/eWkIT/r4VbAi",
-                                          "name": "Label",
-                                          "fill": "$foreground/foreground",
-                                          "content": "Delete",
-                                          "fontFamily": "$typography/font-sans",
-                                          "fontSize": 13,
-                                          "fontWeight": "500"
-                                        }
-                                      ]
+                                  "descendants": {
+                                    "eWkIT/WtPjS": {
+                                      "opacity": 0,
+                                      "enabled": false
+                                    },
+                                    "eWkIT/r4VbAi": {
+                                      "content": "Delete"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
                           ]
                         },
                         {
-                          "type": "frame",
                           "id": "hOOko",
+                          "type": "ref",
+                          "ref": "tDY4O",
                           "name": "Row valheim-prod",
                           "width": "fill_container",
                           "height": "fill_container",
                           "children": [
                             {
-                              "type": "frame",
                               "id": "fOnIu",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c1",
                               "width": "fill_container",
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "fOnIu/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$foreground/foreground",
+                              "descendants": {
+                                "HNAOu": {
                                   "content": "valheim-daily",
                                   "fontFamily": "$typography/font-mono",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
+                                  "fontSize": 12
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "xi35s",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c2",
                               "width": 180,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "xi35s/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$foreground/foreground",
-                                  "content": "valheim-prod",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                              "descendants": {
+                                "HNAOu": {
+                                  "content": "valheim-prod"
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "lfBqt",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c3",
                               "width": 160,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "lfBqt/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$foreground/foreground",
+                              "descendants": {
+                                "HNAOu": {
                                   "content": "0 3 * * *",
                                   "fontFamily": "$typography/font-mono",
-                                  "fontSize": 12,
-                                  "fontWeight": "normal"
+                                  "fontSize": 12
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "B2Pll",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c4",
                               "width": 150,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "B2Pll/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$muted",
+                              "descendants": {
+                                "HNAOu": {
                                   "content": "9h ago",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                                  "fill": "$muted"
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "NDie0",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c5",
                               "width": 150,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "NDie0/HNAOu",
-                                  "name": "Value",
-                                  "fill": "$muted",
+                              "descendants": {
+                                "HNAOu": {
                                   "content": "—",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                                  "fill": "$muted"
                                 }
-                              ]
+                              }
                             },
                             {
-                              "type": "frame",
                               "id": "vAb9C",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c6",
                               "width": 90,
                               "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
-                              "alignItems": "center",
                               "children": [
                                 {
-                                  "type": "frame",
                                   "id": "FKuZD",
-                                  "name": "switch",
-                                  "width": 36,
-                                  "height": 20,
-                                  "fill": "$border/border",
-                                  "cornerRadius": "$radius/3xl",
-                                  "layout": "none",
-                                  "children": [
-                                    {
-                                      "type": "frame",
-                                      "id": "FKuZD/xGn9t",
-                                      "x": 0,
-                                      "y": 0,
-                                      "name": "Track",
-                                      "width": 36,
-                                      "height": 20,
-                                      "fill": "$default/default",
-                                      "cornerRadius": 9999,
-                                      "layout": "none",
-                                      "children": [
-                                        {
-                                          "type": "frame",
-                                          "id": "FKuZD/eBtYM",
-                                          "x": 2,
-                                          "y": 2,
-                                          "name": "Thumb",
-                                          "width": 16,
-                                          "height": 16,
-                                          "fill": "$accent/foreground",
-                                          "cornerRadius": 9999,
-                                          "effect": {
-                                            "type": "shadow",
-                                            "shadowType": "outer",
-                                            "color": "#0000001A",
-                                            "offset": {
-                                              "x": 0,
-                                              "y": 1
-                                            },
-                                            "blur": 3
-                                          }
-                                        }
-                                      ]
-                                    }
-                                  ]
+                                  "type": "ref",
+                                  "ref": "rh2QH",
+                                  "name": "switch"
                                 }
                               ]
                             },
                             {
-                              "type": "frame",
                               "id": "A6O0PX",
+                              "type": "ref",
+                              "ref": "TDRJE",
                               "name": "c7",
                               "width": 130,
-                              "height": "fill_container",
-                              "fill": "$surface/surface",
-                              "stroke": "$separator/separator",
-                              "strokeWidth": {
-                                "bottom": 1
-                              },
-                              "strokeAlignment": "inner",
-                              "strokeLinejoin": "round",
-                              "padding": [
-                                12,
-                                16
-                              ],
                               "justifyContent": "end",
-                              "alignItems": "center",
+                              "height": "fill_container",
                               "children": [
                                 {
-                                  "type": "frame",
                                   "id": "TNy7f",
+                                  "type": "ref",
+                                  "ref": "J09iP",
                                   "name": "btnDelete",
-                                  "height": 32,
-                                  "cornerRadius": "$radius/md",
-                                  "gap": 8,
-                                  "padding": [
-                                    0,
-                                    12
-                                  ],
-                                  "justifyContent": "center",
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "frame",
-                                      "id": "TNy7f/eWkIT",
-                                      "name": "Button/Ghost/SM",
-                                      "height": 32,
-                                      "cornerRadius": "$radius/3xl",
-                                      "gap": 5,
-                                      "padding": [
-                                        8,
-                                        "$spacing/3"
-                                      ],
-                                      "justifyContent": "center",
-                                      "alignItems": "center",
-                                      "children": [
-                                        {
-                                          "type": "icon",
-                                          "id": "TNy7f/eWkIT/WtPjS",
-                                          "x": 12,
-                                          "y": 9,
-                                          "name": "i7",
-                                          "enabled": false,
-                                          "opacity": 0,
-                                          "width": 14,
-                                          "height": 14,
-                                          "icon": "pencil",
-                                          "library": "lucide",
-                                          "fill": "$foreground/foreground"
-                                        },
-                                        {
-                                          "type": "text",
-                                          "id": "TNy7f/eWkIT/r4VbAi",
-                                          "name": "Label",
-                                          "fill": "$foreground/foreground",
-                                          "content": "Delete",
-                                          "fontFamily": "$typography/font-sans",
-                                          "fontSize": 13,
-                                          "fontWeight": "500"
-                                        }
-                                      ]
+                                  "descendants": {
+                                    "eWkIT/WtPjS": {
+                                      "opacity": 0,
+                                      "enabled": false
+                                    },
+                                    "eWkIT/r4VbAi": {
+                                      "content": "Delete"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }

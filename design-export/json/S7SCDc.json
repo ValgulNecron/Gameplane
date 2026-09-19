@@ -6,6 +6,7 @@
   "name": "Gameplane/Dialog/Revoke Share Link",
   "x": -15185,
   "y": 27934,
+  "theme": {},
   "descendants": {
     "QARhG": {
       "content": "Revoke this share link?"

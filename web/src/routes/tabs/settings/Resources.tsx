@@ -1,7 +1,7 @@
 import { Input } from "@heroui/react";
 import type { ResourceRequirements } from "@/types";
 import { isValidQuantity } from "@/lib/validation";
-import { ResourceInput } from "@/components/hero/ResourceInput";
+import { ResourceInput } from "@/components/ui/ResourceInput";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
 

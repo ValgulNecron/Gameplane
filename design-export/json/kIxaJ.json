@@ -5,7 +5,7 @@
   "y": 25269,
   "name": "Gameplane/Audit Integrity Banner",
   "reusable": true,
-  "width": 700,
+  "width": 1196,
   "fill": "$background/background",
   "layout": "vertical",
   "gap": 12,
@@ -24,7 +24,7 @@
       "type": "frame",
       "id": "m1hP1j",
       "name": "Integrity Banner (Broken)",
-      "width": "fill_container",
+      "width": 1132,
       "fill": "$danger/danger",
       "gap": 12,
       "padding": 16,
@@ -64,6 +64,30 @@
           "fontFamily": "$typography/font-sans",
           "fontSize": 16,
           "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "C2OQV9",
+          "name": "Re-check Button",
+          "cornerRadius": 6,
+          "padding": [
+            6,
+            12
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "jEyku",
+              "name": "Re-check Label",
+              "fill": "$danger/foreground",
+              "content": "Re-check",
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 14,
+              "fontWeight": "500"
+            }
+          ]
         }
       ]
     }

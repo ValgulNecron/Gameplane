@@ -17,6 +17,10 @@ prevents the dashboard from drifting into code-led redesigns.
 
 Backend/operator/API changes do not need a Pencil pass.
 
+## UI components
+
+The dashboard is built on **HeroUI** (`@heroui/react`, v3) rather than hand-rolled or Radix primitives. When a screen needs a stock control (button, table, modal, form field, popover, etc.), import it directly from `@heroui/react` — see the [HeroUI docs](https://heroui.com) for the current v3 API surface. When a pattern recurs across screens (a confirm dialog, a status chip, a stat card, the authenticated shell), reuse or extend the Gameplane composition in `web/src/components/ui/` rather than re-wrapping HeroUI from scratch. New reusable compositions belong there too, each with a co-located `*.test.tsx`. Don't add `@radix-ui/*` or `class-variance-authority` — the dashboard's HeroUI rebuild (`specs/014-heroui-web-rebuild/`) removed both from `web/package.json`.
+
 ## Code style
 
 - **Indentation**: tabs in Go, 2 spaces elsewhere (YAML, JSON, TypeScript, Markdown). LF line endings everywhere.

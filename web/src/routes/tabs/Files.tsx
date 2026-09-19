@@ -32,8 +32,8 @@ import {
   Upload,
 } from "lucide-react";
 
-import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
-import { ErrorBanner } from "@/components/hero/ErrorBanner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Files, type FileEntry } from "@/lib/endpoints";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -540,7 +540,7 @@ function NamePromptDialog({
             </ModalBody>
             <ModalFooter>
               <Button
-                variant="secondary"
+                variant="ghost"
                 onPress={() => onOpenChange(false)}
                 isDisabled={busy}
               >

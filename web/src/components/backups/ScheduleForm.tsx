@@ -151,7 +151,7 @@ export function ScheduleForm({ serverName, onClose }: Props) {
         {create.error && <ErrorBanner err={create.error} />}
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" onPress={onClose} size="sm">Cancel</Button>
+          <Button variant="ghost" onPress={onClose} size="sm">Cancel</Button>
           <Button
             onPress={() => create.mutate()}
             isDisabled={

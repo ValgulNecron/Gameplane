@@ -20,12 +20,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { StatCard } from "@/components/hero/StatCard";
-import { Meter } from "@/components/hero/Meter";
-import { PhaseChip } from "@/components/hero/PhaseChip";
-import { GameIcon } from "@/components/hero/GameIcon";
-import { LoadingCard } from "@/components/hero/LoadingCard";
+import { StatCard } from "@/components/ui/StatCard";
+import { Meter } from "@/components/ui/Meter";
+import { PhaseChip } from "@/components/ui/PhaseChip";
+import { GameIcon } from "@/components/ui/GameIcon";
+import { LoadingCard } from "@/components/ui/LoadingCard";
 import { PageHeader } from "@/components/PageHeader";
+import { useGameCodes } from "@/lib/useGameCodes";
 import {
   cn,
   describeStorageProvisioned,
@@ -44,6 +45,7 @@ import type {
   ClusterStats,
   ClusterView,
   GameServer,
+  GameTemplate,
 } from "@/types";
 
 export function DashboardPage() {
@@ -51,6 +53,8 @@ export function DashboardPage() {
   const { data: me } = useMe();
   const canAudit = can(me, "audit:read");
   const canCluster = can(me, "servers:write");
+
+  const { gameCodes, byName } = useGameCodes();
 
   const { data: serversData, isLoading: serversLoading } = useQuery({
     queryKey: ["servers"],
@@ -166,7 +170,7 @@ export function DashboardPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <FleetStatusCard groups={groups} />
+            <FleetStatusCard groups={groups} gameCodes={gameCodes} byName={byName} />
             <ClusterResourcesCard
               cpu={cpu}
               mem={mem}
@@ -181,7 +185,7 @@ export function DashboardPage() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             {canAudit && <RecentActivityCard events={audit ?? []} />}
-            <RecentBackupsCard backups={recentBackups} />
+            <RecentBackupsCard backups={recentBackups} gameCodes={gameCodes} byName={byName} servers={serversData?.items} />
           </div>
         </>
       )}
@@ -189,7 +193,15 @@ export function DashboardPage() {
   );
 }
 
-function FleetStatusCard({ groups }: { groups: PhaseGroups }) {
+function FleetStatusCard({
+  groups,
+  gameCodes,
+  byName,
+}: {
+  groups: PhaseGroups;
+  gameCodes: Map<string, string>;
+  byName: Map<string, GameTemplate>;
+}) {
   const stopped = groups.stopped + groups.other;
   const segments = [
     { n: groups.running, cls: "bg-success" },
@@ -227,14 +239,24 @@ function FleetStatusCard({ groups }: { groups: PhaseGroups }) {
             <CheckCircle2 className="h-4 w-4 text-success" /> Everything looks healthy.
           </div>
         ) : (
-          attention.map((gs) => <AttentionRow key={gs.metadata.name} gs={gs} />)
+          attention.map((gs) => (
+            <AttentionRow key={gs.metadata.name} gs={gs} gameCodes={gameCodes} byName={byName} />
+          ))
         )}
       </div>
     </Card>
   );
 }
 
-function AttentionRow({ gs }: { gs: GameServer }) {
+function AttentionRow({
+  gs,
+  gameCodes,
+  byName,
+}: {
+  gs: GameServer;
+  gameCodes: Map<string, string>;
+  byName: Map<string, GameTemplate>;
+}) {
   const phase = gs.status?.phase;
   // phaseGroups.attention only ever holds Failed-phase or stale-agent
   // (excluding expected-down) servers, so the reason is one of exactly
@@ -246,7 +268,12 @@ function AttentionRow({ gs }: { gs: GameServer }) {
       params={{ name: gs.metadata.name }}
       className="group flex items-center gap-3"
     >
-      <GameIcon game={gs.spec.templateRef.name} size="sm" />
+      <GameIcon
+        game={gs.spec.templateRef.name}
+        icon={byName.get(gs.spec.templateRef.name)?.spec.icon}
+        code={gameCodes.get(gs.spec.templateRef.name)}
+        size="sm"
+      />
       <div className="min-w-0 flex-1">
         <div className="truncate font-mono text-sm text-foreground group-hover:text-primary">
           {gs.metadata.name}
@@ -382,7 +409,17 @@ function ActivityRow({ event }: { event: AuditEvent }) {
   );
 }
 
-function RecentBackupsCard({ backups }: { backups: Backup[] }) {
+function RecentBackupsCard({
+  backups,
+  gameCodes,
+  byName,
+  servers,
+}: {
+  backups: Backup[];
+  gameCodes: Map<string, string>;
+  byName: Map<string, GameTemplate>;
+  servers?: GameServer[];
+}) {
   return (
     <Card className="space-y-4 p-5">
       <div className="flex items-center justify-between">
@@ -396,7 +433,7 @@ function RecentBackupsCard({ backups }: { backups: Backup[] }) {
       ) : (
         <div className="space-y-3">
           {backups.map((b) => (
-            <BackupRow key={b.metadata.name} backup={b} />
+            <BackupRow key={b.metadata.name} backup={b} gameCodes={gameCodes} byName={byName} servers={servers} />
           ))}
         </div>
       )}
@@ -404,11 +441,29 @@ function RecentBackupsCard({ backups }: { backups: Backup[] }) {
   );
 }
 
-function BackupRow({ backup }: { backup: Backup }) {
+function BackupRow({
+  backup,
+  gameCodes,
+  byName,
+  servers,
+}: {
+  backup: Backup;
+  gameCodes: Map<string, string>;
+  byName: Map<string, GameTemplate>;
+  servers?: GameServer[];
+}) {
+  // Resolve backup server ref to template ref
+  const server = servers?.find((s) => s.metadata.name === backup.spec.serverRef.name);
+  const templateRef = server?.spec.templateRef.name ?? "";
   const when = backup.status?.completionTime ?? backup.status?.startTime;
   return (
     <div className="flex items-center gap-3">
-      <GameIcon game={backup.spec.serverRef.name} size="sm" />
+      <GameIcon
+        game={templateRef || backup.spec.serverRef.name}
+        icon={byName.get(templateRef)?.spec.icon}
+        code={gameCodes.get(templateRef)}
+        size="sm"
+      />
       <div className="min-w-0 flex-1">
         <div className="truncate font-mono text-sm text-foreground">{backup.spec.serverRef.name}</div>
         <div className="truncate text-[11px] text-muted">{formatRelative(when)}</div>

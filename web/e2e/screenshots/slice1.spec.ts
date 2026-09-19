@@ -115,7 +115,7 @@ test.describe("Slice 1: Shell + App (Desktop — 1440x900) @screenshots", () => 
     // MSW resolves /users/me fast enough that a bare navigation + short
     // timeout races straight past the skeleton and into the loaded shell —
     // `nav[aria-label="Primary"]` only exists in the *loaded* Sidebar
-    // (hero/Sidebar.tsx), never in AppShellSkeleton, so waiting on it was
+    // (ui/Sidebar.tsx), never in AppShellSkeleton, so waiting on it was
     // itself waiting for loading to finish. That made this screenshot
     // pixel-identical to j24cXg (Dashboard — Admin View).
     //

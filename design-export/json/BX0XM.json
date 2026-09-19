@@ -1,68 +1,20 @@
 {
-  "type": "frame",
   "id": "BX0XM",
+  "type": "ref",
+  "reusable": true,
+  "ref": "x3beP",
+  "name": "Gameplane/Dialog/Upload Module",
   "x": -15225,
   "y": 27237,
-  "name": "Gameplane/Dialog/Upload Module",
-  "reusable": true,
-  "width": 480,
-  "fill": "$surface/surface",
-  "cornerRadius": "$radius/xl",
-  "stroke": "$border/border",
-  "strokeWidth": 1,
-  "strokeAlignment": "inner",
-  "effect": {
-    "type": "shadow",
-    "shadowType": "outer",
-    "color": "#00000080",
-    "offset": {
-      "x": 0,
-      "y": 12
+  "theme": {},
+  "descendants": {
+    "E7Whx": {
+      "content": "Upload module"
     },
-    "blur": 32,
-    "spread": -8
-  },
-  "layout": "vertical",
-  "padding": 20,
-  "children": [
-    {
-      "type": "text",
-      "id": "BX0XM/E7Whx",
-      "name": "mTitle",
-      "fill": "$foreground/foreground",
-      "content": "Upload module",
-      "fontFamily": "$typography/font-sans",
-      "fontSize": 16,
-      "fontWeight": "600"
+    "qzcst": {
+      "content": "Push a bundle straight into an upload-type source."
     },
-    {
-      "type": "frame",
-      "id": "BX0XM/ABbjS",
-      "name": "mDescWrap",
-      "width": "fill_container",
-      "padding": [
-        4,
-        0,
-        0,
-        0
-      ],
-      "children": [
-        {
-          "type": "text",
-          "id": "BX0XM/qzcst",
-          "name": "mDesc",
-          "fill": "$muted",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Push a bundle straight into an upload-type source.",
-          "lineHeight": 1.5,
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "normal"
-        }
-      ]
-    },
-    {
+    "Nht52": {
       "type": "frame",
       "id": "C1vScd",
       "name": "mBody",
@@ -93,54 +45,17 @@
               "fontWeight": "normal"
             },
             {
-              "type": "frame",
               "id": "ZZ2S0",
+              "type": "ref",
+              "ref": "AT7ya",
               "name": "Select",
               "width": "fill_container",
-              "height": 36,
-              "fill": "$field/background",
-              "cornerRadius": "$radius/xl",
-              "stroke": "$field/border",
-              "strokeWidth": 1,
-              "strokeAlignment": "inner",
-              "effect": {
-                "type": "shadow",
-                "shadowType": "outer",
-                "color": "#0000000F",
-                "offset": {
-                  "x": 0,
-                  "y": 1
-                },
-                "blur": 2
-              },
-              "padding": [
-                8,
-                12
-              ],
-              "justifyContent": "space_between",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "ZZ2S0/cFsFk",
-                  "name": "selectValue",
-                  "fill": "$field/foreground",
+              "descendants": {
+                "cFsFk": {
                   "content": "uploads",
-                  "fontFamily": "$typography/font-sans",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
-                },
-                {
-                  "type": "icon",
-                  "id": "ZZ2S0/mULN8",
-                  "name": "selectChevron",
-                  "width": 16,
-                  "height": 16,
-                  "icon": "chevron-down",
-                  "library": "lucide",
-                  "fill": "$field/placeholder"
+                  "fill": "$field/foreground"
                 }
-              ]
+              }
             }
           ]
         },
@@ -179,72 +94,6 @@
           ]
         }
       ]
-    },
-    {
-      "type": "frame",
-      "id": "BX0XM/GCwAF",
-      "name": "mFooter",
-      "width": "fill_container",
-      "gap": 8,
-      "padding": [
-        20,
-        0,
-        0,
-        0
-      ],
-      "justifyContent": "end",
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "frame",
-          "id": "BX0XM/SBdeH",
-          "name": "btnCancel",
-          "height": 32,
-          "cornerRadius": 6,
-          "padding": [
-            0,
-            12
-          ],
-          "justifyContent": "center",
-          "alignItems": "center",
-          "children": [
-            {
-              "type": "text",
-              "id": "BX0XM/REcmP",
-              "fill": "$foreground/foreground",
-              "content": "Cancel",
-              "fontFamily": "$typography/font-sans",
-              "fontSize": 12,
-              "fontWeight": "500"
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "BX0XM/V7HYp",
-          "name": "btnPrimary",
-          "height": 32,
-          "fill": "$accent/accent",
-          "cornerRadius": 6,
-          "padding": [
-            0,
-            12
-          ],
-          "justifyContent": "center",
-          "alignItems": "center",
-          "children": [
-            {
-              "type": "text",
-              "id": "BX0XM/TZ7Ef",
-              "fill": "$accent/foreground",
-              "content": "Run snapshot",
-              "fontFamily": "$typography/font-sans",
-              "fontSize": 12,
-              "fontWeight": "500"
-            }
-          ]
-        }
-      ]
     }
-  ]
+  }
 }

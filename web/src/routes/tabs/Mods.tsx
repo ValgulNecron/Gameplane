@@ -31,7 +31,7 @@ import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
 import { resolveModVolume } from "@/lib/capabilities";
 import { useMe, can } from "@/lib/auth";
-import { ConfirmDialog } from "@/components/hero/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RegistryBrowser, RegistryIcon, compactNum, providerLabel } from "@/components/registry-browser";
 import { cn, formatBytes, formatRelative } from "@/lib/utils";
 

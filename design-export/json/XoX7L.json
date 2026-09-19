@@ -4,35 +4,18 @@
   "x": -17003,
   "y": 26203,
   "name": "Gameplane/Button/Danger",
-  "theme": {},
   "reusable": true,
-  "height": 36,
-  "fill": "$danger/danger",
-  "cornerRadius": "$radius/md",
-  "gap": 8,
-  "padding": [
-    0,
-    16
-  ],
+  "fill": "#00000000",
   "justifyContent": "center",
   "alignItems": "center",
   "children": [
     {
-      "type": "frame",
       "id": "C8QRt",
+      "type": "ref",
+      "ref": "CFM8i",
       "name": "Button",
-      "height": 36,
-      "fill": "$danger/danger",
-      "cornerRadius": "$radius/3xl",
-      "gap": "$spacing/2",
-      "padding": [
-        8,
-        "$spacing/4"
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
-      "children": [
-        {
+      "descendants": {
+        "RdEPv": {
           "type": "icon",
           "id": "dyD7Z",
           "name": "i2",
@@ -42,17 +25,10 @@
           "library": "lucide",
           "fill": "$accent/foreground"
         },
-        {
-          "type": "text",
-          "id": "C8QRt/t8p1M2",
-          "name": "Label",
-          "fill": "$danger/foreground",
-          "content": "Delete",
-          "fontFamily": "$typography/font-sans",
-          "fontSize": 14,
-          "fontWeight": "500"
+        "t8p1M2": {
+          "content": "Delete"
         }
-      ]
+      }
     }
   ]
 }

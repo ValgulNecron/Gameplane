@@ -213,6 +213,10 @@
                           "content": "500 lines",
                           "fill": "$foreground/foreground"
                         },
+                        "t1Te9C": {
+                          "x": 104,
+                          "fill": "$foreground/foreground"
+                        },
                         "d7Cyay": {
                           "enabled": false
                         }
@@ -707,7 +711,7 @@
                         {
                           "type": "text",
                           "id": "P4gIyP",
-                          "fill": "#F59F0A",
+                          "fill": "$warning/warning",
                           "content": "WARN",
                           "lineHeight": 1.5,
                           "fontFamily": "$typography/font-mono",
@@ -1247,7 +1251,7 @@
                         {
                           "type": "text",
                           "id": "s7rnw",
-                          "fill": "#F59F0A",
+                          "fill": "$warning/warning",
                           "content": "WARN",
                           "lineHeight": 1.5,
                           "fontFamily": "$typography/font-mono",

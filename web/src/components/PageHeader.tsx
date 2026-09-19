@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PageHeader as HeroPageHeader, type BreadcrumbItem } from "@/components/hero/PageHeader";
+import { PageHeader as HeroPageHeader, type BreadcrumbItem } from "@/components/ui/PageHeader";
 
 export { type BreadcrumbItem };
 

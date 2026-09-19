@@ -114,365 +114,29 @@
               "height": "fill_container",
               "children": [
                 {
-                  "type": "frame",
-                  "id": "TxH6U",
+                  "id": "ZxF5N",
+                  "type": "ref",
+                  "ref": "EV8mp",
                   "name": "Settings Sub Nav",
                   "width": 224,
                   "height": "fill_container",
-                  "fill": "#17171733",
-                  "stroke": "$border/border",
-                  "strokeWidth": {
-                    "right": 1
-                  },
-                  "strokeAlignment": "inner",
-                  "strokeLinejoin": "round",
-                  "layout": "vertical",
-                  "padding": 8,
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "flvGC",
-                      "name": "snGeneral",
-                      "width": "fill_container",
-                      "fill": "#00000000",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "kxtfH",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "settings",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "P1haL3",
-                          "fill": "$muted",
-                          "content": "General",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
+                  "descendants": {
+                    "axMXL": {
+                      "fill": "#00000000"
                     },
-                    {
-                      "type": "frame",
-                      "id": "B5K1w",
-                      "name": "snVersion",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "u40nt",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "layers",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "JAV7Q",
-                          "fill": "$muted",
-                          "content": "Version",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
+                    "tv3iR": {
+                      "fill": "$surface/secondary"
                     },
-                    {
-                      "type": "frame",
-                      "id": "V2ZVt",
-                      "name": "snResources",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "ZUEHw",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "hard-drive",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "RoFSO",
-                          "fill": "$muted",
-                          "content": "Resources",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
+                    "Y2PGH": {
+                      "fill": "$foreground/foreground"
                     },
-                    {
-                      "type": "frame",
-                      "id": "sXSjZ",
-                      "name": "snNetworking",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "waYoS",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "network",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "f5rqbF",
-                          "fill": "$muted",
-                          "content": "Networking",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
+                    "zpxa4": {
+                      "fill": "$danger/danger"
                     },
-                    {
-                      "type": "frame",
-                      "id": "A4MyL",
-                      "name": "snEnvironment",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "hRZFE",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "variable",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "fGS5V",
-                          "fill": "$muted",
-                          "content": "Environment",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "GLdrk",
-                      "name": "snLifecycle",
-                      "width": "fill_container",
-                      "fill": "$surface/secondary",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "RDKr2",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "sliders-vertical",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$foreground/foreground"
-                        },
-                        {
-                          "type": "text",
-                          "id": "m8grPO",
-                          "fill": "$foreground/foreground",
-                          "content": "Lifecycle",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "dWhRA",
-                      "name": "snScheduledBackups",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "i1lga",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "calendar-clock",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "xijfl",
-                          "fill": "$muted",
-                          "content": "Scheduled backups",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "a6y9c",
-                      "name": "snPlacement",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "wHtP6",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "map-pin",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "MVgR5",
-                          "fill": "$muted",
-                          "content": "Placement",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "MkqKl",
-                      "name": "snRbacAccess",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "BLQ7O",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "shield-check",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "a5m4u",
-                          "fill": "$muted",
-                          "content": "RBAC & access",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "PGcEo",
-                      "name": "snShareLinks",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "ZDDsS",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "link",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "$muted"
-                        },
-                        {
-                          "type": "text",
-                          "id": "VvLMl",
-                          "fill": "$muted",
-                          "content": "Share links",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "epUz5",
-                      "name": "snDangerZone",
-                      "width": "fill_container",
-                      "cornerRadius": 4,
-                      "gap": 8,
-                      "padding": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "Or7jd",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "triangle-alert",
-                          "library": "lucide",
-                          "weight": 400,
-                          "fill": "#DC2828"
-                        },
-                        {
-                          "type": "text",
-                          "id": "Fl2m8",
-                          "fill": "#DC2828",
-                          "content": "Danger zone",
-                          "fontFamily": "$typography/font-sans",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
+                    "xlVdh": {
+                      "fill": "$danger/danger"
                     }
-                  ]
+                  }
                 },
                 {
                   "type": "frame",
@@ -601,7 +265,7 @@
                                       "fill": "$muted",
                                       "textGrowth": "fixed-width",
                                       "width": 200,
-                                      "content": "Seconds the operator waits for the template's stop sequence to finish before scaling the pod down. Range 0–600; defaults to 30. No effect when the template declares no stop sequence.",
+                                      "content": "Seconds the operator waits for the template’s stop sequence to finish before scaling the pod down. Range 0–600; defaults to 30. No effect when the template declares no stop sequence.",
                                       "fontFamily": "$typography/font-sans",
                                       "fontSize": 12,
                                       "fontWeight": "normal"
@@ -675,7 +339,7 @@
                                       "fill": "$muted",
                                       "textGrowth": "fixed-width",
                                       "width": 200,
-                                      "content": "Per-server overrides for the template's readiness/liveness/startup probe timing. The probe action is inherited from the template.",
+                                      "content": "Per-server overrides for the template’s readiness/liveness/startup probe timing. The probe action is inherited from the template.",
                                       "fontFamily": "$typography/font-sans",
                                       "fontSize": 12,
                                       "fontWeight": "normal"

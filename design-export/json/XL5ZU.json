@@ -7,12 +7,12 @@
   "reusable": true,
   "fill": "$warning/soft",
   "cornerRadius": 9999,
-  "gap": 6,
+  "gap": 4,
   "padding": [
-    8,
-    8,
-    8,
-    12
+    6,
+    6,
+    6,
+    8
   ],
   "alignItems": "center",
   "children": [
@@ -21,18 +21,18 @@
       "id": "v68RDf",
       "name": "chipLabel",
       "fill": "$warning/soft-foreground",
-      "content": "group-name",
+      "content": "ops-leads",
       "lineHeight": 1.1428571428571428,
       "fontFamily": "$typography/font-mono",
-      "fontSize": 14,
+      "fontSize": 10,
       "fontWeight": "500"
     },
     {
       "type": "frame",
       "id": "QjuGM",
       "name": "chipRemove",
-      "width": 16,
-      "height": 16,
+      "width": 11,
+      "height": 11,
       "cornerRadius": 9999,
       "justifyContent": "center",
       "alignItems": "center",
@@ -41,8 +41,8 @@
           "type": "icon",
           "id": "sYR1u",
           "name": "chipRemoveIcon",
-          "width": 12,
-          "height": 12,
+          "width": 8,
+          "height": 8,
           "icon": "x",
           "library": "lucide",
           "fill": "$warning/soft-foreground"

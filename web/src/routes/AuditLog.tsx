@@ -4,8 +4,8 @@ import { Download, RefreshCw, ShieldCheck } from "lucide-react";
 import type { AuditEvent, AuditVerifyResult } from "@/types";
 import { Audit, type AuditExportFilter } from "@/lib/endpoints";
 import { Button, Card, Input, Chip, Table, Tabs, Tab as TabComponent } from "@heroui/react";
-import { PageHeader } from "@/components/hero/PageHeader";
-import { AuditIntegrityBanner } from "@/components/hero/AuditIntegrityBanner";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { AuditIntegrityBanner } from "@/components/ui/AuditIntegrityBanner";
 import { cn, formatRelative } from "@/lib/utils";
 
 const PAGE_SIZE = 100;

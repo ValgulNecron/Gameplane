@@ -4,7 +4,6 @@
   "x": -16881,
   "y": 25269,
   "name": "Gameplane/Cluster Selector",
-  "theme": {},
   "reusable": true,
   "width": 200,
   "fill": "$overlay",
@@ -53,7 +52,7 @@
               "type": "ellipse",
               "id": "nFa9M",
               "name": "dot",
-              "fill": "#21C45D",
+              "fill": "$success/success",
               "width": 8,
               "height": 8
             },
@@ -113,7 +112,7 @@
               "type": "ellipse",
               "id": "ExwbT",
               "name": "dot",
-              "fill": "#DC2626",
+              "fill": "$danger/danger",
               "width": 8,
               "height": 8
             },

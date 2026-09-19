@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 
 import { Button, Input } from "@heroui/react";
-import { StatCard } from "@/components/hero/StatCard";
-import { ErrorBanner } from "@/components/hero/ErrorBanner";
+import { StatCard } from "@/components/ui/StatCard";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { errorText } from "@/lib/errors";
 import { Players as PlayersAPI } from "@/lib/endpoints";
 import { cn } from "@/lib/utils";

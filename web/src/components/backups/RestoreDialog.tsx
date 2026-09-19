@@ -18,8 +18,9 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  Alert,
 } from "@heroui/react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, AlertCircle } from "lucide-react";
 import { Restores, Servers } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
 import type { Backup } from "@/types";
@@ -83,24 +84,24 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
     <Modal isOpen={open} onOpenChange={(o) => !o && onClose()}>
       <ModalBackdrop isDismissable={!create.isPending} isKeyboardDismissDisabled={create.isPending}>
         <ModalContainer>
-          <ModalDialog>
+          <ModalDialog className="w-[480px] max-w-[480px]">
           <ModalHeader>
             <ModalHeading>Restore backup</ModalHeading>
-          </ModalHeader>
-
-          <ModalBody className="gap-4">
             <Description className="text-sm text-muted">
               {isVolumeSnapshot
                 ? "A new server will be provisioned from this snapshot. The original server is left untouched."
                 : "The target server will be suspended, the volume restored from the snapshot, then resumed."}
             </Description>
+          </ModalHeader>
+
+          <ModalBody className="gap-4">
 
             <div className="space-y-4">
               <div>
                 <Label htmlFor="source-backup" className="text-xs">
                   Source backup
                 </Label>
-                <div className="mt-1 flex items-center rounded-lg border border-border bg-surface/40 px-3 py-2 font-mono text-xs text-fg">
+                <div className="mt-1.5 flex items-center rounded-lg border border-[var(--field-border)] bg-[var(--field-background)] px-3 py-2 font-mono text-xs text-fg">
                   {backup?.metadata.name}
                 </div>
               </div>
@@ -135,7 +136,7 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                     <PopoverTrigger
                       id="target-server"
                       className={cn(
-                        "mt-1 flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
+                        "mt-1.5 flex items-center justify-between gap-2 rounded-lg border border-[var(--field-border)] bg-[var(--field-background)] px-3 py-2 text-sm",
                         "hover:bg-surface transition-colors cursor-pointer",
                       )}
                     >
@@ -172,10 +173,15 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
                   on the original server changes.
                 </div>
               ) : (
-                <div className="rounded-md border border-danger/60 bg-danger/10 p-3 text-xs text-danger">
-                  This will overwrite all data on the target server. Players will
-                  be disconnected during the restore.
-                </div>
+                <Alert status="danger" className="text-xs">
+                  <div className="flex gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 text-danger" />
+                    <span className="text-danger">
+                      This will overwrite all data on the target server. Players will
+                      be disconnected during the restore.
+                    </span>
+                  </div>
+                </Alert>
               )}
 
               {create.isError && (
@@ -188,7 +194,7 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
 
           <ModalFooter className="flex items-center justify-end gap-2">
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onPress={onClose}
               isDisabled={create.isPending}

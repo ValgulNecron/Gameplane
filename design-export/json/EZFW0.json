@@ -75,8 +75,6 @@
           "width": "fill_container",
           "padding": [
             0,
-            0,
-            0,
             24
           ]
         },
@@ -114,23 +112,13 @@
                       "gap": 16,
                       "children": [
                         {
-                          "type": "frame",
                           "id": "yyxoE",
+                          "type": "ref",
+                          "ref": "XDZ0E",
                           "name": "Metric CPU",
                           "width": "fill_container",
-                          "fill": "$surface/surface",
-                          "cornerRadius": "$radius/3xl",
-                          "effect": {
-                            "type": "shadow",
-                            "shadowType": "outer",
-                            "color": "#0000000A",
-                            "offset": {
-                              "x": 0,
-                              "y": 2
-                            },
-                            "blur": 4
-                          },
-                          "layout": "vertical",
+                          "gap": 0,
+                          "padding": 0,
                           "children": [
                             {
                               "type": "frame",
@@ -227,23 +215,13 @@
                           ]
                         },
                         {
-                          "type": "frame",
                           "id": "d9mRd",
+                          "type": "ref",
+                          "ref": "XDZ0E",
                           "name": "Metric Memory",
                           "width": "fill_container",
-                          "fill": "$surface/surface",
-                          "cornerRadius": "$radius/3xl",
-                          "effect": {
-                            "type": "shadow",
-                            "shadowType": "outer",
-                            "color": "#0000000A",
-                            "offset": {
-                              "x": 0,
-                              "y": 2
-                            },
-                            "blur": 4
-                          },
-                          "layout": "vertical",
+                          "gap": 0,
+                          "padding": 0,
                           "children": [
                             {
                               "type": "frame",
@@ -340,23 +318,13 @@
                           ]
                         },
                         {
-                          "type": "frame",
                           "id": "E62N4",
+                          "type": "ref",
+                          "ref": "XDZ0E",
                           "name": "Metric Disk",
                           "width": "fill_container",
-                          "fill": "$surface/surface",
-                          "cornerRadius": "$radius/3xl",
-                          "effect": {
-                            "type": "shadow",
-                            "shadowType": "outer",
-                            "color": "#0000000A",
-                            "offset": {
-                              "x": 0,
-                              "y": 2
-                            },
-                            "blur": 4
-                          },
-                          "layout": "vertical",
+                          "gap": 0,
+                          "padding": 0,
                           "children": [
                             {
                               "type": "frame",
@@ -455,23 +423,13 @@
                       ]
                     },
                     {
-                      "type": "frame",
                       "id": "LnGxg",
+                      "type": "ref",
+                      "ref": "XDZ0E",
                       "name": "Recent Events Card",
                       "width": "fill_container",
-                      "fill": "$surface/surface",
-                      "cornerRadius": "$radius/3xl",
-                      "effect": {
-                        "type": "shadow",
-                        "shadowType": "outer",
-                        "color": "#0000000A",
-                        "offset": {
-                          "x": 0,
-                          "y": 2
-                        },
-                        "blur": 4
-                      },
-                      "layout": "vertical",
+                      "gap": 0,
+                      "padding": 0,
                       "children": [
                         {
                           "type": "frame",
@@ -549,23 +507,13 @@
                   "gap": 24,
                   "children": [
                     {
-                      "type": "frame",
                       "id": "AYn73",
+                      "type": "ref",
+                      "ref": "XDZ0E",
                       "name": "Connection Card",
                       "width": "fill_container",
-                      "fill": "$surface/surface",
-                      "cornerRadius": "$radius/3xl",
-                      "effect": {
-                        "type": "shadow",
-                        "shadowType": "outer",
-                        "color": "#0000000A",
-                        "offset": {
-                          "x": 0,
-                          "y": 2
-                        },
-                        "blur": 4
-                      },
-                      "layout": "vertical",
+                      "gap": 0,
+                      "padding": 0,
                       "children": [
                         {
                           "type": "frame",
@@ -875,23 +823,13 @@
                       ]
                     },
                     {
-                      "type": "frame",
                       "id": "MgUGH",
+                      "type": "ref",
+                      "ref": "XDZ0E",
                       "name": "Players Online Card",
                       "width": "fill_container",
-                      "fill": "$surface/surface",
-                      "cornerRadius": "$radius/3xl",
-                      "effect": {
-                        "type": "shadow",
-                        "shadowType": "outer",
-                        "color": "#0000000A",
-                        "offset": {
-                          "x": 0,
-                          "y": 2
-                        },
-                        "blur": 4
-                      },
-                      "layout": "vertical",
+                      "gap": 0,
+                      "padding": 0,
                       "children": [
                         {
                           "type": "frame",
@@ -949,23 +887,13 @@
                       ]
                     },
                     {
-                      "type": "frame",
                       "id": "NDSM0",
+                      "type": "ref",
+                      "ref": "XDZ0E",
                       "name": "Game Status Card",
                       "width": "fill_container",
-                      "fill": "$surface/surface",
-                      "cornerRadius": "$radius/3xl",
-                      "effect": {
-                        "type": "shadow",
-                        "shadowType": "outer",
-                        "color": "#0000000A",
-                        "offset": {
-                          "x": 0,
-                          "y": 2
-                        },
-                        "blur": 4
-                      },
-                      "layout": "vertical",
+                      "gap": 0,
+                      "padding": 0,
                       "children": [
                         {
                           "type": "frame",
@@ -1092,23 +1020,13 @@
                       ]
                     },
                     {
-                      "type": "frame",
                       "id": "sPCGC",
+                      "type": "ref",
+                      "ref": "XDZ0E",
                       "name": "Quick Actions Card",
                       "width": "fill_container",
-                      "fill": "$surface/surface",
-                      "cornerRadius": "$radius/3xl",
-                      "effect": {
-                        "type": "shadow",
-                        "shadowType": "outer",
-                        "color": "#0000000A",
-                        "offset": {
-                          "x": 0,
-                          "y": 2
-                        },
-                        "blur": 4
-                      },
-                      "layout": "vertical",
+                      "gap": 0,
+                      "padding": 0,
                       "children": [
                         {
                           "type": "frame",

@@ -106,7 +106,7 @@ Gameplane integrates with **10 mod registries**: Modrinth, CurseForge, Thunderst
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  Dashboard UI: React + TypeScript + Vite + shadcn/ui           │
+│  Dashboard UI: React + TypeScript + Vite + HeroUI v3           │
 └────────────────────────────────────────────────────────────────┘
                             │  HTTPS / WSS
 ┌────────────────────────────────────────────────────────────────┐

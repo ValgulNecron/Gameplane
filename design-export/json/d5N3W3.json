@@ -4,18 +4,11 @@
   "x": -16812,
   "y": 26203,
   "name": "Gameplane/Button/Small/Outline",
-  "theme": {},
   "reusable": true,
-  "height": 32,
-  "cornerRadius": "$radius/md",
+  "fill": "#00000000",
   "stroke": "$border/border",
   "strokeWidth": 1,
   "strokeAlignment": "inner",
-  "gap": 8,
-  "padding": [
-    0,
-    12
-  ],
   "justifyContent": "center",
   "alignItems": "center",
   "children": [

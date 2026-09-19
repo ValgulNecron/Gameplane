@@ -121,7 +121,57 @@
                   "name": "Header Row",
                   "width": "fill_container",
                   "justifyContent": "space_between",
-                  "alignItems": "center"
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "CYoQV",
+                      "name": "Left",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "id": "HzZho",
+                          "type": "ref",
+                          "ref": "kGH2O",
+                          "name": "Status Badge",
+                          "descendants": {
+                            "O1PqF5": {
+                              "content": "Capturing…"
+                            }
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "id": "XPyWZ",
+                          "name": "Retention",
+                          "fill": "$muted",
+                          "content": "Capture started 2m 30s ago",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ZbNmx",
+                          "name": "Configure Retention Link",
+                          "fill": "$accent/accent",
+                          "content": "Configure retention",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "b1Bdxv",
+                      "name": "Right",
+                      "width": "fit_content(0)",
+                      "height": "fit_content(0)",
+                      "gap": 8
+                    }
+                  ]
                 },
                 {
                   "id": "z6xTv",
@@ -166,7 +216,246 @@
                   "strokeAlignment": "inner",
                   "layout": "vertical",
                   "gap": 20,
-                  "padding": 24
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "l9i23R",
+                      "name": "Top Row",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "TQIx0",
+                          "name": "Id Col",
+                          "layout": "vertical",
+                          "gap": 4,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "HLsSq",
+                              "name": "Capture Id",
+                              "fill": "$foreground/foreground",
+                              "content": "cap-abc123def456",
+                              "fontFamily": "$typography/font-mono",
+                              "fontSize": 16,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "text",
+                              "id": "hXkIs",
+                              "name": "Filter",
+                              "fill": "$muted",
+                              "content": "Filter: tcp port 25565",
+                              "fontFamily": "$typography/font-mono",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "viUOH",
+                          "type": "ref",
+                          "ref": "XoX7L",
+                          "name": "Btn Stop Capture",
+                          "descendants": {
+                            "dyD7Z": {
+                              "icon": "square"
+                            },
+                            "C8QRt/t8p1M2": {
+                              "content": "Stop Capture"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "CfGzm",
+                      "name": "Bars Wrap",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "GMYN1",
+                          "name": "Duration Wrap",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "NGBfg",
+                              "name": "Duration Head",
+                              "width": "fill_container",
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "G5TfHa",
+                                  "name": "Duration Label",
+                                  "fill": "$foreground/foreground",
+                                  "content": "Max duration",
+                                  "fontFamily": "$typography/font-sans",
+                                  "fontSize": 13,
+                                  "fontWeight": "500"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "mcQ9k",
+                                  "name": "Duration Value",
+                                  "fill": "$muted",
+                                  "content": "2m 30s / 5m elapsed",
+                                  "fontFamily": "$typography/font-sans",
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "oQnuW",
+                              "name": "Duration Progress",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 16,
+                              "fill": "$default/default",
+                              "cornerRadius": 9999,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "rectangle",
+                                  "id": "J8cCpI",
+                                  "x": 0,
+                                  "y": 0,
+                                  "name": "Progress",
+                                  "fill": "$accent/accent",
+                                  "width": 542,
+                                  "height": 16
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "J9u6Hg",
+                              "name": "Duration Sub",
+                              "fill": "#F59F0A",
+                              "content": "Time remaining: ~2m 30s — closest to its limit",
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 12,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "mg2NH",
+                          "name": "Size Wrap",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "zG64g",
+                              "name": "Size Head",
+                              "width": "fill_container",
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "V9V0Et",
+                                  "name": "Size Label",
+                                  "fill": "$foreground/foreground",
+                                  "content": "Max size",
+                                  "fontFamily": "$typography/font-sans",
+                                  "fontSize": 13,
+                                  "fontWeight": "500"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "GHolj",
+                                  "name": "Size Value",
+                                  "fill": "$muted",
+                                  "content": "2.5 MB / 5 GB collected",
+                                  "fontFamily": "$typography/font-sans",
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ppEs8",
+                              "name": "Size Progress",
+                              "clip": true,
+                              "width": "fill_container",
+                              "height": 16,
+                              "fill": "$default/default",
+                              "cornerRadius": 9999,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "rectangle",
+                                  "id": "pQDlm",
+                                  "x": 0,
+                                  "y": 0,
+                                  "name": "Progress",
+                                  "fill": "$accent/accent",
+                                  "width": 3,
+                                  "height": 16
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "vkKdw",
+                              "name": "Size Sub",
+                              "fill": "$muted",
+                              "content": "Space remaining: ~5 GB",
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "HWeLh",
+                      "name": "Metrics Row",
+                      "width": "fill_container",
+                      "stroke": "$border/border",
+                      "strokeWidth": {
+                        "top": 1
+                      },
+                      "strokeAlignment": "inner",
+                      "gap": 24,
+                      "padding": [
+                        16,
+                        0,
+                        0,
+                        0
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "OLEML",
+                          "name": "Packet Count",
+                          "fill": "$foreground/foreground",
+                          "content": "1,234 packets captured",
+                          "fontFamily": "$typography/font-sans",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
                 }
               ]
             }

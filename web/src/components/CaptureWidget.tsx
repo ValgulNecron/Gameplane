@@ -50,9 +50,9 @@ import {
   AlertDialogFooter,
 } from "@heroui/react";
 import { APIError, Captures, CaptureStartBody } from "@/lib/api";
-import { CaptureWarningBanner } from "@/components/hero/CaptureWarningBanner";
-import { ErrorBanner } from "@/components/hero/ErrorBanner";
-import { Chip } from "@/components/hero/PhaseChip";
+import { CaptureWarningBanner } from "@/components/ui/CaptureWarningBanner";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { Chip } from "@/components/ui/PhaseChip";
 import { formatBytes, formatRelative } from "@/lib/utils";
 import type { GameServer, NetworkCapture } from "@/types";
 

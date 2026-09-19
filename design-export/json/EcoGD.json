@@ -3,7 +3,7 @@
   "id": "EcoGD",
   "x": 4920,
   "y": 23709,
-  "name": "Screen/Share Link \u2014 Starting",
+  "name": "Screen/Share Link — Starting",
   "theme": {
     "semantic": "dark"
   },
@@ -72,7 +72,7 @@
               "type": "text",
               "id": "gozDd",
               "fill": "$warning/soft-foreground",
-              "content": "Starting\u2026",
+              "content": "Starting…",
               "textAlign": "center",
               "fontFamily": "$typography/font-mono",
               "fontSize": 12,
@@ -97,7 +97,7 @@
               "fill": "$muted",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "The server is waking up. This usually takes a minute or two \u2014 this page updates on its own.",
+              "content": "The server is waking up. This usually takes a minute or two — this page updates on its own.",
               "lineHeight": 1.5,
               "textAlign": "center",
               "fontFamily": "$typography/font-sans",

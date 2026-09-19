@@ -17,7 +17,27 @@
       "type": "ref",
       "ref": "kKFX9",
       "name": "App Sidebar",
-      "height": "fill_container"
+      "height": "fill_container",
+      "descendants": {
+        "iTbd8": {
+          "fill": "#00000000"
+        },
+        "iTbd8/ghUsw": {
+          "fill": "$foreground/foreground"
+        },
+        "iTbd8/bpSQ7": {
+          "fill": "$foreground/foreground"
+        },
+        "i8Z1B": {
+          "fill": "$accent/soft"
+        },
+        "i8Z1B/Sr2Q5": {
+          "fill": "$accent/soft-foreground"
+        },
+        "i8Z1B/Ra9NK": {
+          "fill": "$accent/soft-foreground"
+        }
+      }
     },
     {
       "type": "frame",
@@ -33,7 +53,12 @@
           "type": "ref",
           "ref": "gu5WY",
           "name": "Top Bar",
-          "width": "fill_container"
+          "width": "fill_container",
+          "descendants": {
+            "Gl7AY": {
+              "content": "mc-survival"
+            }
+          }
         },
         {
           "id": "O8sUKj",
@@ -50,10 +75,16 @@
           "width": "fill_container",
           "padding": [
             0,
-            0,
-            0,
             24
-          ]
+          ],
+          "descendants": {
+            "Wp6q1": {
+              "fill": "$segment"
+            },
+            "Wp6q1/YUR8N": {
+              "fill": "$foreground/segment"
+            }
+          }
         },
         {
           "type": "frame",
@@ -118,7 +149,7 @@
                                       "id": "o8T41",
                                       "fill": "$muted",
                                       "content": "CPU",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 11,
                                       "fontWeight": "600",
                                       "letterSpacing": 0.5
@@ -139,7 +170,7 @@
                                   "id": "wk4aE",
                                   "fill": "$foreground/foreground",
                                   "content": "0%",
-                                  "fontFamily": "$c:--font-primary",
+                                  "fontFamily": "JetBrains Mono",
                                   "fontSize": 24,
                                   "fontWeight": "700"
                                 },
@@ -183,7 +214,7 @@
                                   "id": "A1Fm7",
                                   "fill": "$muted",
                                   "content": "0.0 / 2.0 cores",
-                                  "fontFamily": "$c:--font-secondary",
+                                  "fontFamily": "Geist",
                                   "fontSize": 12,
                                   "fontWeight": "normal"
                                 }
@@ -221,7 +252,7 @@
                                       "id": "sAfaW",
                                       "fill": "$muted",
                                       "content": "MEMORY",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 11,
                                       "fontWeight": "600",
                                       "letterSpacing": 0.5
@@ -242,7 +273,7 @@
                                   "id": "R9qA6",
                                   "fill": "$foreground/foreground",
                                   "content": "38%",
-                                  "fontFamily": "$c:--font-primary",
+                                  "fontFamily": "JetBrains Mono",
                                   "fontSize": 24,
                                   "fontWeight": "700"
                                 },
@@ -286,7 +317,7 @@
                                   "id": "UNzsJ",
                                   "fill": "$muted",
                                   "content": "1.5 GB / 4.0 GB",
-                                  "fontFamily": "$c:--font-secondary",
+                                  "fontFamily": "Geist",
                                   "fontSize": 12,
                                   "fontWeight": "normal"
                                 }
@@ -324,7 +355,7 @@
                                       "id": "APHg5",
                                       "fill": "$muted",
                                       "content": "DISK",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 11,
                                       "fontWeight": "600",
                                       "letterSpacing": 0.5
@@ -345,7 +376,7 @@
                                   "id": "vcUb5",
                                   "fill": "$foreground/foreground",
                                   "content": "13%",
-                                  "fontFamily": "$c:--font-primary",
+                                  "fontFamily": "JetBrains Mono",
                                   "fontSize": 24,
                                   "fontWeight": "700"
                                 },
@@ -389,7 +420,7 @@
                                   "id": "UPdD0",
                                   "fill": "$muted",
                                   "content": "3.7 GB / 29 GB",
-                                  "fontFamily": "$c:--font-secondary",
+                                  "fontFamily": "Geist",
                                   "fontSize": 12,
                                   "fontWeight": "normal"
                                 }
@@ -430,7 +461,7 @@
                               "id": "SsXIt",
                               "fill": "$muted",
                               "content": "RECENT EVENTS",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "600",
                               "letterSpacing": 1
@@ -440,7 +471,7 @@
                               "id": "II35d",
                               "fill": "$accent/accent",
                               "content": "View all",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 12,
                               "fontWeight": "normal"
                             }
@@ -465,7 +496,7 @@
                               "id": "AsBgw",
                               "fill": "$muted",
                               "content": "No events yet. Lifecycle, backup, and agent activity will appear here.",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 14,
                               "fontWeight": "normal"
                             }
@@ -510,7 +541,7 @@
                               "id": "sQlt9",
                               "fill": "$muted",
                               "content": "CONNECTION",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "600",
                               "letterSpacing": 1
@@ -578,7 +609,7 @@
                                           "name": "eyebrow",
                                           "fill": "$muted",
                                           "content": "TUNNEL · FRP",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 11,
                                           "fontWeight": "600",
                                           "letterSpacing": 1
@@ -589,7 +620,7 @@
                                           "name": "address",
                                           "fill": "$foreground/foreground",
                                           "content": "mc.frp.gameplane.dev:25565",
-                                          "fontFamily": "$c:--font-primary",
+                                          "fontFamily": "JetBrains Mono",
                                           "fontSize": 14,
                                           "fontWeight": "500"
                                         }
@@ -615,7 +646,7 @@
                               "name": "External Address Label",
                               "fill": "$muted",
                               "content": "EXTERNAL ADDRESS",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "600",
                               "letterSpacing": 1
@@ -642,7 +673,7 @@
                                   "name": "Label",
                                   "fill": "$muted",
                                   "content": "Address",
-                                  "fontFamily": "$c:--font-secondary",
+                                  "fontFamily": "Geist",
                                   "fontSize": 13,
                                   "fontWeight": "normal"
                                 },
@@ -667,7 +698,7 @@
                                           "name": "Address",
                                           "fill": "$foreground/foreground",
                                           "content": "172.18.255.203",
-                                          "fontFamily": "$c:--font-primary",
+                                          "fontFamily": "JetBrains Mono",
                                           "fontSize": 13,
                                           "fontWeight": "normal"
                                         },
@@ -689,7 +720,7 @@
                                       "name": "PoolNote",
                                       "fill": "$muted",
                                       "content": "pool: pool-us-west",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 11,
                                       "fontWeight": "normal"
                                     }
@@ -703,7 +734,7 @@
                               "name": "Cluster Address Label",
                               "fill": "$muted",
                               "content": "CLUSTER ADDRESS",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "600",
                               "letterSpacing": 1
@@ -728,7 +759,7 @@
                                   "id": "bKV2O",
                                   "fill": "$muted",
                                   "content": "Host",
-                                  "fontFamily": "$c:--font-secondary",
+                                  "fontFamily": "Geist",
                                   "fontSize": 13,
                                   "fontWeight": "normal"
                                 },
@@ -743,7 +774,7 @@
                                       "id": "zxVav",
                                       "fill": "$foreground/foreground",
                                       "content": "10.107.129.42",
-                                      "fontFamily": "$c:--font-primary",
+                                      "fontFamily": "JetBrains Mono",
                                       "fontSize": 13,
                                       "fontWeight": "normal"
                                     },
@@ -780,7 +811,7 @@
                                   "id": "G8CKW",
                                   "fill": "$muted",
                                   "content": "Port",
-                                  "fontFamily": "$c:--font-secondary",
+                                  "fontFamily": "Geist",
                                   "fontSize": 13,
                                   "fontWeight": "normal"
                                 },
@@ -789,7 +820,7 @@
                                   "id": "fBAnk",
                                   "fill": "$foreground/foreground",
                                   "content": "30812",
-                                  "fontFamily": "$c:--font-primary",
+                                  "fontFamily": "JetBrains Mono",
                                   "fontSize": 13,
                                   "fontWeight": "normal"
                                 }
@@ -826,7 +857,7 @@
                               "id": "UOfp4",
                               "fill": "$muted",
                               "content": "PLAYERS ONLINE · 0",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "600",
                               "letterSpacing": 1
@@ -855,7 +886,7 @@
                               "fill": "$muted",
                               "content": "No players connected.",
                               "textAlign": "center",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 13,
                               "fontWeight": "normal"
                             }
@@ -891,7 +922,7 @@
                               "id": "GqIeI",
                               "fill": "$muted",
                               "content": "GAME STATUS",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "600",
                               "letterSpacing": 1
@@ -942,7 +973,7 @@
                                   "id": "NDJYj",
                                   "fill": "$muted",
                                   "content": "World seed",
-                                  "fontFamily": "$c:--font-secondary",
+                                  "fontFamily": "Geist",
                                   "fontSize": 13,
                                   "fontWeight": "normal"
                                 },
@@ -951,7 +982,7 @@
                                   "id": "o8ofh",
                                   "fill": "$foreground/foreground",
                                   "content": "3825002917346286791",
-                                  "fontFamily": "$c:--font-primary",
+                                  "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
                                   "fontWeight": "normal"
                                 }
@@ -977,7 +1008,7 @@
                                   "id": "CBPWR",
                                   "fill": "$muted",
                                   "content": "Difficulty",
-                                  "fontFamily": "$c:--font-secondary",
+                                  "fontFamily": "Geist",
                                   "fontSize": 13,
                                   "fontWeight": "normal"
                                 },
@@ -986,7 +1017,7 @@
                                   "id": "sWQPS",
                                   "fill": "$foreground/foreground",
                                   "content": "Easy",
-                                  "fontFamily": "$c:--font-primary",
+                                  "fontFamily": "JetBrains Mono",
                                   "fontSize": 13,
                                   "fontWeight": "normal"
                                 }
@@ -1023,7 +1054,7 @@
                               "id": "I1oBB",
                               "fill": "$muted",
                               "content": "QUICK ACTIONS",
-                              "fontFamily": "$c:--font-secondary",
+                              "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "600",
                               "letterSpacing": 1
@@ -1071,7 +1102,7 @@
                                       "name": "Label",
                                       "fill": "$muted",
                                       "content": "WORLD",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 11,
                                       "fontWeight": "600",
                                       "letterSpacing": 1
@@ -1104,7 +1135,7 @@
                                       "name": "Title",
                                       "fill": "$foreground/foreground",
                                       "content": "Set time",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 14,
                                       "fontWeight": "500"
                                     }
@@ -1136,7 +1167,7 @@
                                       "name": "Title",
                                       "fill": "$foreground/foreground",
                                       "content": "Set weather",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 14,
                                       "fontWeight": "500"
                                     }
@@ -1175,7 +1206,7 @@
                                           "name": "Title",
                                           "fill": "$foreground/foreground",
                                           "content": "Save world",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 14,
                                           "fontWeight": "500"
                                         },
@@ -1185,7 +1216,7 @@
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Flush the world to disk now.",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
                                         }
@@ -1229,7 +1260,7 @@
                                           "name": "Output Text",
                                           "fill": "$foreground/foreground",
                                           "content": "Saved the game",
-                                          "fontFamily": "$c:--font-primary",
+                                          "fontFamily": "JetBrains Mono",
                                           "fontSize": 12,
                                           "fontWeight": "normal"
                                         },
@@ -1239,7 +1270,7 @@
                                           "name": "Dismiss",
                                           "fill": "$muted",
                                           "content": "dismiss",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
                                         }
@@ -1276,7 +1307,7 @@
                                       "name": "Label",
                                       "fill": "$muted",
                                       "content": "SERVER",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 11,
                                       "fontWeight": "600",
                                       "letterSpacing": 1
@@ -1316,7 +1347,7 @@
                                           "name": "Title",
                                           "fill": "$foreground/foreground",
                                           "content": "Broadcast message",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 14,
                                           "fontWeight": "500"
                                         },
@@ -1326,7 +1357,7 @@
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Send a chat message to everyone on the server.",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
                                         }
@@ -1352,7 +1383,7 @@
                                       "id": "Baemg",
                                       "name": "Sent Chip",
                                       "fill": "$success/soft",
-                                      "cornerRadius": "$c:--radius-pill",
+                                      "cornerRadius": 999,
                                       "gap": 6,
                                       "padding": [
                                         5,
@@ -1376,7 +1407,7 @@
                                           "name": "Label",
                                           "fill": "$success/soft-foreground",
                                           "content": "Broadcast sent",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 12,
                                           "fontWeight": "500"
                                         }
@@ -1417,7 +1448,7 @@
                                           "name": "Title",
                                           "fill": "$foreground/foreground",
                                           "content": "Reload config",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 14,
                                           "fontWeight": "500"
                                         },
@@ -1427,7 +1458,7 @@
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Reapply server.properties without a restart.",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
                                         }
@@ -1468,7 +1499,7 @@
                                           "name": "Title",
                                           "fill": "$danger/danger",
                                           "content": "Announce restart",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 14,
                                           "fontWeight": "500"
                                         },
@@ -1478,7 +1509,7 @@
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Warn players, save, and restart the server.",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
                                         }
@@ -1515,7 +1546,7 @@
                                       "name": "Label",
                                       "fill": "$muted",
                                       "content": "PLAYERS",
-                                      "fontFamily": "$c:--font-secondary",
+                                      "fontFamily": "Geist",
                                       "fontSize": 11,
                                       "fontWeight": "600",
                                       "letterSpacing": 1
@@ -1555,7 +1586,7 @@
                                           "name": "Title",
                                           "fill": "$foreground/foreground",
                                           "content": "Toggle PvP",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 14,
                                           "fontWeight": "500"
                                         },
@@ -1565,7 +1596,7 @@
                                           "name": "Description",
                                           "fill": "$muted",
                                           "content": "Enable or disable player-versus-player combat.",
-                                          "fontFamily": "$c:--font-secondary",
+                                          "fontFamily": "Geist",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
                                         }

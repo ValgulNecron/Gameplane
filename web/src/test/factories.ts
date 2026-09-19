@@ -212,7 +212,7 @@ export function makeClusterStats(over: Partial<ClusterStats> = {}): ClusterStats
 }
 
 export function makeClusterInfo(over: Partial<ClusterInfo> = {}): ClusterInfo {
-  return { clusterName: "homelab", version: "v1.31.0", clusterOps: true, updateChannel: "stable", ...over };
+  return { clusterName: "homelab-01", version: "v1.31.0", clusterOps: true, updateChannel: "stable", ...over };
 }
 
 export function makeCatalog(over: Partial<CatalogEntry> = {}): CatalogEntry {

@@ -112,112 +112,17 @@
               }
             },
             {
-              "id": "DDRNN",
+              "id": "Y6HHT",
               "type": "ref",
-              "ref": "Dx8S8",
-              "name": "tabsBar",
-              "width": "fit_content",
-              "children": [
-                {
-                  "id": "DKAWA",
-                  "type": "ref",
-                  "ref": "CEWo3",
-                  "name": "tabBackups",
-                  "descendants": {
-                    "YUR8N": {
-                      "content": "Backups"
-                    }
-                  }
-                },
-                {
-                  "id": "UthoO",
-                  "type": "ref",
-                  "ref": "qAFbJ",
-                  "name": "tabSchedules",
-                  "descendants": {
-                    "VcxMI": {
-                      "content": "Schedules"
-                    }
-                  }
-                },
-                {
-                  "id": "BnUu1",
-                  "type": "ref",
-                  "ref": "qAFbJ",
-                  "name": "tabRestores",
-                  "descendants": {
-                    "VcxMI": {
-                      "content": "Restores"
-                    }
-                  }
-                }
-              ]
+              "ref": "oIJGu",
+              "name": "tabsBar"
             },
             {
-              "type": "frame",
-              "id": "M8yDJc",
+              "id": "qmZz8",
+              "type": "ref",
+              "ref": "wKe4F",
               "name": "Filter Row",
-              "width": "fill_container",
-              "gap": 12,
-              "justifyContent": "space_between",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "fNpiz",
-                  "name": "Filters",
-                  "gap": 8,
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "id": "UjvWG",
-                      "type": "ref",
-                      "ref": "Lmaf1",
-                      "name": "Search",
-                      "width": 320,
-                      "descendants": {
-                        "EJMtX": {
-                          "content": "Search by name or server…"
-                        }
-                      }
-                    },
-                    {
-                      "id": "KY5YM",
-                      "type": "ref",
-                      "ref": "AT7ya",
-                      "name": "Select",
-                      "width": 176,
-                      "descendants": {
-                        "cFsFk": {
-                          "content": "All servers"
-                        }
-                      }
-                    },
-                    {
-                      "id": "emZuE",
-                      "type": "ref",
-                      "ref": "AT7ya",
-                      "name": "Select",
-                      "width": 144,
-                      "descendants": {
-                        "cFsFk": {
-                          "content": "All phases"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "type": "text",
-                  "id": "MoiQh",
-                  "name": "Result Count",
-                  "fill": "$muted",
-                  "content": "0 of 0 backups",
-                  "fontFamily": "$typography/font-sans",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                }
-              ]
+              "width": "fill_container"
             },
             {
               "id": "KYn2g",
@@ -353,7 +258,7 @@
                           "justifyContent": "center",
                           "descendants": {
                             "HNAOu": {
-                              "content": "No backups yet. Use Back up now to create the first one.",
+                              "content": "No backups yet. Use “Back up now” to create the first one.",
                               "fill": "$muted"
                             }
                           }
