@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Card } from "@heroui/react";
 import type { GameServer } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { EventList } from "@/components/server/EventList";
-import { mapServerEvent, type NormalizedServerEvent } from "@/lib/events";
+import { mapServerEvent } from "@/lib/events";
 
 type FilterType = "all" | "info" | "warnings";
 
@@ -27,16 +27,15 @@ export function EventsTab({
     retry: false,
   });
 
-  const events: NormalizedServerEvent[] = (
-    Array.isArray(rawEvents) ? rawEvents : []
-  ).map(mapServerEvent);
-
-  const filteredEvents = events.filter((e) => {
-    if (filter === "all") return true;
-    if (filter === "info") return e.kind === "info";
-    if (filter === "warnings") return e.kind === "warn" || e.kind === "error";
-    return true;
-  });
+  const filteredEvents = useMemo(() => {
+    const events = (Array.isArray(rawEvents) ? rawEvents : []).map(mapServerEvent);
+    return events.filter((e) => {
+      if (filter === "all") return true;
+      if (filter === "info") return e.kind === "info";
+      if (filter === "warnings") return e.kind === "warn" || e.kind === "error";
+      return true;
+    });
+  }, [rawEvents, filter]);
 
   return (
     <div className="space-y-6 p-6">

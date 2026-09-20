@@ -1,0 +1,3 @@
+## 2024-03-24 - React Query Array Mapping Unnecessary Re-renders
+**Learning:** React Query frequently returns new array references even when data hasn't structurally changed. Processing this data (like mapping or filtering `rawEvents`) directly in the component body creates a new array reference on *every* component render, triggering unnecessary re-renders in heavy child components like `EventList`.
+**Action:** Always wrap post-processing of query data (mapping, filtering) in `useMemo` with the raw query data as a dependency. When doing so, ensure `useMemo` is placed before any early returns to avoid breaking React's Rules of Hooks.
