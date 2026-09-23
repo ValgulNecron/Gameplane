@@ -29,8 +29,9 @@ REPO="$(cd "${HERE}/../.." && pwd)"
 # chart": a regression test that silently changes what it tests is not a
 # regression test.
 #
-# 0.2.0-beta.8 is the last published beta before v0.3.0. Its chart and operator/api/agent
-# images exist on GHCR, making this a genuine upgrade path that users take to v0.3.0.
+# 0.2.0-beta.8 is the last published beta before v0.3.0 — its chart and
+# operator/api/agent images exist on GHCR — so this is the genuine upgrade
+# path that users take to v0.3.0.
 FROM_VERSION="${GAMEPLANE_UPGRADE_FROM:-0.2.0-beta.8}"
 CHART_REF="oci://ghcr.io/valgulnecron/charts/gameplane"
 
