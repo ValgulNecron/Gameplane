@@ -5,42 +5,6 @@ All notable changes to Gameplane are documented here. The format is based on
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it
 reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
-## [0.3.0-rc.1] — 2026-09-23
-
-The first release candidate for v0.3.0, the first Gameplane release without a
-beta suffix. This contains every change listed under Unreleased since v0.2.0-beta.8.
-Release candidates are for testing against diverse workloads and deployment
-topologies before the v1-ready v0.3.0 GA; pre-releases are published and listed
-in the GitHub releases page.
-
-### Highlights
-
-- **Every existing GameServer pod restarts once on upgrade** due to the network
-  capture feature adding an emptyDir volume; plan your upgrade window accordingly.
-- **User theme customization:** presets (Modern Pink, Legacy Orange) + custom
-  accent/surface colors with WCAG AA contrast guarantee, custom CSS overlay, and
-  safe-mode suspension on demand. Accessed via Settings → Theme & Appearance.
-- **13 new top-steam-game modules** (FiveM, Farming Simulator 25, Euro Truck
-  Simulator 2, Mount & Blade Bannerlord, tModLoader, Team Fortress 2, BeamMP,
-  Left 4 Dead 2, The Isle, ARK, Arma Reforger, Hell Let Loose, Squad) with
-  Gameplane-owned container images (`fivem`, `farming-simulator-25`,
-  `euro-truck-simulator-2`, `beammp`).
-- **Network capture for protocol reverse-engineering:** admin-only, on-demand
-  packet capture from running game pods as ephemeral sidecar containers,
-  downloaded as PCAPNG files (Wireshark-compatible).
-- **Easy module building toolkit:** `gp-module` CLI (`init`, `validate`, `preview`,
-  `package`) for scaffolding, authoring, and publishing custom game modules;
-  web dashboard UI with live validation and cluster installation.
-- **Install-time configuration:** Helm-seeded OIDC role mappings (no
-  `bootstrap-admin` needed for OIDC-only installs) and default StorageClass for
-  game-data PVCs.
-- **Share link expiry options:** no-expiry, 15/30/60/90-day presets, or custom
-  date; lifts the old 90-day cap that outlived long-running survival servers.
-- **Console fixes:** non-default port handling (port-forward scenarios) and
-  guarded `send()` before socket open.
-- **Existing PVC support:** Helm `api.storage.existingClaim` lets installs
-  point SQLite to a pre-existing PersistentVolumeClaim.
-
 ## [Unreleased]
 
 ### Upgrade Notes
@@ -101,6 +65,12 @@ in the GitHub releases page.
   (Wine/Xvfb runner), `euro-truck-simulator-2` (Wine runner), and `beammp`
   (BeamMP + non-crashing diagnostic idle). All modules are signed with Cosign
   keyless signatures (#369).
+- **Nuclear Option dedicated server support:** New `nuclearoption` remote-command
+  protocol implemented in the agent's RCON client set, wired into console /
+  players / quiesce; a Gameplane-owned, SteamCMD-based `nuclear-option`
+  container image (no official image exists upstream); generic `min` / `max` /
+  `minLength` / `maxLength` constraints on `ConfigField`, enforced in
+  `materializeConfig` for every module, landed alongside it (#252, #255, #260).
 - **Install-time configuration (feature 006):** Two Helm values for zero post-deploy
   configuration:
   - **Helm-seeded OIDC role mappings:** `api.oidc.groupsClaim`, `api.oidc.defaultRole`,
@@ -133,13 +103,18 @@ in the GitHub releases page.
   for games with HTTP admin APIs like FiveM txAdmin) and `cli` (local process
   execution for PTY-only games like Terraria). Both are wired to console, players,
   quiesce, lifecycle, and quick-action endpoints. The `rcon.protocol` enum is
-  now `source;telnet;websocket;battleye;satisfactory;palworld;nuclearoption;rest;cli;none` (#260, #369).
+  now `source;telnet;websocket;battleye;satisfactory;palworld;nuclearoption;rest;cli;none` (#369).
 - **Security audit remediation:** Multiple fixes from a comprehensive security
   audit: share links are isolated by cluster; GameServer setting/image/service
   account/environment/tunnel changes are permission-checked; Secret and ConfigMap
   references must belong to the target server; optional network policies restrict
   audit and telemetry services to API traffic; SteamCMD image pinned to a stable
-  version (#350, #285).
+  version (#350).
+- **Mod archive path confinement:** Symlink-escape and zip-slip guards hardened
+  across every extraction and non-extract upload call site in the agent's mods
+  handler (`ConfinePath` / `ConfineRelPath`, resolving symlinks on the deepest
+  existing ancestor); an unconditional TLS-verification bypass in an e2e test
+  helper was also fixed (#285, #290, #291).
 - **CI hardening:** GitHub Actions workflow pins (100% to 40-hex SHAs with version
   comments), least-privilege permissions, measured timeouts, Dependabot expansion
   (Go modules, Dockerfiles, Actions), workflow-lint gates (actionlint + zizmor),
@@ -166,7 +141,47 @@ in the GitHub releases page.
   Vitest, TypeScript ESLint), GitHub Actions, and container base images
   (Node 24→26 bookworm-slim, Go 1.26→1.27 alpine, nginx 1.30→1.31, restic
   0.18→0.19) bumped to latest stable releases; actionlint and zizmor pinned
-  for workflow linting (#261–#387, #399–#412).
+  for workflow linting (#262, #263, #264, #265, #266, #267, #268, #270, #271,
+  #273, #274, #275, #276, #277, #278, #279, #280, #281, #283, #298, #301, #307,
+  #308, #309, #310, #311, #312, #317, #318, #320, #321, #323, #324, #328, #329,
+  #334, #344, #354, #355, #356, #357, #358, #359, #379, #380, #381, #382, #387,
+  #399, #400, #401, #402, #403, #404, #405, #406, #412).
+
+## [0.3.0-rc.1] — 2026-09-23
+
+The first release candidate for v0.3.0, the first Gameplane release without a
+beta suffix. This contains every change listed under Unreleased above, since
+v0.2.0-beta.8. Release candidates are for testing against diverse workloads
+and deployment topologies before the v1-ready v0.3.0 GA; pre-releases are
+published and listed in the GitHub releases page.
+
+### Highlights
+
+- **Every existing GameServer pod restarts once on upgrade** due to the network
+  capture feature adding an emptyDir volume; plan your upgrade window accordingly.
+- **User theme customization:** presets (Modern Pink, Legacy Orange) + custom
+  accent/surface colors with WCAG AA contrast guarantee, custom CSS overlay, and
+  safe-mode suspension on demand. Accessed via Settings → Theme & Appearance.
+- **13 new top-steam-game modules** (FiveM, Farming Simulator 25, Euro Truck
+  Simulator 2, Mount & Blade Bannerlord, tModLoader, Team Fortress 2, BeamMP,
+  Left 4 Dead 2, The Isle, ARK, Arma Reforger, Hell Let Loose, Squad) with
+  Gameplane-owned container images (`fivem`, `farming-simulator-25`,
+  `euro-truck-simulator-2`, `beammp`).
+- **Network capture for protocol reverse-engineering:** admin-only, on-demand
+  packet capture from running game pods as ephemeral sidecar containers,
+  downloaded as PCAPNG files (Wireshark-compatible).
+- **Easy module building toolkit:** `gp-module` CLI (`init`, `validate`, `preview`,
+  `package`) for scaffolding, authoring, and publishing custom game modules;
+  web dashboard UI with live validation and cluster installation.
+- **Install-time configuration:** Helm-seeded OIDC role mappings (no
+  `bootstrap-admin` needed for OIDC-only installs) and default StorageClass for
+  game-data PVCs.
+- **Share link expiry options:** no-expiry, 15/30/60/90-day presets, or custom
+  date; lifts the old 90-day cap that outlived long-running survival servers.
+- **Console fixes:** non-default port handling (port-forward scenarios) and
+  guarded `send()` before socket open.
+- **Existing PVC support:** Helm `api.storage.existingClaim` lets installs
+  point SQLite to a pre-existing PersistentVolumeClaim.
 
 ## [0.2.0-beta.8] — 2026-08-22
 
