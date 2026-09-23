@@ -53,6 +53,8 @@ Question: may a real node loss be simulated (e.g. stopping `k3s-agent` on one wo
 
 Decision: the maintainer will fix networking on the devbox. Until `kubectl get nodes` works, work that needs no cluster goes ahead: reviews, inventory, known-bug import. Live rows wait.
 
+Update 2026-09-23: networking fixed. `kubelab-api` now resolves to `10.43.153.36` (`kubelab-control.kubelab.svc.cluster.local`), and `kubectl get nodes` lists `kubelab-control`, `kubelab-worker-1` and `kubelab-worker-2`, all Ready, on k3s `v1.36.2+k3s1`. Live work is unblocked.
+
 Original question:
 
 `~/kubelab.yaml` points at `https://kubelab-api:6443`, but `kubelab-api` doesn't resolve from the devbox ("no such host"). Every live step is blocked until this is fixed. The component reviews, the inventory and the known-bug import can go ahead in the meantime.
