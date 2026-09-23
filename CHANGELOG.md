@@ -5,6 +5,42 @@ All notable changes to Gameplane are documented here. The format is based on
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it
 reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
+## [0.3.0-rc.1] — 2026-09-23
+
+The first release candidate for v0.3.0, the first Gameplane release without a
+beta suffix. This contains every change listed under Unreleased since v0.2.0-beta.8.
+Release candidates are for testing against diverse workloads and deployment
+topologies before the v1-ready v0.3.0 GA; pre-releases are published and listed
+in the GitHub releases page.
+
+### Highlights
+
+- **Every existing GameServer pod restarts once on upgrade** due to the network
+  capture feature adding an emptyDir volume; plan your upgrade window accordingly.
+- **User theme customization:** presets (Modern Pink, Legacy Orange) + custom
+  accent/surface colors with WCAG AA contrast guarantee, custom CSS overlay, and
+  safe-mode suspension on demand. Accessed via Settings → Theme & Appearance.
+- **13 new top-steam-game modules** (FiveM, Farming Simulator 25, Euro Truck
+  Simulator 2, Mount & Blade Bannerlord, tModLoader, Team Fortress 2, BeamMP,
+  Left 4 Dead 2, The Isle, ARK, Arma Reforger, Hell Let Loose, Squad) with
+  Gameplane-owned container images (`fivem`, `farming-simulator-25`,
+  `euro-truck-simulator-2`, `beammp`).
+- **Network capture for protocol reverse-engineering:** admin-only, on-demand
+  packet capture from running game pods as ephemeral sidecar containers,
+  downloaded as PCAPNG files (Wireshark-compatible).
+- **Easy module building toolkit:** `gp-module` CLI (`init`, `validate`, `preview`,
+  `package`) for scaffolding, authoring, and publishing custom game modules;
+  web dashboard UI with live validation and cluster installation.
+- **Install-time configuration:** Helm-seeded OIDC role mappings (no
+  `bootstrap-admin` needed for OIDC-only installs) and default StorageClass for
+  game-data PVCs.
+- **Share link expiry options:** no-expiry, 15/30/60/90-day presets, or custom
+  date; lifts the old 90-day cap that outlived long-running survival servers.
+- **Console fixes:** non-default port handling (port-forward scenarios) and
+  guarded `send()` before socket open.
+- **Existing PVC support:** Helm `api.storage.existingClaim` lets installs
+  point SQLite to a pre-existing PersistentVolumeClaim.
+
 ## [Unreleased]
 
 ### Upgrade Notes
@@ -31,27 +67,106 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
-- **Default StorageClass for game-data volumes:** `operator.gameDataStorage.storageClassName`
-  (Helm value) sets a cluster-wide default for new game-data PVCs. Precedence:
-  GameServer override > GameTemplate default > install-time default > cluster
-  default. Applies only to new PVCs (immutable after creation).
-- **Helm-seeded OIDC role mappings (no bootstrap-admin needed):** Helm values
-  `api.oidc.groupsClaim`, `api.oidc.defaultRole`, and
-  `api.oidc.roleMappings.{admin,operator,viewer}` configure a read-only "helm"
-  OIDC provider, so OIDC-only installs need no bootstrap admin. Admins can
-  override role mappings from Settings → Authentication via `PUT /admin/config/auth`,
-  stored in `helmOverride.roleMappings` on the auth config; changes take effect
-  on next login (no API restart). Reset via `DELETE /admin/config/auth/role-mappings/{role}`.
-  Helm upgrades don't clobber overridden roles.
-- **agent / CRD:** two new remote-console protocols behind the agent's existing
-  `Exec` interface, so console / players / quiesce / lifecycle / actions work
-  over them: `rest` (generic HTTP REST client for games with HTTP administration APIs like FiveM's txAdmin and Farming Simulator 25's web admin) and `cli` (local process execution console interface). The `rcon.protocol` enum is now
-  `source;telnet;websocket;battleye;satisfactory;palworld;nuclearoption;rest;cli;none`.
-- **images:** four Gameplane-owned container images built, published, and signed with Cosign keyless signatures:
-  `ghcr.io/valgulnecron/gameplane/fivem` (FiveM with txAdmin and embedded database),
-  `ghcr.io/valgulnecron/gameplane/farming-simulator-25` (Farming Simulator 25 dedicated server runner with headless Wine/Xvfb),
-  `ghcr.io/valgulnecron/gameplane/euro-truck-simulator-2` (Euro Truck Simulator 2 dedicated server runner), and
-  `ghcr.io/valgulnecron/gameplane/beammp` (BeamMP dedicated server runner with non-crashing FR-013 diagnostic idle).
+- **User theme customization (feature 016):** Settings → Theme & Appearance
+  offers preset themes (Modern Pink, Legacy Orange) and custom color selection
+  with live WCAG AA contrast validation. Custom accent and surface colors are
+  persisted per user; appearance mode (light/dark) can follow the surface color.
+  Custom CSS overlay allows per-user style tweaks; all customizations support
+  import/export. Safe mode (`?safe-mode=1` or keyboard shortcut) suspends custom
+  CSS and shows a banner without reloading. Theme bootstrap on login prevents
+  flash; preferences are read/write controlled via RBAC (every user sees only
+  their own) (#415).
+- **Network capture sidecar (feature 003):** Admin-only, on-demand packet capture
+  from running GameServer pods. Enabled per server via a Dashboard toggle, capture
+  runs as an ephemeral sidecar container (no pod restart), is recorded as PCAPNG
+  (Wireshark-compatible), and auto-expires after 7 days or a configurable size/duration
+  limit. Download streams directly from the capture sidecar via the existing
+  `<gs>-agent` Service. The capture `emptyDir` volume is pre-provisioned on every
+  pod at cluster install time (the upgrade consequence above). Every capture
+  session is recorded in the audit log with admin-only playback to the
+  `captures:manage` role. For protocol reverse-engineering and diagnostics (#256).
+- **Easy module building & authoring toolkit (feature 010):** Scaffolds, validates,
+  previews, and packages custom game modules. The `gp-module` CLI supports three
+  starter archetypes (`steamcmd`, `java`, `generic`) with configurable ports,
+  storage, and metadata; offline validation with source-line diagnostics; dry-run
+  manifest rendering (simulates `autoFromMemoryLimit`); and OCI bundle packaging
+  with media-type and size-limit enforcement. The web dashboard (Modules page)
+  offers a BuildModuleDialog with live validation, YAML editor, bundle download,
+  and cluster installation. API endpoints: `/modules/builder/{scaffold,validate,preview,export}` (#370).
+- **13 new top-steam-game modules (feature 015):** FiveM, Farming Simulator 25,
+  Euro Truck Simulator 2, Mount & Blade Bannerlord, tModLoader, Team Fortress 2,
+  BeamMP, Left 4 Dead 2, The Isle, ARK: Survival Evolved, Arma Reforger, Hell
+  Let Loose, and Squad. Gameplane publishes four Gameplane-owned container
+  images: `ghcr.io/valgulnecron/gameplane/fivem` (FiveM + txAdmin), `farming-simulator-25`
+  (Wine/Xvfb runner), `euro-truck-simulator-2` (Wine runner), and `beammp`
+  (BeamMP + non-crashing diagnostic idle). All modules are signed with Cosign
+  keyless signatures (#369).
+- **Install-time configuration (feature 006):** Two Helm values for zero post-deploy
+  configuration:
+  - **Helm-seeded OIDC role mappings:** `api.oidc.groupsClaim`, `api.oidc.defaultRole`,
+    and `api.oidc.roleMappings.{admin,operator,viewer}` seed a read-only "helm"
+    OIDC provider, so OIDC-only installs need no `bootstrap-admin` run. Dashboard
+    Settings → Authentication can override any role's group list (stored in
+    `helmOverride.roleMappings`); changes take effect on next login (no restart).
+    Reset via `DELETE /admin/config/auth/role-mappings/{role}`.
+  - **Default StorageClass for game-data PVCs:** `operator.gameDataStorage.storageClassName`
+    (Helm value) sets a cluster-wide default with precedence: GameServer >
+    GameTemplate > install-time > cluster default. Missing StorageClass surfaces
+    as `PVCProvisioningFailed` (recoverable) (#282).
+- **Share link expiry options (feature 017):** Removed the hard 90-day cap that
+  outlived long-running servers. Create requests now carry `expiresAt` (RFC3339
+  instant) or `neverExpires: true` (not both, not neither = 400 error). Dashboard
+  offers presets (15/30/60/90 days, No expiry) and custom date picker; 30 days
+  is pre-selected. Past instant dates are rejected. The deprecated `expiresIn`
+  field still works for one release (#392, #396).
+- **Console WebSocket robustness:** Fixed 403 errors when dashboard is reached
+  on non-default ports (e.g., `kubectl port-forward svc/gameplane-web 8088:80`)
+  by forwarding `$http_host` instead of `$host` in the nginx config. Added guard
+  on `send()` before socket open: input sent while CONNECTING is queued (max 500
+  items) and flushed on open; input after reconnect is dropped (no silent replay);
+  input after close is no-op. Queue tests verify behavior with fake sockets that
+  throw like real browsers (#416).
+- **Existing PVC for SQLite:** Helm `api.storage.existingClaim` allows installs
+  to point the API database to a pre-existing PersistentVolumeClaim, enabling
+  storage migration and lifecycle separation from the main Helm release (#390).
+- **REST and CLI console protocols:** Agent implementation for `rest` (generic HTTP
+  for games with HTTP admin APIs like FiveM txAdmin) and `cli` (local process
+  execution for PTY-only games like Terraria). Both are wired to console, players,
+  quiesce, lifecycle, and quick-action endpoints. The `rcon.protocol` enum is
+  now `source;telnet;websocket;battleye;satisfactory;palworld;nuclearoption;rest;cli;none` (#260, #369).
+- **Security audit remediation:** Multiple fixes from a comprehensive security
+  audit: share links are isolated by cluster; GameServer setting/image/service
+  account/environment/tunnel changes are permission-checked; Secret and ConfigMap
+  references must belong to the target server; optional network policies restrict
+  audit and telemetry services to API traffic; SteamCMD image pinned to a stable
+  version (#350, #285).
+- **CI hardening:** GitHub Actions workflow pins (100% to 40-hex SHAs with version
+  comments), least-privilege permissions, measured timeouts, Dependabot expansion
+  (Go modules, Dockerfiles, Actions), workflow-lint gates (actionlint + zizmor),
+  and an AI-powered two-workflow reviewer with split trust boundaries (#292).
+- **Design & visual polish:** HeroUI foundation and brand re-theme; Servers list
+  and Server Detail; console, logs, files, and mods tabs; backups and settings
+  pages; design alignment and visual regression testing (`test/e2e/design-vs-browser`)
+  against Pencil baselines (#348, #349, #364, #371, #374, #378).
+
+### Fixed
+
+- **web:** catalog tag filters now intersect instead of union (AND logic), so
+  selecting multiple tags shows only games matching all tags (#411).
+- **web:** vertical tab list no longer renders as an oval shape (#410).
+- **web:** console terminal no longer grows without bound horizontally when
+  receiving long lines (#409).
+- **operator:** migrated off the deprecated Fulcio certificate API (`fulcioroots.pb.go`),
+  which was sunset by sigstore; image signing now uses the current `tlog.sigstore.dev` endpoint (#287).
+
+### Changed
+
+- **Dependency updates:** Go modules (direct + indirect), web npm packages
+  (React, Vite, Playwright, TanStack Router/Query, Tailwind, HeroUI, Lucide,
+  Vitest, TypeScript ESLint), GitHub Actions, and container base images
+  (Node 24→26 bookworm-slim, Go 1.26→1.27 alpine, nginx 1.30→1.31, restic
+  0.18→0.19) bumped to latest stable releases; actionlint and zizmor pinned
+  for workflow linting (#261–#387, #399–#412).
 
 ## [0.2.0-beta.8] — 2026-08-22
 
@@ -707,6 +822,7 @@ testing. Not yet recommended for unattended production workloads — see
   API e2e failures.
 
 [Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.8...HEAD
+[0.3.0-rc.1]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.8...v0.3.0-rc.1
 [0.2.0-beta.8]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.7...v0.2.0-beta.8
 [0.2.0-beta.7]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.6...v0.2.0-beta.7
 [0.2.0-beta.6]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.5...v0.2.0-beta.6
