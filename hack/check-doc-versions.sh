@@ -16,11 +16,15 @@
 #   telemetry-receiver/README.md, docs/comparison-sources.md
 #
 # Allowlist Rules (OD-1, OD-14):
-#   A version string v?0\.[0-9]+\.[0-9]+-beta\.[0-9]+ passes if:
+#   A version string v?0\.[0-9]+\.[0-9]+-(beta|rc)\.[0-9]+ passes if:
 #   1. It matches the current appVersion (with or without leading 'v'), OR
 #   2. The line contains "(example version)", "(example)", or "(placeholder)", OR
 #   3. The line or ±2 lines contain "# Example:" or "<!-- Example -->", OR
 #   4. The line contains "<!-- doc-versions: historical -->" (OD-14)
+#
+#   Bare X.Y.Z versions (e.g. 0.3.0) are not matched: the audited docs list many
+#   v0.x.y dependency versions (docs/dependencies.md), so matching them needs a
+#   Gameplane-context rule. See specs/018-v0-3-release-readiness/OPEN-DECISIONS.md.
 #
 # Exit codes:
 #   0 = all version strings match current appVersion or are allowlisted
@@ -39,7 +43,7 @@ if [[ ! -f charts/gameplane/Chart.yaml ]] || [[ ! -r charts/gameplane/Chart.yaml
     exit 1
 fi
 
-# Extract appVersion from Chart.yaml (line 6: appVersion: "X.Y.Z-beta.N")
+# Extract appVersion from Chart.yaml (line 6: appVersion: "X.Y.Z" or "X.Y.Z-(beta|rc).N")
 # The regex extracts the quoted or unquoted version string
 current_version=$(sed -n '6p' charts/gameplane/Chart.yaml | sed 's/^appVersion:[[:space:]]*"\?//;s/"[[:space:]]*$//')
 
@@ -48,7 +52,7 @@ if [[ -z "$current_version" ]]; then
     exit 1
 fi
 
-# Normalize: appVersion in chart is unquoted (0.2.0-beta.8)
+# Normalize: appVersion in chart is unquoted (e.g. 0.2.0-beta.8 or 0.3.0)
 # We'll accept matches with or without leading 'v'
 current_version_pattern="(v)?${current_version//./\\.}"
 
@@ -91,7 +95,7 @@ for file in "${audited_files[@]}"; do
         continue
     fi
 
-    # Grep for version pattern v?0\.[0-9]+\.[0-9]+-beta\.[0-9]+
+    # Grep for version pattern v?0\.[0-9]+\.[0-9]+-(beta|rc)\.[0-9]+
     # -n includes line numbers
     while IFS= read -r line_data; do
         # Parse line_data format: "line_number:content"
@@ -100,7 +104,7 @@ for file in "${audited_files[@]}"; do
 
         # Extract all version matches on this line (non-greedy version literals)
         # Use sed to extract matches
-        version_matches=$(echo "$line_content" | grep -oE 'v?0\.[0-9]\.[0-9]-beta\.[0-9]+' || true)
+        version_matches=$(echo "$line_content" | grep -oE 'v?0\.[0-9]+\.[0-9]+-(beta|rc)\.[0-9]+' || true)
 
         if [[ -z "$version_matches" ]]; then
             continue
@@ -148,7 +152,7 @@ for file in "${audited_files[@]}"; do
                 version_errors+=("$file:$line_num: $match (current appVersion is $current_version)")
             fi
         done <<< "$version_matches"
-    done < <(grep -nE 'v?0\.[0-9]\.[0-9]-beta\.[0-9]+' "$file" || true)
+    done < <(grep -nE 'v?0\.[0-9]+\.[0-9]+-(beta|rc)\.[0-9]+' "$file" || true)
 done
 
 # Report results. Missing-file failures were already echoed as they were
