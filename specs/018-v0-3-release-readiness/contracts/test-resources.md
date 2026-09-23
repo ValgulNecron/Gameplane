@@ -36,8 +36,8 @@ A resource that can't be removed is itself a finding.
 | Operation | Allowed form |
 |---|---|
 | Node drain | `kubectl cordon` + Eviction of the `audit018-` pod only + `kubectl uncordon`. A full `kubectl drain` is not allowed. |
-| Node loss | Only with the maintainer's explicit run-time approval (OD-006). Otherwise the row is `blocked`, with eviction as the alternative. |
+| Node loss | Approved (OD-006): stop `k3s-agent` for a few minutes on a worker that holds no pre-existing stateful game server, then restart it. Record the node chosen, the window, and that pre-existing pods recovered. |
 | API restart | Allowed: the API is the system under test. Record it in `rounds.md`. |
 | Operator restart | Allowed. Record it in `rounds.md`. |
-| Audit-chain tamper test | Must not modify the real database. Run it against a **copy** of the database snapshot, using the API's `Verify` path in a throwaway pod or locally built binary. Alternatively, run it on `audit018-` rows only if the maintainer approves a live tamper (logged in OPEN-DECISIONS). |
+| Audit-chain tamper test | Live, on `audit018-` rows only (OD-008). Take a database snapshot first. Chain recovery follows OD-009. The test must not run until OD-009 is resolved. |
 | Login brute force | Only against `audit018-` users, and last in the round. |

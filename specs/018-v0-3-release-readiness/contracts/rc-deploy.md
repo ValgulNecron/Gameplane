@@ -38,6 +38,15 @@ helm upgrade <release> oci://ghcr.io/valgulnecron/charts/gameplane \
 - These must be left untouched unless the change is itself under test: module source, ingress host, storage, OIDC, and every other site-specific value.
 - After the deploy, `helm get values` minus the listed overrides must equal the baseline. Any other difference is a finding.
 
+## 2a. beta.8 baseline for the upgrade round (OD-005)
+
+1. Take a real DB snapshot, off-git.
+2. If kubelab's migration level is ahead of beta.8, uninstall kubelab's Gameplane release without deleting the CRDs or game PVCs, and reinstall `v0.2.0-beta.8` with a fresh API database. Otherwise run `helm upgrade` to beta.8 directly.
+3. Seed the `audit018-` state, upgrade to the RC, and verify.
+4. Restore the real database snapshot and re-verify the baseline.
+
+The exact commands and the reinstall's effect on pre-existing GameServers (they must stay running) are recorded in `rounds.md`. Any loss is an S1 finding.
+
 ## 3. Roll back (tested once, in the upgrade round)
 
 ```sh

@@ -56,7 +56,7 @@ Each audit round runs against a public release candidate (`v0.3.0-rc.N`) publish
 
 No violations, so Complexity Tracking stays empty.
 
-**Post-design re-check (after Phase 1)**: PASS. The contracts add no product code, no new abstractions, and no lint or test weakening. Two items are left open for the maintainer, not settled here: OD-005 (upgrade baseline if kubelab runs a build newer than beta.8), OD-006 (real node-loss test on a long-lived cluster), OD-007 (kubelab can't be reached from the audit machine) and OD-008 (live versus copy-based audit tamper test). See [OPEN-DECISIONS.md](OPEN-DECISIONS.md).
+**Post-design re-check (after Phase 1)**: PASS. The contracts add no product code, no new abstractions, and no lint or test weakening. The maintainer resolved OD-005 to OD-008 on 2026-09-23: reinstall at beta.8 for the upgrade test, a real node-loss test, networking fixed by the maintainer, and a live tamper on `audit018-` rows. OD-009, how to recover the audit chain after the live tamper, is still open and gates only the tamper test. See [OPEN-DECISIONS.md](OPEN-DECISIONS.md).
 
 ## Project Structure
 

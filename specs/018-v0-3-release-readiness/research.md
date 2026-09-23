@@ -63,7 +63,7 @@ Phase 0 of the plan. On 2026-09-23 four read-only scouts gathered facts on the f
   5. Test rollback with `helm rollback <release> <rev>` plus a database-snapshot restore **if** the upgrade applied new migrations, since `api/internal/db/migrations/` is forward-only.
   6. Write the documented rollback procedure into `docs/install.md`. It's missing today, and that gap is seeded as a finding.
 
-  The live **beta.8 → RC** step requires kubelab to be at public `v0.2.0-beta.8` first. If kubelab's current side-loaded build carries newer migrations than beta.8, moving it back would be a downgrade. That case is **OD-005**, left to the maintainer. CI's `e2e-upgrade` baseline moves from `0.2.0-beta.5` to `0.2.0-beta.8` (`deploy/kind/upgrade.sh:36`, `.github/workflows/ci.yaml:970`) whatever the answer.
+  The live **beta.8 → RC** step requires kubelab to be at public `v0.2.0-beta.8` first. If kubelab's current side-loaded build carries newer migrations than beta.8, moving it back would be a downgrade. That case is **OD-005**, resolved as option (b): snapshot the real database, reinstall at public beta.8 with a fresh database, seed, upgrade, verify, then restore the real database. CI's `e2e-upgrade` baseline moves from `0.2.0-beta.5` to `0.2.0-beta.8` (`deploy/kind/upgrade.sh:36`, `.github/workflows/ci.yaml:970`) whatever the answer.
 - **Rationale**: FR-015 requires the upgrade from the last beta to be verified live. The existing CI test (`test/e2e/upgrade_e2e_test.go`) covers only kind and beta.5.
 - **Alternatives considered**: Relying only on CI's kind upgrade test, which FR-010 rules out. Testing rollback without a database snapshot would lose data if migrations ran.
 
@@ -78,7 +78,7 @@ Phase 0 of the plan. On 2026-09-23 four read-only scouts gathered facts on the f
 - **Decision**:
   - **Scheduling**: create `audit018-` servers and record which node each lands on. Use pod affinity or nodeSelector through the API if the CRD exposes it; otherwise observe.
   - **Drain**: `kubectl cordon <node>`, then send an Eviction for **only** the audit pod, observe the reschedule or wait state, then `kubectl uncordon`. A full `kubectl drain` evicts pre-existing pods, so it isn't used.
-  - **Node loss**: a real node outage affects every workload on that node. It runs only with the maintainer's explicit approval, at run time, on a worker that holds no pre-existing stateful game server. Otherwise the row is recorded as blocked, with the eviction test as its closest alternative (**OD-006**).
+  - **Node loss**: a real node outage affects every workload on that node. It runs only with the maintainer's explicit approval, at run time, on a worker that holds no pre-existing stateful game server. **OD-006** approved this without a further prompt: stop `k3s-agent` for a few minutes on a worker that holds no pre-existing stateful game server, observe, then restart it and record recovery of the pre-existing workloads.
 - **Rationale**: FR-011 has to be satisfied without breaking FR-009.
 - **Alternatives considered**: A `NoExecute` taint. It evicts every pod without a matching toleration, including pre-existing ones.
 
