@@ -5,6 +5,8 @@
 *.out
 *.prof
 coverage.*
+# Audit component-review coverage table (spec 018 contracts/audit-records.md), not test coverage output
+!specs/*/audit/coverage.md
 coverage/
 vendor/
 operator/bin/
