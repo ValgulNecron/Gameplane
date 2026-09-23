@@ -56,7 +56,7 @@ Each audit round runs against a public release candidate (`v0.3.0-rc.N`) publish
 
 No violations, so Complexity Tracking stays empty.
 
-**Post-design re-check (after Phase 1)**: PASS. The contracts add no product code, no new abstractions, and no lint or test weakening. The maintainer resolved OD-005 to OD-008 on 2026-09-23: reinstall at beta.8 for the upgrade test, a real node-loss test, networking fixed by the maintainer, and a live tamper on `audit018-` rows. OD-009, how to recover the audit chain after the live tamper, is still open and gates only the tamper test. See [OPEN-DECISIONS.md](OPEN-DECISIONS.md).
+**Post-design re-check (after Phase 1)**: PASS. The contracts add no product code, no new abstractions, and no lint or test weakening. The maintainer resolved OD-005 to OD-008 on 2026-09-23: reinstall at beta.8 for the upgrade test, a real node-loss test, networking fixed by the maintainer, and a live tamper on `audit018-` rows. OD-009 was resolved the same day: a database snapshot and restore around each of the three tamper variants. See [OPEN-DECISIONS.md](OPEN-DECISIONS.md).
 
 ## Project Structure
 

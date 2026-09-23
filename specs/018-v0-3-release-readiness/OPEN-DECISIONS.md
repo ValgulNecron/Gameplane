@@ -69,7 +69,11 @@ FR-008 needs an active attempt to tamper with the audit log. The plan's default 
 
 Question: is the copy-based test acceptable as the "active violation attempt"? Or do you want a live tamper, in which case how should the broken chain be recovered afterwards?
 
-## OD-009: Recovering the audit chain after the live tamper test (OPEN, 2026-09-23)
+## OD-009: Recovering the audit chain after the live tamper test — RESOLVED 2026-09-23
+
+Decision: option (a). Take a database snapshot right before each tamper and restore it straight after, then confirm `Verify` is ok again. Scope: all three tamper types, each on `audit018-` rows: UPDATE a row, DELETE a middle row, and truncate the tail. Audit events written between the snapshot and the restore are lost, so run the test in a quiet window with no other audit activity going on. Recorded in contracts/test-resources.md.
+
+Original question:
 
 OD-008 chose a live tamper. Once an `audit018-` row in kubelab's real `audit_events` table is edited, `Verify` reports a break from that row onwards. The chain design keeps a checkpoint and a head anchor (`api/internal/audit/audit.go:263-296`), but no documented re-anchoring procedure exists.
 
@@ -81,4 +85,3 @@ Options, for the maintainer to choose:
 
 Also: is DELETE / tail-truncation in scope for the live test, or UPDATE only?
 
-The tamper test waits until this is answered.

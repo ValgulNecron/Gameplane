@@ -39,5 +39,5 @@ A resource that can't be removed is itself a finding.
 | Node loss | Approved (OD-006): stop `k3s-agent` for a few minutes on a worker that holds no pre-existing stateful game server, then restart it. Record the node chosen, the window, and that pre-existing pods recovered. |
 | API restart | Allowed: the API is the system under test. Record it in `rounds.md`. |
 | Operator restart | Allowed. Record it in `rounds.md`. |
-| Audit-chain tamper test | Live, on `audit018-` rows only (OD-008). Take a database snapshot first. Chain recovery follows OD-009. The test must not run until OD-009 is resolved. |
+| Audit-chain tamper test | Live, on `audit018-` rows only (OD-008). Three variants: UPDATE a row, DELETE a middle row, truncate the tail. Before **each** variant, scale the API to 0 and snapshot the database. Scale it back up, tamper, and record `Verify` detecting the break. Then scale to 0, restore the snapshot, scale up, and check `Verify` is ok (OD-009). Run in a quiet window: audit events written between snapshot and restore are lost. |
 | Login brute force | Only against `audit018-` users, and last in the round. |
