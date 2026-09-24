@@ -31,10 +31,10 @@ description: "Task list for the v0.3 release readiness audit"
 
 **Purpose**: Create the audit record skeleton and confirm the environment
 
-- [ ] T001 Create the audit record skeleton, using the exact table headers from contracts/audit-records.md: `audit/release-criteria.md`, `audit/kubelab-baseline.md`, `audit/inventory.md` (one empty `## <Area>` section each for WEB, API, CRD, AGT, AUX, HELM, MOD, UPG, NODE, SEC), `audit/coverage.md`, `audit/findings.md`, `audit/rounds.md` (with a `## rc.0` section), `audit/report.md` (section headings only, in contract order), `audit/procedures/.gitkeep`, `audit/evidence/.gitkeep`
-- [ ] T002 [P] Run `git submodule update --init modules`. List every `modules/*/module.yaml` with its console/RCON protocol family and join-protocol family, which defines the module **category** (research R10). Write the list to `audit/evidence/rc.0/module-categories.md`
-- [ ] T003 [P] Create the off-git snapshot directory `~/gameplane-audit-018/db-snapshots/` with mode `700`. Record the path, and only the path, under `## rc.0` in `audit/rounds.md`
-- [ ] T004 [P] Check kubelab connectivity (OD-007) with `getent hosts kubelab-api && kubectl get nodes -o wide`, and record the result under `## rc.0` in `audit/rounds.md`. If the check fails, mark every live task (T013–T015, Phase 3 run tasks, T045–T049, Phase 6) as waiting on OD-007 and continue with the non-live tasks
+- [X] T001 Create the audit record skeleton, using the exact table headers from contracts/audit-records.md: `audit/release-criteria.md`, `audit/kubelab-baseline.md`, `audit/inventory.md` (one empty `## <Area>` section each for WEB, API, CRD, AGT, AUX, HELM, MOD, UPG, NODE, SEC), `audit/coverage.md`, `audit/findings.md`, `audit/rounds.md` (with a `## rc.0` section), `audit/report.md` (section headings only, in contract order), `audit/procedures/.gitkeep`, `audit/evidence/.gitkeep`
+- [X] T002 [P] Run `git submodule update --init modules`. List every `modules/*/module.yaml` with its console/RCON protocol family and join-protocol family, which defines the module **category** (research R10). Write the list to `audit/evidence/rc.0/module-categories.md`
+- [X] T003 [P] Create the off-git snapshot directory `~/gameplane-audit-018/db-snapshots/` with mode `700`. Record the path, and only the path, under `## rc.0` in `audit/rounds.md`
+- [X] T004 [P] Check kubelab connectivity (OD-007) with `getent hosts kubelab-api && kubectl get nodes -o wide`, and record the result under `## rc.0` in `audit/rounds.md`. If the check fails, mark every live task (T013–T015, Phase 3 run tasks, T045–T049, Phase 6) as waiting on OD-007 and continue with the non-live tasks
 
 ---
 
@@ -44,7 +44,7 @@ description: "Task list for the v0.3 release readiness audit"
 
 **⚠️ CRITICAL**: No live inventory run (US1/US2 live rows/US4) may start until T013–T015 complete. The component reviews (US2 code-review tasks) only need T005 to T011.
 
-- [ ] T005 Write `audit/release-criteria.md` with RC-01 to RC-08 in the columns `| ID | Criterion | Source | Evidence | Met |`. Every `Met` starts as `pending`. Criteria, verbatim from data-model.md:
+- [X] T005 Write `audit/release-criteria.md` with RC-01 to RC-08 in the columns `| ID | Criterion | Source | Evidence | Met |`. Every `Met` starts as `pending`. Criteria, verbatim from data-model.md:
   - RC-01: every inventory row has an outcome, zero rows `fail`, and every `blocked` row names its prerequisite and is listed as not live-verified (SC-001)
   - RC-02: every component has a `complete` review record (SC-002)
   - RC-03: zero findings in `open`, `fixing` or `fixed-unverified` (SC-003, SC-004)
@@ -55,15 +55,15 @@ description: "Task list for the v0.3 release readiness audit"
   - RC-08: CI is green on the tagged commit (FR-017)
 
   Add an empty `## Change log`. Commit this file on its own **before** any live task (FR-015)
-- [ ] T006 [P] Write `audit/tools/snapshot.sh`, a read-only script that takes an output directory. It must capture everything listed in contracts/test-resources.md § Baseline snapshot:
+- [X] T006 [P] Write `audit/tools/snapshot.sh`, a read-only script that takes an output directory. It must capture everything listed in contracts/test-resources.md § Baseline snapshot:
   - name, namespace, UID, `metadata.generation` and `status.phase` for GameServer, GameTemplate, Backup, BackupSchedule, Restore, Module, ModuleSource, NetworkCapture and Cluster across all namespaces
   - PVCs in the games and API namespaces
   - nodes
   - `helm list -A`, plus `helm get values` for the Gameplane release, with any key matching `(?i)secret|token|password|key|dsn` replaced by `<redacted>`
 
   Output one JSON file per scope. It must use only `kubectl get` and `helm get`/`helm list`
-- [ ] T007 [P] Write `audit/tools/snapshot-diff.sh <before-dir> <after-dir>`. It skips objects whose name starts with `audit018-`, status-only fields, and the Gameplane Helm release with its own Deployments. It exits non-zero on any UID or `generation` mismatch, and prints the mismatches
-- [ ] T008 [P] Write `audit/tools/cleanup-check.sh`. It lists every remaining `audit018-` object: `kubectl get gameservers,backups,restores,backupschedules,networkcaptures,modulesources,modules,pvc -A -o name | grep audit018-`. It exits non-zero if any remain
+- [X] T007 [P] Write `audit/tools/snapshot-diff.sh <before-dir> <after-dir>`. It skips objects whose name starts with `audit018-`, status-only fields, and the Gameplane Helm release with its own Deployments. It exits non-zero on any UID or `generation` mismatch, and prints the mismatches
+- [X] T008 [P] Write `audit/tools/cleanup-check.sh`. It lists every remaining `audit018-` object: `kubectl get gameservers,backups,restores,backupschedules,networkcaptures,modulesources,modules,pvc -A -o name | grep audit018-`. It exits non-zero if any remain
 - [ ] T009 Import the known bugs into `audit/findings.md` with status `imported` (FR-006, research R11). One `F-NNN` row per source, plus a `### F-NNN` subsection with Repro, Expected, Actual and Evidence:
   - issues #414, #377, #376, #375, #373, #306
   - merged fix PRs #416, #411, #410, #409, #396, #350, #327
@@ -79,7 +79,7 @@ description: "Task list for the v0.3 release readiness audit"
   - (d) the CI upgrade baseline is still `0.2.0-beta.5` in `deploy/kind/upgrade.sh:36`, `.github/workflows/ci.yaml:968-970` and `.claude/agents/ci-triager.md:65`. S3
   - (e) the `CLAUDE.md` repository map says "14 Go modules" and omits `gp-module/`. S4
 - [ ] T012 Capture the baseline: run `audit/tools/snapshot.sh audit/evidence/baseline/`, then write `audit/kubelab-baseline.md` with the chart version, the image refs in use, the redacted `helm get values`, the module source, the ingress host and the API namespace. Record the API user list, role list, module-source list, auth-provider names and notification-sink names, fetched with a single admin login. Also record the API DB's highest applied migration and compare it with the highest migration file present at tag `v0.2.0-beta.8` (`git ls-tree v0.2.0-beta.8 api/internal/db/migrations/`). This comparison decides the OD-005 path used in T061. Check with `grep -iE 'secret|token|password' audit/kubelab-baseline.md`: it must show key names only
-- [ ] T013 ⛔ approval. Prepare rc.1:
+- [X] T013 ⛔ approval. Prepare rc.1 (done 2026-09-23: PR #423; RC-TAG-1 logged, waiting on merge and tag approval):
   1. On branch `chore/018-rc1-changelog` off `master`, add a `## [0.3.0-rc.1]` section to `CHANGELOG.md` that summarises the unreleased entries.
   2. Open a PR with labels `type: chore` and `area: specs`.
   3. Log `RC-TAG-1: pending` in `specs/018-v0-3-release-readiness/OPEN-DECISIONS.md`, with the commit SHA to tag once the PR is merged and CI is green.
@@ -116,8 +116,8 @@ description: "Task list for the v0.3 release readiness audit"
 - [ ] T020 [P] [US1] Enumerate the auxiliary components (sentinel wake-on-connect, capture-sidecar, tunnel frp/tailscale/playit, audit-syslog-bridge, telemetry-receiver, mcp-server) and how each is enabled in `charts/gameplane/values.yaml`. Write `audit/procedures/aux.md` and `audit/evidence/rc.0/inventory-AUX.md` (`INV-AUX-NNN`). Where a component needs something kubelab lacks (an external syslog collector, a tunnel account, a playit key), draft the row as a `blocked` candidate that names the prerequisite and the closest alternative
 - [ ] T021 [P] [US1] Enumerate the install options from the top-level toggles in `charts/gameplane/values.yaml`: OIDC, audit webhook/S3/syslog, telemetry, clusterOps, capture, mcpServer, networkPolicies, podSecurity, default and upload module sources, serviceMonitors, prometheusRules, grafanaDashboards, `api.storage.existingClaim`. Write `audit/procedures/helm.md` and `audit/evidence/rc.0/inventory-HELM.md` (`INV-HELM-NNN`). Toggling an option on kubelab counts as an intended setting change and must be listed per round in `audit/rounds.md`. Options needing an external IdP or S3 are `blocked` candidates with a named prerequisite
 - [ ] T022 [P] [US1] Enumerate the game-module rows from `audit/evidence/rc.0/module-categories.md` (T002): one row per module category. Each row runs the full cycle create → start → protocol join (use the `test/e2e` probe for that game where one exists) → console command → backup → restore → delete, on one representative module. Use `minecraft-java` for its category. Write `audit/procedures/modules.md` and `audit/evidence/rc.0/inventory-MOD.md` (`INV-MOD-NNN`). A module too heavy for kubelab's node resources is a `blocked` candidate with prerequisite "node memory/CPU"
-- [ ] T023 [US1] Merge the drafts from T016–T022 into the matching `## <Area>` sections of `audit/inventory.md`, set every `Outcome` to `untested`, and fill the `CI test` column by matching each row to the `test/e2e/*_e2e_test.go` function that covers it (`none` if there isn't one). Check that the row counts per area equal the draft counts
-- [ ] T024 [US1] Tier-up completeness review (`sonnet`): compare `audit/inventory.md` against `web/src/router/tree.tsx`, `api/cmd/main.go`, `operator/api/v1alpha1/`, `agent/internal/` and `charts/gameplane/values.yaml`. Add any capability that was missed, listing each addition in `audit/evidence/rc.0/inventory-review.md`
+- [ ] T023 [US1] (merged 2026-09-24, 502 rows. Defect: the INV-UPG and INV-NODE rows sit inside the `## SEC` table and must be moved under their own headings. The haiku-drafted procedure steps from T016–T022, T060 and T064 have not been checked for correctness; `procedures/security.md` is known-bad) Merge the drafts from T016–T022 into the matching `## <Area>` sections of `audit/inventory.md`, set every `Outcome` to `untested`, and fill the `CI test` column by matching each row to the `test/e2e/*_e2e_test.go` function that covers it (`none` if there isn't one). Check that the row counts per area equal the draft counts
+- [X] T024 [US1] (done 2026-09-24: 7 rows added, 1 withdrawn, 51 Source lines fixed; see `audit/evidence/rc.0/inventory-review.md`) Tier-up completeness review (`sonnet`): compare `audit/inventory.md` against `web/src/router/tree.tsx`, `api/cmd/main.go`, `operator/api/v1alpha1/`, `agent/internal/` and `charts/gameplane/values.yaml`. Add any capability that was missed, listing each addition in `audit/evidence/rc.0/inventory-review.md`
 
 ### Live execution on rc.N (needs T015). Each writes only its own evidence folders
 
@@ -166,7 +166,7 @@ description: "Task list for the v0.3 release readiness audit"
 
 ### Security boundaries: active violation attempts (FR-008, SC-007; need T015)
 
-- [ ] T046 [US2] Write `audit/procedures/security.md` with one `### <slug>` per boundary, and add the `INV-SEC-NNN` rows to `audit/inventory.md`. The six boundaries:
+- [ ] T046 [US2] (drafted 2026-09-24 but defective and unreviewed; DO NOT RUN, see the banner in `audit/procedures/security.md`) Write `audit/procedures/security.md` with one `### <slug>` per boundary, and add the `INV-SEC-NNN` rows to `audit/inventory.md`. The six boundaries:
   - (a) login privacy: `api/internal/auth/local.go:105-173`, `/auth/providers`, and identical errors for an unknown user and a wrong password
   - (b) RBAC: `api/internal/rbac/rbac.go:54-254`. Viewer write → 403, the collaborator-only paths, cross-namespace access
   - (c) netguard: `netguard/netguard.go:77-145`. `audit018-` ModuleSource at `http://169.254.169.254/…` and `metadata.google.internal`, and an agent mod fetch to CGNAT `100.64.0.0/10`
@@ -201,10 +201,10 @@ description: "Task list for the v0.3 release readiness audit"
   - Close items as `not-a-defect` only with a written justification.
   - Close items as `out-of-scope` only for capabilities `docs/roadmap.md` places after v0.3 (for example "Postgres driver" `docs/roadmap.md:228-234` or "Explicitly out of scope for v1"), citing the line.
   - Write the fix plan to `audit/evidence/rc.1/fix-plan.md`: groups of findings that share a component become one branch each.
-- [ ] T051 [P] [US3] Fix F-(d), the upgrade baseline, on branch `fix/018-upgrade-baseline`. Set `FROM_VERSION` default to `0.2.0-beta.8` in `deploy/kind/upgrade.sh:36`, `GAMEPLANE_UPGRADE_FROM: 0.2.0-beta.8` and its comment in `.github/workflows/ci.yaml:968-970`, and the text in `.claude/agents/ci-triager.md:65`. Open a PR labelled `type: ci` and `area: e2e` via the REST API (CLAUDE.md 14), and set the finding to `fixing` with the PR number
-- [ ] T052 [P] [US3] Fix F-(a), the doc-version checker, on branch `fix/018-doc-versions-checker`. Change `hack/check-doc-versions.sh` so it recognises `X.Y.Z` and `X.Y.Z-(beta|rc).N`, using the multi-digit `[0-9]+` everywhere, including lines 94, 103 and 151. It must still accept historical-marked lines and the current `appVersion`. Add a fixture case under the checker's existing test harness if one exists, otherwise log the test gap in `OPEN-DECISIONS.md` (tests need sign-off). Open a PR labelled `type: fix` and `area: shared`
-- [ ] T053 [P] [US3] Fix F-(e), the repo map, on branch `docs/018-claude-md-gp-module`. Add `gp-module/` to the repository map in `CLAUDE.md` and correct the Go-module count to match `go.work`. Open a PR labelled `type: docs` and `area: shared`
-- [ ] T054 [US3] Fix F-(c), the module source ref: log in `OPEN-DECISIONS.md` that `charts/gameplane/values.yaml:473` `ref: v0.2.0-beta.6` needs a `gameplane-module` tag tested with v0.3.0. Once the maintainer names the tag, bump the ref on branch `fix/018-module-source-ref` and open a PR labelled `type: fix` and `area: chart`
+- [ ] T051 [P] [US3] (PR #422 open 2026-09-23; finding status update waits on T009–T011) Fix F-(d), the upgrade baseline, on branch `fix/018-upgrade-baseline`. Set `FROM_VERSION` default to `0.2.0-beta.8` in `deploy/kind/upgrade.sh:36`, `GAMEPLANE_UPGRADE_FROM: 0.2.0-beta.8` and its comment in `.github/workflows/ci.yaml:968-970`, and the text in `.claude/agents/ci-triager.md:65`. Open a PR labelled `type: ci` and `area: e2e` via the REST API (CLAUDE.md 14), and set the finding to `fixing` with the PR number
+- [ ] T052 [P] [US3] (PR #420 open 2026-09-23 with multi-digit and `-rc.N` only; bare `X.Y.Z` is OD-011, test gap is OD-012) Fix F-(a), the doc-version checker, on branch `fix/018-doc-versions-checker`. Change `hack/check-doc-versions.sh` so it recognises `X.Y.Z` and `X.Y.Z-(beta|rc).N`, using the multi-digit `[0-9]+` everywhere, including lines 94, 103 and 151. It must still accept historical-marked lines and the current `appVersion`. Add a fixture case under the checker's existing test harness if one exists, otherwise log the test gap in `OPEN-DECISIONS.md` (tests need sign-off). Open a PR labelled `type: fix` and `area: shared`
+- [ ] T053 [P] [US3] (PR #421 open 2026-09-23; finding status update waits on T009–T011) Fix F-(e), the repo map, on branch `docs/018-claude-md-gp-module`. Add `gp-module/` to the repository map in `CLAUDE.md` and correct the Go-module count to match `go.work`. Open a PR labelled `type: docs` and `area: shared`
+- [ ] T054 [US3] (logged 2026-09-23 in OPEN-DECISIONS.md § T054; the bump waits on the maintainer naming the tag) Fix F-(c), the module source ref: log in `OPEN-DECISIONS.md` that `charts/gameplane/values.yaml:473` `ref: v0.2.0-beta.6` needs a `gameplane-module` tag tested with v0.3.0. Once the maintainer names the tag, bump the ref on branch `fix/018-module-source-ref` and open a PR labelled `type: fix` and `area: chart`
 - [ ] T055 [US3] For each remaining `open` finding, in the order of `fix-plan.md`, run a fix wave in a `Workflow`:
   - `haiku` makes the fix from a scout brief (CLAUDE.md 18), escalating a tier only on demonstrated failure; review runs one tier up.
   - Branch: `fix/018-F-NNN`.

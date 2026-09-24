@@ -6,7 +6,7 @@ Written before round 0 (FR-015). Columns are fixed by [contracts/audit-records.m
 |----|-----------|--------|----------|-----|
 | RC-01 | Every inventory row has an outcome, zero rows `fail`, and every `blocked` row names its prerequisite and is listed as not live-verified | SC-001 | [report.md#totals](report.md#totals), [report.md#not-live-verified](report.md#not-live-verified) | pending |
 | RC-02 | Every component has a `complete` review record | SC-002 | [coverage.md](coverage.md), [report.md#by-component](report.md#by-component) | pending |
-| RC-03 | Zero findings in `open`, `fixing` or `fixed-unverified` | SC-003, SC-004 | [report.md#open-findings](report.md#open-findings), [findings.md](findings.md) | pending |
+| RC-03 | Zero findings in `imported`, `open`, `fixing` or `fixed-unverified` | SC-003, SC-004 | [report.md#open-findings](report.md#open-findings), [findings.md](findings.md) | pending |
 | RC-04 | Each FR-008 boundary has at least one active violation attempt recorded | SC-007 | [inventory.md#sec](inventory.md#sec) | pending |
 | RC-05 | Live beta.8 → RC upgrade with zero data loss and zero lost accounts | SC-005, OD-005 | [inventory.md#upg](inventory.md#upg) | pending |
 | RC-06 | The baseline snapshot matches the post-cleanup snapshot, with zero `audit018-` resources remaining | SC-006 | [rounds.md](rounds.md), [kubelab-baseline.md](kubelab-baseline.md) | pending |
@@ -14,3 +14,5 @@ Written before round 0 (FR-015). Columns are fixed by [contracts/audit-records.m
 | RC-08 | CI is green on the tagged commit | FR-017 | [rounds.md#v030](rounds.md#v030) | pending |
 
 ## Change log
+
+- 2026-09-24: RC-03 now also counts `imported` findings as blocking, matching data-model.md's blocking statuses. Maintainer decision, OD-010 in [../OPEN-DECISIONS.md](../OPEN-DECISIONS.md#od-010-rc-03-leaves-out-the-imported-status--resolved-2026-09-24).
