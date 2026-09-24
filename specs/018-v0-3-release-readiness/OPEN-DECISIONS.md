@@ -93,14 +93,16 @@ Also: is DELETE / tail-truncation in scope for the live test, or UPDATE only?
 
 The items below are open. Work that doesn't depend on them carries on.
 
-### RC-TAG-1: publish `v0.3.0-rc.1` — pending
+### RC-TAG-1: publish `v0.3.0-rc.1` — APPROVED and TAGGED 2026-09-24
+
+The maintainer approved tagging `c44cb179` (AskUserQuestion, 2026-09-24). `v0.3.0-rc.1` was created (`git tag -a`, OD-013) and pushed. T014 verification of `release.yaml` is recorded under `## rc.1` in `audit/rounds.md`.
 
 - **Waiting on**: the rc.1 CHANGELOG PR [#423](https://github.com/ValgulNecron/Gameplane/pull/423) (T013, branch `chore/018-rc1-changelog`) being merged, CI green on the merge commit, then your approval to tag (FR-019).
 - **Other open 018 PRs, which need your review before merge**:
   - [#420](https://github.com/ValgulNecron/Gameplane/pull/420): doc-version checker (T052, F-026)
   - [#421](https://github.com/ValgulNecron/Gameplane/pull/421): CLAUDE.md gp-module (T053, F-030)
   - [#422](https://github.com/ValgulNecron/Gameplane/pull/422): upgrade baseline beta.8 (T051, F-029)
-- **SHA to tag**: #420, #421 and #423 merged on 2026-09-24 (#423 → `b386103e`). #422 merged too, so the target is its merge commit **`c44cb179`** (tip of `master`), which includes all four. Tag it only after CI on that commit is green and the maintainer approves.
+- **SHA to tag**: #420, #421 and #423 merged on 2026-09-24 (#423 → `b386103e`). #422 merged too, so the target is its merge commit **`c44cb179`** (tip of `master`), which includes all four. CI on `c44cb179` is green (run 36032816629: 74/74 jobs pass after one re-run of `e2e api-auth / arm64`, which had failed on a transient proxy.golang.org download error; CodeQL passes). Waiting on the maintainer's approval to tag.
 - **Command after approval**: `git tag -a v0.3.0-rc.1 <sha> -m "v0.3.0-rc.1" && git push origin v0.3.0-rc.1` (annotated, unsigned, per OD-013).
 
 ### OD-010: RC-03 leaves out the `imported` status — RESOLVED 2026-09-24
