@@ -617,9 +617,20 @@ func bodyLimit(maxBytes int64) func(http.Handler) http.Handler {
 
 // isUploadPath matches the routes that legitimately accept large bodies.
 // Keep the list tight — anything else should be capped by bodyLimit.
+// files/write and mods/upload must be exempt too: bodyLimit's
+// MaxBytesReader is authoritative (main.go's bodyLimit doc comment), so
+// leaving them capped at 1 MiB here makes the proxy's own 64 MiB
+// (httpProxy default, files/write) and 512 MiB (mods/upload) ceilings
+// dead code — see F-075.
 func isUploadPath(path string) bool {
-	// /servers/{name}/files/upload
-	return strings.HasSuffix(path, "/files/upload") && strings.HasPrefix(path, "/servers/")
+	if !strings.HasPrefix(path, "/servers/") {
+		return false
+	}
+	// /servers/{name}/files/upload, /servers/{name}/files/write,
+	// /servers/{name}/mods/upload
+	return strings.HasSuffix(path, "/files/upload") ||
+		strings.HasSuffix(path, "/files/write") ||
+		strings.HasSuffix(path, "/mods/upload")
 }
 
 // secureHeaders sets hardening response headers on every API reply. The
@@ -660,19 +671,21 @@ func mutationRateLimit(next http.Handler) http.Handler {
 }
 
 // requestTimeout wraps chi's middleware.Timeout(d) but exempts streaming
-// requests from the deadline. chi.Timeout races the handler against a
-// timer and, on expiry, unconditionally calls w.WriteHeader(504) in a
-// deferred func — fine for a normal request/response route (real DoS
-// protection), but wrong for a connection that's *supposed* to stay open
-// past d: the WebSocket routes (ws.Mount) and the /events SSE feed
-// (handlers.MountEvents) both stream off req.Context() indefinitely, so
+// and large-transfer requests from the deadline. chi.Timeout races the
+// handler against a timer and, on expiry, unconditionally calls
+// w.WriteHeader(504) in a deferred func — fine for a normal
+// request/response route (real DoS protection), but wrong for a
+// connection that's *supposed* to stay open past d: the WebSocket routes
+// (ws.Mount), the /events SSE feed (handlers.MountEvents), and the
+// file/log/capture download and upload proxies (isLargeTransferPath) all
+// stream off req.Context() for as long as the transfer takes, so
 // chi.Timeout would force-close every one of them at d regardless of
-// whether they're still actively serving data, and then log a
+// whether they're still actively serving data (F-074), and then log a
 // "superfluous response.WriteHeader call" once the real handler's next
 // write lands after the deadline already fired. nginx in front of this
-// already gives SSE/WS a much longer read timeout, so the app-layer cap
-// is simply the wrong layer for these routes — they get no deadline here
-// at all, same as before chi.Timeout was ever wired in.
+// already gives these routes a much longer read timeout, so the
+// app-layer cap is simply the wrong layer for them — they get no
+// deadline here at all, same as before chi.Timeout was ever wired in.
 func requestTimeout(d time.Duration) func(http.Handler) http.Handler {
 	timeoutMW := middleware.Timeout(d)
 	return func(next http.Handler) http.Handler {
@@ -696,5 +709,34 @@ func isStreamingRequest(req *http.Request) bool {
 	if strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
 		return true
 	}
-	return req.Method == http.MethodGet && req.URL.Path == "/events"
+	if req.Method == http.MethodGet && req.URL.Path == "/events" {
+		return true
+	}
+	return isLargeTransferPath(req.Method, req.URL.Path)
+}
+
+// isLargeTransferPath reports whether req is one of the file/log/capture
+// download or upload proxies, or the audit export — routes whose
+// duration is bounded by client bandwidth, not app logic, so the 60s
+// app-wide DoS timeout is the wrong layer for them (see F-074). These
+// share req.Context() with the agent-proxy io.Copy in ws/dialer.go and
+// the capture/audit download paths, so cutting the context here
+// truncates an in-flight transfer instead of just refusing a slow
+// request up front.
+func isLargeTransferPath(method, path string) bool {
+	if method == http.MethodGet {
+		if path == "/admin/audit/export" {
+			return true
+		}
+		if !strings.HasPrefix(path, "/servers/") {
+			return false
+		}
+		return strings.HasSuffix(path, "/files/download") ||
+			strings.HasSuffix(path, "/logs/download") ||
+			strings.HasSuffix(path, ":capture-file")
+	}
+	if method == http.MethodPost && strings.HasPrefix(path, "/servers/") {
+		return strings.HasSuffix(path, "/files/upload")
+	}
+	return false
 }

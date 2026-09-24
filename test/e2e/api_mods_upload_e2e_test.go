@@ -52,7 +52,11 @@ func TestAPI_ModUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("form file: %v", err)
 	}
-	if _, err := fw.Write([]byte("uploaded by gameplane e2e")); err != nil {
+	// F-075 regression: the payload must exceed the old global 1 MiB
+	// bodyLimit so this test only passes once /mods/upload is correctly
+	// exempted and can use its declared 512 MiB ceiling.
+	modPayload := bytes.Repeat([]byte("gameplane-e2e-mod-upload-chunk-"), 100000) // ~3.1 MiB
+	if _, err := fw.Write(modPayload); err != nil {
 		t.Fatalf("write part: %v", err)
 	}
 	if err := mw.Close(); err != nil {

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -165,6 +166,66 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	}
 	if got := string(readBody); got != payload {
 		t.Errorf("/files/read body=%q want %q", got, payload)
+	}
+
+	// F-074 regression: a download that takes longer than the API's 60s
+	// app-wide request-timeout must not be cut off. Seed a 200 MiB file
+	// directly on the PVC (the same method as the finding's own repro —
+	// evidence/review-api/verification.md#c-api-01 step 4 — since this
+	// needs to exceed kernel TCP buffer sizes to force real backpressure,
+	// well past what /files/write's 64 MiB cap would allow), then
+	// download it while pacing our reads well below the file's size, so
+	// the transfer is still in flight past 60s. Before the fix, chi's
+	// middleware.Timeout cancels req.Context() at 60s, the agent-proxy
+	// io.Copy in ws/dialer.go aborts, and the paced read below sees an
+	// error long before slowReadFloor elapses.
+	const bigFileName = "large-from-e2e.bin"
+	const bigFileSizeMB = 200
+	if out, err := envInstance.KubectlExec(t, ns, "pod/"+gs+"-0",
+		"dd", "if=/dev/zero", "of=/data/"+bigFileName,
+		fmt.Sprintf("bs=1M"), fmt.Sprintf("count=%d", bigFileSizeMB)); err != nil {
+		t.Fatalf("seed large file via dd: %v output=%s", err, out)
+	}
+
+	dlReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+		cli.BaseURL+"/servers/"+gs+"/files/download?path="+url.QueryEscape("/"+bigFileName), nil)
+	if err != nil {
+		t.Fatalf("build large download req: %v", err)
+	}
+	dlReq.Header.Set("X-Gameplane-CSRF", cli.CSRF)
+	dlResp, err := cli.HTTP.Do(dlReq)
+	if err != nil {
+		t.Fatalf("GET /files/download (large): %v", err)
+	}
+	defer func() { _ = dlResp.Body.Close() }()
+	if dlResp.StatusCode != http.StatusOK {
+		t.Fatalf("/files/download (large) expected 200, got %d", dlResp.StatusCode)
+	}
+
+	const slowReadFloor = 65 * time.Second
+	const chunkSize = 256 * 1024
+	const perChunkPause = 100 * time.Millisecond
+	start := time.Now()
+	buf := make([]byte, chunkSize)
+	var total int64
+	for {
+		n, rerr := dlResp.Body.Read(buf)
+		total += int64(n)
+		if rerr != nil {
+			if rerr == io.EOF {
+				break
+			}
+			t.Fatalf("large download read at %s elapsed, %d/%d bytes (cut short by requestTimeout?): %v",
+				time.Since(start), total, bigFileSizeMB<<20, rerr)
+		}
+		time.Sleep(perChunkPause)
+	}
+	elapsed := time.Since(start)
+	if total != int64(bigFileSizeMB)<<20 {
+		t.Fatalf("large download got %d bytes, want %d", total, int64(bigFileSizeMB)<<20)
+	}
+	if elapsed < slowReadFloor {
+		t.Fatalf("large download finished in %s, want it paced past %s to exercise the 60s request timeout", elapsed, slowReadFloor)
 	}
 
 	// Delete and verify the file is gone from a subsequent list.
