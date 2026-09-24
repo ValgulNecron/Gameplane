@@ -36,6 +36,7 @@ cd "$(dirname "$0")"
 bucket_operator() { cat <<'EOF'
 TestHelmInstall_AllPodsReady
 TestHelmInstall_AllCRDsPresent
+TestHelmInstall_CRDApplyHookSkippedOnFreshInstall
 TestHelmInstall_APIHealthz
 TestHelmInstall_APILogsClean
 TestHelmInstall_OperatorLogsClean

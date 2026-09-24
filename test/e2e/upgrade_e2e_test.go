@@ -144,6 +144,10 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	}
 	// Safety net for an early t.Fatalf; the happy path tears down inline.
 	t.Cleanup(teardownReinstall)
+	// The hook decides between "leftover" and "just created by crds/" by
+	// comparing these two stamps; releases that predate the stamp have none.
+	chartStamp := manifestCRDStamp(t, "gameplane.local_gameservers.yaml")
+	leftoverStamp := liveCRDStamp(ctx, t, "gameservers.gameplane.local")
 	reinstall := exec.CommandContext(ctx, "helm", "install", reinstallRelease,
 		filepath.Join(repoRoot, "charts", "gameplane"),
 		"--namespace", reinstallNS,
@@ -171,6 +175,28 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 				"over CRDs an earlier release left behind — the crds.autoApply hook did not fire "+
 				"on install (F-218)", p)
 		}
+	}
+	// The schema check above would also pass if the hook fired on EVERY
+	// install (the defect a bare "CRD exists" lookup had: Helm creates
+	// crds/ before rendering, so it always found one). Pin down that it
+	// fired here BECAUSE the leftover CRDs carried a different bundle stamp
+	// than the chart, and that it left them carrying the chart's stamp —
+	// which is what keeps the next genuinely fresh install from firing it.
+	// TestHelmInstall_CRDApplyHookSkippedOnFreshInstall covers the other
+	// half on a fresh cluster.
+	wantEvents := "pre-install,pre-upgrade"
+	if leftoverStamp == chartStamp {
+		// A previous release whose CRDs are byte-identical to the working
+		// tree's is not stale, so skipping the hook is correct there.
+		wantEvents = "pre-upgrade"
+	}
+	if got := crdApplyHookEvents(ctx, t, reinstallRelease, reinstallNS); got != wantEvents {
+		t.Errorf("install over leftover CRDs (live stamp %q, chart stamp %q) rendered the "+
+			"crd-apply hook for %q, want %q (F-218)", leftoverStamp, chartStamp, got, wantEvents)
+	}
+	if got := liveCRDStamp(ctx, t, "gameservers.gameplane.local"); got != chartStamp {
+		t.Errorf("live gameservers CRD %s = %q after installing over leftover CRDs, want the chart's %q",
+			crdBundleStampAnnotation, got, chartStamp)
 	}
 	teardownReinstall()
 
@@ -347,4 +373,67 @@ func keySet(m map[string]any) map[string]struct{} {
 		out[k] = struct{}{}
 	}
 	return out
+}
+
+// crdBundleStampAnnotation is the annotation `make manifests`
+// (hack/sync-chart-crds.sh) stamps on every chart CRD; crd-apply-hook.yaml
+// compares the live CRD's value with the chart's to decide whether a
+// `helm install` lands on stale, leftover CRDs (F-218).
+const crdBundleStampAnnotation = "gameplane.local/crd-bundle-sha256"
+
+// crdApplyHookEvents returns the helm.sh/hook annotation Helm stored for the
+// release's crds.autoApply Job, i.e. which lifecycle events that release
+// rendered the CRD-apply hook for. Helm stores every hook with the release
+// whatever its events, so this is present even when the hook never ran.
+func crdApplyHookEvents(ctx context.Context, t *testing.T, release, namespace string) string {
+	t.Helper()
+	cmd := exec.CommandContext(ctx, "helm", "get", "hooks", release, "--namespace", namespace)
+	cmd.Env = append(os.Environ(), "KUBECONFIG="+os.Getenv("KUBECONFIG"))
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("helm get hooks %s -n %s: %v", release, namespace, err)
+	}
+	for _, doc := range strings.Split(string(out), "\n---") {
+		var obj map[string]any
+		if err := yaml.Unmarshal([]byte(doc), &obj); err != nil || obj == nil {
+			continue
+		}
+		u := unstructured.Unstructured{Object: obj}
+		if u.GetKind() == "Job" && u.GetName() == release+"-crd-apply" {
+			return u.GetAnnotations()["helm.sh/hook"]
+		}
+	}
+	t.Fatalf("release %s in %s has no %s-crd-apply Job hook (is crds.autoApply enabled?)",
+		release, namespace, release)
+	return ""
+}
+
+// manifestCRDStamp reads the bundle-hash stamp from the working-tree chart's
+// crd-manifests/ copy of the named CRD file.
+func manifestCRDStamp(t *testing.T, file string) string {
+	t.Helper()
+	path := filepath.Join("..", "..", "charts", "gameplane", "crd-manifests", file)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	stamp := (&unstructured.Unstructured{Object: doc}).GetAnnotations()[crdBundleStampAnnotation]
+	if stamp == "" {
+		t.Fatalf("%s carries no %s annotation; run `make manifests`", path, crdBundleStampAnnotation)
+	}
+	return stamp
+}
+
+// liveCRDStamp returns the bundle-hash stamp on the live CRD ("" if absent).
+func liveCRDStamp(ctx context.Context, t *testing.T, crdName string) string {
+	t.Helper()
+	crd, err := envInstance.Dyn.Resource(crdGVR).Get(ctx, crdName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get CRD %s: %v", crdName, err)
+	}
+	return crd.GetAnnotations()[crdBundleStampAnnotation]
 }

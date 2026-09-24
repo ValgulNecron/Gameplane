@@ -127,6 +127,10 @@ jobs:
               # The chart embeds a copy of the root signing key; the drift
               # check in `chart render` has to run when either side moves.
               - 'cosign.pub'
+              # The CRD bundle-hash stamp check regenerates the chart CRDs
+              # from these; an edit to either must re-run it.
+              - 'operator/config/crd/**'
+              - 'hack/sync-chart-crds.sh'
             e2etree:
               - 'test/e2e/**'
               - 'deploy/kind/**'
@@ -743,6 +747,16 @@ jobs:
         # readable by Helm .Files). make manifests keeps both in sync; guard
         # against a drift that would apply stale CRDs on upgrade.
         run: diff -r charts/gameplane/crds charts/gameplane/crd-manifests
+      - name: chart CRDs carry the current bundle-hash stamp (F-218)
+        # crd-apply-hook.yaml fires on pre-install only when the live CRDs'
+        # gameplane.local/crd-bundle-sha256 differs from the chart's. A stale
+        # stamp (CRDs hand-copied without `make manifests`) would make a fresh
+        # install skip the hook over CRDs that are actually out of date, so
+        # regenerate the chart copies from operator/config/crd and fail on any
+        # difference.
+        run: |
+          hack/sync-chart-crds.sh
+          git diff --exit-code -- charts/gameplane/crds charts/gameplane/crd-manifests
       - name: chart cosign key matches root cosign.pub
         # values.yaml embeds a copy of the signing public key so the operator
         # can verify official module bundles. Nothing regenerates it, so a key

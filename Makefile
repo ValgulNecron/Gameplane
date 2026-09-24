@@ -295,11 +295,12 @@ manifests: ## Regenerate CRDs + RBAC manifests (and sync chart CRD copies)
 		paths=./... \
 		output:crd:artifacts:config=config/crd \
 		output:rbac:artifacts:config=config/rbac
-	cp operator/config/crd/gameplane.local_*.yaml charts/gameplane/crds/
-	# crd-manifests/ ships the same CRDs where Helm's .Files can read them (it
-	# can't read the special crds/ dir), so the chart's pre-install/pre-upgrade
-	# hook can apply them on every upgrade. Keep both copies in sync.
-	cp operator/config/crd/gameplane.local_*.yaml charts/gameplane/crd-manifests/
+	# Copy the CRDs into the chart's crds/ and crd-manifests/ (the same CRDs
+	# where Helm's .Files can read them -- it can't read the special crds/
+	# dir -- so the crds.autoApply hook can apply them), stamping each copy
+	# with a bundle hash the hook compares against the live CRDs to tell
+	# leftover, stale CRDs apart from ones crds/ just created (F-218).
+	hack/sync-chart-crds.sh
 
 module-schema: ## Regenerate the editor JSON Schema for module template.yaml from the CRD
 	python3 hack/gen-module-schema.py
