@@ -115,7 +115,18 @@ Still pending: **RC-TAG-1**, which needs the maintainer's approval after #423 me
   - **#425:** group 1, F-212, the namespace keep policy. Needed for OD-023, so it must reach an RC before the beta.8 reinstall.
   - **#426:** group 6, F-251, the nginx body size.
   - Both findings are `fixing`, and #425 and #426 test-merge cleanly together. Once merged: set the findings to `fixed-unverified` and delete the branches and worktrees.
-- **Workflow `wf_b5f60098-92e`** (fix-wave follow-up), resumed after the session limit. Script: `/home/dev/.claude/projects/-home-dev-Gameplane/e0cf04a8-b80e-4fc8-92df-ee2396f7dbe8/workflows/scripts/audit018-fix-wave-followup-wf_b5f60098-92e.js`.
+- **Fix-wave follow-up results (2026-09-24):**
+  - PR **#429**: group 4, F-116 and F-130.
+  - PR **#428**: group 8, F-172, F-052 and F-173; F-174 waits on OD-026.
+  - Both are `fixing` and waiting on merge.
+  - **Group 2 still open** (worktree `/home/dev/gp-wt/fix-018-agent-file-write-safety`, not pushed). The atomic write now creates files with `os.CreateTemp` (0600), which regresses the mode that game containers need. Fix the code, not the linter config:
+    - existing target: copy its mode onto the temp file from `os.Stat` (a runtime mode, which gosec G302 doesn't flag);
+    - new file: create the temp file with `os.Create` semantics (0666 & ~umask) under a unique name, instead of `os.CreateTemp`;
+    - add a mode assertion to `files_test.go` and one line to `agent/specs.md`.
+
+    Then run a sonnet review and open the PR.
+  - **Group 5 still open** (worktree `/home/dev/gp-wt/fix-018-charts-backup-restore-egress`, not pushed). `test/e2e/restore_e2e_test.go` ~135-155 declares `restoreJob` and never reads it, a compile error under the `e2e` tag. Remove it (or assert on it), run `go vet -tags e2e ./...` as a compile check in `test/e2e/`, re-review, then open the PR.
+- **Workflow `wf_b5f60098-92e`** (fix-wave follow-up; finished), resumed after the session limit. Script: `/home/dev/.claude/projects/-home-dev-Gameplane/e0cf04a8-b80e-4fc8-92df-ee2396f7dbe8/workflows/scripts/audit018-fix-wave-followup-wf_b5f60098-92e.js`.
   - **Group 2** (`fix/018-agent-file-write-safety`, worktree exists): rework the gosec G302 chmod without a lint exclusion, re-review, open the PR.
   - **Group 5** (`fix/018-charts-backup-restore-egress`, worktree exists, commit 37242ace): review, then PR.
   - **Group 4:** full re-scout.
@@ -125,7 +136,7 @@ Still pending: **RC-TAG-1**, which needs the maintainer's approval after #423 me
 - Uncommitted when this was written: the OPEN-DECISIONS RC-TAG-1 edit, committed together with this file.
 
 ### Left to do (in order)
-1. Finish the in-progress items above: T014 verify, T015 deploy rc.1, and PRs for groups 2, 4, 5, 8, H01 and H02.
+1. Finish the in-progress items above: T014 verify, T015 deploy rc.1, fixes for groups 2 and 5, and the held H01 and H02 wave.
 2. For each merged fix PR: set its finding to `fixed-unverified`, and delete the branch and worktree (CLAUDE.md rule 12).
 3. Continue the T055 fix waves through the rest of the plan, S2 → S4, public and held, skipping the OD-025 design groups. Also skip anything tied to a pending decision: OD-021 items, and OD-026 (F-174, how the tunnel learns playit's address).
 4. OD-022: add the `.github/actions/` and `images/` rows to `coverage.md` and contracts/audit-records.md, and review both (opus reviewer, then an independent opus verifier, with held handling).
@@ -141,7 +152,7 @@ Still pending: **RC-TAG-1**, which needs the maintainer's approval after #423 me
 ### Still pending with the maintainer
 - **OD-021:** 24 procedure questions. The proposed defaults were sent in chat; the answer is still pending.
 - **OD-026:** how the tunnel learns playit's address (F-174).
-- **Merges:** PRs #425 and #426, and each new fix PR.
+- **Merges:** PRs #425, #426, #428 and #429, and each new fix PR.
 - **T012 and T046:** both need a session in the default permission mode.
 
 ## kubelab facts (captured 2026-09-23)

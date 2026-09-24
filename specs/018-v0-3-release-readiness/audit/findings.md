@@ -57,7 +57,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-049 | Restore does not delete post-snapshot files | operator | review:operator | S3 | open | | | |
 | F-050 | Deleted managed GameTemplate not recreated on next reconcile | operator | review:operator | S3 | open | | | |
 | F-051 | Capture expiration waits for unreachable sidecar | operator | review:operator | S4 | open | | | |
-| F-052 | UDP tunnel forwarding sends TCP | operator | review:operator | S3 | open | | | |
+| F-052 | UDP tunnel forwarding sends TCP | operator | review:operator | S3 | fixing | #428 | | |
 | F-054 | Wipe always succeeds even if it failed | operator | review:operator | S3 | open | | | |
 | F-055 | TunnelHostnameIgnored condition not removed | operator | review:operator | S4 | open | | | |
 | F-056 | Address not validated before sending to MetalLB/Cilium | operator | review:operator | S4 | open | | | |
@@ -91,7 +91,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-110 | Agent dependencies stale vs go.mod; intentional pin note false | agent | review:agent | S4 | open | | | |
 | F-111 | Agent doc comments contradict current code | agent | review:agent | S4 | open | | | |
 | F-115 | New file truncates existing file | web | review:web | S1 | open | | | |
-| F-116 | Multi-namespace server features 404 | web | review:web | S2 | open | | | |
+| F-116 | Multi-namespace server features 404 | web | review:web | S2 | fixing | #429 | | |
 | F-117 | Settings save merges entire spec, losing concurrent changes | web | review:web | S3 | open | | | |
 | F-118 | Tunnel create blocked by missing Secret | web | review:web | S2 | open | | | |
 | F-119 | Tunnel enable flows fail validation | web | review:web | S2 | open | | | |
@@ -105,7 +105,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-127 | Default namespace not used on server create | web | review:web | S3 | open | | | |
 | F-128 | Modules hash navigation fails | web | review:web | S4 | open | | | |
 | F-129 | Add cluster links to unusable page | web | review:web | S4 | open | | | |
-| F-130 | Namespace row actions disabled | web | review:web | S4 | open | | | |
+| F-130 | Namespace row actions disabled | web | review:web | S4 | fixing | #429 | | |
 | F-131 | Invalid sections don't block save | web | review:web | S4 | open | | | |
 | F-132 | Reset text editor preserves old content | web | review:web | S4 | open | | | |
 | F-133 | Invite dialog retains previous entry | web | review:web | S4 | open | | | |
@@ -139,8 +139,8 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-168 | Version mismatch warning not implemented | gp-module | review:gp-module | S4 | open | | | |
 | F-170 | Docs claim adoption that didn't happen | svcutil | review:svcutil | S4 | open | | | |
 | F-171 | Specs outdated: sections missing and test count wrong | svcutil | review:svcutil | S4 | open | | | |
-| F-172 | Exponential backoff overflows after 64 retries | tunnel | review:tunnel | S3 | open | | | |
-| F-173 | Tailscale config drops backing service settings | tunnel | review:tunnel | S2 | open | | | |
+| F-172 | Exponential backoff overflows after 64 retries | tunnel | review:tunnel | S3 | fixing | #428 | | |
+| F-173 | Tailscale config drops backing service settings | tunnel | review:tunnel | S2 | fixing | #428 | | |
 | F-174 | Playit endpoint not written to GameServer status | tunnel | review:tunnel | S3 | open | | | |
 | F-175 | Troubleshooting docs use wrong label selector | tunnel | review:tunnel | S4 | open | | | |
 | F-176 | Specs file misses sections, lists stale dependency | tunnel | review:tunnel | S4 | open | | | |
