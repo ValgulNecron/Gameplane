@@ -205,6 +205,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-253 | README.md / plan.md say "Go 1.25" vs go.mod's 1.26 requirement | root docs | review:root-docs | S4 | open | | | |
 | F-254 | sentinel/sentinel untracked binary, no .gitignore entry | sentinel/ | review:sentinel | S4 | open | | | |
 | F-255 | make dev-load loads 4 of 12 built images | deploy/ | review:deploy | S3 | open | | | |
+| F-257 | Release image job times out building the multi-arch operator image, so an RC publishes no operator image, chart or GitHub release | .github/workflows/ | review:.github/workflows | S2 | fixing | #435 | | seen on the `v0.3.0-rc.1` release run (T014); ID after F-255 assumes F-256 is taken in the held list, so check on the devbox |
 
 ## Details
 
@@ -2894,3 +2895,17 @@ Control: the optional telemetry-receiver Service accepts ingress on port 8080 on
 **Actual:** `dev-load` loads 4 of 12; the other 8 back optional/on-demand components that silently fail to pull their image on a Kind cluster if exercised, and — because each component chunk deferred the substantive defect to the other — it has no kept `###` section or table row in either `evidence/review-deploy/verification.md`, `evidence/review-hack/verification.md`, or `findings.md` (F-237 covers only the wording half).
 
 **Evidence:** [evidence/review-followup/verification.md#followup-pub-5](evidence/review-followup/verification.md#followup-pub-5)
+
+### F-257
+
+**Repro / observation**
+1. Push tag `v0.3.0-rc.1`; `release.yaml` runs (run 36051057887).
+2. The `images` matrix builds each component for `linux/amd64,linux/arm64` (`release.yaml:62`) under `timeout-minutes: 30` (`release.yaml:15`).
+3. Every Go Dockerfile's build stage (`FROM golang:1.27-alpine AS build`, then `GOOS=linux go build`) runs under QEMU for the arm64 platform, because nothing sets `--platform=$BUILDPLATFORM` or `GOARCH`.
+4. The `operator` build (the largest dependency tree) passes 30 minutes and the job is cancelled. A re-run of the failed jobs is cancelled the same way. `chart` (`needs: images`) and the GitHub-release job are skipped.
+
+**Expected:** A tag push publishes every component image, the signed chart and the GitHub release within the job timeouts.
+
+**Actual:** rc.1 has images for every component except the operator, no chart and no GitHub release, so the RC can't be installed from the registry.
+
+**Evidence:** release run 36051057887 (both attempts cancelled at the `images / operator` timeout); `release.yaml:15`, `:62`; `operator/Dockerfile:1`, `:18`.
