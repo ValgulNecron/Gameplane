@@ -69,7 +69,7 @@ func TestAPI_ModUpload(t *testing.T) {
 	const slowUploadFloor = 65 * time.Second
 	uploadLen := buf.Len()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload",
-		newPacedReader(buf.Bytes(), 64*1024, 1600*time.Millisecond))
+		newPacedReader(buf.Bytes(), 64*1024, 72*time.Second))
 	if err != nil {
 		t.Fatalf("build upload req: %v", err)
 	}
@@ -77,7 +77,9 @@ func TestAPI_ModUpload(t *testing.T) {
 	uploadStart := time.Now()
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set("X-Gameplane-CSRF", cli.CSRF)
-	resp, err := cli.HTTP.Do(req)
+	// cli.HTTP's 90s Timeout would race the ~72s paced body plus the agent
+	// round-trip; use the long-transfer client (same jar and transport).
+	resp, err := longTransferClient(cli).Do(req)
 	if err != nil {
 		t.Fatalf("POST /mods/upload: %v", err)
 	}

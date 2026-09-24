@@ -193,7 +193,11 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		t.Fatalf("build large download req: %v", err)
 	}
 	dlReq.Header.Set("X-Gameplane-CSRF", cli.CSRF)
-	dlResp, err := cli.HTTP.Do(dlReq)
+	// cli.HTTP carries a 90s Timeout that also covers reading the body, so
+	// the deliberately-slow transfers below go through a client with a
+	// longer ceiling (same cookie jar and transport).
+	slowCli := longTransferClient(cli)
+	dlResp, err := slowCli.Do(dlReq)
 	if err != nil {
 		t.Fatalf("GET /files/download (large): %v", err)
 	}
@@ -202,9 +206,14 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		t.Fatalf("/files/download (large) expected 200, got %d", dlResp.StatusCode)
 	}
 
+	// Pace by elapsed time rather than per Read call: Read may return far
+	// fewer bytes than len(buf), so a fixed per-call pause would make the
+	// total duration depend on how the transport fragments the stream.
+	// After each read, sleep until total/size of slowReadTarget has passed.
 	const slowReadFloor = 65 * time.Second
+	const slowReadTarget = 72 * time.Second
 	const chunkSize = 256 * 1024
-	const perChunkPause = 100 * time.Millisecond
+	const bigFileSize = int64(bigFileSizeMB) << 20
 	start := time.Now()
 	buf := make([]byte, chunkSize)
 	var total int64
@@ -216,13 +225,13 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 				break
 			}
 			t.Fatalf("large download read at %s elapsed, %d/%d bytes (cut short by requestTimeout?): %v",
-				time.Since(start), total, bigFileSizeMB<<20, rerr)
+				time.Since(start), total, bigFileSize, rerr)
 		}
-		time.Sleep(perChunkPause)
+		time.Sleep(time.Until(start.Add(time.Duration(float64(slowReadTarget) * float64(total) / float64(bigFileSize)))))
 	}
 	elapsed := time.Since(start)
-	if total != int64(bigFileSizeMB)<<20 {
-		t.Fatalf("large download got %d bytes, want %d", total, int64(bigFileSizeMB)<<20)
+	if total != bigFileSize {
+		t.Fatalf("large download got %d bytes, want %d", total, bigFileSize)
 	}
 	if elapsed < slowReadFloor {
 		t.Fatalf("large download finished in %s, want it paced past %s to exercise the 60s request timeout", elapsed, slowReadFloor)
@@ -239,7 +248,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	slowBody := bytes.Repeat([]byte("s"), slowWriteSize)
 	slowWriteURL := cli.BaseURL + "/servers/" + gs + "/files/write?path=" + url.QueryEscape("/"+slowFileName)
 	slowReq, err := http.NewRequestWithContext(t.Context(), http.MethodPost, slowWriteURL,
-		newPacedReader(slowBody, 64*1024, 2200*time.Millisecond))
+		newPacedReader(slowBody, 64*1024, 72*time.Second))
 	if err != nil {
 		t.Fatalf("build slow write req: %v", err)
 	}
@@ -247,7 +256,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	slowReq.Header.Set("Content-Type", "application/octet-stream")
 	slowReq.Header.Set("X-Gameplane-CSRF", cli.CSRF)
 	slowStart := time.Now()
-	slowResp, err := cli.HTTP.Do(slowReq)
+	slowResp, err := slowCli.Do(slowReq)
 	if err != nil {
 		t.Fatalf("POST /files/write (slow) after %s: %v", time.Since(slowStart), err)
 	}
@@ -427,27 +436,47 @@ func TestAPI_AgentUnreachable(t *testing.T) {
 	})
 }
 
-// pacedReader yields data in fixed-size chunks with a pause before each
-// chunk after the first, so a request body trickles in over a known
-// minimum duration. Used to prove large-transfer routes survive the API's
-// 60s request-timeout (F-074).
+// longTransferClient returns an http.Client sharing cli's cookie jar and
+// transport but with a 5-minute Timeout instead of APIClient's 90s. The
+// F-074 regressions deliberately stretch a transfer past the API's 60s
+// request-timeout, and http.Client.Timeout covers the whole exchange
+// (sending the request body and reading the response body), so 90s would
+// race those ~72s transfers plus cluster latency.
+func longTransferClient(cli *APIClient) *http.Client {
+	return &http.Client{
+		Jar:       cli.HTTP.Jar,
+		Transport: cli.HTTP.Transport,
+		Timeout:   5 * time.Minute,
+	}
+}
+
+// pacedReader yields data in chunks of at most chunk bytes, pacing by
+// elapsed time: before handing out the bytes at offset off it sleeps until
+// off/len(data) of total has passed since the first Read. The body thus
+// trickles in over roughly total regardless of the caller's buffer size
+// (net/http reads request bodies 32 KiB at a time). Used to prove
+// large-transfer routes survive the API's 60s request-timeout (F-074).
 type pacedReader struct {
 	data  []byte
 	chunk int
-	pause time.Duration
+	total time.Duration
 	off   int
+	start time.Time
 }
 
-func newPacedReader(data []byte, chunk int, pause time.Duration) *pacedReader {
-	return &pacedReader{data: data, chunk: chunk, pause: pause}
+func newPacedReader(data []byte, chunk int, total time.Duration) *pacedReader {
+	return &pacedReader{data: data, chunk: chunk, total: total}
 }
 
 func (p *pacedReader) Read(b []byte) (int, error) {
 	if p.off >= len(p.data) {
 		return 0, io.EOF
 	}
-	if p.off > 0 {
-		time.Sleep(p.pause)
+	if p.start.IsZero() {
+		p.start = time.Now()
+	} else {
+		due := p.start.Add(time.Duration(float64(p.total) * float64(p.off) / float64(len(p.data))))
+		time.Sleep(time.Until(due))
 	}
 	n := min(len(b), p.chunk, len(p.data)-p.off)
 	copy(b, p.data[p.off:p.off+n])
