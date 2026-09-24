@@ -143,6 +143,71 @@ spec:
 	}
 }
 
+func TestPreview_NoVersionAppliesDefault(t *testing.T) {
+	t.Parallel()
+	tmplYAML := `apiVersion: gameplane.local/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test-default-version
+spec:
+  game: test
+  image: "img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  versions:
+    - id: "1.20"
+      image: "img@sha256:1111111111111111111111111111111111111111111111111111111111aaaa"
+      env:
+        - name: VERSION
+          value: "1.20"
+    - id: "1.21"
+      default: true
+      image: "img@sha256:2222222222222222222222222222222222222222222222222222222222bbbb"
+      env:
+        - name: VERSION
+          value: "1.21"
+`
+	res, err := GeneratePreview(Options{TemplateYAML: []byte(tmplYAML)})
+	if err != nil {
+		t.Fatalf("GeneratePreview failed: %v", err)
+	}
+	if res.VersionID != "1.21" {
+		t.Errorf("expected the version marked default to be selected, got %q", res.VersionID)
+	}
+	if res.EffectiveEnv["VERSION"] != "1.21" {
+		t.Errorf("expected default version's env layer to be applied, got EffectiveEnv=%v", res.EffectiveEnv)
+	}
+}
+
+func TestPreview_NoVersionNoDefaultUsesFirst(t *testing.T) {
+	t.Parallel()
+	tmplYAML := `apiVersion: gameplane.local/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test-first-version
+spec:
+  game: test
+  image: "img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  versions:
+    - id: "1.0"
+      env:
+        - name: VERSION
+          value: "1.0"
+    - id: "2.0"
+      env:
+        - name: VERSION
+          value: "2.0"
+`
+	res, err := GeneratePreview(Options{TemplateYAML: []byte(tmplYAML)})
+	if err != nil {
+		t.Fatalf("GeneratePreview failed: %v", err)
+	}
+	if res.VersionID != "1.0" {
+		t.Errorf("expected the first declared version when none is marked default, got %q", res.VersionID)
+	}
+	if res.EffectiveEnv["VERSION"] != "1.0" {
+		t.Errorf("expected first version's env layer to be applied, got EffectiveEnv=%v", res.EffectiveEnv)
+	}
+}
+
 func TestPreview_TypedDefaultsAndInvalidAutoMemory(t *testing.T) {
 	tmplYAML := `apiVersion: gameplane.local/v1alpha1
 kind: GameTemplate
