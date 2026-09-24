@@ -143,9 +143,10 @@ type OCISourceSpec struct {
 	// +optional
 	PullSecretRef *corev1.LocalObjectReference `json:"pullSecretRef,omitempty"`
 
-	// Insecure allows plain HTTP and skips TLS verification. Intended
-	// for local kind/k3d registries; do not enable on production
-	// clusters.
+	// Insecure allows plain HTTP (no TLS) to the registry. TLS
+	// verification is never skipped — for self-signed registries mount
+	// the CA into the operator's trust store. Intended for local
+	// kind/k3d registries; do not enable on production clusters.
 	// +optional
 	Insecure bool `json:"insecure,omitempty"`
 }

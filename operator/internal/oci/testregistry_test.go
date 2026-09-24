@@ -32,7 +32,10 @@ type fakeRegistry struct {
 	manifests map[string]map[string][]byte // repo → tag/digest → manifest bytes
 	mIndex    map[string]map[string]string // repo → tag → digest
 	blobs     map[string][]byte            // digest → bytes
-	server    *httptest.Server
+	// served replaces the body sent for a manifest or blob reference
+	// (tag or digest). Headers still describe the stored content.
+	served map[string][]byte
+	server *httptest.Server
 }
 
 func newFakeRegistry(t *testing.T) *fakeRegistry {
@@ -42,6 +45,7 @@ func newFakeRegistry(t *testing.T) *fakeRegistry {
 		manifests: map[string]map[string][]byte{},
 		mIndex:    map[string]map[string]string{},
 		blobs:     map[string][]byte{},
+		served:    map[string][]byte{},
 	}
 	r.server = httptest.NewServer(http.HandlerFunc(r.handle))
 	t.Cleanup(r.server.Close)
@@ -74,6 +78,21 @@ func (r *fakeRegistry) pushManifest(repo, tag string, manifest []byte) string {
 	r.mIndex[repo][tag] = d
 	r.mu.Unlock()
 	return d
+}
+
+// storedManifest returns the manifest bytes pushed under repo:tag.
+func (r *fakeRegistry) storedManifest(repo, tag string) []byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.manifests[repo][tag]
+}
+
+// serveBody makes GET requests for ref (a tag or digest) return body,
+// while the response headers still describe the stored content.
+func (r *fakeRegistry) serveBody(ref string, body []byte) {
+	r.mu.Lock()
+	r.served[ref] = body
+	r.mu.Unlock()
 }
 
 func (r *fakeRegistry) handle(w http.ResponseWriter, req *http.Request) {
@@ -129,6 +148,9 @@ func (r *fakeRegistry) handle(w http.ResponseWriter, req *http.Request) {
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 			return
 		}
+		if body, ok := r.served[ref]; ok {
+			data = body
+		}
 		_, _ = w.Write(data)
 	case "blobs":
 		data, ok := r.blobs[ref]
@@ -139,6 +161,9 @@ func (r *fakeRegistry) handle(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 		if req.Method == http.MethodHead {
 			return
+		}
+		if body, ok := r.served[ref]; ok {
+			data = body
 		}
 		_, _ = w.Write(data)
 	default:

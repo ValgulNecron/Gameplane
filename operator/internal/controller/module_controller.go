@@ -99,10 +99,14 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if mod.Status.AppliedVersion == desiredVersion && mod.Status.AppliedTemplate == mod.Name &&
 		mod.Status.Phase == gameplanev1alpha1.ModulePhaseReady &&
-		(entry.Digest == "" || mod.Status.AppliedDigest == entry.Digest) {
+		(entry.Digest == "" || mod.Status.AppliedDigest == entry.Digest) &&
+		(mod.Spec.Digest == "" || mod.Status.AppliedDigest == mod.Spec.Digest) {
 		// Already converged. Non-OCI sources publish a single version
 		// stream, so the digest comparison is what catches content
-		// changes hiding behind an unchanged version string.
+		// changes hiding behind an unchanged version string. A set
+		// spec.digest must also match the applied content, so a pin
+		// added or changed on a Ready Module goes through the pin check
+		// below instead of returning here.
 		return ctrl.Result{}, nil
 	}
 

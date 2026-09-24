@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
@@ -123,5 +124,65 @@ func TestModule_DigestPinMatch(t *testing.T) {
 		m.Spec.Digest = "sha256:mc-1.0.0"
 	})
 
+	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseReady, "")
+}
+
+// patchModuleDigest sets a Module's spec.digest, retrying on conflict
+// because the reconciler updates status concurrently.
+func patchModuleDigest(t *testing.T, name, digest string) {
+	t.Helper()
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var mod gameplanev1alpha1.Module
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &mod); err != nil {
+			return err
+		}
+		mod.Spec.Digest = digest
+		return k8sClient.Update(context.Background(), &mod)
+	}); err != nil {
+		t.Fatalf("patch module digest: %v", err)
+	}
+}
+
+// TestModule_DigestPinCheckedOnReadyModule — a spec.digest changed on a
+// Ready Module is checked against the applied bundle, and restoring the
+// matching pin brings the Module back to Ready.
+func TestModule_DigestPinCheckedOnReadyModule(t *testing.T) {
+	_ = newNamespace(t)
+	fake := newFakeOCI()
+	startMgr(t, "gameplane-system", withModuleReconciler(fake))
+
+	srcName, _ := seedMC(t, fake)
+	modName := uniqueName("mod-repin")
+	createModule(t, modName, srcName, func(m *gameplanev1alpha1.Module) {
+		// fixtureBundle stamps digest "sha256:<name>-<version>".
+		m.Spec.Digest = "sha256:mc-1.0.0"
+	})
+	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseReady, "")
+
+	// Same version, different pin: the Module must leave Ready and
+	// report the pin check's reason for the new generation.
+	patchModuleDigest(t, modName, "sha256:other")
+	eventually(t, func() (bool, string) {
+		got := getModule(t, modName)
+		if got.Status.Phase != gameplanev1alpha1.ModulePhaseFailed {
+			return false, "phase=" + got.Status.Phase
+		}
+		if got.Status.ObservedGeneration != got.Generation {
+			return false, fmt.Sprintf("observedGeneration=%d generation=%d",
+				got.Status.ObservedGeneration, got.Generation)
+		}
+		for _, c := range got.Status.Conditions {
+			if c.Type == gameplanev1alpha1.ModuleConditionReady {
+				if c.Reason != "DigestMismatch" {
+					return false, "Ready reason=" + c.Reason
+				}
+				return true, ""
+			}
+		}
+		return false, "no Ready condition"
+	})
+
+	// Restoring the matching pin reconciles back to Ready.
+	patchModuleDigest(t, modName, "sha256:mc-1.0.0")
 	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseReady, "")
 }
