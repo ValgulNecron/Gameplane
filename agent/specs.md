@@ -60,7 +60,7 @@ Per-package roles:
 - **`caps`**: Unmarshals JSON capabilities blob from `GAMEPLANE_CAPABILITIES` env; exposes `Spec` with `Players`, `Quiesce`, `Lifecycle`, `Actions`, `Status`, `Mods`.
 - **`console`**: Accepts `{ kind: "cmd", body: "<rcon cmd>" }` JSON over WebSocket, runs it via RCON, replies with `{ kind: "out"|"err", body: "<response>" }`.
 - **`files`**: Walks the filesystem under `--data-root`, enforces path-traversal protection (no `..`, no symlinks escaping the root), handles multipart uploads.
-- **`heartbeat`**: Runs a background goroutine that every 20 seconds patches `gameservers/<name>/status` with `agent.lastHeartbeat`, `status.playersOnline`, `status.playersMax`, `status.gameVersion`, and resource usage via the pod's ServiceAccount.
+- **`heartbeat`**: Runs a background goroutine that every 20 seconds patches `gameservers/<name>/status` with `agent.lastHeartbeat`, `status.playersOnline`, `status.playersMax`, `status.gameVersion`, and resource usage via the pod's ServiceAccount. `gameVersion` is currently always patched `null` ("unknown") — the agent has no source for the game's actual running version; it must never be filled in with the game/template identifier (e.g. `minecraft-java`), which is a different value.
 - **`lifecycle`**: HTTP handler for the operator's `/lifecycle/stop` call; runs module-declared stop commands over RCON before the game process terminates.
 - **`logs`**: Tails a game log file (path from `--game-log-path`) over WebSocket; supports streaming from end (default, "live") or start ("backlog").
 - **`mods`**: Tracks installed mods in a per-volume manifest (`.gameplane-mods.json`); downloads from registry with strict egress validation via `netguard.IsPublic`.
@@ -126,7 +126,7 @@ Resource usage env vars (set by the operator):
 | `/files/delete` | DELETE | Delete file or directory; query param `path`, optional `recursive` (boolean) |
 | `/logs/tail` | GET | Tail game log over WebSocket; query param `from` (enum: `start`, `end`, default `end`) |
 | `/console` | GET | Duplex console over WebSocket; client sends `{ kind: "cmd", body: "<command>" }` (JSON), server replies `{ kind: "out"\|"err", body: "<response>" }` |
-| `/players` | GET | Current online player count and names; response: `{ online, max, players[], asOf, capabilities }` |
+| `/players` | GET | Current online player count and names; response: `{ online, max, players[], asOf, capabilities }`. `online`/`max` are `-1` when unknown (RCON disabled, or no recognized player-list format) — the sole "unknown" representation, never `0`. |
 | `/players/kick` | POST | Kick a player; request: `{ name, reason? }`; response: `{ ok, raw? }`; 501 if unsupported |
 | `/players/ban` | POST | Ban a player; request: `{ name, reason? }`; response: `{ ok, raw? }`; 501 if unsupported |
 | `/players/unban` | POST | Lift a ban; request: `{ name }`; response: `{ ok, raw? }`; 501 if unsupported |
