@@ -262,6 +262,124 @@ func TestWrite(t *testing.T) {
 	})
 }
 
+// errAfterReader returns n bytes of filler data, then a read error — it
+// simulates a request body or upload source that fails partway through
+// (client disconnect, ENOSPC), unlike errReader (files_gaps_test.go),
+// which fails on the very first read.
+type errAfterReader struct{ n int }
+
+func (r *errAfterReader) Read(p []byte) (int, error) {
+	if r.n <= 0 {
+		return 0, errRead
+	}
+	if len(p) > r.n {
+		p = p[:r.n]
+	}
+	for i := range p {
+		p[i] = 'x'
+	}
+	r.n -= len(p)
+	return len(p), nil
+}
+
+// TestWrite_PreservesExistingFileOnCopyError is the F-102 regression test:
+// a /files/write whose body fails partway through must leave a
+// pre-existing target file untouched (write-to-temp-then-rename), not
+// truncated. Calls h.write directly (rather than through newServer's real
+// HTTP round trip) so the mid-copy failure is deterministic.
+func TestWrite_PreservesExistingFileOnCopyError(t *testing.T) {
+	root := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("eval root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(resolved, "keep.txt"), []byte("original content"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	h := &handler{root: resolved}
+	req := httptest.NewRequest(http.MethodPost, "/files/write?path=/keep.txt", &errAfterReader{n: 4})
+	rr := httptest.NewRecorder()
+	h.write(rr, req)
+	if rr.Code == http.StatusNoContent {
+		t.Fatalf("expected failure status, got %d", rr.Code)
+	}
+	got, rerr := os.ReadFile(filepath.Join(resolved, "keep.txt"))
+	if rerr != nil || string(got) != "original content" {
+		t.Fatalf("original file corrupted: got %q err=%v", got, rerr)
+	}
+	entries, err := os.ReadDir(resolved)
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "keep.txt" {
+		t.Fatalf("unexpected root contents (stray temp file?): %+v", entries)
+	}
+}
+
+// TestSavePart_CopyErrorPreservesExistingFile is the other half of the
+// F-102 regression test: an upload part whose source fails partway
+// through must leave a pre-existing file at that destination name
+// untouched, not deleted by the old cleanup-on-error path.
+func TestSavePart_CopyErrorPreservesExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	dst := filepath.Join(dir, "x.txt")
+	if err := os.WriteFile(dst, []byte("original"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := savePart(dir, "x.txt", errReader{}, 16); !errors.Is(err, errRead) {
+		t.Fatalf("got %v, want wrapped %v", err, errRead)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil || string(got) != "original" {
+		t.Fatalf("original file corrupted: got %q err=%v", got, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "x.txt" {
+		t.Fatalf("unexpected dir contents (stray temp file?): %+v", entries)
+	}
+}
+
+// TestDelete_SymlinkInRootRemovesLinkNotTarget is the F-108 regression
+// test: deleting a symlink that stays inside the root must remove the
+// link itself, not the file it points to. The file API can't create a
+// symlink (per F-108's evidence), so the symlink is planted directly with
+// os.Symlink, as the existing escape-detection tests in this package do.
+func TestDelete_SymlinkInRootRemovesLinkNotTarget(t *testing.T) {
+	srvURL, root := newServer(t)
+	if err := os.MkdirAll(filepath.Join(root, "logs"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	target := filepath.Join(root, "logs", "a.log")
+	if err := os.WriteFile(target, []byte("log content"), 0o600); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	link := filepath.Join(root, "latest.log")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/latest.log", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status=%d body=%s", resp.StatusCode, readBody(resp))
+	}
+
+	if _, err := os.Lstat(link); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("symlink still present: %v", err)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "log content" {
+		t.Fatalf("target deleted or corrupted: got %q err=%v", got, err)
+	}
+}
+
 func TestUpload(t *testing.T) {
 	srvURL, root := newServer(t)
 

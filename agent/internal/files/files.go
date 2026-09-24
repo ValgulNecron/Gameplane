@@ -97,6 +97,41 @@ func (h *handler) resolve(rel string) (string, error) {
 	}
 }
 
+// resolveForDelete validates that path's parent directory stays inside
+// root, then returns the literal path to the named entry — the entry
+// itself, not whatever it points to. Unlike resolve, it never evaluates
+// symlinks on the final path component: a symlink must be deleted as the
+// link it is, not dereferenced to its target (F-102/F-108 audit finding
+// F-108). os.Remove/os.RemoveAll already default to that behaviour on
+// their own — the bug was handing them resolve()'s fully-EvalSymlinks'd
+// path instead of the raw one.
+func (h *handler) resolveForDelete(rel string) (string, error) {
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" {
+		return h.root, nil
+	}
+	abs := filepath.Join(h.root, filepath.Clean("/"+rel))
+	if !strings.HasPrefix(abs, h.root+string(os.PathSeparator)) && abs != h.root {
+		return "", errPathOutOfRoot
+	}
+	parent := filepath.Dir(abs)
+	resolvedParent, err := filepath.EvalSymlinks(parent)
+	if err != nil {
+		return "", err
+	}
+	if !strings.HasPrefix(resolvedParent, h.root+string(os.PathSeparator)) && resolvedParent != h.root {
+		return "", errPathOutOfRoot
+	}
+	fi, err := os.Stat(resolvedParent)
+	if err != nil {
+		return "", err
+	}
+	if !fi.IsDir() {
+		return "", fmt.Errorf("%s: not a directory", parent)
+	}
+	return filepath.Join(resolvedParent, filepath.Base(abs)), nil
+}
+
 // badRequest writes a 400 with a client-safe message. errPathOutOfRoot is
 // the one class we echo verbatim — everything else (EvalSymlinks errors,
 // multipart parse details, etc.) is logged and replaced with a generic
@@ -206,17 +241,35 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer func() { _ = req.Body.Close() }()
-	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+	dir := filepath.Dir(p)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		httpErr(w, err)
 		return
 	}
-	f, err := os.Create(filepath.Clean(p))
+	// Write to a temp file in the same directory, then rename it over the
+	// target only on success. os.Create truncates the target immediately,
+	// so any error after that point (ENOSPC, a body that ends early, an
+	// agent restart mid-copy) used to leave the previous file destroyed
+	// (F-102).
+	tmp, err := os.CreateTemp(dir, ".write-*")
 	if err != nil {
 		httpErr(w, err)
 		return
 	}
-	defer func() { _ = f.Close() }()
-	if _, err := io.Copy(f, http.MaxBytesReader(w, req.Body, maxWriteBytes)); err != nil {
+	tmpName := tmp.Name()
+	_, copyErr := io.Copy(tmp, http.MaxBytesReader(w, req.Body, maxWriteBytes))
+	closeErr := tmp.Close()
+	if copyErr != nil || closeErr != nil {
+		_ = os.Remove(tmpName)
+		if copyErr != nil {
+			httpErr(w, copyErr)
+		} else {
+			httpErr(w, closeErr)
+		}
+		return
+	}
+	if err := os.Rename(tmpName, filepath.Clean(p)); err != nil {
+		_ = os.Remove(tmpName)
 		httpErr(w, err)
 		return
 	}
@@ -294,38 +347,41 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 }
 
 // savePart streams one multipart part into dir under a sanitized name,
-// refusing anything larger than limit bytes. On any failure after the
-// destination file is created — a truncated/erroring source, or an
-// over-limit part — the partially-written file is removed rather than
-// left behind: a half-written file could otherwise be served or loaded
-// as though it were complete.
-func savePart(dir, filename string, src io.Reader, limit int64) (retErr error) {
+// refusing anything larger than limit bytes. It writes to a temp file in
+// dir first and renames it over the final name only once the copy
+// succeeds, so a failure partway through (a truncated/erroring source, or
+// an over-limit part) removes only the temp file — a pre-existing file at
+// that name is left untouched instead of being deleted (F-102).
+func savePart(dir, filename string, src io.Reader, limit int64) error {
 	// Sanitize filename — reject anything that would climb out of dir.
 	name := filepath.Base(filename)
 	if name == "." || name == ".." || name == string(os.PathSeparator) {
 		return errors.New("invalid filename")
 	}
 	dstPath := filepath.Clean(filepath.Join(dir, name))
-	dst, err := os.Create(dstPath)
+	tmp, err := os.CreateTemp(dir, ".upload-*")
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = dst.Close()
-		if retErr != nil {
-			// Best-effort cleanup: removal failing here must not mask the
-			// original error, and there is nothing further we can do with it.
-			_ = os.Remove(dstPath)
-		}
-	}()
+	tmpName := tmp.Name()
 	// Read one byte past the cap: if that byte materializes the part is
 	// over the limit, whatever its multipart headers claimed.
-	n, err := io.Copy(dst, io.LimitReader(src, limit+1))
-	if err != nil {
-		return fmt.Errorf("save %q: %w", name, err)
+	n, err := io.Copy(tmp, io.LimitReader(src, limit+1))
+	closeErr := tmp.Close()
+	if err != nil || closeErr != nil {
+		_ = os.Remove(tmpName)
+		if err != nil {
+			return fmt.Errorf("save %q: %w", name, err)
+		}
+		return fmt.Errorf("save %q: %w", name, closeErr)
 	}
 	if n > limit {
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("file %q exceeds %d-byte limit", name, limit)
+	}
+	if err := os.Rename(tmpName, dstPath); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("save %q: %w", name, err)
 	}
 	return nil
 }
@@ -344,7 +400,7 @@ func (h *handler) mkdir(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *handler) del(w http.ResponseWriter, req *http.Request) {
-	p, err := h.resolve(req.URL.Query().Get("path"))
+	p, err := h.resolveForDelete(req.URL.Query().Get("path"))
 	if err != nil {
 		h.badRequest(w, err)
 		return
