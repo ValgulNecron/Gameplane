@@ -175,7 +175,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-212 | Namespace deleted on helm uninstall, losing GameServers and volumes | charts/gameplane/ | review:charts/gameplane | S1 | fixed-unverified | #425 | | |
 | F-213 | Pre-upgrade hook fails for non-default release name | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-214 | helm upgrade --reuse-values fails with nil-pointer errors on new keys | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
-| F-215 | Backup and Restore Job pods can't reach restic repository | charts/gameplane/ | review:charts/gameplane | S2 | fixing | #432 | | |
+| F-215 | Backup and Restore Job pods can't reach restic repository | charts/gameplane/ | review:charts/gameplane | S2 | fixed-unverified | #432 | | |
 | F-216 | PodMonitor scrape for agent metrics always down (TLS mismatch) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-217 | Telemetry receiver /metrics endpoint unreachable (NetworkPolicy) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-218 | CRD schema not updated on reinstall (pre-upgrade hook is upgrade-only) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
