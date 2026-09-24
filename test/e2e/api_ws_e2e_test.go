@@ -107,20 +107,11 @@ func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
 			continue
 		}
 		if strings.Contains(string(raw), marker) {
-			// F-103 regression: previously the router's blanket 30s Timeout
-			// middleware force-closed this socket at ~30s regardless of activity.
-			time.Sleep(35 * time.Second)
-			pingEnv := ptyEnvelope{
-				Kind: "stdin",
-				Body: base64.StdEncoding.EncodeToString([]byte("echo ping\n")),
-			}
-			pingBytes, err := json.Marshal(pingEnv)
-			if err != nil {
-				t.Fatalf("marshal ping envelope: %v", err)
-			}
-			if err := wsConn.Write(ctx, websocket.MessageText, pingBytes); err != nil {
-				t.Fatalf("socket closed by router timeout: %v", err)
-			}
+			// NOTE: this test attaches via the Kubernetes pod-attach/kubelet
+			// API (api/internal/ws/attach.go), not through agent/cmd/main.go's
+			// router, so it never exercised the F-103 30s router-timeout bug.
+			// The F-103 regression is validated end-to-end by
+			// TestAPI_LogsTailWS below, which is routed through the agent.
 			return
 		}
 	}
