@@ -268,6 +268,18 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
+	// Chmod the temp file to 0o644 to match the mode that os.Create would
+	// have produced before (F-102 follow-up). os.CreateTemp creates with 0600
+	// (owner-only), but the shared /data volume is read by game containers
+	// that may run under a different UID — without group-readable mode, the
+	// game container can't read files written by the agent (uid 65532). This
+	// preserves the pre-fix behavior where new files were readable by other
+	// UIDs on the same volume.
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		_ = os.Remove(tmpName)
+		httpErr(w, err)
+		return
+	}
 	if err := os.Rename(tmpName, filepath.Clean(p)); err != nil {
 		_ = os.Remove(tmpName)
 		httpErr(w, err)
@@ -378,6 +390,17 @@ func savePart(dir, filename string, src io.Reader, limit int64) error {
 	if n > limit {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("file %q exceeds %d-byte limit", name, limit)
+	}
+	// Chmod the temp file to 0o644 to match the mode that os.Create would
+	// have produced before (F-102 follow-up). os.CreateTemp creates with 0600
+	// (owner-only), but the shared /data volume is read by game containers
+	// that may run under a different UID — without group-readable mode, the
+	// game container can't read files uploaded by the agent (uid 65532). This
+	// preserves the pre-fix behavior where new files were readable by other
+	// UIDs on the same volume.
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("save %q: %w", name, err)
 	}
 	if err := os.Rename(tmpName, dstPath); err != nil {
 		_ = os.Remove(tmpName)
