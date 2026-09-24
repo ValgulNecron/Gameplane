@@ -68,6 +68,7 @@ Still pending: **RC-TAG-1**, which needs the maintainer's approval after #423 me
 ## Third session (2026-09-24): full hand-off
 
 ### Rules this work runs under (read before doing anything)
+- **Current focus (maintainer, 2026-09-24):** work only on the held security findings: the fix waves from `audit/held/fix-plan-held.md`, S1 → S4. Don't start public fix groups unless asked. Held S1 is done (PRs #430, #427); the held S2 wave (run `wf_b4babf35-61f`) was started.
 - **OD-019:** security findings stay off GitHub until fixed. Their records, evidence, review candidates, questions and the held fix plan live in `audit/held/`, which is git-ignored. Never stage it. Public files hold at most stubs ("held (OD-019)") and never describe the issue. Fix PRs for held findings read as neutral "hardening", cite no held F-ID and give no repro.
 - **Never read `SECURITY_AUDIT.md` from git history.** The reworded version sits uncommitted in the working tree on purpose; don't stage it. Also never stage `.specify/` or `sentinel/sentinel` (a build artefact).
 - **Fable is banned** (OD-020, cost). Tier+1 review of opus work is done by an independent opus agent.
