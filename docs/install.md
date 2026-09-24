@@ -503,6 +503,10 @@ The operator on the control-plane will reconcile the `Cluster` and
 update `status.phase` (Unknown → Healthy/Unhealthy). When `Healthy`,
 the API can dispatch requests to that cluster.
 
+Removing a cluster registered this way (from the dashboard or with
+`DELETE /clusters/{name}`) deletes the `Cluster` but leaves your Secret
+in place. Delete the Secret with kubectl when you no longer need it.
+
 ### Path 2: Dashboard API
 
 POST to `/clusters` with permission `cluster:manage` (admin-only):
@@ -520,7 +524,7 @@ curl -X POST https://<dashboard>/api/clusters \
 
 The API stores the kubeconfig as a labelled Secret and creates the
 `Cluster` CRD. The kubeconfig is never returned by the API and never
-logged.
+logged. Removing the cluster deletes both the `Cluster` and that Secret.
 
 ### Helm CRD caveat
 

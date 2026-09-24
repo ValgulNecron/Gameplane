@@ -9,6 +9,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -127,7 +128,9 @@ func (h clustersHandler) create(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Create the kubeconfig Secret in the control-plane namespace.
+	// Create the kubeconfig Secret in the control-plane namespace. The
+	// managed-by label marks it as created by the API, which is what lets
+	// DELETE /clusters/{name} remove it again.
 	secretName := "cluster-" + in.Name + "-kubeconfig"
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -135,6 +138,7 @@ func (h clustersHandler) create(w http.ResponseWriter, req *http.Request) {
 			Namespace: h.namespace,
 			Labels: map[string]string{
 				kube.ClusterKubeconfigLabel: "true",
+				ManagedByLabel:              managedByValue,
 			},
 		},
 		Type: corev1.SecretTypeOpaque,
@@ -227,9 +231,18 @@ func (h clustersHandler) delete(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// Clean up the kubeconfig Secret.
+	// Drop the cluster's client now instead of waiting for the cluster
+	// watch, so no request is dispatched through a removed registration.
+	h.reg.Remove(name)
+
+	// Clean up the kubeconfig Secret, but only one the API created itself
+	// (kubeconfig label plus managed-by=gameplane-api). A Secret created with
+	// kubectl or GitOps, or any other control-plane Secret the Cluster
+	// names, is left in place.
 	if secretName != "" {
-		_ = h.k.Typed.CoreV1().Secrets(h.namespace).Delete(req.Context(), secretName, metav1.DeleteOptions{})
+		if err := deleteManagedSecret(req.Context(), h.k, h.namespace, secretName, kube.ClusterKubeconfigLabel); err != nil && !apierrors.IsNotFound(err) {
+			slog.Warn("cluster delete: kubeconfig secret cleanup failed", "cluster", name, "err", err)
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)

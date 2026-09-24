@@ -55,17 +55,7 @@ func WatchClusters(ctx context.Context, home *Client, reg *Registry, ns string) 
 			}
 		},
 		DeleteFunc: func(obj any) {
-			u, ok := obj.(*unstructured.Unstructured)
-			if !ok {
-				return
-			}
-			name := u.GetName()
-			// Never remove the default cluster.
-			if name == reg.DefaultID() {
-				return
-			}
-			reg.Remove(name)
-			slog.Debug("cluster watch: removed cluster", "cluster", name)
+			removeDeletedCluster(reg, obj)
 		},
 	}); err != nil {
 		slog.Warn("cluster watch: register handler failed", "err", err)
@@ -79,6 +69,30 @@ func WatchClusters(ctx context.Context, home *Client, reg *Registry, ns string) 
 		return
 	}
 	slog.Debug("cluster watch: started")
+}
+
+// removeDeletedCluster drops a deleted Cluster's client from the registry.
+// The informer hands over either the Cluster object or, when the watch
+// missed its final state, a cache.DeletedFinalStateUnknown tombstone; both
+// remove the client. The default cluster is never removed.
+func removeDeletedCluster(reg *Registry, obj any) {
+	name := ""
+	switch v := obj.(type) {
+	case *unstructured.Unstructured:
+		name = v.GetName()
+	case cache.DeletedFinalStateUnknown:
+		if u, ok := v.Obj.(*unstructured.Unstructured); ok {
+			name = u.GetName()
+		} else {
+			// Cluster is cluster-scoped, so the tombstone key is its name.
+			name = v.Key
+		}
+	}
+	if name == "" || name == reg.DefaultID() {
+		return
+	}
+	reg.Remove(name)
+	slog.Debug("cluster watch: removed cluster", "cluster", name)
 }
 
 // loadCluster reads a Cluster CRD, extracts the kubeconfig Secret reference,

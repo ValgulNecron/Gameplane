@@ -127,7 +127,7 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
 - `/mod-ids/{name}` — PATCH: ID-managed mods (ARK CurseForge IDs, Project Zomboid MOD_IDs, Steam Workshop lists)
 - `/cluster` — GET: version, nodes, storage; POST: credential-minting (add node, kubeconfig)
 - `/cluster/actions` — credential-minting ops (cluster ops flag gated)
-- `/clusters` — multi-cluster: list remote Cluster CRDs; create/delete cluster registrations
+- `/clusters` — multi-cluster: list remote Cluster CRDs; create/delete cluster registrations. POST labels the kubeconfig Secret `gameplane.local/cluster-kubeconfig=true` and `gameplane.local/managed-by=gameplane-api`. DELETE removes the cluster's client from the registry at once, and deletes the referenced Secret only when it carries both labels; any other Secret is left in place
 - `/events` — SSE: real-time K8s events (multiplexed per namespace + cluster)
 - `/pod-events` — SSE: pod-level events
 - `/users/me` — GET: own profile (embeds `preferences`, see below)

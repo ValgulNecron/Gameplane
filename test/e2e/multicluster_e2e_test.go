@@ -70,11 +70,17 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+// clusterGVR is the Cluster CRD (cluster-scoped) the API's registrations
+// are stored as.
+var clusterGVR = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "clusters"}
 
 // clusterBKindName is the kind cluster name the CI job "e2e-multicluster"
 // stands up as the second, remote-registered cluster. Overridable via
@@ -427,6 +433,9 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	}
 
 	checkHomeClusterOnlyRoutes(t, admin, clusterID)
+
+	// Last, because it removes cluster B's registration.
+	checkClusterRemoval(t, admin, operatorClient, clusterID, gsName, tmplName)
 }
 
 // checkHomeClusterOnlyRoutes covers the routes built on the API's home-cluster
@@ -595,5 +604,124 @@ func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string
 	}
 	if !found {
 		t.Errorf("no audit row for capture download target %s", target)
+	}
+}
+
+// checkClusterRemoval removes cluster B's registration over HTTP and checks
+// what cluster removal does and does not touch: the registration stops
+// resolving at once, the kubeconfig Secret the API created goes with it, and
+// a Secret the API did not create stays in place when a Cluster that names
+// it is removed.
+func checkClusterRemoval(t *testing.T, admin, operatorClient *APIClient, clusterID, gsName, tmplName string) {
+	t.Helper()
+	const controlNS = "gameplane-system"
+	ctx := context.Background()
+
+	// The GameServer and GameTemplate on cluster B are reached through the
+	// registration removed below, so delete them first. Their cleanups,
+	// registered earlier, then become no-ops.
+	resp, body, err := operatorClient.Delete("/servers/" + gsName + "?cluster=" + clusterID)
+	if err != nil {
+		t.Fatalf("DELETE /servers/%s?cluster=%s: %v", gsName, clusterID, err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		t.Fatalf("DELETE /servers/%s?cluster=%s: status=%d body=%s", gsName, clusterID, resp.StatusCode, string(body))
+	}
+	resp, body, err = admin.Delete("/templates/" + tmplName + "?cluster=" + clusterID)
+	if err != nil {
+		t.Fatalf("DELETE /templates/%s?cluster=%s: %v", tmplName, clusterID, err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		t.Fatalf("DELETE /templates/%s?cluster=%s: status=%d body=%s", tmplName, clusterID, resp.StatusCode, string(body))
+	}
+
+	// --- Removing the API-created registration ------------------------------
+	resp, body, err = admin.Delete("/clusters/" + clusterID)
+	if err != nil {
+		t.Fatalf("DELETE /clusters/%s: %v", clusterID, err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("DELETE /clusters/%s: status=%d body=%s", clusterID, resp.StatusCode, string(body))
+	}
+
+	// The registration stops resolving right away: a removed cluster is
+	// an unknown cluster (400), with no wait for the API's cluster watch.
+	resp, body, err = admin.Get("/servers?cluster=" + clusterID)
+	if err != nil {
+		t.Fatalf("GET /servers?cluster=%s after removal: %v", clusterID, err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("GET /servers?cluster=%s after removal: status=%d want=%d body=%s",
+			clusterID, resp.StatusCode, http.StatusBadRequest, string(body))
+	}
+
+	// The kubeconfig Secret POST /clusters created is removed with it.
+	apiSecret := "cluster-" + clusterID + "-kubeconfig"
+	if _, err := envInstance.K8s.CoreV1().Secrets(controlNS).Get(ctx, apiSecret, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("secret %s/%s still present after DELETE /clusters/%s (err=%v)", controlNS, apiSecret, clusterID, err)
+	}
+
+	// --- Removing a registration made with kubectl --------------------------
+	// A Cluster applied directly (docs/install.md Path 1) names a Secret the
+	// API did not create. Removing the Cluster over HTTP leaves that Secret
+	// in place, labelled as a kubeconfig or not.
+	cases := []struct {
+		name   string
+		labels map[string]string
+	}{
+		{name: "unlabelled", labels: nil},
+		{name: "kubeconfig-label", labels: map[string]string{"gameplane.local/cluster-kubeconfig": "true"}},
+	}
+	for _, tc := range cases {
+		suffix := fmt.Sprintf("%s-%d", tc.name, time.Now().UnixNano())
+		secretName := "e2e-mc-keep-" + suffix
+		crName := "e2e-mc-ref-" + suffix
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: controlNS, Labels: tc.labels},
+			Type:       corev1.SecretTypeOpaque,
+			Data:       map[string][]byte{"kubeconfig": []byte("not-a-kubeconfig")},
+		}
+		if _, err := envInstance.K8s.CoreV1().Secrets(controlNS).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
+			t.Fatalf("%s: create secret %s/%s: %v", tc.name, controlNS, secretName, err)
+		}
+		t.Cleanup(func() {
+			_ = envInstance.K8s.CoreV1().Secrets(controlNS).Delete(context.Background(), secretName, metav1.DeleteOptions{})
+		})
+
+		cr := &unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "gameplane.local/v1alpha1",
+			"kind":       "Cluster",
+			"metadata":   map[string]any{"name": crName},
+			"spec": map[string]any{
+				"displayName":      "E2E kubectl-applied cluster",
+				"kubeconfigSecret": map[string]any{"name": secretName, "key": "kubeconfig"},
+			},
+		}}
+		if _, err := envInstance.Dyn.Resource(clusterGVR).Create(ctx, cr, metav1.CreateOptions{}); err != nil {
+			t.Fatalf("%s: create Cluster %s: %v", tc.name, crName, err)
+		}
+		t.Cleanup(func() {
+			_ = envInstance.Dyn.Resource(clusterGVR).Delete(context.Background(), crName, metav1.DeleteOptions{})
+		})
+
+		resp, body, err := admin.Delete("/clusters/" + crName)
+		if err != nil {
+			t.Fatalf("%s: DELETE /clusters/%s: %v", tc.name, crName, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNoContent {
+			t.Fatalf("%s: DELETE /clusters/%s: status=%d body=%s", tc.name, crName, resp.StatusCode, string(body))
+		}
+		if _, err := envInstance.Dyn.Resource(clusterGVR).Get(ctx, crName, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+			t.Errorf("%s: Cluster %s still present after DELETE /clusters/%s (err=%v)", tc.name, crName, crName, err)
+		}
+		if _, err := envInstance.K8s.CoreV1().Secrets(controlNS).Get(ctx, secretName, metav1.GetOptions{}); err != nil {
+			t.Errorf("%s: secret %s/%s was removed with Cluster %s: %v", tc.name, controlNS, secretName, crName, err)
+		}
 	}
 }

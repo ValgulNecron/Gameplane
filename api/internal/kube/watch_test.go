@@ -13,6 +13,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/cache"
 )
 
 func newTestCluster(name string) *unstructured.Unstructured {
@@ -190,4 +191,40 @@ func TestWatchClusters_DeletesCluster(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("watcher did not delete remote cluster")
+}
+
+func TestRemoveDeletedCluster_RemovesClientForObjectAndTombstone(t *testing.T) {
+	cases := map[string]any{
+		"cluster object":           newTestCluster("remote"),
+		"tombstone with object":    cache.DeletedFinalStateUnknown{Key: "remote", Obj: newTestCluster("remote")},
+		"tombstone without object": cache.DeletedFinalStateUnknown{Key: "remote"},
+	}
+	for name, obj := range cases {
+		t.Run(name, func(t *testing.T) {
+			reg := NewRegistry("local")
+			reg.Set("local", &Client{})
+			reg.Set("remote", &Client{})
+
+			removeDeletedCluster(reg, obj)
+
+			if _, ok := reg.Get("remote"); ok {
+				t.Fatal("remote cluster client still registered after delete")
+			}
+			if _, ok := reg.Get("local"); !ok {
+				t.Fatal("local cluster client removed")
+			}
+		})
+	}
+}
+
+func TestRemoveDeletedCluster_KeepsDefaultCluster(t *testing.T) {
+	reg := NewRegistry("local")
+	reg.Set("local", &Client{})
+
+	removeDeletedCluster(reg, newTestCluster("local"))
+	removeDeletedCluster(reg, cache.DeletedFinalStateUnknown{Key: "local", Obj: newTestCluster("local")})
+
+	if _, ok := reg.Get("local"); !ok {
+		t.Fatal("default cluster client removed by a delete event")
+	}
 }
