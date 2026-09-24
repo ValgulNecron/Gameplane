@@ -222,13 +222,16 @@ func main() {
 		}
 	}
 	auditor := audit.New(store, auditOpts...)
-	// Wire the Helm OIDC provider to the auditor for role-assignment audit events (FR-014).
+	// Wire every OIDC provider to the auditor for role-assignment audit events (FR-014):
+	// the Helm-flag provider directly, and the dashboard-managed providers through the
+	// registry, which attaches the func to each provider it builds.
 	// auth must not import audit (audit imports auth), so the dependency is inverted here
-	// via a closure over the concrete auditor's WriteSync method.
+	// via the concrete auditor's WriteSync method value.
 	if oidcAuth != nil {
 		oidcAuth.AttachAuditWriteSyncFunc(auditor.WriteSync)
 		oidcAuth.SetProviderName(auth.HelmProviderName)
 	}
+	authRegistry.AttachAuditWriteSyncFunc(auditor.WriteSync)
 
 	// Notification delivery: watch CRD status transitions (server health,
 	// backup/restore outcomes) and push matching events to the sinks

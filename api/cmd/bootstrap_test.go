@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -279,5 +281,128 @@ func TestBootstrap_EnableLocalLoginNoRow(t *testing.T) {
 	}
 	if !strings.Contains(out, "already enabled by default") {
 		t.Fatalf("stderr = %q", out)
+	}
+}
+
+// The break-glass local-login switch rewrites only the local provider's
+// enabled flag: other providers and the helmOverride role-mapping overlay
+// (including an explicit empty list) are kept as they were.
+func TestBootstrap_EnableLocalLoginKeepsRestOfAuthConfig(t *testing.T) {
+	dsn := dsnIn(t)
+	s := mustOpen(t, dsn)
+	if err := s.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	seed := `{"providers":[{"name":"local","kind":"local","enabled":false},` +
+		`{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g"}],` +
+		`"helmOverride":{"roleMappings":{"admin":["ops-admins"],"viewer":[]}}}`
+	if _, err := s.DB.ExecContext(context.Background(), `INSERT INTO config(key, value) VALUES ('auth', ?)`, seed); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	out, err := runBootstrap(t, dsn, "", "--enable-local-login")
+	if err != nil {
+		t.Fatalf("bootstrap: %v (stderr=%q)", err, out)
+	}
+
+	var raw string
+	if err := s.DB.QueryRowContext(context.Background(), `SELECT value FROM config WHERE key='auth'`).Scan(&raw); err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	var got struct {
+		Providers    []map[string]any `json:"providers"`
+		HelmOverride *struct {
+			RoleMappings *struct {
+				Admin  []string `json:"admin"`
+				Viewer []string `json:"viewer"`
+			} `json:"roleMappings"`
+		} `json:"helmOverride"`
+	}
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("decode auth row: %v (%s)", err, raw)
+	}
+	if got.HelmOverride == nil || got.HelmOverride.RoleMappings == nil {
+		t.Fatalf("helmOverride.roleMappings was dropped: %s", raw)
+	}
+	if !reflect.DeepEqual(got.HelmOverride.RoleMappings.Admin, []string{"ops-admins"}) {
+		t.Fatalf("helmOverride admin = %v, want [ops-admins]", got.HelmOverride.RoleMappings.Admin)
+	}
+	if got.HelmOverride.RoleMappings.Viewer == nil || len(got.HelmOverride.RoleMappings.Viewer) != 0 {
+		t.Fatalf("helmOverride viewer = %#v, want an explicit empty list", got.HelmOverride.RoleMappings.Viewer)
+	}
+	var localEnabled, corpKept bool
+	for _, p := range got.Providers {
+		if p["kind"] == "local" && p["enabled"] == true {
+			localEnabled = true
+		}
+		if p["name"] == "corp" && p["issuer"] == "https://idp.example" {
+			corpKept = true
+		}
+	}
+	if !localEnabled || !corpKept {
+		t.Fatalf("providers = %v, want local enabled and corp kept", got.Providers)
+	}
+}
+
+// A forced reset through bootstrap-admin ends every existing session of
+// the reset account, as the dashboard password reset does; other
+// accounts' sessions are left alone.
+func TestBootstrap_ForceEndsExistingSessions(t *testing.T) {
+	dsn := dsnIn(t)
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
+	if _, err := runBootstrap(t, dsn, "",
+		"--username=admin", "--password=original-correct-horse"); err != nil {
+		t.Fatalf("first bootstrap: %v", err)
+	}
+
+	s := mustOpen(t, dsn)
+	ctx := context.Background()
+	if _, err := s.DB.ExecContext(ctx,
+		`INSERT INTO users(username, display_name, email, role, pw_hash) VALUES (?,?,?,?,?)`,
+		"bob", "Bob", "bob@example.com", "viewer", "placeholder",
+	); err != nil {
+		t.Fatalf("seed bob: %v", err)
+	}
+	var adminID, bobID int64
+	if err := s.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE username='admin'`).Scan(&adminID); err != nil {
+		t.Fatalf("admin id: %v", err)
+	}
+	if err := s.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE username='bob'`).Scan(&bobID); err != nil {
+		t.Fatalf("bob id: %v", err)
+	}
+	for _, row := range []struct {
+		token string
+		user  int64
+	}{
+		{"tok-admin-1", adminID},
+		{"tok-admin-2", adminID},
+		{"tok-bob-1", bobID},
+	} {
+		if _, err := s.DB.ExecContext(ctx,
+			`INSERT INTO sessions(token, user_id, csrf_token, expires_at) VALUES (?, ?, ?, ?)`,
+			row.token, row.user, "csrf-"+row.token, "2999-01-01T00:00:00Z",
+		); err != nil {
+			t.Fatalf("seed session %s: %v", row.token, err)
+		}
+	}
+
+	if _, err := runBootstrap(t, dsn, "",
+		"--username=admin", "--password=fresh-rotation-secret", "--force",
+	); err != nil {
+		t.Fatalf("force bootstrap: %v", err)
+	}
+
+	var adminSessions, bobSessions int
+	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE user_id = ?`, adminID).Scan(&adminSessions); err != nil {
+		t.Fatalf("count admin sessions: %v", err)
+	}
+	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE user_id = ?`, bobID).Scan(&bobSessions); err != nil {
+		t.Fatalf("count bob sessions: %v", err)
+	}
+	if adminSessions != 0 {
+		t.Fatalf("reset account still has %d sessions after --force, want 0", adminSessions)
+	}
+	if bobSessions != 1 {
+		t.Fatalf("other account has %d sessions after --force, want 1 (left alone)", bobSessions)
 	}
 }

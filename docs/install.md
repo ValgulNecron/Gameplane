@@ -90,7 +90,7 @@ printf '%s' "$ADMIN_PASSWORD" | kubectl -n gameplane-system exec -i deploy/gamep
 ```
 
 If a user with that name already exists, pass `--force` to rotate the
-password and promote them to `admin`.
+password, promote them to `admin`, and end their existing sessions.
 
 Open `https://<ingress.host>` and log in.
 

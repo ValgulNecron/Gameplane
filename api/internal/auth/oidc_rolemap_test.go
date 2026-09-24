@@ -1192,3 +1192,91 @@ func TestHandleCallback_HelmOverride_LiveRead_SC007(t *testing.T) {
 		t.Fatalf("login 3: role=%q want admin (back to base policy: helm-admins -> admin)", role)
 	}
 }
+
+// TestHandleCallback_HelmOverrideMappingsReEvaluateWithoutHelmMappings —
+// with no Helm-seeded role mappings, a dashboard helmOverride that supplies
+// mappings is the effective policy: later logins re-evaluate the role
+// against it and audit the change, and the last user-manager keeps their
+// role until another user-manager exists.
+func TestHandleCallback_HelmOverrideMappingsReEvaluateWithoutHelmMappings(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.groups = []string{"ovr-admins"}
+
+	// The Helm policy main.go builds when --oidc-issuer is set but no
+	// --oidc-role-mapping-* flag is: a policy with nil RoleMappings.
+	basePolicy := &ProviderPolicy{}
+	override := &RoleMappings{Admin: []string{"ovr-admins"}}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", basePolicy)
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	o.SetProviderName(HelmProviderName)
+	o.AttachHelmRoleOverridesFunc(func(context.Context) *RoleMappings { return override })
+	rec := &auditWriteRecorder{}
+	o.AttachAuditWriteSyncFunc(rec.write)
+
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	roleOf := func(label string) (string, string) {
+		t.Helper()
+		var role, bindingRole string
+		if err := store.DB.QueryRowContext(context.Background(),
+			`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+			t.Fatalf("%s: user: %v", label, err)
+		}
+		if err := store.DB.QueryRowContext(context.Background(), `
+			SELECT b.role_name FROM user_role_bindings b
+			JOIN users u ON u.id = b.user_id
+			WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
+			t.Fatalf("%s: binding: %v", label, err)
+		}
+		return role, bindingRole
+	}
+
+	// Login 1: the override maps the user's group to admin.
+	idp.nonce = "nonce-ovr-1"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-ovr-1"); rr.Code != http.StatusFound {
+		t.Fatalf("login 1: code=%d body=%q", rr.Code, rr.Body)
+	}
+	if role, binding := roleOf("login 1"); role != "admin" || binding != "admin" {
+		t.Fatalf("login 1: role=%q binding=%q, want admin/admin", role, binding)
+	}
+	if len(rec.reasons) != 1 {
+		t.Fatalf("login 1: audit events = %d (%v), want 1", len(rec.reasons), rec.reasons)
+	}
+
+	// Login 2: the group is gone at the IdP, but the user is the install's
+	// only user-manager, so the demotion is skipped and not audited.
+	idp.groups = []string{"unmapped"}
+	idp.nonce = "nonce-ovr-2"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-ovr-2"); rr.Code != http.StatusFound {
+		t.Fatalf("login 2: code=%d body=%q", rr.Code, rr.Body)
+	}
+	if role, binding := roleOf("login 2"); role != "admin" || binding != "admin" {
+		t.Fatalf("login 2: role=%q binding=%q, last user-manager must keep admin", role, binding)
+	}
+	if len(rec.reasons) != 1 {
+		t.Fatalf("login 2: audit events = %d (%v), want still 1", len(rec.reasons), rec.reasons)
+	}
+
+	// Login 3: another user-manager exists now, so the re-evaluation
+	// applies the default role and audits the change.
+	seedUser(t, store, "backup-admin", "pw-backup-admin", "admin")
+	idp.nonce = "nonce-ovr-3"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-ovr-3"); rr.Code != http.StatusFound {
+		t.Fatalf("login 3: code=%d body=%q", rr.Code, rr.Body)
+	}
+	if role, binding := roleOf("login 3"); role != "viewer" || binding != "viewer" {
+		t.Fatalf("login 3: role=%q binding=%q, want viewer/viewer", role, binding)
+	}
+	if len(rec.reasons) != 2 {
+		t.Fatalf("login 3: audit events = %d (%v), want 2", len(rec.reasons), rec.reasons)
+	}
+	if want := "oidc role assigned: provider=helm matched=none from=admin to=viewer"; rec.reasons[1] != want {
+		t.Fatalf("login 3: audit reason = %q, want %q", rec.reasons[1], want)
+	}
+}

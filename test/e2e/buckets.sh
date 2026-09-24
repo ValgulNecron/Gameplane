@@ -173,12 +173,16 @@ TestAPI_LifecycleRestart
 EOF
 }
 
+# TestAPI_BootstrapAdminForceEndsExistingSessions spends no e2e-admin login:
+# it logs in once as its own throwaway account (a fresh per-username bucket),
+# so it adds one login to this job's shared per-IP budget only.
 bucket_api_mods() { cat <<'EOF'
 TestAPI_ModManifestInstallUpgrade
 TestAPI_ModUpload
 TestAPI_ModArchiveConfinement_PathTraversalRejected
 TestAPI_ModArchiveConfinement_SymlinkEscapeRejected
 TestAPI_ModArchiveConfinement_ValidArchiveExtracts
+TestAPI_BootstrapAdminForceEndsExistingSessions
 EOF
 }
 
