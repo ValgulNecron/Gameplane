@@ -136,7 +136,10 @@ describe("OverviewTab players card", () => {
     } satisfies PlayersResp)));
     renderWithQuery(<OverviewTab gs={gs()} name="s1" />);
     expect(await screen.findByText("Player count unknown.")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Players online · —/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("-1")).not.toBeInTheDocument();
   });
 
   it("renders real player names from the snapshot", async () => {
