@@ -140,23 +140,26 @@ func TestAPI_LogsTailWS(t *testing.T) {
 	requireAgentReady(t, ns, gs)
 	waitAgentReachable(t, cli, gs)
 
+	dialTime := time.Now()
 	wsConn, stop := dialAuthedWS(t, cli, "/ws/servers/"+gs+"/logs")
 	defer stop()
 
-	readCtx, readCancel := context.WithTimeout(ctx, 30*time.Second)
+	// F-103 regression: previously the router's blanket 30s Timeout
+	// middleware force-closed this socket at ~30s regardless of activity.
+	// The ticker template appends a marker line every second, so keep
+	// reading frames (instead of sleeping past 30s and then probing with
+	// a single write, which can succeed against an already-closed TCP
+	// socket) until at least 35s have elapsed since the dial. A router
+	// timeout surfaces as a read error or close status well before then.
+	const holdPast = 35 * time.Second
+	readCtx, readCancel := context.WithTimeout(ctx, holdPast+10*time.Second)
 	defer readCancel()
 	for {
 		_, frame, err := wsConn.Read(readCtx)
 		if err != nil {
-			t.Fatalf("read log frame: %v (no marker observed)", err)
+			t.Fatalf("read log frame: %v (no marker observed, socket closed by router timeout?)", err)
 		}
-		if strings.Contains(string(frame), marker) {
-			// F-103 regression: previously the router's blanket 30s Timeout
-			// middleware force-closed this socket at ~30s regardless of activity.
-			time.Sleep(35 * time.Second)
-			if err := wsConn.Write(ctx, websocket.MessageText, []byte("ping")); err != nil {
-				t.Fatalf("socket closed by router timeout: %v", err)
-			}
+		if strings.Contains(string(frame), marker) && time.Since(dialTime) >= holdPast {
 			return
 		}
 	}
