@@ -854,7 +854,9 @@ export interface PlayerCapabilities {
 }
 
 export interface PlayersResp {
+  /** -1 when the agent cannot determine the player count. */
   online: number;
+  /** -1 when the agent cannot determine the player cap. */
   max: number;
   players: string[];
   asOf: string;
