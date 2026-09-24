@@ -49,6 +49,7 @@ All of these still apply.
 
 | PR | Content |
 |---|---|
+| #427 | held H02 hardening (green after one re-run of an infra failure) |
 | #428 | group 8: F-172, F-052, F-173 (merge before #447) |
 | #429 | group 4: F-116, F-130 |
 | #433 | group 2: F-102, F-108 |
@@ -62,7 +63,6 @@ All of these still apply.
 
 | PR | Content | State |
 |---|---|---|
-| #427 | held H02 hardening | `e2e web live / arm64` failed because the kind API server stopped responding (infra). amd64 passed and master is green. Failed jobs of run 36071165449 were re-run once, with a neutral PR comment. A second failure would be real. |
 | #430 | held H01 plus the 501 change | CI on `94e79456`; check it. |
 | #440 | group 21: F-125 | Re-implemented and pushed as `a8ce6395` after an independent opus review approved it. A module-level flag keeps `?safe-mode=1` across client-side navigation only; a full reload clears it, per theme-ui.md §4. The e2e spec is unchanged, and only the test this PR added was modified. Master was merged in. Waiting for CI. |
 | #441 | group 23: F-159..F-162 | The stricter validator rejected api module-builder fixtures that lack the CRD-required `spec.displayName`/`spec.version`. `86beb6c4` and `0360b22c` fixed them all (no production change was needed). **Test edits need maintainer sign-off** (PR comment posted). |
