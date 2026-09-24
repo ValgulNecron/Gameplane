@@ -46,29 +46,37 @@ export const DEFAULT_THEME_PREFERENCES: UserThemePreferences = {
 
 const HEX_COLOR_RE = /^#([0-9a-fA-F]{6})$/;
 
+// F-125: set once `?safe-mode=1` has been seen during this page load, so URL
+// safe mode survives TanStack client-side navigation (which drops the query
+// string, e.g. the banner's "Open Appearance Settings" link). Deliberately
+// in-memory only: a full reload re-evaluates this module and clears it, so
+// removing the parameter and reloading restores normal behavior
+// (contracts/theme-ui.md §4). The sessionStorage flag below is a separate,
+// pre-existing entry point (keyboard shortcut, login-page safe-mode link).
+let urlSafeModeSeen = false;
+
+/** Test-only: clears the in-memory URL safe-mode latch, simulating a fresh page load. */
+export function resetUrlSafeModeForTests(): void {
+  urlSafeModeSeen = false;
+}
+
 /**
  * Safe mode (FR-009) suspends only the custom CSS overlay; the base theme
- * still applies. Entry points: the `?safe-mode=1` URL parameter, or the
+ * still applies. Entry points: the `?safe-mode=1` URL parameter (kept for
+ * the rest of the page load, across in-app navigation), or the
  * `gameplane-safe-mode` sessionStorage flag set by the keyboard shortcut
- * and the login-page safe-mode link (both owned by later tasks).
+ * and the login-page safe-mode link.
  */
 export function isSafeModeActive(): boolean {
   if (typeof window === "undefined") return false;
   try {
     if (new URLSearchParams(window.location.search).get("safe-mode") === "1") {
-      // Persist the URL entry point into sessionStorage (mirroring the
-      // keyboard shortcut and the login-page link) so safe mode survives
-      // the first in-app navigation, which drops the query string.
-      try {
-        window.sessionStorage.setItem(SAFE_MODE_SESSION_KEY, "1");
-      } catch {
-        // sessionStorage blocked — safe mode still applies for this view via the URL.
-      }
-      return true;
+      urlSafeModeSeen = true;
     }
   } catch {
     // Malformed query string — treat the URL entry point as inactive.
   }
+  if (urlSafeModeSeen) return true;
   try {
     const flag = window.sessionStorage.getItem(SAFE_MODE_SESSION_KEY);
     return flag === "1" || flag === "true";
