@@ -147,6 +147,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   #334, #344, #354, #355, #356, #357, #358, #359, #379, #380, #381, #382, #387,
   #399, #400, #401, #402, #403, #404, #405, #406, #412).
 
+### Security hardening
+
+- **web:** hardened the Admin Settings draft and managed-secret lifecycle.
+
 ## [0.3.0-rc.1] — 2026-09-23
 
 The first release candidate for v0.3.0, the first Gameplane release without a
