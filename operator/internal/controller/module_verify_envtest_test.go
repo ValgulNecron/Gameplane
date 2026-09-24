@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
@@ -127,18 +127,20 @@ func TestModule_DigestPinMatch(t *testing.T) {
 	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseReady, "")
 }
 
-// patchModuleDigest sets a Module's spec.digest, retrying on conflict
-// because the reconciler updates status concurrently.
+// patchModuleDigest sets a Module's spec.digest with a JSON merge patch.
+// The patch carries no resourceVersion, so it applies regardless of the
+// status writes the reconciler keeps making while the Module is Failed
+// (each retry flips it through Pulling and back to Failed), which a
+// Get+Update cycle can keep losing even under RetryOnConflict.
 func patchModuleDigest(t *testing.T, name, digest string) {
 	t.Helper()
-	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var mod gameplanev1alpha1.Module
-		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &mod); err != nil {
-			return err
-		}
-		mod.Spec.Digest = digest
-		return k8sClient.Update(context.Background(), &mod)
-	}); err != nil {
+	var mod gameplanev1alpha1.Module
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &mod); err != nil {
+		t.Fatalf("get module %s: %v", name, err)
+	}
+	base := mod.DeepCopy()
+	mod.Spec.Digest = digest
+	if err := k8sClient.Patch(context.Background(), &mod, client.MergeFrom(base)); err != nil {
 		t.Fatalf("patch module digest: %v", err)
 	}
 }
