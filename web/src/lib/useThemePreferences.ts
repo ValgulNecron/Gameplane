@@ -55,7 +55,17 @@ const HEX_COLOR_RE = /^#([0-9a-fA-F]{6})$/;
 export function isSafeModeActive(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    if (new URLSearchParams(window.location.search).get("safe-mode") === "1") return true;
+    if (new URLSearchParams(window.location.search).get("safe-mode") === "1") {
+      // Persist the URL entry point into sessionStorage (mirroring the
+      // keyboard shortcut and the login-page link) so safe mode survives
+      // the first in-app navigation, which drops the query string.
+      try {
+        window.sessionStorage.setItem(SAFE_MODE_SESSION_KEY, "1");
+      } catch {
+        // sessionStorage blocked — safe mode still applies for this view via the URL.
+      }
+      return true;
+    }
   } catch {
     // Malformed query string — treat the URL entry point as inactive.
   }

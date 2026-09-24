@@ -93,6 +93,22 @@ describe("isSafeModeActive", () => {
     window.sessionStorage.setItem(SAFE_MODE_SESSION_KEY, "1");
     expect(isSafeModeActive()).toBe(true);
   });
+
+  it("persists the URL entry point to sessionStorage so it survives losing the query string", () => {
+    const originalPath = window.location.pathname + window.location.search;
+    window.history.replaceState(null, "", "/?safe-mode=1");
+    try {
+      expect(isSafeModeActive()).toBe(true);
+      expect(window.sessionStorage.getItem(SAFE_MODE_SESSION_KEY)).toBe("1");
+
+      // Simulate the in-app navigation that drops the query string (e.g.
+      // TanStack Router's navigate() to /settings/theme).
+      window.history.replaceState(null, "", "/settings/theme");
+      expect(isSafeModeActive()).toBe(true);
+    } finally {
+      window.history.replaceState(null, "", originalPath);
+    }
+  });
 });
 
 describe("readThemePreferences", () => {
