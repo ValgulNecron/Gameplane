@@ -428,7 +428,7 @@ public key ships to users:
 
 ```sh
 cosign generate-key-pair                 # writes cosign.key (private) + cosign.pub
-# CI secrets (repo settings): paste the contents of each file
+# CI secrets (Settings → Environments → release-signing): paste each file
 #   COSIGN_PRIVATE_KEY = <cosign.key>    COSIGN_PASSWORD = <the passphrase>
 # Commit cosign.pub at the repo root — CI drift-checks it against the
 # private key on every publish, and it ships as a release asset.
