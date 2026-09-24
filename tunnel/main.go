@@ -308,28 +308,42 @@ auth.method = "token"
 auth.token = "%s"
 `, cfg.FrpServerAddr, cfg.FrpServerPort, escapeTomlString(token))
 
-	// Parse BACKING_SERVICE_PORT format: "name:port,name:port,..."
-	// and create a proxy section for each.
+	// Parse BACKING_SERVICE_PORT format:
+	// "name:localPort:remotePort:protocol,name:localPort:remotePort:protocol,...".
+	// localPort is the backing Service's own port (from the GameTemplate's
+	// containerPort) and remotePort is the public port on the frps host the
+	// user picked (spec.networking.tunnel.frp.remotePorts); they are
+	// independent values. protocol is "tcp" or "udp", from the template
+	// port's own protocol. Using localPort/protocol unconditionally, rather
+	// than assuming remotePort also names the Service port and the port is
+	// always TCP, is the fix for F-052: frp only worked before when a
+	// user's remotePort happened to equal the Service port and the game
+	// used TCP.
 	for _, entry := range strings.Split(cfg.BackingServicePort, ",") {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
 		}
 		parts := strings.Split(entry, ":")
-		if len(parts) != 2 {
+		if len(parts) != 4 {
 			return "", fmt.Errorf("invalid port mapping: %q", entry)
 		}
 		name := strings.TrimSpace(parts[0])
-		port := strings.TrimSpace(parts[1])
+		localPort := strings.TrimSpace(parts[1])
+		remotePort := strings.TrimSpace(parts[2])
+		protocol := strings.ToLower(strings.TrimSpace(parts[3]))
+		if protocol != "tcp" && protocol != "udp" {
+			return "", fmt.Errorf("invalid port mapping protocol: %q", entry)
+		}
 
 		config += fmt.Sprintf(`
 [[proxies]]
 name = "%s"
-type = "tcp"
+type = "%s"
 localIP = "%s"
 localPort = %s
 remotePort = %s
-`, name, cfg.BackingServiceDNS, port, port)
+`, name, protocol, cfg.BackingServiceDNS, localPort, remotePort)
 	}
 
 	if err := os.WriteFile(frpConfigPath, []byte(config), 0o600); err != nil {
@@ -558,7 +572,6 @@ type exponentialBackoff struct {
 func (b *exponentialBackoff) next() time.Duration {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.retries++
 
 	// Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 5 minutes.
 	//
@@ -568,6 +581,19 @@ func (b *exponentialBackoff) next() time.Duration {
 	// dedicated relay connection, so there's no herd here to spread out,
 	// and adding one would only make restart timing less predictable to
 	// operators reading logs.
+	//
+	// retries is capped at 10 before the shift: base already saturates at
+	// the 300s cap below by retries==10 (1<<9 = 512 > 300), so counting any
+	// higher never changes the returned delay. The cap matters because,
+	// uncapped, a relay that stays up long enough to reach 64 lifetime
+	// retries hit undefined shift behavior: on a 64-bit int, 1<<63 is
+	// math.MinInt64, which is not > 300 so the cap below was skipped, and
+	// time.Duration(MinInt64)*time.Second wrapped again to 0 -- sending the
+	// supervisor into a busy restart loop from the 64th retry on (F-172).
+	if b.retries < 10 {
+		b.retries++
+	}
+
 	base := 1 << uint(b.retries-1)
 	if base > 300 {
 		base = 300
