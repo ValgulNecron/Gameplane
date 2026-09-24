@@ -28,6 +28,13 @@ const (
 	// manager has assigned the address, False while it is pending, was
 	// ignored for the expose mode, or failed.
 	GameServerConditionAddressAssignment = "AddressAssignment"
+
+	// GameServerConditionDataWipe reports the outcome of the most recent
+	// data-wipe request (spec via the wipe-data-requested annotation):
+	// False with Reason "JobFailed" when the wipe Job could not empty the
+	// volume (e.g. a permission error on a subdirectory it doesn't own).
+	// Absent once a wipe has succeeded and been acked.
+	GameServerConditionDataWipe = "DataWipe"
 )
 
 // GameServerSpec is the desired state of a single game server instance.
