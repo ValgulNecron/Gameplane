@@ -13,8 +13,9 @@ vi.mock("@/lib/endpoints", () => ({
 }));
 
 // Mock the router
+const mockNavigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
 }));
 
 const queryClient = new QueryClient({
@@ -31,6 +32,7 @@ const Wrapper = ({ children }: { children: ReactNode }) => (
 describe("CloneServerDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNavigate.mockClear();
     queryClient.clear();
   });
 
@@ -195,5 +197,33 @@ describe("CloneServerDialog", () => {
       { wrapper: Wrapper },
     );
     expect(screen.getByRole("heading", { name: "Clone server" })).toBeInTheDocument();
+  });
+
+  it("navigates to the clone with the source's namespace after a successful clone", async () => {
+    const { Servers } = await import("@/lib/endpoints");
+    vi.mocked(Servers.clone).mockResolvedValue({
+      metadata: { name: "source-copy", namespace: "team-a" },
+      spec: { templateRef: { name: "minecraft-vanilla" } },
+      status: {},
+    } as never);
+
+    const user = userEvent.setup();
+    render(
+      <CloneServerDialog
+        open
+        onOpenChange={() => {}}
+        sourceName="source"
+        ns="team-a"
+      />,
+      { wrapper: Wrapper },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Clone server" }));
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/servers/$name",
+      params: { name: "source-copy" },
+      search: { ns: "team-a" },
+    });
   });
 });

@@ -185,7 +185,7 @@ export function LogsTab({
             size="sm"
             variant="outline"
             onPress={() => {
-              window.location.href = Logs.downloadURL(name);
+              window.location.href = Logs.downloadURL(name, ns);
             }}
           >
             <Download className="h-4 w-4" />

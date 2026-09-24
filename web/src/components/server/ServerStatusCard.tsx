@@ -20,11 +20,13 @@ import { formatUptime } from "@/lib/utils";
 // "render nothing" behavior.
 export function ServerStatusCard({
   name,
+  ns,
   tmpl,
   running,
   gs,
 }: {
   name: string;
+  ns?: string;
   tmpl?: GameTemplate;
   running: boolean;
   gs?: GameServer;
@@ -33,8 +35,8 @@ export function ServerStatusCard({
   const show = metrics.length > 0 && rconAvailable(tmpl);
 
   const { data: readings } = useQuery({
-    queryKey: ["server-status", name],
-    queryFn: () => Servers.status(name),
+    queryKey: ["server-status", name, ns],
+    queryFn: () => Servers.status(name, ns),
     enabled: show && running,
     refetchInterval: 10_000,
     retry: false,

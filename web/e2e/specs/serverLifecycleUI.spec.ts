@@ -73,4 +73,25 @@ test.describe("server lifecycle UI", () => {
     const tabNav = page.getByRole("tablist", { name: /Server detail tabs/i });
     await expect(tabNav.getByRole("tab", { name: /^console$/i })).toBeVisible();
   });
+
+  test("shared row on /servers shows lifecycle actions scoped to its namespace", async ({ page }) => {
+    await page.goto("/servers");
+    await page.waitForLoadState("domcontentloaded");
+
+    await expect(page.getByText("Shared with you")).toBeVisible();
+    const sharedRow = page.getByRole("row").filter({ hasText: "team-a-shared" });
+    await expect(sharedRow).toBeVisible();
+
+    // Fixture seeds phase=Running (makeServer's default), so Stop is the
+    // enabled affordance, same as the existing "alpha" row tests above.
+    const stopBtn = sharedRow.getByRole("button", { name: /^stop$/i });
+    await expect(stopBtn).toBeEnabled({ timeout: 5_000 });
+
+    const stopped = page.waitForRequest(
+      (req) => /\/servers\/team-a-shared:stop\?/.test(req.url()) && req.method() === "POST",
+    );
+    await stopBtn.click();
+    const req = await stopped;
+    expect(req.url()).toContain("namespace=team-a");
+  });
 });

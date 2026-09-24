@@ -109,6 +109,49 @@ test.describe("server detail tabs", () => {
   });
 });
 
+test.describe("server detail namespace scoping", () => {
+  test.skip(
+    process.env.GAMEPLANE_E2E_TARGET === "live",
+    "namespace scoping against live data needs a second real namespace; mock mode is deterministic",
+  );
+
+  test.beforeEach(async ({ page }) => {
+    await loginIfNeeded(page);
+  });
+
+  test("Back up now carries the page's namespace", async ({ page }) => {
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha", "team-a");
+    await page.waitForLoadState("domcontentloaded");
+    await serverDetail.clickTab("Backups");
+
+    const created = page.waitForRequest(
+      (req) => req.url().includes("/backups?namespace=team-a") && req.method() === "POST",
+    );
+    await page.getByRole("button", { name: /^back up now$/i }).click();
+    await created;
+  });
+
+  test("Mods install carries the page's namespace", async ({ page }) => {
+    await page.context().addCookies([
+      { name: "e2e_mods_install", value: "1", url: "http://localhost:5173" },
+    ]);
+    const serverDetail = new ServerDetailPage(page);
+    await serverDetail.goto("alpha", "team-a");
+    await page.waitForLoadState("domcontentloaded");
+    await serverDetail.clickTab("Mods");
+
+    await page.getByRole("button", { name: /^install mod$/i }).click();
+    await page.getByLabel(/download url/i).fill("https://example.com/mock-mod.jar");
+
+    const installed = page.waitForRequest(
+      (req) => req.url().includes("/mods/install?namespace=team-a") && req.method() === "POST",
+    );
+    await page.getByRole("button", { name: /^install$/i }).click();
+    await installed;
+  });
+});
+
 // isExpectedDevWarning filters out noisy dev-mode warnings that aren't
 // regressions: HMR notices, React strict-mode double-render notes, and
 // WebSocket-handshake failures from the Console/Logs tabs (mock mode has

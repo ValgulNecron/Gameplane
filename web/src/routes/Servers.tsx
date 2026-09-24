@@ -63,8 +63,8 @@ export function ServersPage() {
   });
 
   const act = useMutation({
-    mutationFn: (args: { name: string; verb: LifecycleVerb }) =>
-      Servers.lifecycle(args.name, args.verb),
+    mutationFn: (args: { name: string; verb: LifecycleVerb; ns?: string }) =>
+      Servers.lifecycle(args.name, args.verb, args.ns),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["servers"] }),
   });
 
@@ -449,8 +449,8 @@ export function ServersPage() {
                   </Table.Cell>
                   <Table.Cell className="text-right">
                     {(() => {
-                      const { isSharedNonDefault, phase, asleep } = serverRowData(gs);
-                      return !isSharedNonDefault ? <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={act.mutate} /> : null;
+                      const { phase, asleep } = serverRowData(gs);
+                      return <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={act.mutate} />;
                     })()}
                   </Table.Cell>
                 </Table.Row>
@@ -524,8 +524,8 @@ export function ServersPage() {
                       </Table.Cell>
                       <Table.Cell className="text-right">
                         {(() => {
-                          const { isSharedNonDefault, phase, asleep } = serverRowData(gs);
-                          return !isSharedNonDefault ? <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={act.mutate} /> : null;
+                          const { phase, asleep } = serverRowData(gs);
+                          return <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={act.mutate} />;
                         })()}
                       </Table.Cell>
                     </Table.Row>
@@ -557,8 +557,10 @@ function serverRowData(gs: GameServer) {
   const players = agent?.playersOnline;
   const maxPlayers = agent?.playersMax;
   const node = gs.metadata.annotations?.["gameplane.local/node"];
-  // Shared rows with non-default namespace are read-only (detail route and
-  // lifecycle calls are namespace-blind).
+  // Non-default-namespace rows need `?ns=` on the mobile ServerCard's
+  // detail link (the desktop table computes the same thing inline at each
+  // Link's `search` prop). Lifecycle actions no longer skip these rows —
+  // `act`'s mutationFn now carries the row's own namespace (F-130).
   const isSharedNonDefault =
     !!gs.metadata.namespace && gs.metadata.namespace !== "gameplane-games";
 
@@ -606,7 +608,7 @@ function ServerLifecycleActions({
   gs: GameServer;
   phase?: GameServerPhase;
   asleep?: boolean;
-  onAct: (args: { name: string; verb: LifecycleVerb }) => void;
+  onAct: (args: { name: string; verb: LifecycleVerb; ns?: string }) => void;
 }) {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -618,7 +620,7 @@ function ServerLifecycleActions({
       {asleep ? (
         <ActionButton
           title="Wake"
-          onClick={() => onAct({ name: gs.metadata.name, verb: "wake" })}
+          onClick={() => onAct({ name: gs.metadata.name, verb: "wake", ns: gs.metadata.namespace })}
         >
           <Sunrise className="h-4 w-4" />
         </ActionButton>
@@ -626,7 +628,7 @@ function ServerLifecycleActions({
         <ActionButton
           title="Start"
           disabled={phase === "Running" || phase === "Starting"}
-          onClick={() => onAct({ name: gs.metadata.name, verb: "start" })}
+          onClick={() => onAct({ name: gs.metadata.name, verb: "start", ns: gs.metadata.namespace })}
         >
           <Play className="h-4 w-4" />
         </ActionButton>
@@ -638,13 +640,13 @@ function ServerLifecycleActions({
         // honors immediately, distinct from an idle sleep a wake window
         // would otherwise resurrect.
         disabled={!asleep && (phase === "Stopped" || phase === "Suspended")}
-        onClick={() => onAct({ name: gs.metadata.name, verb: "stop" })}
+        onClick={() => onAct({ name: gs.metadata.name, verb: "stop", ns: gs.metadata.namespace })}
       >
         <Square className="h-4 w-4" />
       </ActionButton>
       <ActionButton
         title="Restart"
-        onClick={() => onAct({ name: gs.metadata.name, verb: "restart" })}
+        onClick={() => onAct({ name: gs.metadata.name, verb: "restart", ns: gs.metadata.namespace })}
       >
         <RotateCw className="h-4 w-4" />
       </ActionButton>

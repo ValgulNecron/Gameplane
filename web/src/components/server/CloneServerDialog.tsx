@@ -68,7 +68,7 @@ export function CloneServerDialog({
       await qc.invalidateQueries({ queryKey: ["my-servers"] });
       onOpenChange(false);
       onCloned?.();
-      await nav({ to: "/servers/$name", params: { name: created.metadata.name } });
+      await nav({ to: "/servers/$name", params: { name: created.metadata.name }, search: { ns } });
     },
   });
 
