@@ -526,10 +526,11 @@ not a Gameplane one: files under a chart's `crds/` directory are installed on
 first install and ignored on every upgrade thereafter.
 
 The chart works around this for you. `crds.autoApply` (enabled by default)
-ships a **pre-upgrade hook** that runs `kubectl apply --server-side` over the
-current CRDs on every `helm upgrade`, so the `Cluster` CRD — and every other
-Gameplane CRD — stays in step with the chart automatically. **No manual
-`kubectl apply` step is needed.**
+ships a **pre-install/pre-upgrade hook** that runs `kubectl apply
+--server-side` over the current CRDs on every `helm upgrade`, and also on a
+`helm install` that lands on top of CRDs an earlier, uninstalled release left
+behind, so the `Cluster` CRD — and every other Gameplane CRD — stays in step
+with the chart automatically. **No manual `kubectl apply` step is needed.**
 
 You only need to apply CRDs by hand if you have deliberately disabled the
 hook:
@@ -539,11 +540,12 @@ hook:
 kubectl apply --server-side -f charts/gameplane/crds/
 ```
 
-The hook is pre-upgrade *only*. A fresh install gets its CRDs from Helm's
-native `crds/` handling, which needs no pod — so first installs, including
-air-gapped ones, never depend on pulling the hook's `kubectl` image. CRDs are
-never owned or deleted by Helm here, so `helm uninstall` leaves your
-GameServers intact.
+The hook fires on pre-upgrade always, and on pre-install only when it
+detects CRDs an earlier, uninstalled release already left behind (Helm's
+`crds/` install silently skips those). A genuinely fresh install still gets
+its CRDs from Helm's native `crds/` handling and never depends on pulling
+the hook's `kubectl` image. CRDs are never owned or deleted by Helm here, so
+`helm uninstall` leaves your GameServers intact.
 
 ### RBAC and permissions
 

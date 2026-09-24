@@ -97,8 +97,6 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 			len(newProps), strings.Join(newProps, ", "))
 	}
 
-	// ---- 3. upgrade to the working tree ----------------------------------
-
 	repoRoot, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
@@ -107,6 +105,57 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	if tag == "" {
 		tag = "e2e"
 	}
+
+	// ---- 2b. F-218: a fresh `helm install` must also bring leftover CRDs --
+	// ---- up to date, not just `helm upgrade` -------------------------------
+	//
+	// The cluster's CRDs are still the OLD release's schema right here:
+	// deploy/kind/upgrade.sh installed them and nothing has touched them
+	// since. Before folding that distinction away by upgrading "gameplane"
+	// itself below, install the WORKING-TREE chart as a second, disposable
+	// release into its own namespace. Helm's native crds/ install silently
+	// skips every CRD that already exists, so without the crds.autoApply
+	// hook also firing on pre-install (F-218), this would leave the live CRD
+	// schema exactly as stale as it is right now.
+	//
+	// --timeout without --wait: hooks block `helm install` until they finish
+	// regardless of --wait, so the CRD-apply Job has already completed and
+	// the schema is settled by the time this command returns; there is no
+	// need to wait for the operator/API pods themselves to become Ready.
+	const reinstallRelease = "e2e-crd-reinstall"
+	const reinstallNS = "e2e-crd-reinstall-system"
+	t.Cleanup(func() {
+		_ = exec.Command("helm", "uninstall", reinstallRelease, "--namespace", reinstallNS).Run()
+		_ = exec.Command("kubectl", "delete", "namespace", reinstallNS, "--wait=false").Run()
+	})
+	reinstall := exec.CommandContext(ctx, "helm", "install", reinstallRelease,
+		filepath.Join(repoRoot, "charts", "gameplane"),
+		"--namespace", reinstallNS,
+		"--create-namespace",
+		"--set", "image.registry=gameplane-test",
+		"--set", "image.tag="+tag,
+		"--set", "ingress.enabled=false",
+		"--set", "web.enabled=false",
+		"--set", "operator.agentImage=gameplane-test/agent:"+tag,
+		"--set", "operator.leaderElect=false",
+		"--set", "defaultModuleSource.enabled=false",
+		"--timeout", "3m",
+	)
+	reinstall.Env = append(os.Environ(), "KUBECONFIG="+os.Getenv("KUBECONFIG"))
+	if out, err := reinstall.CombinedOutput(); err != nil {
+		t.Fatalf("helm install of the working-tree chart over leftover CRDs failed: %v\n%s", err, out)
+	}
+	liveAfterReinstall := crdSpecProperties(t, crdName)
+	for _, p := range newProps {
+		if _, ok := liveAfterReinstall[p]; !ok {
+			t.Errorf("GameTemplate CRD is missing spec property %q after a fresh `helm install` "+
+				"over CRDs an earlier release left behind — the crds.autoApply hook did not fire "+
+				"on install (F-218)", p)
+		}
+	}
+
+	// ---- 3. upgrade to the working tree ----------------------------------
+
 	upgrade := exec.CommandContext(ctx, "helm", "upgrade", "gameplane",
 		filepath.Join(repoRoot, "charts", "gameplane"),
 		"--namespace", "gameplane-system",

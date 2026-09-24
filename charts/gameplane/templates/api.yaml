@@ -256,17 +256,17 @@ spec:
             {{- if .Values.api.oidc.defaultRole }}
             - --oidc-default-role={{ .Values.api.oidc.defaultRole }}
             {{- end }}
-            {{- if .Values.api.oidc.roleMappings.admin }}
+            {{- if and .Values.api.oidc.roleMappings .Values.api.oidc.roleMappings.admin }}
             - --oidc-role-mapping-admin={{ join "," .Values.api.oidc.roleMappings.admin }}
             {{- end }}
-            {{- if .Values.api.oidc.roleMappings.operator }}
+            {{- if and .Values.api.oidc.roleMappings .Values.api.oidc.roleMappings.operator }}
             - --oidc-role-mapping-operator={{ join "," .Values.api.oidc.roleMappings.operator }}
             {{- end }}
-            {{- if .Values.api.oidc.roleMappings.viewer }}
+            {{- if and .Values.api.oidc.roleMappings .Values.api.oidc.roleMappings.viewer }}
             - --oidc-role-mapping-viewer={{ join "," .Values.api.oidc.roleMappings.viewer }}
             {{- end }}
             {{- end }}
-            {{- if .Values.operator.gameDataStorage.storageClassName }}
+            {{- if and .Values.operator.gameDataStorage .Values.operator.gameDataStorage.storageClassName }}
             - --game-data-storage-class={{ .Values.operator.gameDataStorage.storageClassName }}
             {{- end }}
             - --agent-ca-bundle=/etc/gameplane/agent-ca/ca.crt
@@ -366,15 +366,15 @@ spec:
                   key:  {{ .Values.api.telemetry.authSecretRef.key }}
             {{- end }}
             - name: GAMEPLANE_CAPTURE_ENABLED
-              value: {{ .Values.capture.enabled | quote }}
+              value: {{ (and .Values.capture .Values.capture.enabled | default false) | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_RETENTION
-              value: {{ .Values.capture.defaultRetentionSeconds | int64 | quote }}
+              value: {{ (and .Values.capture .Values.capture.defaultRetentionSeconds | default 86400) | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_MAX_RETENTION
-              value: {{ .Values.capture.maxRetentionSeconds | int64 | quote }}
+              value: {{ (and .Values.capture .Values.capture.maxRetentionSeconds | default 604800) | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_MAX_DURATION
-              value: {{ .Values.capture.defaultMaxDurationSeconds | int64 | quote }}
+              value: {{ (and .Values.capture .Values.capture.defaultMaxDurationSeconds | default 0) | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_MAX_SIZE
-              value: {{ .Values.capture.defaultMaxSizeBytes | int64 | quote }}
+              value: {{ (and .Values.capture .Values.capture.defaultMaxSizeBytes | default 0) | int64 | quote }}
             - name: GAMEPLANE_LOG_LEVEL
               value: {{ .Values.api.logLevel | quote }}
           ports:

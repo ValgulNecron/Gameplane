@@ -6,11 +6,18 @@ closes that gap for every environment (not just this repo's `make dev-install`):
 a Job runs `kubectl apply --server-side` over the CRDs on pre-UPGRADE, so a
 plain `helm upgrade` always brings the CRD schema up to date.
 
-Deliberately pre-upgrade ONLY, not pre-install: a fresh install already gets
-the CRDs from Helm's native crds/ install, which needs no pod — so gating the
+Normally pre-upgrade ONLY, not pre-install: a fresh install already gets the
+CRDs from Helm's native crds/ install, which needs no pod — so gating the
 hook to upgrades keeps first installs (air-gapped, or the kind e2e) working
 with zero dependency on pulling the kubectl image, and only reaches for it on
-the upgrades that actually need it.
+the upgrades that actually need it. The one exception (F-218): crds/ silently
+skips any CRD that already exists, and `helm uninstall` never deletes CRDs,
+so installing a newer chart into a namespace an older release was uninstalled
+from finds its CRDs already present and never brings them up to date. A
+`lookup` below detects exactly that case (a live no-op during `helm
+template`/`--dry-run`, so it never fires in CI render checks) and adds
+pre-install to this hook's events only then — ordinary fresh installs are
+unaffected.
 
 Why a Job and not templates/: the CRDs can't live in templates/ (their
 descriptions contain Go-template syntax like `{{"{{"}}.Params.message{{"}}"}}`
@@ -23,8 +30,25 @@ All resources are hook-scoped and cleaned up after a successful run; only
 the CRDs they apply persist (CRDs are never owned or deleted by Helm here,
 so `helm uninstall` never wipes your GameServers).
 */}}
+{{- /*
+F-218: a fresh `helm install` normally needs this hook not at all (Helm's
+native crds/ install already seeds current CRDs with no pod). But
+`helm uninstall` leaves CRDs behind by design, so installing a newer chart
+into a namespace an old release was uninstalled from is *not* the same as a
+genuinely fresh cluster: crds/ silently skips every CRD that already exists,
+so the leftover schema never gets updated. Detect that one case with `lookup`
+(a live no-op during `helm template`/`--dry-run`, so this never fires in CI
+render checks or without cluster access) and only then also fire this hook
+on pre-install, so ordinary air-gapped/offline first installs keep needing
+zero extra image pulls.
+*/}}
+{{- $reinstallOverLeftoverCRDs := and (not .Release.IsUpgrade) (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "gameservers.gameplane.local") }}
+{{- $hookEvents := "pre-upgrade" }}
+{{- if $reinstallOverLeftoverCRDs }}
+{{- $hookEvents = "pre-install,pre-upgrade" }}
+{{- end }}
 {{- $hookAnnotations := dict
-  "helm.sh/hook" "pre-upgrade"
+  "helm.sh/hook" $hookEvents
   "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
 apiVersion: v1
 kind: ServiceAccount
@@ -63,7 +87,7 @@ subjects:
   - kind: ServiceAccount
     name: {{ .Release.Name }}-crd-apply
     namespace: {{ .Release.Namespace }}
-{{- if eq .Values.api.db.driver "sqlite" }}
+{{- if and (eq .Values.api.db.driver "sqlite") .Release.IsUpgrade }}
 ---
 # One-time workload migration, riding along with this hook because it needs
 # exactly the same thing: a kubectl that runs BEFORE Helm applies the release.
@@ -95,7 +119,12 @@ metadata:
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    resourceNames: ["{{ .Release.Name }}-api"]
+    # The chart always names the API Deployment "gameplane-api" literally
+    # (api.yaml), not `{{ .Release.Name }}-api` like the surrounding
+    # Role/RoleBinding names. A release installed under any other name (e.g.
+    # `gp`) used to target a Deployment that never existed and abort every
+    # upgrade (F-213).
+    resourceNames: ["gameplane-api"]
     verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -151,7 +180,7 @@ spec:
         runAsUser: 65532
         fsGroup: 65532
         seccompProfile: { type: RuntimeDefault }
-      {{- if eq .Values.api.db.driver "sqlite" }}
+      {{- if and (eq .Values.api.db.driver "sqlite") .Release.IsUpgrade }}
       initContainers:
         # Clear the stale spec.strategy.rollingUpdate left by releases that
         # predate the Recreate strategy — see the Role above for why Helm
@@ -173,7 +202,7 @@ spec:
             - kubectl
             - patch
             - deployment
-            - {{ .Release.Name }}-api
+            - gameplane-api
             - --type=merge
             - -p
             - '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
