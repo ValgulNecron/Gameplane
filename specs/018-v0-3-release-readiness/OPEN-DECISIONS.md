@@ -225,7 +225,7 @@ How it's applied:
 
 Decision: an independent opus verifier per review chunk (a fresh agent that tries to refute each candidate). The T036–T042 reviews ran on opus because sonnet reviewers were stopped by the model's safeguard in the first session. Fable is not used: the maintainer treats CLAUDE.md rule 13's fable restriction as a ban because of cost. `coverage.md` records the tier as `opus → opus (independent, OD-020)`.
 
-### OD-021: procedure design questions from the correctness pass — PENDING
+### OD-021: procedure design questions from the correctness pass — RESOLVED 2026-09-24
 
 The sonnet correctness pass (2026-09-24) fixed names, paths, headings, evidence locations and secret handling in the procedures files. These items need your call before the live rounds:
 
@@ -253,6 +253,35 @@ The sonnet correctness pass (2026-09-24) fixed names, paths, headings, evidence 
 22. Inventory titles vs code: INV-CRD-012 says "Delete game server with finalizer", but GameServers have no finalizer. INV-CRD-020 names a `Resuming` phase that is never set, and the GameServer `Stopped` phase is never set either. Retitle the rows, or record the unused enum values as a finding?
 23. Fixtures: (a) `audit018-test-template` copies `minecraft-java`, whose Module was stuck `Pulling` in the baseline; (b) the crash-loop fixture pulls `busybox:1.36` from Docker Hub; (c) modulesource-oci-sync needs egress to ghcr.io; (d) wake-on-connect needs a Minecraft client or ping tool on the devbox. OK as is?
 24. gameserver-create-from-template expects Running "within 2 minutes"; a first Minecraft boot (image pull and world generation) can take longer. What bound?
+
+**Resolution (maintainer, 2026-09-24):**
+
+1. Each agent procedure creates and deletes its own `audit018-` server (no shared server).
+2. Test quiesce through a Backup of an `audit018-` server, and check the save sequence in the agent log.
+3. Re-check the `nuclear-option` and `terraria` Modules before the round. If they are still Failed, root-cause and fix them and file a finding. Don't switch modules to avoid the bug.
+4. Retarget users-get to `GET /users`.
+5. default-module-source and upload-module-source: `helm template` check only. The live toggle is blocked.
+6. and 21. Module signature: an in-cluster `audit018-registry` plus an `audit018-` OCI ModuleSource created with kubectl. Push one signed and one unsigned bundle; the unsigned one must be rejected.
+7. web-dashboard-ui runs last, through a temporary port-forward to `svc/gameplane-api`, then `web.enabled` is restored.
+8. existing-storage-claim runs alone at the end of the round against an `audit018-` PVC: DB snapshot before, revert, snapshot-diff after.
+9. and 16. Restic: an `audit018-restic` restic-server (from `test/e2e/fixtures/restic-server.yaml`) plus an `audit018-restic` Secret per round, both removed at teardown.
+10. nuclear-option `Automatable?` is `yes` (bucket `bot-heavy`), with a note that the client join is manual.
+11. Drain: assert the pod is Running on another node while the drained node is still cordoned, then uncordon.
+12. Add a new Go e2e bucket for the web.md procedures that currently say `api` (new `buckets.sh` entry plus a CI job). This is its own task.
+13. The service-accounts and OIDC placeholder tabs are `n/a`, with a `docs/roadmap.md` citation.
+14. Create an `audit018-games2` namespace with one small server per round, both removed at teardown.
+15. `audit018-collab`: primary role `audit018-norole` (no permissions) plus a collaborator grant on one `audit018-` server. Teardown removes all three.
+17. `capture.enabled=true` is approved as a per-round override. Record it in rounds.md, restore it, and snapshot-diff.
+18. INV-CRD-034: deleting the game pod mid-capture (the controller reports PodRestarted) counts as the crash test.
+19. INV-CRD-029/030 (Cluster CR): blocked. Home-cluster-only routes answer 501 for a remote cluster (#430).
+20. INV-CRD-036/037: install a snapshot-capable CSI driver (csi-driver-host-path plus the snapshot controller) on kubelab for the round, then remove it.
+22. Retitle INV-CRD-012/020 to match the code, and file an S4 finding for the `Resuming`/`Stopped` phases that are never set.
+23. Fixtures:
+    - (a) Fix the `minecraft-java` Module stuck in Pulling (check it against F-258/#445), then copy it.
+    - (b) The crash-loop fixture uses `busybox:1.37.0`, the operator's config-init image.
+    - (c) kubelab reaches ghcr.io, so modulesource-oci-sync runs live.
+    - (d) The devbox has no Minecraft ping tool. Use the repo's full Minecraft client (the e2e game bot) for wake-on-connect.
+24. A cold first boot must reach Running within 10 minutes. Record the actual boot time.
 
 Fixes that follow from the code and need no decision are queued as work, not questions: the `api.md` reset-password body (the handler requires a new password in the request), the order of `api.md` servers-delete relative to the procedures that still need that server, shares on an `audit018-` server instead of `mc-fabric`, the `helm.md` network-policies step that checks a label the chart never sets, `nodes.md` cleanup of the `kubectl debug` node pod, the `upgrade.md` reinstall command after `helm uninstall --keep-history` (checked against kubelab's Helm version before running), and `agent.md` evidence steps that print to the terminal instead of saving a file. The `crd.md` pass is re-running on opus (the sonnet pass was stopped by its safeguard).
 
@@ -292,7 +321,7 @@ Every fix branch changes production code and adds tests, which needs your sign-o
 
 Decision (maintainer): Pencil screenshots don't work on this devbox, so the fix groups that need a `design.pen` pass before any React work are done by the maintainer on a machine where screenshots work. The devbox sessions skip them entirely: no `design.pen` edits and no React for these groups. From [audit/evidence/rc.1/fix-plan.md](audit/evidence/rc.1/fix-plan.md) that is groups 3 (`fix/018-web-file-overwrite-guard`), 7 (`fix/018-web-tunnel-wizard-flow`), 12 (`fix/018-web-settings-lifecycle`), 13 (`fix/018-web-server-create-placement`) and 36 (`fix/018-web-ui-polish`). No held group needs a design pass. The other web groups are plumbing or logic fixes with no design change, and stay in the devbox fix waves.
 
-### OD-026: how the tunnel supervisor learns playit's assigned address (F-174) — PENDING
+### OD-026: how the tunnel supervisor learns playit's assigned address (F-174) — RESOLVED 2026-09-24
 
 Fix group 8 (`fix/018-tunnel-core-reliability`) was split: F-172, F-052 and F-173 go ahead, and F-174 waits on this. `tunnel/main.go:282-285` is a TODO ("the exact mechanism ... is TBD"): nothing in the tunnel binary learns the address playit.gg assigns, so `status.endpoints` stays empty for playit tunnels. The operator already grants the tunnel a status-patch RBAC rule for this (`tunnel_rbac.go`). Options:
 - (a) poll playitd's control socket (`--socket-path`) for the assigned address;
@@ -300,6 +329,8 @@ Fix group 8 (`fix/018-tunnel-core-reliability`) was split: F-172, F-052 and F-17
 - (c) query the playit.gg account API with the tunnel's secret key;
 - (d) let the user enter the address (a GameServer field or annotation) and have the operator copy it into status;
 - (e) document the limitation for v0.3 and close F-174 as out-of-scope with a roadmap line.
+
+Decision (maintainer, 2026-09-24): option (a), poll playitd's control socket and patch `status.endpoints`. Implemented in #447, stacked on #428.
 
 ### T054: `gameplane-module` tag for the v0.3.0 chart default — RESOLVED 2026-09-24
 

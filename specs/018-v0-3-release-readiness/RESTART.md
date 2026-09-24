@@ -26,56 +26,11 @@ All of these still apply.
 - **Model tiers (CLAUDE.md 13):** fable is banned. Opus work gets an independent opus review.
 - **Worktrees:** an agent once left the main checkout on a fix branch. Check `git branch --show-current` before committing records.
 
-## 2. APPLY FIRST: record edits not yet written
+## 2. Record edits from session 4
 
-Auto mode blocked the scripted edit at the end of session 4. Apply these to the 018 branch, commit and push.
+Applied: `audit/findings.md` Status/Fix PR updates (F-213/F-214/F-218 → #443, F-074/F-075 → #444, F-258 → #445, F-125 → #440, F-159..F-162 → #441, F-179/F-180 → #446, F-174 → #447; F-105/F-106 left alone), and `OPEN-DECISIONS.md` OD-021 and OD-026 marked RESOLVED 2026-09-24 with their resolutions recorded there.
 
-### 2a. `audit/findings.md`: set Status to `fixing` with these Fix PRs
-
-| Findings | Fix PR |
-|---|---|
-| F-213, F-214, F-218 | #443 |
-| F-074, F-075 | #444 |
-| F-258 | #445 |
-| F-125 | #440 |
-| F-159, F-160, F-161, F-162 | #441 |
-
-Once their PRs exist, also set F-105/F-106 (group 18), F-179/F-180 (group 24) and F-174.
-
-### 2b. `OPEN-DECISIONS.md`
-
-Mark OD-021 **RESOLVED 2026-09-24** and add the resolution below after its question list.
-
-1. Each agent procedure creates and deletes its own `audit018-` server (no shared server).
-2. Test quiesce through a Backup of an `audit018-` server, and check the save sequence in the agent log.
-3. Re-check the `nuclear-option` and `terraria` Modules before the round. If they are still Failed, **root-cause and fix them** and file a finding. Don't switch modules to avoid the bug.
-4. Retarget users-get to `GET /users`.
-5. default-module-source and upload-module-source: `helm template` check only. The live toggle is blocked.
-6. and 21. Module signature: an in-cluster `audit018-registry` plus an `audit018-` OCI ModuleSource created with kubectl. Push one signed and one unsigned bundle; the unsigned one must be rejected.
-7. web-dashboard-ui runs last, through a temporary port-forward to `svc/gameplane-api`, then `web.enabled` is restored.
-8. existing-storage-claim runs alone at the end of the round against an `audit018-` PVC: DB snapshot before, revert, snapshot-diff after.
-9. and 16. Restic: an `audit018-restic` restic-server (from `test/e2e/fixtures/restic-server.yaml`) plus an `audit018-restic` Secret per round, both removed at teardown.
-10. nuclear-option `Automatable?` is `yes` (bucket `bot-heavy`), with a note that the client join is manual.
-11. Drain: assert the pod is Running on another node while the drained node is still cordoned, then uncordon.
-12. **Add a new Go e2e bucket** for the web.md procedures that currently say `api` (new `buckets.sh` entry plus a CI job). This is its own task.
-13. The service-accounts and OIDC placeholder tabs are `n/a`, with a `docs/roadmap.md` citation.
-14. Create an `audit018-games2` namespace with one small server per round, both removed at teardown.
-15. `audit018-collab`: primary role `audit018-norole` (no permissions) plus a collaborator grant on one `audit018-` server. Teardown removes all three.
-17. `capture.enabled=true` is approved as a per-round override. Record it in rounds.md, restore it, and snapshot-diff.
-18. INV-CRD-034: deleting the game pod mid-capture (the controller reports PodRestarted) counts as the crash test.
-19. INV-CRD-029/030 (Cluster CR): **blocked**. Home-cluster-only routes answer 501 for a remote cluster (#430).
-20. INV-CRD-036/037: **install a snapshot-capable CSI driver** (csi-driver-host-path plus the snapshot controller) on kubelab for the round, then remove it.
-22. Retitle INV-CRD-012/020 to match the code, and file an S4 finding for the `Resuming`/`Stopped` phases that are never set.
-23. Fixtures:
-    - (a) Fix the `minecraft-java` Module stuck in Pulling (check it against F-258/#445), then copy it.
-    - (b) The crash-loop fixture uses `busybox:1.37.0`, the operator's config-init image.
-    - (c) kubelab reaches ghcr.io, so modulesource-oci-sync runs live.
-    - (d) The devbox has no Minecraft ping tool. Use the repo's full Minecraft client (the e2e game bot) for wake-on-connect.
-24. A cold first boot must reach Running within 10 minutes. Record the actual boot time.
-
-Mark OD-026 **RESOLVED 2026-09-24**: option (a), poll playitd's control socket and patch `status.endpoints`. It is being implemented on `fix/018-tunnel-playit-address`, stacked on #428.
-
-### 2c. Other maintainer decisions from session 4
+### Decisions from session 4
 
 - **rc.1:** don't re-run or move the tag; `v0.3.0-rc.1` predates #435. Cut **rc.2** from master once the current fixes land (T057).
 - **#430:** remote-cluster requests to home-cluster-only routes answer **501**, with the body `httperr.RemoteClusterNotImplemented`. The maintainer asked for this; the cross-cluster agent comes later. It is done, pushed as `94e79456`.

@@ -68,8 +68,8 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-061 | Operator specs.md dependencies stale vs go.mod | operator | review:operator | S4 | open | | | |
 | F-062 | Seven spec.md statements contradict code | operator | review:operator | S4 | open | | | |
 | F-063 | Operator config/ dev path samples fail end-to-end | operator | review:operator | S4 | open | | | |
-| F-074 | requestTimeout(60s) exempts WebSocket/SSE only; upload/capture proxies cut at 60s | api/ | review:api | S3 | open | | | |
-| F-075 | bodyLimit(1 MiB) deadcaps /mods/upload and /files/write; declared limits ignored | api/ | review:api | S3 | open | | | |
+| F-074 | requestTimeout(60s) exempts WebSocket/SSE only; upload/capture proxies cut at 60s | api/ | review:api | S3 | fixing | #444 | | |
+| F-075 | bodyLimit(1 MiB) deadcaps /mods/upload and /files/write; declared limits ignored | api/ | review:api | S3 | fixing | #444 | | |
 | F-076 | config row missing returns 500 instead of 200 on idempotent reset | api/ | review:api | S4 | open | | | |
 | F-077 | Plain errors mapped to 500 instead of hand-written 400/409 | api/ | review:api | S4 | open | | | |
 | F-081 | kubeconfig and join command address is in-cluster ClusterIP (unreachable) | api/ | review:api | S3 | open | | | |
@@ -100,7 +100,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-122 | Settings dirty state persists on tab switch | web | review:web | S3 | open | | | |
 | F-123 | Revoked share links show as active | web | review:web | S3 | open | | | |
 | F-124 | Node selector never applied to running server | web | review:web | S3 | open | | | |
-| F-125 | Safe mode exits on in-app navigation | web | review:web | S3 | open | | | |
+| F-125 | Safe mode exits on in-app navigation | web | review:web | S3 | fixing | #440 | | |
 | F-126 | Six mutations have no error handlers | web | review:web | S3 | open | | | |
 | F-127 | Default namespace not used on server create | web | review:web | S3 | open | | | |
 | F-128 | Modules hash navigation fails | web | review:web | S4 | open | | | |
@@ -127,10 +127,10 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-156 | Example code in package doc doesn't compile | gameproto/ | review:gameproto | S4 | open | | | |
 | F-157 | gameproto specs.md layout, tests, deps, versions stale | gameproto/ | review:gameproto | S4 | open | | | |
 | F-158 | Adding WakeProtocol needs CRD enum change not documented | gameproto/ | review:gameproto | S4 | open | | | |
-| F-159 | Config enum field validation uses wrong field name | gp-module | review:gp-module | S3 | open | | | |
-| F-160 | CRD type enum missing boolean value | gp-module | review:gp-module | S3 | open | | | |
-| F-161 | Schema validation skips required CRD fields | gp-module | review:gp-module | S3 | open | | | |
-| F-162 | Preview lacks version-specific environment layer | gp-module | review:gp-module | S3 | open | | | |
+| F-159 | Config enum field validation uses wrong field name | gp-module | review:gp-module | S3 | fixing | #441 | | |
+| F-160 | CRD type enum missing boolean value | gp-module | review:gp-module | S3 | fixing | #441 | | |
+| F-161 | Schema validation skips required CRD fields | gp-module | review:gp-module | S3 | fixing | #441 | | |
+| F-162 | Preview lacks version-specific environment layer | gp-module | review:gp-module | S3 | fixing | #441 | | |
 | F-163 | Module archetype docs contradict validation requirement | gp-module | review:gp-module | S4 | open | | | |
 | F-164 | Documented CLI and make commands fail | gp-module | review:gp-module | S4 | open | | | |
 | F-165 | Image pin command doesn't exist | gp-module | review:gp-module | S4 | open | | | |
@@ -141,11 +141,11 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-171 | Specs outdated: sections missing and test count wrong | svcutil | review:svcutil | S4 | open | | | |
 | F-172 | Exponential backoff overflows after 64 retries | tunnel | review:tunnel | S3 | fixing | #428 | | |
 | F-173 | Tailscale config drops backing service settings | tunnel | review:tunnel | S2 | fixing | #428 | | |
-| F-174 | Playit endpoint not written to GameServer status | tunnel | review:tunnel | S3 | open | | | |
+| F-174 | Playit endpoint not written to GameServer status | tunnel | review:tunnel | S3 | fixing | #447 | | |
 | F-175 | Troubleshooting docs use wrong label selector | tunnel | review:tunnel | S4 | open | | | |
 | F-176 | Specs file misses sections, lists stale dependency | tunnel | review:tunnel | S4 | open | | | |
-| F-179 | Connected session cut on game-pod Ready | sentinel | review:sentinel | S3 | open | | | |
-| F-180 | TCP listen error not logged while waiting for async UDP error | sentinel | review:sentinel | S3 | open | | | |
+| F-179 | Connected session cut on game-pod Ready | sentinel | review:sentinel | S3 | fixing | #446 | | |
+| F-180 | TCP listen error not logged while waiting for async UDP error | sentinel | review:sentinel | S3 | fixing | #446 | | |
 | F-181 | Startup error exits 0 instead of non-zero | sentinel | review:sentinel | S4 | open | | | |
 | F-182 | Close errors logged on healthy proxied connections | sentinel | review:sentinel | S4 | open | | | |
 | F-183 | Hostport hold-window asymmetry undocumented | sentinel | review:sentinel | S4 | open | | | |
@@ -173,12 +173,12 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-209 | Chart comment references nonexistent file path | mcp-server | review:mcp-server | S4 | open | | | |
 | F-210 | README example fails on typical Linux host | mcp-server | review:mcp-server | S4 | open | | | |
 | F-212 | Namespace deleted on helm uninstall, losing GameServers and volumes | charts/gameplane/ | review:charts/gameplane | S1 | fixed-unverified | #425 | | |
-| F-213 | Pre-upgrade hook fails for non-default release name | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
-| F-214 | helm upgrade --reuse-values fails with nil-pointer errors on new keys | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
+| F-213 | Pre-upgrade hook fails for non-default release name | charts/gameplane/ | review:charts/gameplane | S3 | fixing | #443 | | |
+| F-214 | helm upgrade --reuse-values fails with nil-pointer errors on new keys | charts/gameplane/ | review:charts/gameplane | S3 | fixing | #443 | | |
 | F-215 | Backup and Restore Job pods can't reach restic repository | charts/gameplane/ | review:charts/gameplane | S2 | fixed-unverified | #432 | | |
 | F-216 | PodMonitor scrape for agent metrics always down (TLS mismatch) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-217 | Telemetry receiver /metrics endpoint unreachable (NetworkPolicy) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
-| F-218 | CRD schema not updated on reinstall (pre-upgrade hook is upgrade-only) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
+| F-218 | CRD schema not updated on reinstall (pre-upgrade hook is upgrade-only) | charts/gameplane/ | review:charts/gameplane | S3 | fixing | #443 | | |
 | F-219 | Default module catalog omits 14 spec-015 modules | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-220 | CRD doc contradicts upgrade procedure | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
 | F-221 | Capture buffer default (5 GiB) too large for 1 GiB emptyDir | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
@@ -206,7 +206,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-254 | sentinel/sentinel untracked binary, no .gitignore entry | sentinel/ | review:sentinel | S4 | open | | | |
 | F-255 | make dev-load loads 4 of 12 built images | deploy/ | review:deploy | S3 | open | | | |
 | F-257 | Release image job times out building the multi-arch operator image, so an RC publishes no operator image, chart or GitHub release | .github/workflows/ | review:.github/workflows | S2 | fixed-unverified | #435 | | seen on the `v0.3.0-rc.1` release run (T014); ID after F-255 assumes F-256 is taken in the held list, so check on the devbox |
-| F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | open | | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
+| F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | fixing | #445 | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
 
 ## Details
 
