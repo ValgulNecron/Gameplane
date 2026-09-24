@@ -128,7 +128,9 @@ func (r *GameServerReconciler) planTunnel(
 		if tunnel.Playit == nil {
 			return tunnelPlan{}
 		}
-		// TODO(tunnel): playit endpoint arrives via the gameservers/status subresource
+		// The tunnel pod polls playitd's IPC socket for the assigned address
+		// and patches it into status.tunnelEndpoints (tunnel/playit_reporter.go);
+		// reconcileStatus validates and merges those into status.endpoints.
 	}
 
 	return tunnelPlan{
