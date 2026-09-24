@@ -238,6 +238,10 @@ check-specs: ## Verify all modules have valid, non-empty specs.md
 check-doc-versions: ## Verify documentation version strings match the chart appVersion
 	hack/check-doc-versions.sh
 
+.PHONY: test-doc-versions
+test-doc-versions: ## Run the fixture tests for hack/check-doc-versions.sh
+	hack/test-check-doc-versions.sh
+
 .PHONY: check-links
 check-links: ## Verify internal documentation links and anchors resolve
 	hack/check-links.sh

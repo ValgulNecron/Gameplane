@@ -171,6 +171,8 @@ jobs:
               - 'docs/comparison-sources.md'
               - 'hack/check-links.sh'
               - 'hack/check-doc-versions.sh'
+              - 'hack/test-check-doc-versions.sh'
+              - 'hack/testdata/check-doc-versions/**'
       - id: combine
         # Fold the raw filters into single-token booleans so every downstream
         # `if:` is one expression (fewer chances to get wrong when the only way
@@ -400,6 +402,10 @@ jobs:
       - name: check documentation versions
         if: matrix.module == 'netguard'
         run: make check-doc-versions
+      # Fixture tests for the doc-version checker (spec 018 OD-012); gated like the checker itself.
+      - name: test documentation version checker
+        if: matrix.module == 'netguard'
+        run: make test-doc-versions
       # Repository-wide check; gated to one matrix entry so it runs once per lint run (ruling D5).
       - name: check specs compliance
         if: matrix.module == 'netguard'

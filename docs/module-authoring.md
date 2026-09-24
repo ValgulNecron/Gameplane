@@ -152,7 +152,7 @@ categories: [Sandbox, Survival]            # optional, catalog groupings; a modu
 summary: Vanilla / Paper / Forge / Fabric  # required, one-line description for the card
 homepage: https://minecraft.net            # optional
 license: MIT                               # optional, SPDX identifier
-gameplaneMinVersion: 0.1.0                   # optional, refuse install on older operators
+gameplaneMinVersion: 0.1.0                   # optional, refuse install on older operators (example version)
 icon: icon.png                             # optional, filename of the icon layer
 ```
 
