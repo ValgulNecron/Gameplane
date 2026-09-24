@@ -522,6 +522,7 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 - **Sessions:** cryptographically random token + paired CSRF token; memory store + DB persistence; expiry at midnight UTC
 - **CSRF cookie is JS-readable by design:** unlike the session cookie (`HttpOnly`), the CSRF cookie is set `HttpOnly: false` so the SPA can read its value and echo it back as `X-Gameplane-CSRF` on mutating requests — the standard double-submit pattern (see `docs/security.md`). Logout's cookie-clear always sends `HttpOnly: true` regardless, since a MaxAge<0 delete carries no value and the browser matches it on Name/Domain/Path alone.
 - **Bootstrap:** `bootstrap-admin` subcommand hashes password same way as API
+- **Client IP:** `auth.ClientIPFromTrustedProxies` (`internal/auth/clientip.go`) records the client IP that the rate limiters and audit key on. A TCP peer outside `--trusted-proxies` is the client and its `X-Forwarded-For` is ignored. Behind a trusted peer the header is read right to left up to the first address outside the list, or to the leftmost address when every hop is trusted; an entry that isn't an IP address ends the walk at the last address reached. An empty list makes the peer the client. Tests: `internal/auth/clientip_test.go`.
 
 ### Authorization
 - **RBAC middleware:** intercepts all protected routes; namespace + cluster gating
@@ -549,7 +550,7 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 - **Synchronous writes (handler-direct):** Routes that need immediate audit writes before sending the response call `Auditor.WriteSync(ctx, method, path, target, reason, status)` directly, providing the reason
   - Method signature: `WriteSync(ctx context.Context, method, path, target, reason string, status int) error`
   - Extracts actor from context (set by auth middleware)
-  - Extracts client IP from context (set by ClientIPFromXFF middleware)
+  - Extracts client IP from context (set by the `auth.ClientIPFromTrustedProxies` middleware)
   - Generates RFC3339 timestamp
   - Returns error if DB write fails; error is **non-fatal** to the operation (log it, but don't fail the capture operation)
   - Fan-outs to external sinks (webhook, S3, stdout) with reason included

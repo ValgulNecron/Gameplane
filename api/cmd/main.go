@@ -111,16 +111,19 @@ func main() {
 
 	// Validate and trim trusted proxies CIDR list.
 	validProxies := []string{}
+	trustedPrefixes := []netip.Prefix{}
 	for _, p := range cfg.trustedProxies {
 		p = strings.TrimSpace(p)
 		if p == "" {
 			continue
 		}
-		if _, err := netip.ParsePrefix(p); err != nil {
-			logger.Error("invalid trusted proxy CIDR", "cidr", p, "err", err)
+		prefix, perr := netip.ParsePrefix(p)
+		if perr != nil {
+			logger.Error("invalid trusted proxy CIDR", "cidr", p, "err", perr)
 			os.Exit(1)
 		}
 		validProxies = append(validProxies, p)
+		trustedPrefixes = append(trustedPrefixes, prefix)
 	}
 	cfg.trustedProxies = validProxies
 
@@ -246,9 +249,10 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer)
 	// Client IP middleware runs before rate limiting and audit so the determined
-	// IP is used for rate-limit buckets and audit records. Trusted proxy networks
+	// IP is used for rate-limit buckets and audit records. X-Forwarded-For is
+	// read only when the TCP peer is inside the trusted proxy networks, which
 	// come from explicit operator configuration (default: private ranges).
-	r.Use(middleware.ClientIPFromXFF(cfg.trustedProxies...))
+	r.Use(auth.ClientIPFromTrustedProxies(trustedPrefixes))
 	r.Use(secureHeaders)
 	r.Use(requestTimeout(60 * time.Second))
 	r.Use(bodyLimit(1 << 20)) // 1 MiB default; upload proxy raises its own ceiling
@@ -516,13 +520,13 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 
 	// Trusted proxy networks for client IP extraction. Comma-separated CIDRs.
 	// Default: loopback + private ranges, which work out-of-the-box for
-	// in-cluster ingress. In Kubernetes the ingress/load balancer sits in
-	// one of these ranges, so this default is explicit and allows the API to
-	// determine the real client IP via X-Forwarded-For without spoofing risk.
+	// in-cluster ingress. X-Forwarded-For is read only when the TCP peer is
+	// inside one of these ranges; any other peer is itself the client (see
+	// auth.ClientIPFromTrustedProxies and docs/security.md).
 	trustedProxiesStr := envOr("GAMEPLANE_TRUSTED_PROXIES",
 		"127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,::1/128,fc00::/7,fe80::/10")
 	fs.StringVar(&trustedProxiesStr, "trusted-proxies", trustedProxiesStr,
-		"comma-separated list of CIDR blocks for trusted reverse proxies; client IP is extracted from X-Forwarded-For only from these ranges")
+		"comma-separated list of CIDR blocks for trusted reverse proxies; X-Forwarded-For is read only when the TCP peer is in one of these ranges")
 
 	// Parse and validate the trusted proxies list after flags are parsed.
 	// This must happen in main() after flag parsing, not here, so we can

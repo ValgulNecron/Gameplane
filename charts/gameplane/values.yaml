@@ -120,12 +120,15 @@ api:
     limits:   { cpu: 500m, memory: 256Mi }
 
   # Trusted reverse proxy networks for client IP extraction. Comma-separated
-  # list of CIDR blocks. The API determines the real client IP from the
-  # X-Forwarded-For header only from requests originating within these networks
-  # (to prevent IP spoofing). Used for rate limiting and audit records.
-  # Default: loopback + RFC1918 + link-local ranges, which work out-of-the-box
-  # for in-cluster ingress (nginx, ALB, etc.). For direct exposure without an
-  # ingress, override this to only your actual public IP or leave it empty.
+  # list of CIDR blocks. The API reads the X-Forwarded-For header only when
+  # the TCP peer is inside one of these networks; any other peer is itself
+  # the client. Used for rate limiting and audit records.
+  # Default: loopback + RFC1918 + link-local + ULA ranges, which work
+  # out-of-the-box for in-cluster ingress (nginx, ALB, etc.). If dashboard
+  # users connect from a private network and per-client limits matter for
+  # them, narrow this to the ranges your proxies run in (for example the pod
+  # CIDR). For direct exposure without an ingress, set it to "" so the TCP
+  # peer is always the client. See docs/security.md.
   trustedProxies: "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,::1/128,fc00::/7,fe80::/10"
 
   db:
