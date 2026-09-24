@@ -394,11 +394,11 @@ func parseList(raw string) Snapshot {
 // whole match. Each match is one player.
 func (h *handler) parseListWithRegex(raw string) Snapshot {
 	if h.listRE == nil {
-		return Snapshot{Players: []string{}}
+		return Snapshot{Max: -1, Players: []string{}}
 	}
 	matches := h.listRE.FindAllStringSubmatch(raw, -1)
 	if len(matches) == 0 {
-		return Snapshot{Players: []string{}}
+		return Snapshot{Max: -1, Players: []string{}}
 	}
 	names := []string{}
 	for _, m := range matches {

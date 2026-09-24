@@ -129,6 +129,16 @@ describe("OverviewTab players card", () => {
     expect(await screen.findByText("No players connected.")).toBeInTheDocument();
   });
 
+  it("shows '—' and 'Player count unknown.' when online is -1", async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonRes({
+      online: -1, max: -1, players: [], asOf: "now",
+      capabilities: { kick: true, ban: true, unban: true },
+    } satisfies PlayersResp)));
+    renderWithQuery(<OverviewTab gs={gs()} name="s1" />);
+    expect(await screen.findByText("Player count unknown.")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
   it("renders real player names from the snapshot", async () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonRes({
       online: 2, max: 20, players: ["alice", "bob"], asOf: "now",
