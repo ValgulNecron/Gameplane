@@ -698,7 +698,10 @@ describe("ServersPage mobile layout", () => {
 
   it("shows the 'No servers match' card when the list is empty", async () => {
     setMobileViewport();
-    server.use(http.get("/servers", () => HttpResponse.json({ items: [] })));
+    server.use(
+      http.get("/servers", () => HttpResponse.json({ items: [] })),
+      http.get("/users/me/servers", () => HttpResponse.json({ items: [] })),
+    );
     renderWithQuery(<ServersPage />);
     expect(await screen.findByText("No servers match.")).toBeInTheDocument();
   });

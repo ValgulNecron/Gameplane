@@ -408,6 +408,7 @@ describe("ServerDetailPage clone action", () => {
       expect(navigate).toHaveBeenCalledWith({
         to: "/servers/$name",
         params: { name: "alpha-copy" },
+        search: { ns: "gameplane-games" },
       }),
     );
     expect(screen.queryByLabelText("New name")).not.toBeInTheDocument();

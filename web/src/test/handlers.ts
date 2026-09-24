@@ -320,12 +320,15 @@ export const handlers = [
     const name = String(params.name);
     // e2e affordance: serverDetail.spec.ts's mods-install-carries-namespace
     // case needs a template whose capabilities.mods.install is set, so the
-    // Mods tab's URL-install form renders. No-op for every other test.
+    // Mods tab's URL-install form renders. `path` must also be set —
+    // serverHasMods()/resolveModVolume() (src/lib/capabilities.ts) only
+    // show the Mods tab when the template declares a mod directory (or
+    // idList); `install` alone isn't enough. No-op for every other test.
     if (cookies.e2e_mods_install === "1") {
       return HttpResponse.json(
         makeTemplate({
           metadata: { name },
-          spec: { capabilities: { mods: { install: { allowedHosts: ["example.com"] } } } },
+          spec: { capabilities: { mods: { path: "/data/mods", install: { allowedHosts: ["example.com"] } } } },
         }),
       );
     }
