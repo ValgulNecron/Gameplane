@@ -254,7 +254,9 @@ The sonnet correctness pass (2026-09-24) fixed names, paths, headings, evidence 
 
 Fixes that follow from the code and need no decision are queued as work, not questions: the `api.md` reset-password body (the handler requires a new password in the request), the order of `api.md` servers-delete relative to the procedures that still need that server, shares on an `audit018-` server instead of `mc-fabric`, the `helm.md` network-policies step that checks a label the chart never sets, `nodes.md` cleanup of the `kubectl debug` node pod, the `upgrade.md` reinstall command after `helm uninstall --keep-history` (checked against kubelab's Helm version before running), and `agent.md` evidence steps that print to the terminal instead of saving a file. The `crd.md` pass is re-running on opus (the sonnet pass was stopped by its safeguard).
 
-### OD-022: coverage rows for `.github/actions/` and `images/` — PENDING
+### OD-022: coverage rows for `.github/actions/` and `images/` — RESOLVED 2026-09-24
+
+Decision: option (a). Add `.github/actions/` and `images/` rows to `coverage.md` and to contracts/audit-records.md, and review both components (T042 scope).
 
 The tier-up check of the findings import (2026-09-24) found findings whose component has no `coverage.md` row. The data model says a finding's component comes from the coverage table.
 - F-006 and F-013 are in `.github/actions/` (the CI cluster-dump action). The table only has `.github/workflows/`.
@@ -262,7 +264,9 @@ The tier-up check of the findings import (2026-09-24) found findings whose compo
 
 Options: (a) add `.github/actions/` and `images/` rows to `coverage.md` and the contract, which also means reviewing both (T042 scope); (b) remap: `.github/actions/` counts under the `.github/workflows/` row and `images/` under `modules/`, with each finding's Note saying so. Until this is decided, the findings keep their real paths as the component.
 
-### OD-023: OD-005 path (b) would delete kubelab's game servers — PENDING (blocks T061)
+### OD-023: OD-005 path (b) would delete kubelab's game servers — RESOLVED 2026-09-24
+
+Decision: option (e). Fix F-212 first (a keep policy on the games namespace in the chart), ship it in an RC, then run the beta.8 reinstall on kubelab with that RC's chart. The DO NOT RUN banner in `procedures/upgrade.md` stays until that RC is deployed and the namespace carries the keep policy. The F-212 fix is the first fix wave.
 
 T012 found kubelab's API database at migration 011, ahead of beta.8's 006, so OD-005 picks path (b): reinstall at public beta.8 with a fresh database. The T045 verification then kept F-212 (S1): the chart's games Namespace is an ordinary release resource with no `helm.sh/resource-policy: keep`, and GameServers carry no finalizer. So `helm uninstall gameplane` deletes `gameplane-games` and every GameServer, StatefulSet and `<gs>-data` PVC in it, including the pre-existing `mc-fabric`, `soak-bogus-pool`, `soak-no-preference`, `soak-pool-west` and `squad`. `procedures/upgrade.md` baseline-beta8 step 3 does exactly that, and now carries a DO NOT RUN banner.
 
@@ -274,11 +278,17 @@ Options:
 
 Related (verified, same chunk): F-214 (C-charts-gameplane-03) shows `helm upgrade --reuse-values` from 0.2.0-beta.8 fails to render unless the stored values already contain the `capture` and `operator.gameDataStorage` keys. T015's rc deploy (contracts/rc-deploy.md §2) needs those keys passed explicitly.
 
-### OD-024: sign-off to start the fix waves (T055) — PENDING
+### OD-024: sign-off to start the fix waves (T055) — RESOLVED 2026-09-24
+
+Decision: option (a), the whole plan is approved, public and held. Every PR still needs the maintainer's review before merge (ruleset `protect main`).
 
 T050 produced the fix plan: [audit/evidence/rc.1/fix-plan.md](audit/evidence/rc.1/fix-plan.md), checked one tier up. It groups the git-bound findings into `fix/018-*` branches, S1 first, each with its regression test. 25 imported findings are listed to re-check live first (T049), and the 4 with open PRs (#420–#423) are listed as in flight. A separate plan for the held security findings is in `audit/held/fix-plan-held.md` (off-git, OD-019).
 
 Every fix branch changes production code and adds tests, which needs your sign-off (CLAUDE.md override 1). Options: (a) approve the whole plan; (b) approve by severity (for example S1 and S2 now, S3/S4 later); (c) approve group by group. Nothing is closed as `not-a-defect` or `out-of-scope` without you: the plan proposes none.
+
+### OD-025: design-first fix groups are done on another machine — RESOLVED 2026-09-24
+
+Decision (maintainer): Pencil screenshots don't work on this devbox, so the fix groups that need a `design.pen` pass before any React work are done by the maintainer on a machine where screenshots work. The devbox sessions skip them entirely: no `design.pen` edits and no React for these groups. From [audit/evidence/rc.1/fix-plan.md](audit/evidence/rc.1/fix-plan.md) that is groups 3 (`fix/018-web-file-overwrite-guard`), 7 (`fix/018-web-tunnel-wizard-flow`), 12 (`fix/018-web-settings-lifecycle`), 13 (`fix/018-web-server-create-placement`) and 36 (`fix/018-web-ui-polish`). No held group needs a design pass. The other web groups are plumbing or logic fixes with no design change, and stay in the devbox fix waves.
 
 ### T054: `gameplane-module` tag for the v0.3.0 chart default — RESOLVED 2026-09-24
 
