@@ -365,16 +365,24 @@ spec:
                   name: {{ .Values.api.telemetry.authSecretRef.name }}
                   key:  {{ .Values.api.telemetry.authSecretRef.key }}
             {{- end }}
+            {{- /*
+            `capture` may be absent entirely after `helm upgrade --reuse-values`
+            from a chart that predates it (F-214). Guard presence of the block
+            only, and use hasKey rather than `default` for the numeric fields so
+            an explicit user-set 0 is preserved instead of being swapped for the
+            fallback (`default` treats 0 as unset).
+            */}}
+            {{- $capture := .Values.capture | default dict }}
             - name: GAMEPLANE_CAPTURE_ENABLED
-              value: {{ (and .Values.capture .Values.capture.enabled | default false) | quote }}
+              value: {{ ($capture.enabled | default false) | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_RETENTION
-              value: {{ (and .Values.capture .Values.capture.defaultRetentionSeconds | default 86400) | int64 | quote }}
+              value: {{ (ternary $capture.defaultRetentionSeconds 86400 (hasKey $capture "defaultRetentionSeconds")) | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_MAX_RETENTION
-              value: {{ (and .Values.capture .Values.capture.maxRetentionSeconds | default 604800) | int64 | quote }}
+              value: {{ (ternary $capture.maxRetentionSeconds 604800 (hasKey $capture "maxRetentionSeconds")) | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_MAX_DURATION
-              value: {{ (and .Values.capture .Values.capture.defaultMaxDurationSeconds | default 0) | int64 | quote }}
+              value: {{ $capture.defaultMaxDurationSeconds | default 0 | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_MAX_SIZE
-              value: {{ (and .Values.capture .Values.capture.defaultMaxSizeBytes | default 0) | int64 | quote }}
+              value: {{ $capture.defaultMaxSizeBytes | default 0 | int64 | quote }}
             - name: GAMEPLANE_LOG_LEVEL
               value: {{ .Values.api.logLevel | quote }}
           ports:

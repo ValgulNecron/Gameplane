@@ -122,12 +122,28 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	// regardless of --wait, so the CRD-apply Job has already completed and
 	// the schema is settled by the time this command returns; there is no
 	// need to wait for the operator/API pods themselves to become Ready.
+	//
+	// operator.replicas=0 / api.replicas=0: this release exists only to
+	// exercise the CRD-apply hook, which does not need either Deployment to
+	// be running. The operator's leader-election Lease lives in each pod's
+	// own namespace, so a second live operator in reinstallNS would NOT
+	// coordinate with the primary release's operator — both would reconcile
+	// the seeded GameServer concurrently. Zero replicas means no second
+	// controller ever runs, and the release is torn down right after the
+	// assertion below rather than lingering through the rest of the test.
+	// gamesNamespace is overridden so this release does not try to adopt the
+	// primary release's games Namespace (Helm would reject the ownership
+	// conflict).
 	const reinstallRelease = "e2e-crd-reinstall"
 	const reinstallNS = "e2e-crd-reinstall-system"
-	t.Cleanup(func() {
-		_ = exec.Command("helm", "uninstall", reinstallRelease, "--namespace", reinstallNS).Run()
-		_ = exec.Command("kubectl", "delete", "namespace", reinstallNS, "--wait=false").Run()
-	})
+	const reinstallGamesNS = "e2e-crd-reinstall-games"
+	teardownReinstall := func() {
+		_ = exec.Command("helm", "uninstall", reinstallRelease, "--namespace", reinstallNS, "--wait").Run()
+		_ = exec.Command("kubectl", "delete", "namespace", reinstallNS, reinstallGamesNS,
+			"--ignore-not-found", "--wait=false").Run()
+	}
+	// Safety net for an early t.Fatalf; the happy path tears down inline.
+	t.Cleanup(teardownReinstall)
 	reinstall := exec.CommandContext(ctx, "helm", "install", reinstallRelease,
 		filepath.Join(repoRoot, "charts", "gameplane"),
 		"--namespace", reinstallNS,
@@ -138,6 +154,9 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 		"--set", "web.enabled=false",
 		"--set", "operator.agentImage=gameplane-test/agent:"+tag,
 		"--set", "operator.leaderElect=false",
+		"--set", "operator.replicas=0",
+		"--set", "api.replicas=0",
+		"--set", "gamesNamespace="+reinstallGamesNS,
 		"--set", "defaultModuleSource.enabled=false",
 		"--timeout", "3m",
 	)
@@ -153,6 +172,7 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 				"on install (F-218)", p)
 		}
 	}
+	teardownReinstall()
 
 	// ---- 3. upgrade to the working tree ----------------------------------
 
