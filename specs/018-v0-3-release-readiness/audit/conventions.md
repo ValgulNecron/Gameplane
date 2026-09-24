@@ -53,7 +53,7 @@ One session per role per round:
 - `audit018-viewer`: read-only access
 - `audit018-collab`: collaborator access (when needed)
 
-Admin access follows OD-015: `audit018-admin` is created with `gameplane-api bootstrap-admin --username audit018-admin` inside the API pod, and its password is kept in `~/gameplane-audit-018/admin.env` (mode 600, off-git). The other role accounts are created through the API as that admin.
+Admin access follows OD-015: `audit018-admin` is created with `kubectl exec -n gameplane-system deploy/gameplane-api -- /api bootstrap-admin --username audit018-admin` (the image's entrypoint is `/api`, see `api/Dockerfile`), and its password is kept in `~/gameplane-audit-018/admin.env` (mode 600, off-git). The other role accounts are created through the API as that admin.
 
 ## Login budget
 
@@ -67,9 +67,10 @@ Each procedure states its login cost. Procedures that spend the budget on purpos
 
 Every created object is named `audit018-<purpose>[-n]`, within Kubernetes' 63-character label limit.
 
-Objects created with `kubectl` also carry the label:
+Objects created with `kubectl` also carry the label `gameplane.io/audit: "018"`. Put it in the manifest's `metadata.labels`, or add it right after creating the object (`-l` on `kubectl apply` is a selector filter: it adds no label):
 ```sh
-kubectl apply -f <file> -l gameplane.io/audit=018 -n gameplane-games
+kubectl apply -f <file> -n gameplane-games
+kubectl label -f <file> -n gameplane-games gameplane.io/audit=018
 ```
 
 Pre-existing objects are **never** written to. This covers:

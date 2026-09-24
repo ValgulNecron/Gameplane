@@ -2,9 +2,9 @@
 
 Shared conventions: [conventions.md](conventions.md).
 
-## garrys-mod
+### garrys-mod
 
-**Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set in `~/gameplane-audit-018/session-audit018-admin.txt`. The module `garrys-mod` is installed in the cluster (via ModuleSource `default`).
+**Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set in `~/gameplane-audit-018/session-admin.txt`. The module `garrys-mod` is installed in the cluster (via ModuleSource `default`).
 
 **Resources created:** `audit018-garrys-mod` (GameServer).
 
@@ -13,7 +13,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.** Login cost: 0 (reuse session).
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -86,7 +88,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## farming-simulator-25
+### farming-simulator-25
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `farming-simulator-25` is installed.
 
@@ -97,7 +99,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -109,7 +113,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/farming-simulator-25/app.go (e2e-probe:http-rest) against the service IP:8080.
 
-4. **Console command (none/rest family).** Use REST API console endpoint to query server status (endpoint pattern: POST /servers/{name}/actions with action type depending on game).
+4. **Console command (none/rest family).** Use REST API console endpoint to query server status (endpoint pattern: POST /servers/{name}/actions/run with action type depending on game).
 
 5. **Backup.**
    ```bash
@@ -161,7 +165,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## beammp
+### beammp
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `beammp` is installed.
 
@@ -172,7 +176,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -184,7 +190,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/beammp/app.go (e2e-probe:beammp-tcp) against service IP:30814.
 
-4. **Console command (pty/none family).** Connect to PTY console via WebSocket (agent exports PTY on a service port). Verify `echo "test" | nc` reaches the agent.
+4. **Console command (pty/none family).** PTY console has no agent involvement and no service port: connect via the API's pod-attach WebSocket instead (`ws://127.0.0.1:18080/ws/servers/audit018-beammp/console-pty`), which bridges directly to the container's stdin/stdout through the Kubernetes API (see agent/internal/console/console.go's package comment and api/internal/ws/attach.go).
 
 5. **Backup.**
    ```bash
@@ -236,7 +242,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## valheim
+### valheim
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `valheim` is installed.
 
@@ -247,7 +253,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -311,7 +319,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## dont-starve-together
+### dont-starve-together
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `dont-starve-together` is installed.
 
@@ -322,7 +330,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -386,7 +396,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## tmodloader
+### tmodloader
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `tmodloader` is installed.
 
@@ -397,7 +407,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -461,7 +473,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## terraria
+### terraria
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `terraria` is installed.
 
@@ -472,7 +484,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -536,7 +550,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## factorio
+### factorio
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `factorio` is installed.
 
@@ -547,7 +561,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -559,7 +575,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/factorio/app.go (e2e-probe:factorio-tcp) against service IP:34197.
 
-4. **Console command (pty/source family).** Connect via PTY and send a command via the RCON port (27015).
+4. **Console command (pty/source family).** The interactive console is PTY (pod-attach via `ws://127.0.0.1:18080/ws/servers/audit018-factorio/console-pty`), not RCON: RCON (source protocol) is agent-internal, backs the Players/Actions tabs only, and its port (27015) is declared `advertise: false` in modules/factorio/template.yaml, so it has no Service port to connect to.
 
 5. **Backup.**
    ```bash
@@ -611,7 +627,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## dayz
+### dayz
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `dayz` is installed.
 
@@ -624,7 +640,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -636,7 +654,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/dayz/app.go (e2e-probe:steam-a2s-udp) against service IP:27015.
 
-4. **Console command (rcon/battleye family).** Use BattlEye RCON protocol (UDP:2305) to send a command. The agent exports BattlEye RCON.
+4. **Console command (rcon/battleye family).** RCON (UDP:2305) is declared `advertise: false` in modules/dayz/template.yaml, so it has no Service port; send a command over the agent's console WebSocket instead: `ws://127.0.0.1:18080/ws/servers/audit018-dayz/console` with a `{"kind":"cmd","body":"<command>"}` frame (matches procedures/agent.md#console-battleye).
 
 5. **Backup.**
    ```bash
@@ -688,7 +706,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## nuclear-option
+### nuclear-option
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `nuclear-option` is installed.
 
@@ -701,7 +719,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -713,7 +733,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** No automated probe available. Verify server is listening: `nc -u -z <service-ip> 7778` should timeout (UDP has no handshake), but netstat on the pod should show the port open.
 
-4. **Console command (rcon/nuclearoption family).** Use nuclearoption RCON protocol (TCP:7779) to send a command.
+4. **Console command (rcon/nuclearoption family).** Port 7779 binds loopback-only inside the pod (modules/nuclear-option/template.yaml: '127.0.0.1:7779... access is pod-local only') and is never advertised on the Service; send a command over the agent's console WebSocket instead: `ws://127.0.0.1:18080/ws/servers/audit018-nuclear-option/console` with a `{"kind":"cmd","body":"<command>"}` frame.
 
 5. **Backup.**
    ```bash
@@ -765,7 +785,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## palworld
+### palworld
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `palworld` is installed.
 
@@ -776,7 +796,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -788,7 +810,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/palworld/app.go (e2e-probe:steam-a2s-udp) against service IP:27015.
 
-4. **Console command (rcon/palworld family).** Use palworld RCON protocol (TCP:8212 REST API) to send a command.
+4. **Console command (rcon/palworld family).** The REST API port (8212) is declared `advertise: false` in modules/palworld/template.yaml ('An admin API must never be exposed publicly'); send a command over the agent's console WebSocket instead: `ws://127.0.0.1:18080/ws/servers/audit018-palworld/console` with a `{"kind":"cmd","body":"<command>"}` frame.
 
 5. **Backup.**
    ```bash
@@ -840,7 +862,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## fivem
+### fivem
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `fivem` is installed.
 
@@ -851,7 +873,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -863,7 +887,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/fivem/app.go (e2e-probe:http-rest) against service IP:30120.
 
-4. **Console command (rcon/rest family).** Use REST API RCON (HTTP POST to server info endpoint).
+4. **Console command (rcon/rest family).** RCON actually runs on the txadmin port (40120, per modules/fivem/template.yaml's spec.rcon), which is declared `advertise: false`; send a command over the agent's console WebSocket instead: `ws://127.0.0.1:18080/ws/servers/audit018-fivem/console` with a `{"kind":"cmd","body":"<command>"}` frame.
 
 5. **Backup.**
    ```bash
@@ -915,7 +939,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## satisfactory
+### satisfactory
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `satisfactory` is installed.
 
@@ -928,7 +952,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -940,7 +966,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/satisfactory/app.go (e2e-probe:http-rest) against service IP:8888.
 
-4. **Console command (rcon/satisfactory family).** Use satisfactory RCON protocol to send a command.
+4. **Console command (rcon/satisfactory family).** Send a command over the agent's console WebSocket: `ws://127.0.0.1:18080/ws/servers/audit018-satisfactory/console` with a `{"kind":"cmd","body":"<command>"}` frame; RCON itself runs on the game port (7777, per modules/satisfactory/template.yaml's spec.rcon), not the messaging port (8888).
 
 5. **Backup.**
    ```bash
@@ -992,7 +1018,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## ark-survival-ascended
+### ark-survival-ascended
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `ark-survival-ascended` is installed.
 
@@ -1005,7 +1031,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -1017,7 +1045,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/ark-survival-ascended/app.go (e2e-probe:ark-ascended-tcp — raw TCP dial to RCON port 27020).
 
-4. **Console command (rcon/source family).** Use Source RCON protocol (TCP:27020) to send a command.
+4. **Console command (rcon/source family).** RCON (27020) is declared `advertise: false` in modules/ark-survival-ascended/template.yaml, so it has no Service port; send a command over the agent's console WebSocket instead: `ws://127.0.0.1:18080/ws/servers/audit018-ark-survival-ascended/console` with a `{"kind":"cmd","body":"<command>"}` frame.
 
 5. **Backup.**
    ```bash
@@ -1069,7 +1097,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## cs2
+### cs2
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `cs2` is installed.
 
@@ -1080,7 +1108,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -1092,7 +1122,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/cs2/app.go (e2e-probe:steam-a2s-udp) against service IP:27015.
 
-4. **Console command (rcon/source family).** Use Source RCON protocol (TCP:27015) to send a command.
+4. **Console command (rcon/source family).** RCON is a separate TCP listener from the (advertised) UDP game port and is itself declared `advertise: false` in modules/cs2/template.yaml; send a command over the agent's console WebSocket instead: `ws://127.0.0.1:18080/ws/servers/audit018-cs2/console` with a `{"kind":"cmd","body":"<command>"}` frame.
 
 5. **Backup.**
    ```bash
@@ -1144,7 +1174,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## minecraft-java
+### minecraft-java
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `minecraft-java` is installed.
 
@@ -1155,7 +1185,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -1167,7 +1199,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/minecraft-java/app.go (gameproto:minecraft-java wire protocol). Use the gameproto Minecraft Java handshake parser in gameproto/minecraft.go to connect to service IP:25565.
 
-4. **Console command (rcon/source family).** Use Source RCON protocol (TCP:25575) to send a command.
+4. **Console command (rcon/source family).** RCON (25575) is declared `advertise: false` in modules/minecraft-java/template.yaml, so it has no Service port; send a command over the agent's console WebSocket instead: `ws://127.0.0.1:18080/ws/servers/audit018-minecraft-java/console` with a `{"kind":"cmd","body":"<command>"}` frame.
 
 5. **Backup.**
    ```bash
@@ -1219,7 +1251,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ---
 
-## rust
+### rust
 
 **Preconditions:** The `gameplane-games` namespace exists. The `audit018-admin` role has session cookie set. The module `rust` is installed.
 
@@ -1230,7 +1262,9 @@ Shared conventions: [conventions.md](conventions.md).
 1. **Create server from template.**
    ```bash
    export GP=http://127.0.0.1:18080
-   COOKIE=$(cat ~/gameplane-audit-018/session-audit018-admin.txt)
+   SESS=$(grep gameplane_session ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-admin.txt | cut -d'=' -f2 | cut -d';' -f1)
+   COOKIE="gameplane_session=$SESS; gameplane_csrf=$CSRF"
    curl -X POST "$GP/servers/" \
      -H "Cookie: $COOKIE" \
      -H "X-Gameplane-CSRF: $(echo $COOKIE | grep -o 'gameplane_csrf=[^;]*' | cut -d= -f2)" \
@@ -1242,7 +1276,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 3. **Protocol join.** Run test/e2e/internal/rust/app.go (e2e-probe:steam-a2s-udp) against service IP:28015.
 
-4. **Console command (rcon/websocket family).** Use WebSocket RCON protocol (TCP:28016) to send a command.
+4. **Console command (rcon/websocket family).** RCON (28016) is declared `advertise: false` in modules/rust/template.yaml ('exposing it publicly would put the RCON password on the internet'); send a command over the agent's console WebSocket instead: `ws://127.0.0.1:18080/ws/servers/audit018-rust/console` with a `{"kind":"cmd","body":"<command>"}` frame.
 
 5. **Backup.**
    ```bash

@@ -4,7 +4,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ### login-username-password
 
-**Preconditions:** User has local credentials enabled. POST $GP/auth/login returns a provider with kind="local".
+**Preconditions:** User has local credentials enabled. GET $GP/auth/providers returns a provider with kind="local".
 
 **Resources created:** none
 
@@ -43,7 +43,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 ### login-sso-provider
 
-**Preconditions:** POST $GP/auth/login returns at least one provider with kind != "local".
+**Preconditions:** GET $GP/auth/providers returns at least one provider with kind != "local".
 
 **Resources created:** none
 
@@ -386,7 +386,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Steps:**
 1. Navigate to $GP/servers
 2. Click the "⋯" menu button in the Actions column for a server
-3. Observe menu items (Edit, Transfer, Delete)
+3. Observe menu items (Clone server, Transfer ownership, Wipe world data, Delete server)
 
 **Expected:** Dropdown menu shows available actions.
 
@@ -511,7 +511,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/console
+1. Navigate to $GP/servers/[name] and click the "Console" tab
 2. Type a command in the terminal
 3. Press Enter
 
@@ -549,7 +549,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/logs
+1. Navigate to $GP/servers/[name] and click the "Logs" tab
 2. Switch to "Game logs" source tab (if available)
 
 **Expected:** Agent tails the game log file. Stream may fail with actionable error.
@@ -567,7 +567,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/logs
+1. Navigate to $GP/servers/[name] and click the "Logs" tab
 2. Click a log level filter button (INFO, WARN, ERROR, DEBUG)
 
 **Expected:** Log lines are filtered by detected level.
@@ -585,7 +585,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/logs
+1. Navigate to $GP/servers/[name] and click the "Logs" tab
 2. Click "Download" button
 
 **Expected:** Current log buffer is downloaded as a .txt file.
@@ -622,7 +622,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/files
+1. Navigate to $GP/servers/[name] and click the "Files" tab
 2. Click a file in the tree
 3. Observe the file content in the editor pane
 
@@ -641,12 +641,12 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/files
+1. Navigate to $GP/servers/[name] and click the "Files" tab
 2. Select a file
 3. Edit content in the editor
 4. Click "Save" button
 
-**Expected:** File is written back to the server. "Last saved at" timestamp updates.
+**Expected:** File is written back to the server. The "modified" indicator next to the filename clears.
 
 **Cleanup:** Server writes file; no manual cleanup.
 
@@ -661,7 +661,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one file (audit018-<purpose>-uploaded)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/files
+1. Navigate to $GP/servers/[name] and click the "Files" tab
 2. Click "Upload" button (upload icon)
 3. Select a local file
 4. Wait for upload to complete
@@ -681,7 +681,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one empty file (audit018-<purpose>)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/files
+1. Navigate to $GP/servers/[name] and click the "Files" tab
 2. Click "New file" button
 3. Enter a filename
 4. Click create
@@ -701,7 +701,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one directory (audit018-<purpose>)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/files
+1. Navigate to $GP/servers/[name] and click the "Files" tab
 2. Click "New folder" button
 3. Enter a directory name
 4. Click create
@@ -721,7 +721,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (file is deleted)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/files
+1. Navigate to $GP/servers/[name] and click the "Files" tab
 2. Click the delete icon (trash) on a file
 3. Confirm in the dialog
 
@@ -740,7 +740,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/files
+1. Navigate to $GP/servers/[name] and click the "Files" tab
 2. Click the download icon on a file
 
 **Expected:** File is downloaded to the client's Downloads folder.
@@ -776,7 +776,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/events
+1. Navigate to $GP/servers/[name] and click the "Events" tab
 2. Click filter buttons (all, info, warnings)
 
 **Expected:** Event list is filtered by kind.
@@ -812,8 +812,8 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one mod (audit018-<name>)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/mods
-2. Click "Install from URL"
+1. Navigate to $GP/servers/[name] and click the "Mods" tab
+2. Click "Install mod", then select "From URL"
 3. Enter a .jar URL and optional name
 4. Click install
 
@@ -832,8 +832,8 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (browse only)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/mods
-2. Click "Browse registry"
+1. Navigate to $GP/servers/[name] and click the "Mods" tab
+2. Click "Install mod" (opens on "Browse registry" by default when the template declares one)
 3. Search/filter for a mod
 4. View mod details
 
@@ -852,7 +852,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one mod (audit018-<game>-<name>)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/mods
+1. Navigate to $GP/servers/[name] and click the "Mods" tab
 2. Open registry browser
 3. Search and click "Install" on a mod
 
@@ -871,8 +871,8 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one mod (audit018-<purpose>)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/mods
-2. Click "Upload"
+1. Navigate to $GP/servers/[name] and click the "Mods" tab
+2. Click "Install mod", then select "Upload file"
 3. Select a .jar file
 4. Upload
 
@@ -891,8 +891,8 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/mods
-2. Click "Check for updates"
+1. Navigate to $GP/servers/[name] and click the "Mods" tab
+2. Click "Check updates"
 
 **Expected:** Mods are checked against registry for newer versions. Results shown.
 
@@ -909,7 +909,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (mod deleted)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/mods
+1. Navigate to $GP/servers/[name] and click the "Mods" tab
 2. Click remove icon on a mod
 3. Confirm
 
@@ -947,7 +947,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** server state change (env variable or mod dependencies)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/modpacks
+1. Navigate to $GP/servers/[name] and click the "Modpacks" tab
 2. Find a modpack
 3. Click "Install"
 
@@ -984,7 +984,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/players
+1. Navigate to $GP/servers/[name] and click the "Players" tab
 2. Locate a player
 3. Click "Kick" button
 4. Optionally enter a reason
@@ -1004,7 +1004,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/players
+1. Navigate to $GP/servers/[name] and click the "Players" tab
 2. Locate a player
 3. Click "Ban" button
 4. Optionally enter a reason
@@ -1024,8 +1024,8 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/players
-2. Show "Banned players" section
+1. Navigate to $GP/servers/[name] and click the "Players" tab
+2. Show "Banned" section
 3. Click unban button on a banned player
 
 **Expected:** Player is removed from ban list.
@@ -1043,7 +1043,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one whitelist entry (audit018-<player>)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/players
+1. Navigate to $GP/servers/[name] and click the "Players" tab
 2. Show "Whitelist" section
 3. Enter a player name
 4. Click "Add"
@@ -1063,7 +1063,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/players
+1. Navigate to $GP/servers/[name] and click the "Players" tab
 2. Show "Whitelist" section
 3. Click remove button on a whitelist entry
 
@@ -1101,7 +1101,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/backups
+1. Navigate to $GP/servers/[name] and click the "Backups" tab
 2. Observe backup table
 
 **Expected:** Table shows completed and in-progress backups with timestamps, sizes, and status.
@@ -1119,7 +1119,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (restore operation)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/backups
+1. Navigate to $GP/servers/[name] and click the "Backups" tab
 2. Click restore button on a backup
 3. Confirm in dialog
 
@@ -1138,7 +1138,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one schedule (audit018-<server>-schedule)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/backups
+1. Navigate to $GP/servers/[name] and click the "Backups" tab
 2. Click "Create schedule" button
 3. Enter cron or preset schedule
 4. Click save
@@ -1158,7 +1158,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/backups
+1. Navigate to $GP/servers/[name] and click the "Backups" tab
 2. Click delete button on a schedule
 3. Confirm
 
@@ -1177,7 +1177,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (changes saved)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "General" section (default)
 3. Edit description, image override, or add labels
 4. Click "Save"
@@ -1197,7 +1197,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Version" section
 3. Select a new version from dropdown
 4. Click "Save"
@@ -1217,7 +1217,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Resources" section
 3. Edit CPU, memory, or storage limits
 4. Click "Save"
@@ -1237,7 +1237,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Networking" section
 3. Edit exposure type (NodePort/LoadBalancer/ClusterIP), hostname, source ranges, or port overrides
 4. Click "Save"
@@ -1257,7 +1257,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Environment" section
 3. Add, edit, or remove environment variables
 4. Click "Save"
@@ -1277,7 +1277,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Lifecycle" section
 3. Configure auto-restart, update policy, or idle sleep settings
 4. Click "Save"
@@ -1297,7 +1297,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one schedule (audit018-<server>-schedule)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Scheduled backups" section
 3. Create, edit, or delete a backup schedule
 4. Click "Save"
@@ -1317,7 +1317,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (capture is ephemeral)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Network capture" section
 3. Enable capture and configure BPF filter (optional)
 4. Click "Save"
@@ -1337,7 +1337,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Placement" section
 3. Configure node affinity or anti-affinity
 4. Click "Save"
@@ -1357,7 +1357,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "RBAC & access" section
 3. Add or modify role bindings (e.g., operator role for a user)
 4. Click "Save"
@@ -1377,7 +1377,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** one share link (audit018-<server>-share)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Share links" section
 3. Click "Create share link"
 4. Choose expiry (preset or custom date)
@@ -1398,7 +1398,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Share links" section
 3. Observe table of active links
 
@@ -1417,7 +1417,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (link is deleted)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Share links" section
 3. Click revoke button on a link
 4. Confirm
@@ -1437,7 +1437,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (server deleted)
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Danger zone" section
 3. Click "Delete server"
 4. Confirm by typing server name
@@ -1458,7 +1458,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none
 
 **Steps:**
-1. Navigate to $GP/servers/[name]/settings
+1. Navigate to $GP/servers/[name] and click the "Settings" tab
 2. Click "Danger zone" section
 3. Click "Transfer ownership"
 4. Select new owner from dropdown
@@ -1574,7 +1574,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Navigate to $GP/modules
-2. Find an installed module with "Upgrade available"
+2. Find an installed module showing the "Upgrade" button
 3. Click "Upgrade"
 4. Confirm
 
@@ -1928,7 +1928,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Navigate to $GP/admin
-2. Click "Modules" section
+2. Click "Module sources" section
 3. Add, edit, or remove module source
 4. Click "Save"
 
@@ -2121,7 +2121,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Navigate to $GP/settings/theme
-2. Click "Export theme" button
+2. Click "Download gameplane-theme.json" button
 
 **Expected:** Theme config is downloaded as a JSON file.
 
@@ -2139,7 +2139,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Navigate to $GP/settings/theme
-2. Click "Import theme" button
+2. Click "Choose file…" button
 3. Select exported JSON file
 
 **Expected:** Theme settings are loaded from file and applied.
@@ -2762,7 +2762,7 @@ Shared conventions: [conventions.md](conventions.md).
    - Login cost: 1 (reuse admin/operator session)
 3. Verify the API call: `kubectl get gameserver <name> -o yaml`
 
-**Expected:** POST to `/api/servers` succeeds and the dashboard navigates to the new server's detail page; a name collision or RBAC denial surfaces the error inline (see `errorMessage` in CreateServer.tsx) without leaving the wizard.
+**Expected:** POST to `/servers` succeeds and the dashboard navigates to the new server's detail page; a name collision or RBAC denial surfaces the error inline (see `errorMessage` in CreateServer.tsx) without leaving the wizard.
 
 **Cleanup:** `kubectl delete gameserver <name> -n gameplane-games`.
 

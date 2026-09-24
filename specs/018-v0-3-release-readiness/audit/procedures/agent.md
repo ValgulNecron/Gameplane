@@ -2,9 +2,9 @@
 
 Shared conventions: [conventions.md](conventions.md).
 
-## console-source
+### console-source
 
-Execute a command on a game server via source RCON protocol (Minecraft, Valve game servers). The server must have RCON enabled with `consoleMode: rcon` and `rcon-protocol: source`.
+Execute a command on a game server via source RCON protocol (Minecraft, Valve game servers). The server must have RCON enabled with `consoleMode: rcon` and `rcon.protocol: source`.
 
 **Preconditions**
 
@@ -32,14 +32,17 @@ Execute a command on a game server via source RCON protocol (Minecraft, Valve ga
    ```sh
    (echo -n '{"kind":"cmd","body":"list"}'; sleep 0.5) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-mc-source/console"
+     "ws://${GP#http://}/ws/servers/audit018-mc-source/console"
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Capture the response, which should echo an RCON response frame. Save to evidence file:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-001
-   # Repeat step 2 with output redirection
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-001
+   (echo -n '{"kind":"cmd","body":"list"}'; sleep 0.5) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-mc-source/console" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-001/console-source.txt
    ```
 
 **Expected**
@@ -59,7 +62,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## console-telnet
+### console-telnet
 
 Execute a command on a game server via telnet RCON protocol (7 Days to Die, Line-based RCon). The server must have telnet RCON configured.
 
@@ -88,13 +91,17 @@ Execute a command on a game server via telnet RCON protocol (7 Days to Die, Line
    ```sh
    (echo -n '{"kind":"cmd","body":"help"}'; sleep 0.5) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-telnet-rcon/console"
+     "ws://${GP#http://}/ws/servers/audit018-telnet-rcon/console"
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-002
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-002
+   (echo -n '{"kind":"cmd","body":"help"}'; sleep 0.5) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-telnet-rcon/console" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-002/console-telnet.txt
    ```
 
 **Expected**
@@ -114,9 +121,9 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## console-websocket
+### console-websocket
 
-Execute a command on a game server via websocket RCON protocol (Rust WebRcon). The server must have `consoleMode: rcon` and `rcon-protocol: websocket`.
+Execute a command on a game server via websocket RCON protocol (Rust WebRcon). The server must have `consoleMode: rcon` and `rcon.protocol: websocket`.
 
 **Preconditions**
 
@@ -143,13 +150,17 @@ Execute a command on a game server via websocket RCON protocol (Rust WebRcon). T
    ```sh
    (echo -n '{"kind":"cmd","body":"status"}'; sleep 0.5) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-rust-ws/console"
+     "ws://${GP#http://}/ws/servers/audit018-rust-ws/console"
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-003
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-003
+   (echo -n '{"kind":"cmd","body":"status"}'; sleep 0.5) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-rust-ws/console" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-003/console-websocket.txt
    ```
 
 **Expected**
@@ -169,9 +180,9 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## console-battleye
+### console-battleye
 
-Execute a command on a game server via BattlEye RCON protocol (DayZ, Arma). The server must have `rcon-protocol: battleye`.
+Execute a command on a game server via BattlEye RCON protocol (DayZ, Arma). The server must have `rcon.protocol: battleye`.
 
 **Preconditions**
 
@@ -198,13 +209,17 @@ Execute a command on a game server via BattlEye RCON protocol (DayZ, Arma). The 
    ```sh
    (echo -n '{"kind":"cmd","body":"players"}'; sleep 0.5) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-dayz-be/console"
+     "ws://${GP#http://}/ws/servers/audit018-dayz-be/console"
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-004
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-004
+   (echo -n '{"kind":"cmd","body":"players"}'; sleep 0.5) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-dayz-be/console" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-004/console-battleye.txt
    ```
 
 **Expected**
@@ -223,7 +238,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## console-satisfactory
+### console-satisfactory
 
 Execute a command on a game server via Satisfactory HTTPS admin API RCON protocol.
 
@@ -252,13 +267,17 @@ Execute a command on a game server via Satisfactory HTTPS admin API RCON protoco
    ```sh
    (echo -n '{"kind":"cmd","body":"GetGamePhase"}'; sleep 0.5) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-satisfactory-api/console"
+     "ws://${GP#http://}/ws/servers/audit018-satisfactory-api/console"
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-005
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-005
+   (echo -n '{"kind":"cmd","body":"GetGamePhase"}'; sleep 0.5) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-satisfactory-api/console" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-005/console-satisfactory.txt
    ```
 
 **Expected**
@@ -277,7 +296,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## console-palworld
+### console-palworld
 
 Execute a command on a game server via Palworld REST admin API RCON protocol.
 
@@ -306,13 +325,17 @@ Execute a command on a game server via Palworld REST admin API RCON protocol.
    ```sh
    (echo -n '{"kind":"cmd","body":"Info"}'; sleep 0.5) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-palworld-api/console"
+     "ws://${GP#http://}/ws/servers/audit018-palworld-api/console"
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-006
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-006
+   (echo -n '{"kind":"cmd","body":"Info"}'; sleep 0.5) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-palworld-api/console" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-006/console-palworld.txt
    ```
 
 **Expected**
@@ -331,7 +354,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## console-nuclearoption
+### console-nuclearoption
 
 Execute a command on a game server via Nuclear Option remote-command RCON protocol.
 
@@ -360,13 +383,17 @@ Execute a command on a game server via Nuclear Option remote-command RCON protoc
    ```sh
    (echo -n '{"kind":"cmd","body":"status"}'; sleep 0.5) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-nuclear-api/console"
+     "ws://${GP#http://}/ws/servers/audit018-nuclear-api/console"
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-007
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-007
+   (echo -n '{"kind":"cmd","body":"status"}'; sleep 0.5) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-nuclear-api/console" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-007/console-nuclearoption.txt
    ```
 
 **Expected**
@@ -385,7 +412,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## console-rest
+### console-rest
 
 Execute a command on a game server via generic HTTP/JSON REST admin API RCON protocol (FiveM, Farming Simulator 25).
 
@@ -414,13 +441,17 @@ Execute a command on a game server via generic HTTP/JSON REST admin API RCON pro
    ```sh
    (echo -n '{"kind":"cmd","body":"status"}'; sleep 0.5) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-fivem-rest/console"
+     "ws://${GP#http://}/ws/servers/audit018-fivem-rest/console"
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-008
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-008
+   (echo -n '{"kind":"cmd","body":"status"}'; sleep 0.5) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-fivem-rest/console" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-008/console-rest.txt
    ```
 
 **Expected**
@@ -439,7 +470,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## console-pty
+### console-pty
 
 Execute a command on a game server via PTY console (pod attach, for games without RCON like Terraria, Valheim, Arma Reforger).
 
@@ -466,16 +497,20 @@ Execute a command on a game server via PTY console (pod attach, for games withou
 
 2. Send PTY stdin via WebSocket (pod attach path):
    ```sh
-   (echo -n '{"kind":"stdin","body":"aGVscApg"}'; sleep 1) | \
+   (echo -n '{"kind":"stdin","body":"aGVscAo="}'; sleep 1) | \
      curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/audit018-terraria-pty/console-pty"
+     "ws://${GP#http://}/ws/servers/audit018-terraria-pty/console-pty"
    ```
    (The base64 blob is "help\n" encoded)
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-009
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-009
+   (echo -n '{"kind":"stdin","body":"aGVscAo="}'; sleep 1) | \
+     curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/audit018-terraria-pty/console-pty" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-009/console-pty.txt
    ```
 
 **Expected**
@@ -495,7 +530,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## files-list
+### files-list
 
 List files and directories in the server's data volume.
 
@@ -527,8 +562,10 @@ List files and directories in the server's data volume.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-010
-   # Redirect output to JSON file
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-010
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/files/list?path=/" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-010/files-list.json
    ```
 
 **Expected**
@@ -546,7 +583,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## files-read
+### files-read
 
 Read the contents of a text file from the server's data volume.
 
@@ -579,7 +616,10 @@ Read the contents of a text file from the server's data volume.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-011
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-011
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/files/read?path=/server.properties" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-011/files-read.json
    ```
 
 **Expected**
@@ -597,7 +637,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## files-write
+### files-write
 
 Write or overwrite a file in the server's data volume.
 
@@ -624,9 +664,8 @@ Write or overwrite a file in the server's data volume.
    ```sh
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
-     -H "Content-Type: application/json" \
-     -d '{"path":"/audit018-test-file.txt","data":"Hello, audit!"}' \
-     "$GP/servers/minecraft-java/files/write"
+     --data-binary "Hello, audit!" \
+     "$GP/servers/minecraft-java/files/write?path=/audit018-test-file.txt"
    ```
    (Cost: 0 additional logins)
 
@@ -638,12 +677,21 @@ Write or overwrite a file in the server's data volume.
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-012
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-012
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     --data-binary "Hello, audit!" \
+     "$GP/servers/minecraft-java/files/write?path=/audit018-test-file.txt" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-012/write.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/files/read?path=/audit018-test-file.txt" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-012/read-back.json
    ```
 
 **Expected**
 
-- HTTP 200 response from write
+- HTTP 204 No Content response from write
 - File contents are readable via the read endpoint
 - Contents match what was written
 
@@ -653,9 +701,7 @@ Write or overwrite a file in the server's data volume.
    ```sh
    curl -s -X DELETE --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
-     -H "Content-Type: application/json" \
-     -d '{"path":"/audit018-test-file.txt"}' \
-     "$GP/servers/minecraft-java/files/delete"
+     "$GP/servers/minecraft-java/files/delete?path=/audit018-test-file.txt"
    ```
 
 **Automatable?**
@@ -664,7 +710,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## files-upload
+### files-upload
 
 Upload a file to the server's data volume.
 
@@ -696,9 +742,8 @@ Upload a file to the server's data volume.
    ```sh
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
-     -F "path=/" \
      -F "file=@/tmp/audit018-upload.txt" \
-     "$GP/servers/minecraft-java/files/upload"
+     "$GP/servers/minecraft-java/files/upload?path=/"
    ```
    (Cost: 0 additional logins)
 
@@ -710,12 +755,21 @@ Upload a file to the server's data volume.
 
 5. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-013
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-013
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -F "file=@/tmp/audit018-upload.txt" \
+     "$GP/servers/minecraft-java/files/upload?path=/" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-013/upload.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/files/list?path=/" | jq '.[] | select(.name == "audit018-upload.txt")' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-013/list-after.json
    ```
 
 **Expected**
 
-- HTTP 200 response from upload
+- HTTP 204 No Content response from upload
 - File appears in directory listing
 - File is readable
 
@@ -729,7 +783,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## files-download
+### files-download
 
 Download a file from the server's data volume.
 
@@ -764,8 +818,11 @@ Download a file from the server's data volume.
 
 3. Save metadata to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-014
-   ls -lh /tmp/audit018-downloaded.properties
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-014
+   ls -lh /tmp/audit018-downloaded.properties \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-014/download-metadata.txt
+   file /tmp/audit018-downloaded.properties \
+     >> specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-014/download-metadata.txt
    ```
 
 **Expected**
@@ -784,7 +841,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## files-mkdir
+### files-mkdir
 
 Create a directory in the server's data volume.
 
@@ -811,9 +868,7 @@ Create a directory in the server's data volume.
    ```sh
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
-     -H "Content-Type: application/json" \
-     -d '{"path":"/audit018-testdir"}' \
-     "$GP/servers/minecraft-java/files/mkdir"
+     "$GP/servers/minecraft-java/files/mkdir?path=/audit018-testdir"
    ```
    (Cost: 0 additional logins)
 
@@ -825,12 +880,20 @@ Create a directory in the server's data volume.
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-015
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-015
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     "$GP/servers/minecraft-java/files/mkdir?path=/audit018-testdir" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-015/mkdir.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/files/list?path=/" | jq '.[] | select(.name == "audit018-testdir")' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-015/list-after.json
    ```
 
 **Expected**
 
-- HTTP 200 response
+- HTTP 204 No Content response
 - Directory appears in listing with isDir=true
 
 **Cleanup**
@@ -843,7 +906,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## files-delete
+### files-delete
 
 Delete a file or directory from the server's data volume.
 
@@ -871,9 +934,7 @@ Delete a file or directory from the server's data volume.
    ```sh
    curl -s -X DELETE --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
-     -H "Content-Type: application/json" \
-     -d '{"path":"/audit018-test-file.txt"}' \
-     "$GP/servers/minecraft-java/files/delete"
+     "$GP/servers/minecraft-java/files/delete?path=/audit018-test-file.txt"
    ```
    (Cost: 0 additional logins)
 
@@ -885,12 +946,20 @@ Delete a file or directory from the server's data volume.
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-016
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-016
+   curl -s -X DELETE --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     "$GP/servers/minecraft-java/files/delete?path=/audit018-test-file.txt" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-016/delete.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/files/read?path=/audit018-test-file.txt" | jq . \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-016/read-after-delete.json
    ```
 
 **Expected**
 
-- HTTP 200 response from delete
+- HTTP 204 No Content response from delete
 - Subsequent read returns 404 or error
 - File no longer appears in directory listing
 
@@ -904,7 +973,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## logs-tail
+### logs-tail
 
 Stream the server's log file via WebSocket in real-time.
 
@@ -930,20 +999,22 @@ Stream the server's log file via WebSocket in real-time.
 2. Open the log tail WebSocket and read 5 seconds of logs:
    ```sh
    timeout 5 curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "ws://$GP/ws/servers/minecraft-java/logs" 2>&1 | head -50
+     "ws://${GP#http://}/ws/servers/minecraft-java/logs" 2>&1 | head -50
    ```
-   (Cost: 1 login)
+   (Cost: 0 additional logins)
 
 3. Save output to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-017
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-017
+   timeout 5 curl -i -N --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "ws://${GP#http://}/ws/servers/minecraft-java/logs" 2>&1 | head -50 \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-017/logs-tail.txt
    ```
 
 **Expected**
 
 - WebSocket connection succeeds (101 Switching Protocols)
-- Log entries are streamed as JSON frames
-- Log data is base64-encoded in the frames
+- Each log line is streamed as a plain-text WS frame (agent/internal/logs/logs.go `tailLoop` calls `conn.Write(ctx, websocket.MessageText, []byte(line))`) — not a JSON envelope, and not base64-encoded
 
 **Cleanup**
 
@@ -955,7 +1026,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## logs-download
+### logs-download
 
 Download the complete log file from the server.
 
@@ -990,9 +1061,11 @@ Download the complete log file from the server.
 
 3. Save metadata to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-018
-   ls -lh /tmp/audit018-game.log
-   head -20 /tmp/audit018-game.log
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-018
+   ls -lh /tmp/audit018-game.log \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-018/download-metadata.txt
+   head -20 /tmp/audit018-game.log \
+     >> specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-018/download-metadata.txt
    ```
 
 **Expected**
@@ -1011,7 +1084,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## players-list
+### players-list
 
 List online players on the server.
 
@@ -1044,14 +1117,17 @@ List online players on the server.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-019
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-019
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/players/" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-019/players-list.json
    ```
 
 **Expected**
 
 - HTTP 200 response
-- JSON response with player list (players array)
-- Each player has UUID, name, joinTime
+- JSON body `{"online":N,"max":M,"players":["name1",...],"asOf":"...","capabilities":{...}}` (agent/internal/players/players.go `Snapshot`)
+- `players` is a flat array of player-name strings — there is no per-player UUID or joinTime field
 
 **Cleanup**
 
@@ -1063,7 +1139,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## players-banned
+### players-banned
 
 List banned players on the server.
 
@@ -1095,7 +1171,10 @@ List banned players on the server.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-020
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-020
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/players/banned" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-020/players-banned.json
    ```
 
 **Expected**
@@ -1113,7 +1192,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## players-kick
+### players-kick
 
 Kick a player from the server.
 
@@ -1137,11 +1216,11 @@ Kick a player from the server.
    export CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-operator.txt | cut -d= -f2)
    ```
 
-2. First, list players to get a valid UUID:
+2. First, list players to get a valid name:
    ```sh
    curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "$GP/servers/minecraft-java/players/" | jq -r '.players[0].uuid'
-   export PLAYER_UUID=<from-above>
+     "$GP/servers/minecraft-java/players/" | jq -r '.players[0]'
+   export PLAYER_NAME=<from-above>
    ```
 
 3. Kick the player:
@@ -1149,14 +1228,21 @@ Kick a player from the server.
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
      -H "Content-Type: application/json" \
-     -d "{\"uuid\":\"$PLAYER_UUID\",\"reason\":\"audit018\"}" \
+     -d "{\"name\":\"$PLAYER_NAME\",\"reason\":\"audit018\"}" \
      "$GP/servers/minecraft-java/players/kick"
    ```
    (Cost: 0 additional logins)
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-021
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-021
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -H "Content-Type: application/json" \
+     -d "{\"name\":\"$PLAYER_NAME\",\"reason\":\"audit018\"}" \
+     "$GP/servers/minecraft-java/players/kick" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-021/kick.txt
    ```
 
 **Expected**
@@ -1175,7 +1261,7 @@ Yes. Proposed bucket: `api-agent`. (Requires test player bot for consistent auto
 
 ---
 
-## players-ban
+### players-ban
 
 Ban a player from the server.
 
@@ -1198,12 +1284,12 @@ Ban a player from the server.
    export CSRF=$(grep gameplane_csrf ~/gameplane-audit-018/session-operator.txt | cut -d= -f2)
    ```
 
-2. Ban a player (using a known or test player UUID):
+2. Ban a player (using a known or test player name):
    ```sh
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
      -H "Content-Type: application/json" \
-     -d '{"uuid":"00000000-0000-0000-0000-000000000001","name":"audit018-test-player","reason":"audit"}' \
+     -d '{"name":"audit018testplayer","reason":"audit"}' \
      "$GP/servers/minecraft-java/players/ban"
    ```
    (Cost: 0 additional logins)
@@ -1211,12 +1297,22 @@ Ban a player from the server.
 3. Verify the player is in the banned list:
    ```sh
    curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "$GP/servers/minecraft-java/players/banned" | jq '.[] | select(.uuid == "00000000-0000-0000-0000-000000000001")'
+     "$GP/servers/minecraft-java/players/banned" | jq '.[] | select(.name == "audit018testplayer")'
    ```
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-022
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-022
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"audit018testplayer","reason":"audit"}' \
+     "$GP/servers/minecraft-java/players/ban" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-022/ban.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/players/banned" | jq '.[] | select(.name == "audit018testplayer")' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-022/banned-after.json
    ```
 
 **Expected**
@@ -1235,7 +1331,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## players-unban
+### players-unban
 
 Unban a player from the server.
 
@@ -1264,7 +1360,7 @@ Unban a player from the server.
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
      -H "Content-Type: application/json" \
-     -d '{"uuid":"00000000-0000-0000-0000-000000000001"}' \
+     -d '{"name":"audit018testplayer"}' \
      "$GP/servers/minecraft-java/players/unban"
    ```
    (Cost: 0 additional logins)
@@ -1272,13 +1368,23 @@ Unban a player from the server.
 3. Verify the player is no longer banned:
    ```sh
    curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "$GP/servers/minecraft-java/players/banned" | jq '.[] | select(.uuid == "00000000-0000-0000-0000-000000000001")'
+     "$GP/servers/minecraft-java/players/banned" | jq '.[] | select(.name == "audit018testplayer")'
    ```
    (Should return nothing)
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-023
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-023
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"audit018testplayer"}' \
+     "$GP/servers/minecraft-java/players/unban" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-023/unban.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/players/banned" | jq '.[] | select(.name == "audit018testplayer")' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-023/banned-after.json
    ```
 
 **Expected**
@@ -1297,7 +1403,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## players-whitelist
+### players-whitelist
 
 List whitelisted players on the server.
 
@@ -1329,7 +1435,10 @@ List whitelisted players on the server.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-024
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-024
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/players/whitelist" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-024/whitelist.json
    ```
 
 **Expected**
@@ -1347,7 +1456,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## players-whitelist-add
+### players-whitelist-add
 
 Add a player to the server's whitelist.
 
@@ -1375,7 +1484,7 @@ Add a player to the server's whitelist.
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
      -H "Content-Type: application/json" \
-     -d '{"uuid":"00000000-0000-0000-0000-000000000002","name":"audit018-whitelisted"}' \
+     -d '{"name":"audit018whitelisted"}' \
      "$GP/servers/minecraft-java/players/whitelist/add"
    ```
    (Cost: 0 additional logins)
@@ -1383,12 +1492,22 @@ Add a player to the server's whitelist.
 3. Verify the player is in the whitelist:
    ```sh
    curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "$GP/servers/minecraft-java/players/whitelist" | jq '.[] | select(.uuid == "00000000-0000-0000-0000-000000000002")'
+     "$GP/servers/minecraft-java/players/whitelist" | jq '.[] | select(. == "audit018whitelisted")'
    ```
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-025
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-025
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"audit018whitelisted"}' \
+     "$GP/servers/minecraft-java/players/whitelist/add" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-025/whitelist-add.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/players/whitelist" | jq '.[] | select(. == "audit018whitelisted")' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-025/whitelist-after.json
    ```
 
 **Expected**
@@ -1406,7 +1525,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## players-whitelist-remove
+### players-whitelist-remove
 
 Remove a player from the server's whitelist.
 
@@ -1435,7 +1554,7 @@ Remove a player from the server's whitelist.
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
      -H "Content-Type: application/json" \
-     -d '{"uuid":"00000000-0000-0000-0000-000000000002"}' \
+     -d '{"name":"audit018whitelisted"}' \
      "$GP/servers/minecraft-java/players/whitelist/remove"
    ```
    (Cost: 0 additional logins)
@@ -1443,13 +1562,23 @@ Remove a player from the server's whitelist.
 3. Verify the player is no longer in the whitelist:
    ```sh
    curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
-     "$GP/servers/minecraft-java/players/whitelist" | jq '.[] | select(.uuid == "00000000-0000-0000-0000-000000000002")'
+     "$GP/servers/minecraft-java/players/whitelist" | jq '.[] | select(. == "audit018whitelisted")'
    ```
    (Should return nothing)
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-026
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-026
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"audit018whitelisted"}' \
+     "$GP/servers/minecraft-java/players/whitelist/remove" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-026/whitelist-remove.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/players/whitelist" | jq '.[] | select(. == "audit018whitelisted")' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-026/whitelist-after.json
    ```
 
 **Expected**
@@ -1467,7 +1596,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## quiesce-pause
+### quiesce-pause
 
 Pause game writes (quiesce) before taking a backup snapshot.
 
@@ -1501,7 +1630,7 @@ Pause game writes (quiesce) before taking a backup snapshot.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-027
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-027
    ```
 
 **Expected**
@@ -1520,7 +1649,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## quiesce-resume
+### quiesce-resume
 
 Resume game writes (unquiesce) after a backup snapshot completes.
 
@@ -1555,7 +1684,7 @@ Resume game writes (unquiesce) after a backup snapshot completes.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-028
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-028
    ```
 
 **Expected**
@@ -1574,7 +1703,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## lifecycle-stop
+### lifecycle-stop
 
 Execute the server's stop sequence to cleanly shut down before scaling to zero.
 
@@ -1602,13 +1731,19 @@ Execute the server's stop sequence to cleanly shut down before scaling to zero.
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
      -H "Content-Type: application/json" \
-     "$GP/servers/minecraft-java/lifecycle/stop"
+     "$GP/servers/minecraft-java:stop"
    ```
    (Cost: 0 additional logins)
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-029
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-029
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -H "Content-Type: application/json" \
+     "$GP/servers/minecraft-java:stop" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-029/stop.txt
    ```
 
 4. Verify the server is shut down:
@@ -1618,8 +1753,7 @@ Execute the server's stop sequence to cleanly shut down before scaling to zero.
 
 **Expected**
 
-- HTTP 200 response
-- Response body contains `{"stopped":true}`
+- HTTP 202 Accepted with no response body (patchSuspend in api/internal/handlers/lifecycle.go just does `w.WriteHeader(http.StatusAccepted)`; spec.suspend is patched to true and the operator performs the actual shutdown asynchronously)
 - Server pod transitions to Terminating state
 - Server eventually exits (pod deleted if suspend=true)
 
@@ -1633,7 +1767,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## actions-run
+### actions-run
 
 Run a module-declared action (custom button) on the server.
 
@@ -1658,8 +1792,8 @@ Run a module-declared action (custom button) on the server.
 
 2. List available actions for the server:
    ```sh
-   kubectl get gameserver minecraft-java -n gameplane-games -o jsonpath='{.spec.template.spec.gameTemplate}' | \
-     kubectl get gametemplate -n gameplane-games -o jsonpath='{.spec.capabilities.actions}' | jq '.[].id'
+   TEMPLATE=$(kubectl get gameserver minecraft-java -n gameplane-games -o jsonpath='{.spec.templateRef.name}')
+   kubectl get gametemplate "$TEMPLATE" -o jsonpath='{.spec.capabilities.actions}' | jq '.[].id'
    ```
 
 3. Run an action (save-all for Minecraft):
@@ -1667,14 +1801,20 @@ Run a module-declared action (custom button) on the server.
    curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
      -H "Content-Type: application/json" \
-     -d '{"actionId":"save-all","params":{}}' \
+     -d '{"id":"save-all","params":{}}' \
      "$GP/servers/minecraft-java/actions/run"
    ```
    (Cost: 0 additional logins)
 
 4. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-030
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-030
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -H "Content-Type: application/json" \
+     -d '{"id":"save-all","params":{}}' \
+     "$GP/servers/minecraft-java/actions/run" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-030/actions-run.json
    ```
 
 **Expected**
@@ -1693,7 +1833,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## status-metrics
+### status-metrics
 
 Retrieve live status metrics (TPS, uptime, etc.) from the server.
 
@@ -1725,7 +1865,10 @@ Retrieve live status metrics (TPS, uptime, etc.) from the server.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-031
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-031
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/status" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-031/status.json
    ```
 
 **Expected**
@@ -1744,7 +1887,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## mods-list
+### mods-list
 
 List installed mods/plugins on the server.
 
@@ -1776,7 +1919,10 @@ List installed mods/plugins on the server.
 
 3. Save response to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-032
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-032
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/mods" \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-032/mods-list.json
    ```
 
 **Expected**
@@ -1795,7 +1941,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## mods-install
+### mods-install
 
 Install a mod from a URL.
 
@@ -1837,7 +1983,17 @@ Install a mod from a URL.
 
 4. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-033
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-033
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -H "Content-Type: application/json" \
+     -d '{"url":"https://example.com/audit018-test-mod.jar"}' \
+     "$GP/servers/minecraft-java/mods/install" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-033/install.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/mods" | jq '.[] | select(.name | contains("audit018"))' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-033/mods-after.json
    ```
 
 **Expected**
@@ -1856,7 +2012,7 @@ Yes. Proposed bucket: `api-agent`. (Requires a stable test mod URL or local file
 
 ---
 
-## mods-upload
+### mods-upload
 
 Upload a mod file directly to the server.
 
@@ -1902,7 +2058,16 @@ Upload a mod file directly to the server.
 
 5. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-034
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-034
+   curl -s -X POST --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     -F "file=@/tmp/audit018-test-mod.jar" \
+     "$GP/servers/minecraft-java/mods/upload" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-034/upload.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/mods" | jq '.[] | select(.name | contains("audit018"))' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-034/mods-after.json
    ```
 
 **Expected**
@@ -1921,7 +2086,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## mods-remove
+### mods-remove
 
 Remove an installed mod from the server.
 
@@ -1956,9 +2121,7 @@ Remove an installed mod from the server.
    ```sh
    curl -s -X DELETE --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
      -H "X-Gameplane-CSRF: $CSRF" \
-     -H "Content-Type: application/json" \
-     -d "{\"name\":\"$MOD_NAME\"}" \
-     "$GP/servers/minecraft-java/mods"
+     "$GP/servers/minecraft-java/mods?name=$MOD_NAME"
    ```
    (Cost: 0 additional logins)
 
@@ -1971,12 +2134,20 @@ Remove an installed mod from the server.
 
 5. Save responses to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-035
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-035
+   curl -s -X DELETE --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     -H "X-Gameplane-CSRF: $CSRF" \
+     "$GP/servers/minecraft-java/mods?name=$MOD_NAME" \
+     -w '\nHTTP %{http_code}\n' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-035/remove.txt
+   curl -s --cookie "gameplane_session=$SESSION; gameplane_csrf=$CSRF" \
+     "$GP/servers/minecraft-java/mods" | jq '.[] | select(.name == "'$MOD_NAME'")' \
+     > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-035/mods-after.json
    ```
 
 **Expected**
 
-- HTTP 200 response
+- HTTP 204 No Content response
 - Mod no longer appears in the mods list
 
 **Cleanup**
@@ -1989,7 +2160,7 @@ Yes. Proposed bucket: `api-agent`.
 
 ---
 
-## heartbeat-metrics
+### heartbeat-metrics
 
 Verify the server reports metrics via Prometheus (heartbeat, player count, resource usage).
 
@@ -2005,9 +2176,9 @@ Verify the server reports metrics via Prometheus (heartbeat, player count, resou
 
 **Steps**
 
-1. Identify the agent pod:
+1. Identify the agent pod (the agent runs as a sidecar container inside the GameServer's own pod, which carries the label `app.kubernetes.io/name=gameplane-game`, not a separate "agent" pod — operator/internal/controller/gameserver_controller.go):
    ```sh
-   kubectl get pod -n gameplane-games -l gameplane.io/component=agent | grep minecraft-java
+   kubectl get pod -n gameplane-games -l app.kubernetes.io/name=gameplane-game | grep minecraft-java
    export AGENT_POD=<pod-name>
    ```
 
@@ -2024,8 +2195,8 @@ Verify the server reports metrics via Prometheus (heartbeat, player count, resou
 
 4. Save metrics to evidence:
    ```sh
-   mkdir -p ~/gameplane-audit-018/evidence/INV-AGT-036
-   curl -s http://localhost:18090/metrics | grep -E "gameplane_|HELP" > ~/gameplane-audit-018/evidence/INV-AGT-036/metrics.txt
+   mkdir -p specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-036
+   curl -s http://localhost:18090/metrics | grep -E "gameplane_|HELP" > specs/018-v0-3-release-readiness/audit/evidence/INV-AGT-036/metrics.txt
    ```
 
 5. Close the port-forward:

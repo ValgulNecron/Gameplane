@@ -13,6 +13,7 @@ Pre-RC round: component reviews, inventory enumeration and the known-bug import.
 - **Rows run**: 0
 - **New findings**: see [findings.md](findings.md)
 - **Cleanup**: n/a (no test resources created)
+- **Admin bootstrap (T012, OD-015)**: `audit018-admin` was created via `bootstrap-admin` on 2026-09-24 15:15 UTC (`kubectl exec -n gameplane-system deploy/gameplane-api -- /api bootstrap-admin --username audit018-admin --password-stdin`, no `--force`, no existing user touched). Written straight into the live DB, so there is no API audit event for its creation. Password kept off-git in `~/gameplane-audit-018/admin.env` (mode 600). To be deleted at cleanup.
 
 ### Test resources
 

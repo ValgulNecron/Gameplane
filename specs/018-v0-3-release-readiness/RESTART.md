@@ -65,38 +65,47 @@ CI status on these PRs hadn't been checked. Check it with `gh pr checks <n>`.
 
 Still pending: **RC-TAG-1**, which needs the maintainer's approval after #423 merges.
 
+## Third session (2026-09-24): state at hand-off
+
+### Git and PRs
+- Branch `018-v0-3-release-readiness` was rebuilt without the security material and force-pushed (OD-019): origin `3de03ab0` → `213bdaa7`, then the records commit on top.
+  - The old tip is kept locally as `local/018-pre-rewrite`. Never push it.
+  - GitHub may still serve the old commits by SHA until a Support purge.
+- The reworded `SECURITY_AUDIT.md` is **uncommitted** in the working tree on purpose (OD-019). Don't stage it. Never read its older versions.
+- `.specify/` changes and `sentinel/sentinel` (a build artefact, F-254) are not ours. Don't stage them.
+- Draft PR **#424** carries the audit records (labels `type: docs`, `area: specs`).
+- PR #420 was updated with `fcd9c58f` (OD-011 bare versions, OD-012 fixture harness).
+- PRs #420–#423 were green and waiting on maintainer review.
+
+### Records
+- `audit/findings.md` holds 199 public findings (F-001..F-255, with gaps). `audit/held/findings.md` (git-ignored) holds the 56 held security findings.
+- `coverage.md`: every row is `complete`. The code rows are opus reviews verified by an independent opus agent (OD-020; never fable).
+- Procedures: every file except the held security procedures had a correctness pass, factual follow-ups and a quoting sweep. OD-021 lists 24 design questions for the maintainer.
+- **OD-023 (blocks T061):** OD-005 path (b) would run `helm uninstall`, which deletes `gameplane-games` with every pre-existing GameServer and PVC (F-212, S1). `upgrade.md` baseline-beta8 carries a DO NOT RUN banner.
+- OD-022: coverage rows for `.github/actions/` and `images/`.
+- `audit/held/questions.md`: HQ-001, a security-model question.
+
+### Live (kubelab)
+- T012 done except the API user list:
+  - `audit018-admin` was created with `/api bootstrap-admin`. Its password is in `~/gameplane-audit-018/admin.env` (mode 600).
+  - DB migration level is 011, so OD-005 path (b), now blocked by OD-023.
+  - `GET /users/` was denied by auto mode as personal-data handling. Run it in the default permission mode.
+
+### Tooling
+- Apply edit lists with `/tmp/claude-1000/-home-dev-Gameplane/e0cf04a8-b80e-4fc8-92df-ee2396f7dbe8/scratchpad/apply_edits.py <edits.json> <file> [--dry-run]` (read-only file; exact unique-match replacement). Haiku `Edit` applies of JSON edit lists corrupted shell quoting; don't use them.
+- Sonnet was stopped by its cyber safeguard on `api.md`, `crd.md` and the OD-019 mover, so use opus for anything touching security controls. Keep security details out of the main conversation: agents read and write them in `audit/held/` and return IDs and counts only.
+
 ## Next steps (in order)
 
-1. **Commit and push** any uncommitted records listed above, then open the draft PR.
-2. **Update PR #420** for OD-011 and OD-012 (a new commit, not an amend).
-3. **T009–T011, known-bug import** into `audit/findings.md` (F-001 to F-030). The IDs and order are in tasks.md T009–T011.
-   - `SECURITY_AUDIT.md` is now worded defensively, so its six findings can be read normally. Read **only the current working-tree file** (commit `fccac221` onward). **Never read the old version** in any form: no `git show <rev>:SECURITY_AUDIT.md`, `git diff`/`git log -p` touching that file, or `git blame`. Pass the same rule to every agent brief.
-   - For PR #350, title and file list are enough.
-   - Start at sonnet. If the model safeguard stops it again, go to opus (tier rule, CLAUDE.md 13).
-4. **Record the verified review findings from the first session** as F-031 onward, with origin `review:<component>`, all S4:
-   - `audit/evidence/review-test-e2e/verification.md`: 3 kept
-   - `audit/evidence/review-docs/verification.md`: 9 kept, 1 rejected. Fix C-docs-03 first: the `docs/tunnels.md` examples use `spec.template` instead of `templateRef.name`.
-   - Also record the CHANGELOG gap that PR #423 backfilled.
-   - Then T035: fill in the coverage rows.
-5. **Remaining component reviews (T036–T042, then T045 verification)** for operator, api, agent, web, netguard, gameaction, gameproto, gp-module, svcutil, sentinel, tunnel, capture-sidecar, audit-syslog-bridge, telemetry-receiver, mcp-server, charts/gameplane, deploy, hack and .github/workflows.
-   - In the first session, every Sonnet reviewer for these was stopped by the model's cyber safeguard (`[cyber]`).
-   - Use **opus** reviewers with a **plain framing**: "review for correctness against `<component>/specs.md`, error handling, dead code, docs drift". Don't paste attack-style checklists into the prompt.
-   - The first session's review script is `/home/dev/.claude/projects/-home-dev-Gameplane/e796566d-ac6a-4d0b-9897-439cf1809f1e/workflows/scripts/audit018-component-review-wf_450724dd-d73.js`. Reuse its structure, but rewrite the per-chunk `security` text in the same defensive style, and change the model.
-   - Any partial notes left under `audit/evidence/review-*` by the stopped runs are incomplete. Overwrite them.
-6. **Fix the inventory records**:
-   - Move the INV-UPG and INV-NODE rows out of the `## SEC` table into `## UPG` and `## NODE`.
-   - Use `###` for procedure headings in `agent.md`, `crd.md`, `modules.md`, `nodes.md` and `upgrade.md`, as the contract requires.
-   - Run a sonnet correctness review of all haiku-drafted procedure steps. Look for invented API groups or fields, writes to pre-existing objects, evidence saved to `/tmp`, and plain-text passwords.
-   - Rewrite `audit/procedures/security.md` from scratch as security-control checks; it's known-bad, and the banner lists why. Keep the steps in the file and out of chat messages.
-7. **Finish T012** now that OD-015 and OD-016 are settled:
-   - create `audit018-admin` with `bootstrap-admin`;
-   - through the port-forward, record the user, role, module-source, auth-provider and notification-sink lists;
-   - read the DB's highest applied migration and compare it with `v0.2.0-beta.8`, which ships up to `006`. kubelab is very likely at `011`, which means OD-005 path (b).
-8. **Once #423 is merged with green CI**:
+1. Maintainer answers: OD-021 (procedures), OD-022 (coverage rows), OD-023 (upgrade path), HQ-001 (held), and whether the stale "held candidates: N" counts in the review notes matter.
+2. T012: fetch the API user list (default permission mode, one admin login).
+3. **Once #423 is merged with green CI**:
    - fill in the RC-TAG-1 SHA and ask the maintainer to approve the tag;
    - after approval, T014: `git tag -a v0.3.0-rc.1 <sha> -m "v0.3.0-rc.1" && git push origin v0.3.0-rc.1`, then verify the release (contracts/rc-deploy.md §1);
-   - then T015: deploy rc.1 to kubelab.
-9. **Live rounds**: T025–T034, T047–T048, T049 onward, then US4 (T061–T065), per tasks.md.
+   - then T015: deploy rc.1 to kubelab. Pass the `capture` and `operator.gameDataStorage` keys explicitly (F-214).
+4. T046: rewrite the held security procedures as control checks, in `audit/held/`.
+5. T050 triage and the fix waves (T055) can start now, from `findings.md` (S1 first; F-212 first of all). Fixes go on `fix/018-*` branches off master. Fixes for held findings are described as hardening, with no repro, until merged.
+6. **Live rounds**: T025–T034, T047–T048, T049 onward, then US4 (T061–T065) once OD-023 is settled.
 
 ## kubelab facts (captured 2026-09-23)
 
@@ -122,7 +131,7 @@ Still pending: **RC-TAG-1**, which needs the maintainer's approval after #423 me
 - **The model's cyber safeguard** stopped the Sonnet reviewers and the findings import for the same reason.
 - **Second session, same cause:** printing the old and new `SECURITY_AUDIT.md` headings and a regex secret-scan's matches into the chat re-triggered the auto-mode block within a few tool calls.
 - **To avoid it next time:**
-  - Read only the current `SECURITY_AUDIT.md`, never its pre-`fccac221` version (see Next steps, item 3).
+  - Read only the current `SECURITY_AUDIT.md`, never an older version from git.
   - Keep security procedures in files that agents read, describe them as control checks, and don't paste them into the conversation.
   - Don't print secret-scan matches or security headings into the chat; have the command print only counts or a pass/fail.
   - Run the live security-control checks (T047–T048) in the default permission mode.

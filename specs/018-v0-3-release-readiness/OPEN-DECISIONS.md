@@ -156,7 +156,7 @@ T013 says the `## [0.3.0-rc.1]` section "summarises the unreleased entries". The
 
 ### OD-015: admin access for the live API work (T012 and every live API row) — RESOLVED 2026-09-24
 
-Decision: option (b). The audit runs `gameplane-api bootstrap-admin --username audit018-admin` inside the API pod. The generated password is kept off-git in `~/gameplane-audit-018/admin.env` (mode 600). The user row is written directly, so there's no API audit event for its creation; record that in `rounds.md`. The account is an `audit018-` test resource and is deleted at cleanup. The other role accounts (`audit018-operator`, `audit018-viewer`, `audit018-collab`) are then created through the API as that admin.
+Decision: option (b). The audit runs `bootstrap-admin --username audit018-admin` inside the API pod. The image's entrypoint is `/api` (`api/Dockerfile`), so the command is `kubectl exec -n gameplane-system deploy/gameplane-api -- /api bootstrap-admin --username audit018-admin`; the earlier `gameplane-api bootstrap-admin` wording was wrong (corrected 2026-09-24). The generated password is kept off-git in `~/gameplane-audit-018/admin.env` (mode 600). The user row is written directly, so there's no API audit event for its creation; record that in `rounds.md`. The account is an `audit018-` test resource and is deleted at cleanup. The other role accounts (`audit018-operator`, `audit018-viewer`, `audit018-collab`) are then created through the API as that admin.
 
 Original question:
 
@@ -218,6 +218,61 @@ How it's applied:
 - IDs come from the same `F-NNN` sequence, so a held finding leaves a gap in `audit/findings.md`. When its fix PR merges, the row and subsection move into `audit/findings.md` unchanged.
 - Fix PRs for held findings are titled and described as hardening, without reproduction steps, until merged.
 - Fixed items (for example merged security-fix PRs imported in T009) are not held.
+
+### OD-020: verification tier for the opus component reviews (T045) — RESOLVED 2026-09-24
+
+Decision: an independent opus verifier per review chunk (a fresh agent that tries to refute each candidate). The T036–T042 reviews ran on opus because sonnet reviewers were stopped by the model's safeguard in the first session. Fable is not used: the maintainer treats CLAUDE.md rule 13's fable restriction as a ban because of cost. `coverage.md` records the tier as `opus → opus (independent, OD-020)`.
+
+### OD-021: procedure design questions from the correctness pass — PENDING
+
+The sonnet correctness pass (2026-09-24) fixed names, paths, headings, evidence locations and secret handling in the procedures files. These items need your call before the live rounds:
+
+1. `agent.md`: about 27 procedures address `$GP/servers/minecraft-java/…`, but `minecraft-java` is a template, not a server. Options: (a) one shared `audit018-agent-mc` GameServer, created by a new first procedure and deleted by a last one; (b) each procedure creates and deletes its own server.
+2. `agent.md` quiesce-pause / quiesce-resume: the API gateway doesn't proxy `/quiesce` or `/unquiesce` (only the operator's Backup path reaches them). Options: (a) test quiesce through a Backup of an `audit018-` server; (b) port-forward to the agent pod directly; (c) mark `n/a` as internal-only.
+3. `agent.md` console-nuclearoption and console-pty (example `terraria`): the baseline shows the `nuclear-option` and `terraria` Modules `Failed`. Re-check Module health right before the round, or use another module for those transports?
+4. `api.md` users-get: there is no `GET /users/{id}` route. Withdraw the row (`n/a`), or retarget to `GET /users`?
+5. `helm.md` default-module-source and upload-module-source: toggling `defaultModuleSource.enabled` / `uploadModuleSource.enabled` deletes or recreates the pre-existing ModuleSources `default` / `uploads`, which the audit must never write to. Mark both `blocked` (alternative: a `helm template` check), or allow the toggle with an immediate restore?
+6. `helm.md` module-signature-verification: kubelab's default source is `git`, and cosign verification applies only to OCI sources. Mark it `blocked`, or test with a separate `audit018-` OCI ModuleSource created with `kubectl` (no Helm change)?
+7. `helm.md` web-dashboard-ui: `web.enabled=false` removes `svc/gameplane-web`, the port-forward target every procedure uses. Run it last, with a temporary port-forward to `svc/gameplane-api`?
+8. `helm.md` existing-storage-claim: switching `api.storage.existingClaim` swaps the live API database for an empty PVC while the toggle is on. Run it in isolation with a DB snapshot, or mark it `blocked`?
+9. `modules.md`: backups reference the e2e fixture Secret `e2e-restic-creds`, which kubelab doesn't have. Create one `audit018-restic` Secret and repository per round (following the naming rule), or reuse the e2e fixture name as an exception?
+10. `modules.md` nuclear-option: `Automatable?` says "Partial"; the contract allows only `yes` or `no`. Which one?
+11. `nodes.md` drain: the check that recovered pods land on a different node can fail on a correct recovery (no anti-affinity; the node is uncordoned). Drop that assertion, or keep it with a "same node is acceptable after uncordon" note?
+12. `web.md`: about 75 procedures propose the bucket `api`, which doesn't exist in `test/e2e/buckets.sh`. Map each to an existing bucket, or add a new bucket?
+13. `web.md` users-manage-service-accounts and users-manage-oidc-providers: both tabs are placeholders ("tracked for v1.1"). Withdraw as `n/a` with a `docs/roadmap.md` citation?
+14. `web.md` servers-filter-by-namespace: kubelab has one games namespace. Create an `audit018-` namespace with one server, or mark it `blocked`?
+15. Round setup: which role does `audit018-collab` get? The API's user create always adds a cluster-wide binding for the primary role, so "collaborator only" access may need a role with no permissions (created as `audit018-norole`). Round teardown, not `api.md`, now deletes `audit018-collab` and `~/gameplane-audit-018/collab.env`.
+16. `crd.md` backups (INV-CRD-015..023) need a restic repository, which kubelab doesn't have. Use an `audit018-restic` restic-server Deployment (based on `test/e2e/fixtures/restic-server.yaml`), or an external bucket? This is the same choice as item 9.
+17. `crd.md` NetworkCapture rows INV-CRD-031..035 need `capture.enabled=true`, a per-round Helm override that is restored afterwards. Approve it, or mark those rows `blocked`?
+18. INV-CRD-034 (sidecar crash): the capture image is distroless, so `kill 1` can't run. Count deleting the game pod (the controller reports PodRestarted) as the test, or mark the row `blocked` with that as the closest alternative?
+19. INV-CRD-029/030 (Cluster CR): which remote cluster should `audit018-cluster-1` register? Options: kubelab's own kubeconfig (its API address must be reachable from the operator pod), a second test cluster, or `blocked`.
+20. INV-CRD-036/037 (VolumeSnapshot restore): k3s local-path has no CSI snapshots. Mark `blocked` unless a snapshot-capable driver is installed?
+21. INV-CRD-026 (unsigned module): which registry location should hold the unsigned test bundle?
+22. Inventory titles vs code: INV-CRD-012 says "Delete game server with finalizer", but GameServers have no finalizer. INV-CRD-020 names a `Resuming` phase that is never set, and the GameServer `Stopped` phase is never set either. Retitle the rows, or record the unused enum values as a finding?
+23. Fixtures: (a) `audit018-test-template` copies `minecraft-java`, whose Module was stuck `Pulling` in the baseline; (b) the crash-loop fixture pulls `busybox:1.36` from Docker Hub; (c) modulesource-oci-sync needs egress to ghcr.io; (d) wake-on-connect needs a Minecraft client or ping tool on the devbox. OK as is?
+24. gameserver-create-from-template expects Running "within 2 minutes"; a first Minecraft boot (image pull and world generation) can take longer. What bound?
+
+Fixes that follow from the code and need no decision are queued as work, not questions: the `api.md` reset-password body (the handler requires a new password in the request), the order of `api.md` servers-delete relative to the procedures that still need that server, shares on an `audit018-` server instead of `mc-fabric`, the `helm.md` network-policies step that checks a label the chart never sets, `nodes.md` cleanup of the `kubectl debug` node pod, the `upgrade.md` reinstall command after `helm uninstall --keep-history` (checked against kubelab's Helm version before running), and `agent.md` evidence steps that print to the terminal instead of saving a file. The `crd.md` pass is re-running on opus (the sonnet pass was stopped by its safeguard).
+
+### OD-022: coverage rows for `.github/actions/` and `images/` — PENDING
+
+The tier-up check of the findings import (2026-09-24) found findings whose component has no `coverage.md` row. The data model says a finding's component comes from the coverage table.
+- F-006 and F-013 are in `.github/actions/` (the CI cluster-dump action). The table only has `.github/workflows/`.
+- F-017 and part of F-012 are in `images/` (the shared base images, for example `images/common/steamcmd/Dockerfile`). Neither the table nor contracts/audit-records.md lists `images/`.
+
+Options: (a) add `.github/actions/` and `images/` rows to `coverage.md` and the contract, which also means reviewing both (T042 scope); (b) remap: `.github/actions/` counts under the `.github/workflows/` row and `images/` under `modules/`, with each finding's Note saying so. Until this is decided, the findings keep their real paths as the component.
+
+### OD-023: OD-005 path (b) would delete kubelab's game servers — PENDING (blocks T061)
+
+T012 found kubelab's API database at migration 011, ahead of beta.8's 006, so OD-005 picks path (b): reinstall at public beta.8 with a fresh database. The T045 verification then kept F-212 (S1): the chart's games Namespace is an ordinary release resource with no `helm.sh/resource-policy: keep`, and GameServers carry no finalizer. So `helm uninstall gameplane` deletes `gameplane-games` and every GameServer, StatefulSet and `<gs>-data` PVC in it, including the pre-existing `mc-fabric`, `soak-bogus-pool`, `soak-no-preference`, `soak-pool-west` and `squad`. `procedures/upgrade.md` baseline-beta8 step 3 does exactly that, and now carries a DO NOT RUN banner.
+
+Options:
+- (a) OD-005 option (a): upgrade kubelab from its current build to the RC live, and rely on CI `e2e-upgrade` (baseline beta.8, PR #422) for beta.8 → RC.
+- (c) OD-005 option (c): a separate throwaway single-node cluster for the beta.8 → RC step.
+- (d) Annotate kubelab's `gameplane-games` Namespace with `helm.sh/resource-policy: keep` before the uninstall. This writes to a pre-existing object, which the audit rules forbid without your OK. Test on a copy first.
+- (e) Wait for the F-212 fix (a keep policy in the chart), ship it in an RC, and use that.
+
+Related (verified, same chunk): F-214 (C-charts-gameplane-03) shows `helm upgrade --reuse-values` from 0.2.0-beta.8 fails to render unless the stored values already contain the `capture` and `operator.gameDataStorage` keys. T015's rc deploy (contracts/rc-deploy.md §2) needs those keys passed explicitly.
 
 ### T054: `gameplane-module` tag for the v0.3.0 chart default — RESOLVED 2026-09-24
 

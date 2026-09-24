@@ -174,10 +174,28 @@ Observed 2026-09-23 with kubectl get pods -o wide:
 
 Note: relevant to OD-017 (node-loss test node selection).
 
-## API state (pending)
+## API state (T012, 2026-09-24)
 
-The API user list, role list, module-source list, auth-provider names and notification-sink names need one admin login. Pending OD-015 (admin access) and OD-016 (API reachability).
+Captured with one `audit018-admin` session (OD-015 bootstrap, OD-016 port-forward). Names/ids and kind only — every other field dropped, per conventions.md evidence rule.
 
-## Migration level and OD-005 path (pending)
+| List | Path | Count | Names |
+|------|------|-------|-------|
+| Roles | `GET /roles/` | 3 | `admin`, `operator`, `viewer` (all `builtin: true`; no custom roles) |
+| ModuleSources | `GET /modules/sources` | 2 | `default` (kind `git`), `uploads` (kind `upload`) — matches the pre-existing baseline count above |
+| Auth providers | `GET /admin/config/` (`auth` section) | 0 | no `auth` row is stored — local login only, no dashboard-managed provider, no Helm-seeded OIDC (`installTimeSettings` key absent, so no helm policy either) |
+| Notification sinks | `GET /admin/config/` (`notifications` section) | 0 | no `notifications` row is stored |
+| Backup destinations | `GET /backup-destinations/` | 0 | `{"items":[]}` |
+| Users | `GET /users/` | pending | **not retrieved.** This session's auto-mode safety classifier denied the call ("PII Data Handling") partway through this round, on the same admin session that had already fetched roles/module-sources/admin-config successfully. Per that denial's own instructions, the run kept everything else and did not retry the user list through another tool, another call, or a second session — it needs a follow-up run outside auto mode, or the maintainer's own credentials. |
 
-`v0.2.0-beta.8` ships API migrations up to `006_share_links.sql` (git ls-tree v0.2.0-beta.8 api/internal/db/migrations/); `master` has up to `011_user_theme_preferences.sql`. kubelab runs images built from the 016 branch, so its DB is very likely at migration 011, which would make OD-005 path (b) apply. Reading the DB's applied migration level needs `kubectl exec` into the API pod, blocked in the 2026-09-23 session (OD-018). Not yet confirmed.
+`GET /admin/config/` returned `{}` (no stored sections), which is why the auth-provider and notification-sink rows above read their absence from that empty response rather than from separate list endpoints — neither concept has its own GET route (see `api/cmd/main.go` / `handlers/config.go`, `handlers/notifications.go`).
+
+## API database migration level
+
+The API image is distroless (no shell, `sqlite3`, or `tar`), and `Store.Migrate` (`api/internal/db/db.go`) writes to a `schema_migrations` table but never logs a line on a *successful* run — `kubectl logs` and `kubectl logs --previous` for `deploy/gameplane-api` show no migration output at all (checked 2026-09-24; pod hasn't restarted, so `--previous` is empty anyway). No endpoint exposes `schema_migrations` directly either.
+
+Read-only method used instead: an endpoint probe. `011_user_theme_preferences.sql` (the highest migration on `master`) creates the `user_preferences` table and is the only thing `GET /users/me/preferences` depends on; a DB still at migration 006 would 500 on that route (missing table) instead of returning a preferences object. Reusing the already-open `audit018-admin` session (no extra login), `GET /users/me/preferences` returned `200` with a normal preferences payload (`{"themeType":"preset","presetId":"pink",...}`) for the newly-bootstrapped admin — proving migration 011 is applied.
+
+- kubelab's live migration level: **011** (`011_user_theme_preferences.sql`), confirmed applied via the probe above.
+- `v0.2.0-beta.8` highest migration: `006_share_links.sql` (`git -C /home/dev/Gameplane ls-tree --name-only v0.2.0-beta.8 api/internal/db/migrations/`).
+- `master` highest migration: `011_user_theme_preferences.sql` (`git -C /home/dev/Gameplane ls-tree --name-only master api/internal/db/migrations/`) — same level as kubelab's live DB.
+- **OD-005 path: (b) applies.** kubelab's schema (011) is ahead of beta.8's (006), so beta.8 is not simply installed in place: the real database gets snapshotted, kubelab's release is reinstalled at public `v0.2.0-beta.8` with a fresh DB, `audit018-` state is seeded, the upgrade to the RC is run and verified, and the real (011-level) database is restored afterwards.

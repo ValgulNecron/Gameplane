@@ -77,14 +77,14 @@ Local auth user exists (e.g., `audit018-admin:password`); audit018-admin role is
 none (session cookies only)
 
 **Steps**
-1. Login cost: 1 (to audit018-admin). Run: `curl -c /tmp/audit-cookies.txt -b /tmp/audit-cookies.txt -H "Content-Type: application/json" -d '{"username":"audit018-admin","password":"password"}' $GP/auth/login | jq`
-2. Extract session and CSRF from cookies: `grep gameplane_session /tmp/audit-cookies.txt` and `grep gameplane_csrf /tmp/audit-cookies.txt`
+1. Login cost: 1 (to audit018-admin). Run: `curl -s -D headers.txt -H "Content-Type: application/json" -d '{"username":"audit018-admin","password":"<password>"}' $GP/auth/login | jq`
+2. Capture the session from the response headers — per conventions.md, curl's own cookie jar (-c/-b) silently drops Secure-flagged cookies over plain HTTP, so extract them from -D output instead: `grep -i "^set-cookie:" headers.txt | grep gameplane_session > ~/gameplane-audit-018/session-admin.txt && grep -i "^set-cookie:" headers.txt | grep gameplane_csrf >> ~/gameplane-audit-018/session-admin.txt && chmod 600 ~/gameplane-audit-018/session-admin.txt`
 
 **Expected**
-HTTP 200, JSON with user object (id, username, role). Response Set-Cookie headers include `gameplane_session` and `gameplane_csrf` (both HttpOnly, Secure).
+HTTP 200, JSON with user object (id, username, role). Response Set-Cookie headers include `gameplane_session` and `gameplane_csrf` cookies (both HttpOnly, Secure).
 
 **Cleanup**
-Remove `/tmp/audit-cookies.txt`.
+Remove `headers.txt`. Keep `~/gameplane-audit-018/session-admin.txt` — later procedures in this round reuse it.
 
 **Automatable?**
 yes (api-auth)
@@ -161,44 +161,48 @@ no (blocked: requires external IdP)
 ### public-shares-resolve
 
 **Preconditions**
-Share link exists for a server (created via authenticated route, then exported here). Share token is the 32-char random token from the share link creation response. Share link is not expired.
+Run after shares-create and before its Cleanup, which revokes the link and removes `~/gameplane-audit-018/share-create.json`. That off-git file (mode 600) holds the share link creation response, including the 43-character token (32 random bytes in unpadded base64url, `generateShareLinkToken` in `api/internal/db/shares.go`). The link is for audit018-server-from-template and is not expired or revoked. The route is public: no session and no CSRF header.
 
 **Resources created**
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s $GP/shares/TOKEN_HERE/ | jq` (replace TOKEN_HERE with actual token)
+1. Login cost: 0. Load the token into a shell variable and print only its length. The file path is jq's only argument, so the token is never on a command line: `SHARE_TOKEN=$(jq -r .token ~/gameplane-audit-018/share-create.json); echo "token length ${#SHARE_TOKEN}"` (expect 43).
+2. The route takes the token as a path segment (`GET /shares/{token}`). Give curl the URL as config on stdin (`-K -`). `printf` is a shell builtin, so the token stays out of every process's argv and out of shell history: `printf 'url = "%s/shares/%s"\n' "$GP" "$SHARE_TOKEN" | curl -s -K - -w '%{http_code}\n'`
+3. `unset SHARE_TOKEN`. Evidence writes the path as `/shares/<token>`, never the value.
 
 **Expected**
-HTTP 200, JSON object with server info (name, display name, description, etc.). No owner/collaborator status exposed at this level.
+HTTP 200 (the last output line, after the body). The body is a JSON object with `serverName` (`audit018-server-from-template`) and `status` (the server's `status.phase`, or `Unknown` when it has none). It also has `address` (`{host, port}` of the first non-private endpoint, tunnel endpoints first) and `playersOnline` (from `status.agent.playersOnline`), each only when the server reports it. Nothing else is returned: no namespace, cluster, owner, collaborators, version or token (`sharePublicResp` in `api/internal/handlers/shares.go`). An unknown, expired or revoked token, or a server that no longer exists, gets HTTP 404 with body `{"error":"not found"}`, so a probe cannot tell these cases apart.
 
 **Cleanup**
 none
 
 **Automatable?**
-deferred to T031 (requires creating a share link first, which requires auth + owned server).
+yes (api-roles): OD-015 is resolved, and a test that creates its own server owns it, so it can create a share link (as in shares-create) and resolve it in the same run. No e2e test covers share links yet.
 
 ---
 
 ### public-shares-start
 
 **Preconditions**
-Share link exists and canStart=true. Share token is valid and not expired.
+Run after shares-create and before its Cleanup, which revokes the link and removes `~/gameplane-audit-018/share-create.json`. The link in that file was created with `canStart: true` and is not expired or revoked. The route is public: no session and no CSRF header.
 
 **Resources created**
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -X POST -s $GP/shares/TOKEN_HERE/start | jq` (replace TOKEN_HERE with actual token)
+1. Login cost: 0. Load the token as in public-shares-resolve, printing only its length: `SHARE_TOKEN=$(jq -r .token ~/gameplane-audit-018/share-create.json); echo "token length ${#SHARE_TOKEN}"` (expect 43).
+2. Send the POST with the URL as curl config on stdin, so the token is never on a command line: `printf 'url = "%s/shares/%s/start"\n' "$GP" "$SHARE_TOKEN" | curl -s -o /dev/null -w '%{http_code} %{size_download}\n' -X POST -K -`
+3. `unset SHARE_TOKEN`. Evidence writes the path as `/shares/<token>/start`, never the value.
 
 **Expected**
-HTTP 200, JSON with `consoleURL` or `webURL` — a signed redirect to the server's console or dashboard view without requiring login.
+HTTP 202 (Accepted) with an empty body, so the output line is `202 0`. The handler only stamps the `gameplane.local/idle-wake-requested` annotation on audit018-server-from-template (as `:wake` does) and writes no JSON: there is no console URL, dashboard URL or redirect. A link created with `canStart: false` gets HTTP 404 with body `{"error":"not found"}` (the line reads `404 22`), the same response as an unknown, expired or revoked token, so a caller cannot tell whether the link exists.
 
 **Cleanup**
 none
 
 **Automatable?**
-deferred to T031 (requires a share link with canStart=true).
+yes (api-roles): shares-create's link has `canStart: true`, and a test that creates its own server owns it (OD-015 resolved), so it can create the link and start the server through it in the same run. No e2e test covers share links yet.
 
 ---
 
@@ -236,15 +240,13 @@ audit018-server-from-template (GameServer in gameplane-games namespace).
 1. Login cost: 1. Create JSON payload:
    ```json
    {
-     "apiVersion": "gameplane.valgul.moe/v1alpha1",
+     "apiVersion": "gameplane.local/v1alpha1",
      "kind": "GameServer",
      "metadata": {"name": "audit018-server-from-template", "namespace": "gameplane-games"},
      "spec": {
-       "templateRef": "mc-fabric",
+       "templateRef": {"name": "mc-fabric"},
        "suspend": false,
-       "replicas": 1,
-       "gameDataStorage": {"size": "5Gi"},
-       "mods": {"items": []}
+       "storage": {"size": "5Gi"}
      }
    }
    ```
@@ -301,28 +303,6 @@ HTTP 200, response shows updated object with spec.suspend=true.
 
 **Cleanup**
 Update spec.suspend back to false.
-
-**Automatable?**
-yes (api-rbac)
-
----
-
-### servers-delete
-
-**Preconditions**
-Authenticated as audit018-operator. audit018-server-from-template exists. User has servers:write permission (or is owner).
-
-**Resources created**
-none
-
-**Steps**
-1. Login cost: 0. Run: `curl -X DELETE -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." $GP/servers/audit018-server-from-template`
-
-**Expected**
-HTTP 204 (No Content). Server is deleted.
-
-**Cleanup**
-none (server is now gone)
 
 **Automatable?**
 yes (api-rbac)
@@ -448,10 +428,10 @@ Authenticated as audit018-admin (audit:read permission). At least one audit even
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." "$GP/admin/audit?limit=10" | jq '.items | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." "$GP/admin/audit?limit=10" | jq 'length'`
 
 **Expected**
-HTTP 200, JSON with `items` array of audit events and pagination cursor `before`.
+HTTP 200, JSON array of audit events (newest first, capped at `limit`). Pass the oldest returned event's `id` as `?before=` on the next call to page further back.
 
 **Cleanup**
 none
@@ -473,7 +453,7 @@ none
 1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/admin/audit/verify | jq '.ok'`
 
 **Expected**
-HTTP 200, JSON with `ok: true` if chain is intact, or `broken: true` + `brokenAt` if tampering detected.
+HTTP 200, JSON with `ok: true` and `checked` (row count) if the chain is intact, or `ok: false` with `firstBadId` and `message` naming the first broken link.
 
 **Cleanup**
 none
@@ -559,7 +539,7 @@ none (mutation of existing config section)
 
 **Steps**
 1. Login cost: 0. Create a test config JSON: `{"sinks": []}`
-2. Run: `curl -X PUT -H "Content-Type: application/json" -d '{"sinks":[]}' -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/admin/config/notifications | jq'.sinks | length'`
+2. Run: `curl -X PUT -H "Content-Type: application/json" -d '{"sinks":[]}' -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/admin/config/notifications | jq '.sinks | length'`
 
 **Expected**
 HTTP 200, JSON response confirms the update.
@@ -578,13 +558,13 @@ yes (api-auth)
 Authenticated as audit018-admin (config:manage). OIDC provider "test-oidc" does not exist yet (or will be created).
 
 **Resources created**
-Secret in gameplane-system namespace: `gameplane-oidc-test-oidc` (labeled).
+Secret in gameplane-system namespace: `gameplane-auth-test-oidc` (labeled).
 
 **Steps**
 1. Login cost: 0. Run: `curl -X PUT -H "Content-Type: application/json" -d '{"clientSecret":"test-secret-value"}' -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/admin/auth/providers/test-oidc/secret | jq '.name'`
 
 **Expected**
-HTTP 200, JSON response with `name: gameplane-oidc-test-oidc` and `keys: ["clientSecret"]`.
+HTTP 200, JSON response with `name: gameplane-auth-test-oidc` and `keys: ["clientSecret"]`.
 
 **Cleanup**
 DELETE /admin/auth/providers/test-oidc/secret (to remove the Secret).
@@ -644,10 +624,10 @@ deferred to T031 (requires external sink configuration + delivery validation)
 Authenticated as audit018-admin (config:manage). Sink name is valid (e.g., "webhook", "email").
 
 **Resources created**
-Secret: `gameplane-sink-webhook` (or equivalent) in gameplane-system.
+Secret: `gameplane-notify-webhook` in gameplane-system.
 
 **Steps**
-1. Login cost: 0. Run: `curl -X PUT -H "Content-Type: application/json" -d '{"secret":"test-webhook-auth"}' -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/admin/notifications/sinks/webhook/secret | jq '.name'`
+1. Login cost: 0. Run: `curl -X PUT -H "Content-Type: application/json" -d '{"kind":"webhook","url":"https://example.invalid/audit018-webhook","authorization":"test-webhook-auth"}' -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/admin/notifications/sinks/webhook/secret | jq '.name'`
 
 **Expected**
 HTTP 200, JSON with secret metadata.
@@ -666,7 +646,7 @@ yes (api-auth)
 Authenticated as audit018-admin (config:manage). Registry provider is known (e.g., "curseforge").
 
 **Resources created**
-Secret: `gameplane-registry-curseforge` in gameplane-system.
+Secret: `gameplane-modreg-curseforge` in gameplane-system.
 
 **Steps**
 1. Login cost: 0. Run: `curl -X PUT -H "Content-Type: application/json" -d '{"apiKey":"test-key-123"}' -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/admin/registries/curseforge/secret | jq '.name'`
@@ -736,10 +716,10 @@ Authenticated as audit018-admin (captures:manage). At least one capture exists f
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric:captures?namespace=gameplane-games" | jq '.items | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric:captures?namespace=gameplane-games" | jq '.captures | length'`
 
 **Expected**
-HTTP 200, JSON array of packet captures for the server.
+HTTP 200, JSON object with a `captures` array (plus `total`, `limit`, `offset`), not a bare `items` list.
 
 **Cleanup**
 none
@@ -758,10 +738,11 @@ Authenticated as audit018-operator (servers:write). Server audit018-server-from-
 none (mutation of spec.suspend annotation)
 
 **Steps**
-1. Login cost: 0. Run: `curl -X POST -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:start?namespace=gameplane-games" | jq '.spec.suspend'`
+1. Login cost: 0. Run: `curl -s -o /dev/null -w '%{http_code}\n' -X POST -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:start?namespace=gameplane-games"`
+2. Confirm the patch applied: `curl -s -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template?namespace=gameplane-games" | jq '.spec.suspend'`
 
 **Expected**
-HTTP 200, JSON shows spec.suspend=false (server will start).
+HTTP 202 (Accepted), empty body — patchSuspend only stamps spec.suspend and returns; there is no response JSON to inspect. The follow-up GET shows spec.suspend=false once the patch applies.
 
 **Cleanup**
 none (server is now starting)
@@ -780,10 +761,11 @@ Authenticated as audit018-operator (servers:write). Server exists and is running
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -X POST -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:stop?namespace=gameplane-games" | jq '.spec.suspend'`
+1. Login cost: 0. Run: `curl -s -o /dev/null -w '%{http_code}\n' -X POST -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:stop?namespace=gameplane-games"`
+2. Confirm the patch applied: `curl -s -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template?namespace=gameplane-games" | jq '.spec.suspend'`
 
 **Expected**
-HTTP 200, JSON shows spec.suspend=true.
+HTTP 202 (Accepted), empty body. The follow-up GET shows spec.suspend=true once the patch applies.
 
 **Cleanup**
 none
@@ -802,10 +784,10 @@ Authenticated as audit018-operator (servers:write). Server exists.
 none (operator-reconciled annotation)
 
 **Steps**
-1. Login cost: 0. Run: `curl -X POST -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:restart?namespace=gameplane-games" | jq`
+1. Login cost: 0. Run: `curl -s -o /dev/null -w '%{http_code}\n' -X POST -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:restart?namespace=gameplane-games"`
 
 **Expected**
-HTTP 200, JSON response. Operator will restart the pod.
+HTTP 202 (Accepted), empty body — restartHandler only stamps a restart-request annotation and returns. The operator drains and recreates the pod asynchronously.
 
 **Cleanup**
 none
@@ -824,7 +806,7 @@ Authenticated as audit018-operator (servers:write). Source server exists (e.g., 
 audit018-cloned-server (new GameServer, cloned from mc-fabric).
 
 **Steps**
-1. Login cost: 0. Create request: `{"name":"audit018-cloned-server"}`
+1. Login cost: 0. Create request: `{"newName":"audit018-cloned-server"}`
 2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric:clone?namespace=gameplane-games" | jq '.metadata.name'`
 
 **Expected**
@@ -848,10 +830,10 @@ none (Job to empty data PVC, initiated by operator).
 
 **Steps**
 1. Login cost: 0. Create request: `{"confirm":"audit018-server-from-template"}`
-2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:wipe-data?namespace=gameplane-games" | jq`
+2. Run: `curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:wipe-data?namespace=gameplane-games"`
 
 **Expected**
-HTTP 200, JSON response. Operator will empty the server's data.
+HTTP 202 (Accepted), empty body — wipeDataHandler only stamps a wipe-request annotation and suspends the server. The operator empties the data PVC asynchronously.
 
 **Cleanup**
 none
@@ -864,45 +846,70 @@ yes (api-rbac)
 ### shares-create
 
 **Preconditions**
-Authenticated as audit018-operator, and is the owner of mc-fabric (or audit018-server-from-template). Ownership is verified server-side.
+Authenticated as audit018-operator, the account that created audit018-server-from-template in servers-create. That call stamped the server's `gameplane.local/owner-id` annotation with the operator's user id, and the share handler (`isServerOwner` in `api/internal/handlers/shares.go`) accepts only the user whose id matches it. Role does not count, so even audit018-admin gets 403. Run this before servers-transfer, which moves ownership to audit018-admin.
 
 **Resources created**
-ServerShare CRD: audit018-share-link-NNN.
+One share link row in the API database (`share_links` table), attached to audit018-server-from-template. There is no ServerShare CRD. The API picks the row's random `id`, so it cannot carry an audit018- name.
 
 **Steps**
-1. Login cost: 0. Create request: `{"expiresAt":"2026-10-01T00:00:00Z","canStart":true}`
-2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric:shares?namespace=gameplane-games" | jq '.token'`
+1. Login cost: 0. Create the request with an expiry 7 days out (the handler rejects a past `expiresAt` with 400): `printf '{"expiresAt":"%s","canStart":true}' "$(date -u -d '+7 days' +%Y-%m-%dT%H:%M:%SZ)" > request.json`
+2. Run (the response holds the token, so it goes to an off-git file with mode 600): `(umask 077; curl -s -o ~/gameplane-audit-018/share-create.json -w '%{http_code}\n' -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:shares?namespace=gameplane-games")`
+3. Show the result without the token: `jq '{id, createdAt, expiresAt, canStart, tokenLength: (.token | length)}' ~/gameplane-audit-018/share-create.json`. Never print the token or copy it into evidence; write `<token>` instead.
 
 **Expected**
-HTTP 201, JSON with `id`, `token`, `expiresAt`, `canStart`. Token is a 32-char string (only returned once).
+HTTP 200: the handler writes the JSON without setting 201. The object has `id`, `createdAt`, `expiresAt` (7 days out), `canStart: true` and `tokenLength: 43`, because the token is 32 random bytes in unpadded base64url and is returned only in this response. A 403 `forbidden` means the session is not the server's owner (see Preconditions).
 
 **Cleanup**
-DELETE /servers/mc-fabric/shares/{id}
+Run this after public-shares-resolve and public-shares-start, which read the token from `share-create.json`, and before servers-transfer, after which audit018-operator no longer owns the server and the revoke returns 403. As audit018-operator: DELETE /servers/audit018-server-from-template/shares/{id}?namespace=gameplane-games, with `id` from `share-create.json`. It is owner-only and returns 204; it revokes the link, which shares-list still shows. Then `rm ~/gameplane-audit-018/share-create.json`.
 
 **Automatable?**
-deferred to T031 (requires server ownership; blocked by OD-015 admin access)
+yes (api-roles): OD-015 is resolved, and the caller owns the server it creates (servers-create stamps `gameplane.local/owner-id`), so a test can create its own server and share link in the same run. No e2e test covers share links yet.
 
 ---
 
 ### shares-list
 
 **Preconditions**
-Authenticated as owner of mc-fabric. Share links exist.
+Authenticated as audit018-operator, owner of audit018-server-from-template. The list handler runs the same owner check as shares-create (`gameplane.local/owner-id` must equal the caller's user id), so run this before servers-transfer. At least one share link exists for that server (from shares-create; a revoked link is still listed).
 
 **Resources created**
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric:shares?namespace=gameplane-games" | jq '.items | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:shares?namespace=gameplane-games" | jq 'length, (map(has("token")) | any)'`
 
 **Expected**
-HTTP 200, JSON array of ServerShare objects (token NOT included in list response).
+HTTP 200, a bare JSON array (no `items` wrapper) of share link objects with `id`, `createdAt`, `expiresAt` and `canStart`. The first printed line is at least 1. The second is `false`, because the list never includes `token`. Revoked links are listed too, with no revoked field. A 403 `forbidden` means the session is not the server's owner.
 
 **Cleanup**
 none
 
 **Automatable?**
-deferred to T031
+yes (api-roles): same owner check as shares-create, and OD-015 no longer blocks it, because audit018-operator owns the server it created in servers-create. No e2e test covers share links yet.
+
+---
+
+### servers-collaborators-set
+
+**Preconditions**
+Authenticated as owner of audit018-server-from-template, which is audit018-operator (it created the server in servers-create). Run this before servers-transfer, which moves ownership to audit018-admin. Collaborator users exist.
+
+**Resources created**
+none (collaborators annotation mutation)
+
+**Steps**
+1. Login cost: 0. Create request: `{"userIds":[<user-id>]}`
+2. Run: `curl -s -o /dev/null -w '%{http_code}\n' -X PUT -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:collaborators?namespace=gameplane-games"`
+3. Confirm: `curl -s -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template?namespace=gameplane-games" | jq '.metadata.annotations."gameplane.local/collaborators"'`
+
+**Expected**
+HTTP 204 (No Content), empty body — setCollaborators has no response JSON. The follow-up GET shows the collaborators annotation updated.
+
+**Cleanup**
+Set collaborators to empty array.
+
+**Automatable?**
+yes (api-roles): OD-015 is resolved and audit018-operator owns the server it created in servers-create. TestAPI_OwnerCollaboratorAccess already has the owner set collaborators (expects 204).
 
 ---
 
@@ -916,39 +923,37 @@ none (ownership annotation mutation)
 
 **Steps**
 1. Login cost: 0. Create request: `{"userId": <audit018-admin user id>}`
-2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:transfer?namespace=gameplane-games" | jq '.metadata.annotations."gameplane.local/owner"'`
+2. Run: `curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:transfer?namespace=gameplane-games"`
+3. Confirm: `curl -s -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template?namespace=gameplane-games" | jq '.metadata.annotations."gameplane.local/owner"'`
 
 **Expected**
-HTTP 200, JSON shows ownership transferred (annotation updated).
+HTTP 204 (No Content), empty body — the transfer handler has no response JSON. The follow-up GET shows the owner annotation updated.
 
 **Cleanup**
-Transfer back to original owner.
+none. servers-delete, the next procedure, deletes audit018-server-from-template as audit018-operator. That DELETE is allowed by the operator role's `servers:write` (`api/internal/db/migrations/003_roles.sql`), not by ownership, so the server does not go back to audit018-operator first. Its share link was already revoked in shares-create's Cleanup.
 
 **Automatable?**
-deferred to T031 (requires server ownership; blocked by OD-015)
+yes (api-roles): OD-015 is resolved and audit018-operator owns the server it created in servers-create. TestAPI_OwnerCollaboratorAccess already covers `:transfer` (expects 204).
 
----
-
-### servers-collaborators-set
+### servers-delete
 
 **Preconditions**
-Authenticated as owner of audit018-server-from-template. Collaborator users exist.
+Authenticated as audit018-operator. audit018-server-from-template exists. User has servers:write permission (or is owner). Run this after every other procedure that uses audit018-server-from-template (servers-get through servers-transfer), because it removes the server.
 
 **Resources created**
-none (collaborators annotation mutation)
+none
 
 **Steps**
-1. Login cost: 0. Create request: `{"userIds":[<user-id>]}`
-2. Run: `curl -X PUT -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/audit018-server-from-template:collaborators?namespace=gameplane-games" | jq '.metadata.annotations."gameplane.local/collaborators"'`
+1. Login cost: 0. Run: `curl -X DELETE -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." $GP/servers/audit018-server-from-template`
 
 **Expected**
-HTTP 200, JSON shows collaborators list updated.
+HTTP 204 (No Content). Server is deleted.
 
 **Cleanup**
-Set collaborators to empty array.
+none (server is now gone)
 
 **Automatable?**
-deferred to T031 (blocked by OD-015)
+yes (api-rbac)
 
 ---
 
@@ -961,7 +966,7 @@ Authenticated as audit018-admin (users:read).
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users | jq '.items | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users | jq 'length'`
 
 **Expected**
 HTTP 200, JSON array of user objects.
@@ -977,20 +982,20 @@ yes (api-auth)
 ### users-create
 
 **Preconditions**
-Authenticated as audit018-admin (users:manage). New username does not exist (e.g., audit018-collab).
+Authenticated as audit018-admin (users:manage). `audit018-tmpuser` does not exist. It is a throwaway account used only here and in users-delete. Round setup already creates audit018-collab, which the later users-* procedures use.
 
 **Resources created**
-User: audit018-collab in database.
+User: audit018-tmpuser in database (role viewer, no password), plus the cluster-wide viewer binding the handler mirrors from its role.
 
 **Steps**
-1. Login cost: 0. Create request: `{"username":"audit018-collab","displayName":"Collaborator","email":"collab@audit.local","role":"viewer"}`
-2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users | jq '.username'`
+1. Login cost: 0. Create request: `{"username":"audit018-tmpuser","displayName":"Audit temp user","email":"tmpuser@audit.local","role":"viewer"}`
+2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users | jq '{id, username, role, provider}'`. Keep the printed `id` for users-delete.
 
 **Expected**
-HTTP 201, JSON with new user object.
+HTTP 200 (the create handler writes JSON without setting 201). The user object has `id`, `username: audit018-tmpuser`, `role: viewer` and `provider: pending`, because no password was sent.
 
 **Cleanup**
-DELETE /users/{id}
+users-delete removes audit018-tmpuser. If users-delete is not run, send its DELETE as audit018-admin with the `id` from step 2.
 
 **Automatable?**
 yes (api-auth)
@@ -1028,10 +1033,10 @@ Authenticated as any user.
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." $GP/users/me/preferences | jq '.theme'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." $GP/users/me/preferences | jq '.themeType'`
 
 **Expected**
-HTTP 200, JSON with theme, accent, etc. (may be null/default if never set).
+HTTP 200, JSON with `themeType`, `presetId`, `appearanceMode`, `customColors`, `customCssEnabled`, `customCss`, `updatedAt` (defaults if never customized).
 
 **Cleanup**
 none
@@ -1050,8 +1055,8 @@ Authenticated as audit018-viewer.
 none (user_preferences row in DB)
 
 **Steps**
-1. Login cost: 0. Create request: `{"theme":"dark","accent":"blue"}`
-2. Run: `curl -X PUT -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." $GP/users/me/preferences | jq '.theme'`
+1. Login cost: 0. Create request: `{"themeType":"preset","presetId":"pink","appearanceMode":"dark","customCssEnabled":false}`
+2. Run: `curl -X PUT -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." $GP/users/me/preferences | jq '.appearanceMode'`
 
 **Expected**
 HTTP 200, JSON shows updated preferences.
@@ -1089,7 +1094,7 @@ yes (api-auth)
 ### users-get
 
 **Preconditions**
-Authenticated as audit018-admin (users:read). audit018-collab user exists.
+Authenticated as audit018-admin (users:read). audit018-collab exists (from round setup; `<collab-id>` is its id).
 
 **Resources created**
 none
@@ -1111,7 +1116,7 @@ yes (api-auth)
 ### users-update
 
 **Preconditions**
-Authenticated as audit018-admin (users:manage). audit018-collab exists with role=viewer.
+Authenticated as audit018-admin (users:manage). audit018-collab exists (from round setup). Before step 1, note its current `role` and `displayName`, which Cleanup restores: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<collab-id> | jq '{role, displayName}'`
 
 **Resources created**
 none (mutation)
@@ -1124,29 +1129,7 @@ none (mutation)
 HTTP 200, JSON shows role=operator.
 
 **Cleanup**
-PATCH back to role=viewer.
-
-**Automatable?**
-yes (api-auth)
-
----
-
-### users-delete
-
-**Preconditions**
-Authenticated as audit018-admin (users:manage). audit018-collab exists.
-
-**Resources created**
-none
-
-**Steps**
-1. Login cost: 0. Run: `curl -X DELETE -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<collab-id>`
-
-**Expected**
-HTTP 204.
-
-**Cleanup**
-none (user is deleted)
+PATCH `role` and `displayName` back to the values noted in Preconditions.
 
 **Automatable?**
 yes (api-auth)
@@ -1156,35 +1139,45 @@ yes (api-auth)
 ### users-reset-password
 
 **Preconditions**
-Authenticated as audit018-admin (users:manage). audit018-collab user exists.
+Authenticated as audit018-admin (users:manage). audit018-collab exists (from round setup).
 
 **Resources created**
-none (password reset in DB, temporary token returned once)
+none (replaces audit018-collab's password hash in the DB and ends that user's sessions; the API generates and returns no password)
 
 **Steps**
-1. Login cost: 0. Run: `curl -X POST -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<collab-id>/reset-password | jq '.temporaryPassword'`
+1. Login cost: 0. Generate the new password into an off-git env file with mode 600. Never print it or write it anywhere else:
+   ```sh
+   (umask 077; printf 'AUDIT018_COLLAB_PASSWORD=%s\n' "$(openssl rand -hex 16)" > ~/gameplane-audit-018/collab.env)
+   chmod 600 ~/gameplane-audit-018/collab.env
+   ```
+2. Send it from that variable as the JSON body `{"password": "<new password>"}` that the handler requires (`resetPasswordReq` in `api/internal/handlers/users.go`). `printf` is a shell builtin, so the value is never on a process command line:
+   ```sh
+   . ~/gameplane-audit-018/collab.env
+   printf '{"password":"%s"}' "$AUDIT018_COLLAB_PASSWORD" | curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Content-Type: application/json" -d @- -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<collab-id>/reset-password
+   unset AUDIT018_COLLAB_PASSWORD
+   ```
 
 **Expected**
-HTTP 200, JSON with temporary password string.
+HTTP 204 (No Content) with an empty body: the API returns no password. The generated value is 32 hex characters, above `auth.MinPasswordLen` (12). A shorter one gets 400 `password too short`, and an unknown id gets 404 `user not found`. Every existing audit018-collab session is ended, so a later collab login (login cost 1) uses the password from `collab.env`.
 
 **Cleanup**
-none
+Keep `~/gameplane-audit-018/collab.env` while audit018-collab exists. Remove it when that account is deleted.
 
 **Automatable?**
-deferred to T031 (password reset flow requires multi-step verification)
+yes (api-auth): the reset is a single POST that returns 204. TestAPI_PasswordResetInvalidatesSession already covers it, including ending the user's existing sessions.
 
 ---
 
 ### users-bindings-list
 
 **Preconditions**
-Authenticated as audit018-admin (users:manage). audit018-collab user exists.
+Authenticated as audit018-admin (users:manage). audit018-collab exists (from round setup).
 
 **Resources created**
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<collab-id>/bindings | jq '.items | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<collab-id>/bindings | jq 'length'`
 
 **Expected**
 HTTP 200, JSON array of role bindings (may be empty; user has primary role).
@@ -1200,20 +1193,42 @@ yes (api-auth)
 ### users-bindings-add
 
 **Preconditions**
-Authenticated as audit018-admin (users:manage). audit018-collab user exists. Namespace `gameplane-games` exists. Role `operator` exists.
+Authenticated as audit018-admin (users:manage). audit018-collab exists (from round setup). Namespace `gameplane-games` exists. Role `operator` exists.
 
 **Resources created**
 RoleBinding: audit018-collab → operator role in gameplane-games namespace.
 
 **Steps**
-1. Login cost: 0. Create request: `{"role":"operator","namespace":"gameplane-games"}`
-2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<collab-id>/bindings | jq '.role'`
+1. Login cost: 0. Create request: `{"roleName":"operator","namespace":"gameplane-games"}`
+2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<collab-id>/bindings | jq '.roleName'`
 
 **Expected**
 HTTP 201, JSON with binding.
 
 **Cleanup**
 DELETE /users/{id}/bindings/{role}/{namespace}
+
+**Automatable?**
+yes (api-auth)
+
+---
+
+### users-delete
+
+**Preconditions**
+Authenticated as audit018-admin (users:manage). audit018-tmpuser exists (from users-create), with the `id` users-create printed. Only users-create and this procedure use audit018-tmpuser. audit018-collab from round setup is not deleted here.
+
+**Resources created**
+none
+
+**Steps**
+1. Login cost: 0. Run: `curl -X DELETE -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/users/<tmpuser-id>`
+
+**Expected**
+HTTP 204.
+
+**Cleanup**
+none. audit018-tmpuser has no password, so there is no env file. `~/gameplane-audit-018/collab.env` stays while audit018-collab exists (users-reset-password Cleanup).
 
 **Automatable?**
 yes (api-auth)
@@ -1229,7 +1244,7 @@ Authenticated as audit018-admin (roles:read).
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/roles | jq '.items | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/roles | jq 'length'`
 
 **Expected**
 HTTP 200, JSON array of roles (at least: admin, operator, viewer).
@@ -1317,10 +1332,10 @@ Authenticated as audit018-viewer (cluster:read).
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." $GP/cluster/stats | jq '.cpu'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." $GP/cluster/stats | jq '.totalStorageBytes'`
 
 **Expected**
-HTTP 200, JSON with aggregate cluster stats (CPU, memory, storage).
+HTTP 200, JSON with `nodes` (count), `totalStorageBytes`, and `usedStorageBytes` (capacity of Bound PVCs, not live disk usage). No CPU/memory fields here — those are per-node, under GET /cluster's `nodes[].cpu`/`.memory`.
 
 **Cleanup**
 none
@@ -1361,10 +1376,10 @@ Authenticated as audit018-admin (cluster:manage). Cluster ops enabled. Current k
 none (temporary credentials, not persisted)
 
 **Steps**
-1. Login cost: 0. Run: `curl -X POST -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/cluster/kubeconfig | jq '.kubeconfig' | head -c 100`
+1. Login cost: 0. Run: `curl -X POST -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: ..." $GP/cluster/kubeconfig | head -c 100`
 
 **Expected**
-HTTP 200, JSON with kubeconfig string (base64 or plaintext YAML).
+HTTP 200, Content-Type: application/yaml. Body is a plaintext kubeconfig YAML document (not JSON), carrying a short-lived (1h) client cert.
 
 **Cleanup**
 none
@@ -1559,10 +1574,10 @@ Authenticated as audit018-viewer (servers:read, or owner via ownership fallback)
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric/files/list?path=/" | jq '.files | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric/files/list?path=/" | jq 'length'`
 
 **Expected**
-HTTP 200, JSON with `files` array (server's filesystem listing).
+HTTP 200, JSON array of file entries (each with `name`, `path`, `size`, `mode`, `dir`, `modTime`) — not wrapped in a `files` key.
 
 **Cleanup**
 none
@@ -1581,10 +1596,10 @@ Authenticated as audit018-viewer. Server has agent. File exists at path (e.g., c
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric/files/read?path=/readme.txt" | jq '.content' | head -c 100`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric/files/read?path=/readme.txt" | head -c 100`
 
 **Expected**
-HTTP 200, JSON with `content` (file bytes as base64 or text).
+HTTP 200, body is the raw file bytes served via `http.ServeFile` (not JSON — there is no `content` field).
 
 **Cleanup**
 none
@@ -1604,10 +1619,10 @@ Uploaded file in server's game data directory.
 
 **Steps**
 1. Login cost: 0. Create a test file: `echo 'test content' > /tmp/test-upload.txt`
-2. Run: `curl -F "file=@/tmp/test-upload.txt" -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric/files/upload?path=/uploads/" | jq '.path'`
+2. Run: `curl -s -o /dev/null -w '%{http_code}\n' -F "file=@/tmp/test-upload.txt" -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric/files/upload?path=/uploads/"`
 
 **Expected**
-HTTP 200, JSON with `path` of uploaded file.
+HTTP 204 (No Content), empty body — confirm the file landed via files-list on `/uploads/`.
 
 **Cleanup**
 DELETE /servers/mc-fabric/files/delete?path=/uploads/test-upload.txt
@@ -1648,7 +1663,7 @@ Authenticated as audit018-operator (servers:write). Server running, player logge
 none (player booted)
 
 **Steps**
-1. Login cost: 0. Create request: `{"player":"Steve","reason":"Test kick"}`
+1. Login cost: 0. Create request: `{"name":"Steve","reason":"Test kick"}`
 2. Run: `curl -X POST -H "Content-Type: application/json" -d @request.json -b ~/gameplane-audit-018/session-operator.txt -H "X-Gameplane-CSRF: ..." "$GP/servers/mc-fabric/players/kick" | jq`
 
 **Expected**
@@ -1671,10 +1686,10 @@ Authenticated as audit018-viewer (cluster:read).
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." "$GP/admin/system-logs/api?tailLines=20" | jq '.logs | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." "$GP/admin/system-logs/api?tailLines=20" | wc -l`
 
 **Expected**
-HTTP 200, JSON with `logs` array (last 20 lines of API container logs).
+HTTP 200, Content-Type: text/plain. Body is up to 20 raw, timestamped log lines from the API pod — not JSON, no `logs` field.
 
 **Cleanup**
 none
@@ -1693,10 +1708,10 @@ Authenticated as audit018-viewer (cluster:read).
 none
 
 **Steps**
-1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." "$GP/admin/system-logs/operator?tailLines=20" | jq '.logs | length'`
+1. Login cost: 0. Run: `curl -s -b ~/gameplane-audit-018/session-viewer.txt -H "X-Gameplane-CSRF: ..." "$GP/admin/system-logs/operator?tailLines=20" | wc -l`
 
 **Expected**
-HTTP 200, JSON with operator container logs.
+HTTP 200, Content-Type: text/plain. Body is up to 20 raw, timestamped log lines from the operator pod — not JSON.
 
 **Cleanup**
 none

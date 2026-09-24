@@ -47,19 +47,19 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Preconditions:** Syslog collector (rsyslog, syslog-ng, or test endpoint) listening on a known host:port, preferably in-cluster or on audit network. Either tcp or udp; tcp is more reliable.
 
-**Resources created:** audit018-syslog-bridge (Deployment + Service if creating receiver).
+**Resources created:** audit018-syslog-receiver (Pod + Service, the test collector). Also toggles the chart's fixed-name `gameplane-audit-syslog-bridge` Deployment + Service (not audit018-named; it is the release's own bridge component, not a new test object).
 
 **Steps:**
-1. Deploy a test syslog receiver in gameplane-system namespace or use an existing one: `kubectl run audit018-syslog-receiver --image=nicolaka/netcat --command -- nc -l -u 0.0.0.0 514 &` (runs in background; for TCP, adjust command).
+1. Deploy a test syslog receiver in gameplane-system namespace or use an existing one: `kubectl run audit018-syslog-receiver -n gameplane-system --image=nicolaka/netcat --command -- nc -l -u 0.0.0.0 514 &` (runs in background; for TCP, adjust command), then create a matching Service so the DNS name used in the next step resolves — a bare `kubectl run` pod gets no DNS record of its own: `kubectl expose pod audit018-syslog-receiver -n gameplane-system --port=514 --protocol=UDP --name=audit018-syslog-receiver`.
 2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'api.audit.webhook.syslogBridge.enabled=true' --set 'api.audit.webhook.syslogBridge.syslog.addr=audit018-syslog-receiver.gameplane-system:514' --set 'api.audit.webhook.syslogBridge.syslog.network=udp'` and wait for syslog-bridge pod to start.
 3. Perform an audit event (e.g., login). (Login cost: 1)
 4. Wait 2 seconds and check syslog receiver pod logs for RFC 5424 formatted audit event.
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'api.audit.webhook.syslogBridge.enabled=false'` and wait for syslog-bridge pod termination.
-6. Kill the test receiver: `kubectl delete pod audit018-syslog-receiver -n gameplane-system`.
+6. Kill the test receiver: `kubectl delete pod audit018-syslog-receiver -n gameplane-system && kubectl delete svc audit018-syslog-receiver -n gameplane-system`.
 
 **Expected:** syslog-bridge Deployment exists when enabled, is removed when disabled. Syslog receiver pod sees RFC 5424 formatted events when bridge is running and a user action triggers audit logging.
 
-**Cleanup:** Helm upgrade with syslogBridge.enabled=false; delete receiver pod.
+**Cleanup:** Helm upgrade with syslogBridge.enabled=false; delete receiver pod and Service.
 
 **Automatable?** yes (bucket: api-auth; mock syslog endpoint can be containerized).
 
@@ -94,7 +94,7 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none.
 
 **Steps:**
-1. Get current API pod name: `kubectl get pod -n gameplane-system -l app=gameplane-api -o jsonpath='{.items[0].metadata.name}'`.
+1. Get current API pod name: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-api -o jsonpath='{.items[0].metadata.name}'`.
 2. Start tailing API logs: `kubectl logs -n gameplane-system <pod> -f &` (background).
 3. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'api.audit.stdout=true'` and wait for API rollout.
 4. Perform an audit event (login). (Login cost: 1)
@@ -136,12 +136,12 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Preconditions:** None (receiver is self-contained if api.telemetry.endpoint is not set, auto-wiring applies).
 
-**Resources created:** audit018-telemetry-receiver (Deployment + Service).
+**Resources created:** none (toggles the chart's fixed-name `gameplane-telemetry-receiver` Deployment + Service, not an audit018-named object).
 
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'api.telemetry.receiver.enabled=true'` and wait for receiver pod to start.
-2. Verify receiver pod is running: `kubectl get pod -n gameplane-system -l app=gameplane-telemetry-receiver`.
-3. Verify receiver Service is created: `kubectl get svc -n gameplane-system -l app=gameplane-telemetry-receiver`.
+2. Verify receiver pod is running: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-telemetry-receiver`.
+3. Verify receiver Service is created: `kubectl get svc -n gameplane-system -l app.kubernetes.io/name=gameplane-telemetry-receiver`.
 4. Access receiver /metrics endpoint: `kubectl port-forward -n gameplane-system svc/gameplane-telemetry-receiver 8080:8080 &` and curl `http://localhost:8080/metrics` to see Prometheus metrics endpoint.
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'api.telemetry.receiver.enabled=false'` and wait for pod termination.
 
@@ -179,13 +179,13 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Preconditions:** None (MCP server is self-contained).
 
-**Resources created:** audit018-mcp-server (Deployment).
+**Resources created:** none (toggles the chart's fixed-name `gameplane-mcp-server` Deployment, not an audit018-named object).
 
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'mcpServer.enabled=true'` and wait for MCP server pod to start.
-2. Verify MCP server pod is running: `kubectl get pod -n gameplane-system -l app=gameplane-mcp-server`.
-3. Verify the pod is ready and logs show JSON-RPC server initialized: `kubectl logs -n gameplane-system -l app=gameplane-mcp-server | grep -i 'serving\|ready\|json-rpc'`.
-4. Test MCP server over stdin/stdout: `kubectl exec -it -n gameplane-system <mcp-pod> -- gameplane-mcp-server --serve` and send a JSON-RPC call (e.g., `{"jsonrpc":"2.0","method":"list_resources","id":1}`); observe response.
+2. Verify MCP server pod is running: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-mcp-server`.
+3. Verify the pod is ready and logs show it waiting for a session: `kubectl logs -n gameplane-system -l app.kubernetes.io/name=gameplane-mcp-server | grep -i 'idle: waiting for'` (the idle-mode log line is `mcp-server idle: waiting for \`kubectl exec -i ... -- /mcp-server serve\` sessions` — it never logs "serving", "ready", or "json-rpc").
+4. Test MCP server over stdin/stdout: `kubectl exec -i deploy/gameplane-mcp-server -n gameplane-system -- /mcp-server serve` and send a JSON-RPC call (e.g., `{"jsonrpc":"2.0","method":"list_resources","id":1}`); observe response. (Use `-i`, not `-it` — a pty would corrupt the JSON-RPC stdio framing; the binary is `/mcp-server` with subcommand `serve`, not a `--serve` flag — this is the chart's own documented invocation, see templates/mcp-server.yaml.)
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'mcpServer.enabled=false'` and wait for pod termination.
 
 **Expected:** MCP server Deployment exists and pod runs when enabled; Deployment is removed when disabled. MCP server is read-only and responds to JSON-RPC calls over stdin/stdout.
@@ -205,9 +205,9 @@ Shared conventions: [conventions.md](conventions.md).
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'networkPolicies.enabled=true'` and wait for Helm to apply.
 2. Verify NetworkPolicy objects exist in gamesNamespace: `kubectl get networkpolicies -n gameplane-games | wc -l` (expect >0, at least the default-deny and allow-kubelet policies).
-3. Verify label on gamesNamespace is set for network policies: `kubectl get namespace gameplane-games -o jsonpath='{.metadata.labels}' | grep -i network` (may or may not be present depending on Helm chart; verify by checking pod constraints if possible).
+3. Verify the default-deny-ingress policy renders as the chart defines it (`templates/networkpolicies.yaml`): `kubectl get networkpolicy default-deny-ingress -n gameplane-games -o jsonpath='{.spec.podSelector} {.spec.ingress}'` (expect `{}` for podSelector, matching every pod in the namespace, and an empty list for ingress — the default-deny baseline the template actually renders when networkPolicies.enabled=true).
 4. Create a test GameServer with a game pod and verify it has the network policy applied: check `kubectl get networkpolicies -n gameplane-games -o yaml` to see selectors.
-5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'networkPolicies.enabled=false'` and verify NetworkPolicy objects are removed (or namespace label is removed).
+5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'networkPolicies.enabled=false'` and verify NetworkPolicy objects are removed: `kubectl get networkpolicies -n gameplane-games | wc -l` (expect `0` — `templates/networkpolicies.yaml` gates every NetworkPolicy it defines behind a single top-level `{{- if .Values.networkPolicies.enabled }}`, so disabling the flag renders none of them).
 
 **Expected:** NetworkPolicy objects are created in gamesNamespace when enabled; are removed when disabled. Policies enforce ingress/egress rules as defined in the chart.
 
@@ -227,7 +227,7 @@ Shared conventions: [conventions.md](conventions.md).
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'podSecurity.enforceRestricted=true'` and wait for Helm to apply.
 2. Verify pod security label is set on gamesNamespace: `kubectl get namespace gameplane-games -o jsonpath='{.metadata.labels}' | grep 'pod-security'`.
 3. Expected label: `pod-security.kubernetes.io/enforce=restricted`.
-4. Attempt to create a pod that violates the restricted policy (e.g., runs as root or with privileged: true) in gamesNamespace and verify it is denied by the pod security policy: `kubectl run audit018-privileged-test --image=busybox --overrides='{"spec":{"containers":[{"name":"test","image":"busybox","securityContext":{"privileged":true}}]}}'` and expect failure.
+4. Attempt to create a pod that violates the restricted policy (e.g., runs as root or with privileged: true) in gamesNamespace and verify it is denied by the pod security policy: `kubectl run audit018-privileged-test -n gameplane-games --image=busybox --overrides='{"spec":{"containers":[{"name":"test","image":"busybox","securityContext":{"privileged":true}}]}}'` and expect failure.
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'podSecurity.enforceRestricted=false'` and verify label is removed.
 6. Attempt to create the privileged pod again and verify it is now allowed (i.e., no enforcement).
 
@@ -288,14 +288,14 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Preconditions:** Prometheus Operator CRDs (ServiceMonitor, PodMonitor) must be installed in the cluster. If not available, this is a blocked candidate.
 
-**Resources created:** audit018-servicemonitor-operator, audit018-podmonitor-agents (if applicable).
+**Resources created:** none (toggles the chart's fixed-name `gameplane-operator`/`gameplane-api` ServiceMonitors in gameplane-system and the `gameplane-agent` PodMonitor in gameplane-games; none are audit018-named).
 
 **Steps:**
 1. Verify Prometheus Operator is installed: `kubectl get crd servicemonitors.monitoring.coreos.com` (expect success; if not found, skip to blocked candidate note).
 2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'serviceMonitors.enabled=true'` and wait for Helm to apply.
-3. Verify ServiceMonitor for operator is created: `kubectl get servicemonitor -n gameplane-system -l app=gameplane-operator`.
-4. Verify ServiceMonitor for API is created: `kubectl get servicemonitor -n gameplane-system -l app=gameplane-api`.
-5. Verify PodMonitor for agent sidecars is created (if included): `kubectl get podmonitor -n gameplane-system | grep agent`.
+3. Verify ServiceMonitor for operator is created: `kubectl get servicemonitor -n gameplane-system gameplane-operator` (fixed object name; the ServiceMonitor itself carries no `app` label — only its selector targets one).
+4. Verify ServiceMonitor for API is created: `kubectl get servicemonitor -n gameplane-system gameplane-api`.
+5. Verify PodMonitor for agent sidecars is created: `kubectl get podmonitor -n gameplane-games gameplane-agent` (it lives in the games namespace, not gameplane-system).
 6. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'serviceMonitors.enabled=false'` and wait for Helm to remove ServiceMonitor/PodMonitor objects.
 
 **Expected:** ServiceMonitor and PodMonitor objects are created in gameplane-system when enabled; are removed when disabled. Objects have labels matching Prometheus scrape selectors.
@@ -310,13 +310,13 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Preconditions:** Prometheus Operator CRDs (PrometheusRule) must be installed in the cluster.
 
-**Resources created:** audit018-prometheusrule.
+**Resources created:** none (toggles the chart's fixed-name `gameplane-operator` PrometheusRule, not an audit018-named object).
 
 **Steps:**
 1. Verify Prometheus Operator is installed: `kubectl get crd prometheusrules.monitoring.coreos.com` (expect success).
 2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'prometheusRules.enabled=true'` and wait for Helm to apply.
-3. Verify PrometheusRule object is created: `kubectl get prometheusrule -n gameplane-system -l app=gameplane-operator`.
-4. Inspect the rule YAML and verify it includes alert rules for operator metrics: `kubectl get prometheusrule -n gameplane-system -l app=gameplane-operator -o yaml | grep -i alert`.
+3. Verify PrometheusRule object is created: `kubectl get prometheusrule -n gameplane-system gameplane-operator` (fixed object name; no `app` label exists on it).
+4. Inspect the rule YAML and verify it includes alert rules for operator metrics: `kubectl get prometheusrule -n gameplane-system gameplane-operator -o yaml | grep -i alert`.
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'prometheusRules.enabled=false'` and verify PrometheusRule is removed.
 
 **Expected:** PrometheusRule object is created when enabled; is removed when disabled. Rule includes operator-specific alerts and Prometheus scrape configuration references.
@@ -331,7 +331,7 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Preconditions:** Grafana with sidecar dashboard loader (grafana-sidecar) must be installed in the cluster. This is typically part of kube-prometheus-stack.
 
-**Resources created:** audit018-grafana-dashboard (ConfigMap).
+**Resources created:** none (toggles the chart's fixed-name `gameplane-operator-dashboard` ConfigMap, not an audit018-named object).
 
 **Steps:**
 1. Verify Grafana is installed and sidecar is configured: `kubectl get deployment -n monitoring -l app=grafana` (adjust namespace as needed; common is `monitoring` or `prometheus`).
@@ -358,8 +358,8 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'defaultModuleSource.enabled=true'` and wait for Helm to apply.
-2. Verify ModuleSource object is created: `kubectl get modulesource -n gameplane-system -l name=default` (or check for `default` ModuleSource).
-3. Verify operator indexes the module source: `kubectl get modulesource default -n gameplane-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}'` (expect `Ready` or `Indexed`).
+2. Verify ModuleSource object is created: `kubectl get modulesource default` (ModuleSource is cluster-scoped — no `-n` flag — and it carries no `name` label, so get it by object name).
+3. Verify operator indexes the module source: `kubectl get modulesource default -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}'` (ModuleSource is cluster-scoped; no `-n` flag).
 4. Access the dashboard Modules page and verify game templates are listed (e.g., Minecraft, Terraria, etc.).
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'defaultModuleSource.enabled=false'` and verify ModuleSource object is removed (or marked as disabled).
 6. Refresh the dashboard Modules page; verify templates are no longer available.
@@ -380,11 +380,11 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Ensure defaultModuleSource.type=oci (default value in values.yaml).
-2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'defaultModuleSource.oidc.verify.enabled=true'` (note: the value should be `oci.verify.enabled`, not `oidc.verify.enabled`; verify field name in values.yaml).
+2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'defaultModuleSource.oci.verify.enabled=true'`.
 3. Wait for operator to reconcile ModuleSource.
-4. Verify the ModuleSource spec includes cosign verification settings: `kubectl get modulesource default -n gameplane-system -o jsonpath='{.spec.verify}'`.
+4. Verify the ModuleSource spec includes cosign verification settings: `kubectl get modulesource default -o jsonpath='{.spec.verify}'` (ModuleSource is cluster-scoped; no `-n` flag).
 5. Attempt to pull a module and verify operator validates the cosign signature before indexing.
-6. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'defaultModuleSource.oidc.verify.enabled=false'`.
+6. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'defaultModuleSource.oci.verify.enabled=false'`.
 7. Verify unsigned/tampered modules are now accepted (verification disabled).
 
 **Expected:** ModuleSource includes cosign public key and verification flag when enabled; verification is skipped when disabled. Tampered modules are rejected when verification is on; accepted when off.
@@ -424,9 +424,25 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'capture.enabled=true'` and wait for Helm to apply.
-2. Create a test GameServer with capture opt-in: `kubectl apply -f - <<'EOF'\napiVersion: gameplane.io/v1\nkind: GameServer\nmetadata:\n  name: audit018-capture-test\n  namespace: gameplane-games\nspec:\n  template: minecraft-java\n  capture:\n    enabled: true\nEOF`.
-3. Wait for the GameServer pod to start and verify the capture sidecar is injected: `kubectl get pod -n gameplane-games -l gameserver=audit018-capture-test -o yaml | grep -A5 'capture-sidecar'`.
-4. Verify capture is accessible via the API: POST to `$GP/api/v1/gameservers/audit018-capture-test/captures/start` with appropriate parameters and expect success.
+2. Create a test GameServer with capture opt-in (using real line breaks below — the single-line form above would send a literal backslash-n string to the shell, not a heredoc):
+```sh
+kubectl apply -f - <<'EOF'
+apiVersion: gameplane.local/v1alpha1
+kind: GameServer
+metadata:
+  name: audit018-capture-test
+  namespace: gameplane-games
+  labels:
+    gameplane.io/audit: "018"
+spec:
+  templateRef:
+    name: minecraft-java
+  capture:
+    enabled: true
+EOF
+```
+3. Wait for the GameServer pod to start and verify the capture sidecar is injected: `kubectl get pod -n gameplane-games -l app.kubernetes.io/instance=audit018-capture-test -o yaml | grep -A5 'capture-sidecar'`.
+4. Login as audit018-admin (Login cost: 1) per conventions.md, then verify capture is accessible via the API — the real route is `POST /servers/{name}:capture-start` (not `/api/v1/gameservers/.../captures/start`, which does not exist): `curl -X POST -H "Content-Type: application/json" -d '{"maxDurationSeconds":30,"maxSizeBytes":1048576}' -b ~/gameplane-audit-018/session-admin.txt -H "X-Gameplane-CSRF: <csrf>" "$GP/servers/audit018-capture-test:capture-start?namespace=gameplane-games" | jq '.captureId'` and expect a `captureId` in the response.
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'capture.enabled=false'` and wait for Helm to apply.
 6. Create another test GameServer (e.g., `audit018-no-capture-test`) with capture opt-in and verify the sidecar is NOT injected (operator ignores capture requests when cluster feature is disabled).
 
@@ -446,10 +462,10 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'web.enabled=false'` and wait for web Deployment to terminate.
-2. Verify web pod is removed: `kubectl get pod -n gameplane-system -l app=gameplane-web` (expect no results).
+2. Verify web pod is removed: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-web` (expect no results).
 3. Attempt to reach the dashboard at `$GP/` and expect failure (502 Bad Gateway or similar, depending on ingress configuration).
 4. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'web.enabled=true'` and wait for web pod to start.
-5. Verify web pod is running: `kubectl get pod -n gameplane-system -l app=gameplane-web` (expect running pod).
+5. Verify web pod is running: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-web` (expect running pod).
 6. Attempt to reach the dashboard at `$GP/` and expect success (login page or main dashboard).
 
 **Expected:** Web pod (nginx serving the SPA) is deployed when web.enabled=true; is removed when false. Dashboard is accessible when web pod is running; returns error when removed.
@@ -464,11 +480,11 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Preconditions:** Ingress controller (nginx-ingress, Traefik, etc.) must be installed in the cluster. If not, ingress objects will be created but are inactive.
 
-**Resources created:** audit018-gameplane-ingress (Ingress object; reuses existing ingress if already present).
+**Resources created:** none (toggles the chart's fixed-name `gameplane` Ingress object, not an audit018-named object).
 
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'ingress.enabled=true'` and wait for Helm to apply.
-2. Verify Ingress object is created: `kubectl get ingress -n gameplane-system -l app=gameplane`.
+2. Verify Ingress object is created: `kubectl get ingress -n gameplane-system gameplane` (fixed object name; the Ingress carries no `app` label at all).
 3. Verify ingress routing rules: `kubectl get ingress -n gameplane-system -o yaml | grep -A5 'host: gameplane.local'` (or your configured host).
 4. Attempt to reach the dashboard via the configured host (e.g., `https://gameplane.local/`); expect success if ingress controller is present and routes are working.
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'ingress.enabled=false'` and verify Ingress object is removed.
@@ -489,16 +505,34 @@ Shared conventions: [conventions.md](conventions.md).
 **Resources created:** none (uses pre-existing PVC).
 
 **Steps:**
-1. Create a test PVC: `kubectl apply -f - <<'EOF'\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: audit018-api-storage\n  namespace: gameplane-system\nspec:\n  accessModes:\n    - ReadWriteOnce\n  storageClassName: standard\n  resources:\n    requests:\n      storage: 2Gi\nEOF` and wait for it to bind (may be immediate if dynamic provisioning is available).
-2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'api.storage.existingClaim=audit018-api-storage'` and wait for API pod to restart.
-3. Verify API pod is running and mounts the PVC: `kubectl get pod -n gameplane-system -l app=gameplane-api -o jsonpath='{.items[0].spec.volumes[?(@.name=="data")].persistentVolumeClaim.claimName}'` (expect `audit018-api-storage`).
-4. Verify no new PVC is created: `kubectl get pvc -n gameplane-system | grep gameplane-api-data` (the default PVC name when existingClaim is not set; expect no results).
+1. Create a test PVC (omits `storageClassName` to use the cluster's default — kubelab-baseline.md and evidence/baseline/pvcs.json record no StorageClass named `standard`, and this is a k3s cluster, whose built-in default class is `local-path`):
+```sh
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: audit018-api-storage
+  namespace: gameplane-system
+  labels:
+    gameplane.io/audit: "018"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+EOF
+```
+and wait for it to bind (may be immediate if dynamic provisioning is available).
+2. Protect the live database PVC first — required, or the chart's `fail()` guard aborts this upgrade to stop Helm from later pruning and erasing the real SQLite database: `kubectl annotate pvc gameplane-api-data -n gameplane-system helm.sh/resource-policy=keep --overwrite`. Then run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'api.storage.existingClaim=audit018-api-storage'` and wait for API pod to restart.
+3. Verify API pod is running and mounts the PVC: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-api -o jsonpath='{.items[0].spec.volumes[?(@.name=="data")].persistentVolumeClaim.claimName}'` (expect `audit018-api-storage`).
+4. Verify the original `gameplane-api-data` PVC still exists, kept (not deleted) by the annotation in step 2 — it should no longer be the API pod's mounted volume, but the object itself must remain: `kubectl get pvc -n gameplane-system gameplane-api-data audit018-api-storage` (expect both present).
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'api.storage.existingClaim='` and wait for API pod to restart.
-6. Verify API pod now mounts the auto-created PVC: `kubectl get pvc -n gameplane-system | grep gameplane-api-data` (expect a new PVC to be created by Helm).
+6. Verify the API pod mounts `gameplane-api-data` again — the same PVC from step 2, re-adopted by Helm, not newly created: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-api -o jsonpath='{.items[0].spec.volumes[?(@.name=="data")].persistentVolumeClaim.claimName}'` (expect `gameplane-api-data`).
 
-**Expected:** When existingClaim is set, the API pod mounts that PVC and no new PVC is created. When empty (default), Helm creates a PVC for the API.
+**Expected:** When existingClaim is set, the API pod mounts that PVC, and the original `gameplane-api-data` PVC (kept via step 2's annotation) is not deleted. When reverted to empty, Helm re-adopts and mounts that same original PVC again — no new PVC is created, and its data survives the whole test.
 
-**Cleanup:** Helm upgrade with existingClaim empty; delete the test PVC `audit018-api-storage`.
+**Cleanup:** Helm upgrade with existingClaim empty; delete the test PVC `audit018-api-storage`. Leave the `helm.sh/resource-policy: keep` annotation from step 2 in place — removing it re-exposes the live database PVC to accidental pruning on a future helm upgrade/uninstall.
 
 **Automatable?** yes (bucket: operator or api-auth; PVC volume binding observation).
 
@@ -513,7 +547,21 @@ Shared conventions: [conventions.md](conventions.md).
 **Steps:**
 1. List available StorageClasses: `kubectl get storageclass` and choose one to test (e.g., `fast-nvme` if present, or create a test class).
 2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'operator.gameDataStorage.storageClassName=fast-nvme'` (or your chosen class) and wait for operator to reconcile.
-3. Create a test GameServer: `kubectl apply -f - <<'EOF'\napiVersion: gameplane.io/v1\nkind: GameServer\nmetadata:\n  name: audit018-storage-class-test\n  namespace: gameplane-games\nspec:\n  template: minecraft-java\nEOF`.
+3. Create a test GameServer (using real line breaks below — the single-line form above would send a literal backslash-n string to the shell, not a heredoc):
+```sh
+kubectl apply -f - <<'EOF'
+apiVersion: gameplane.local/v1alpha1
+kind: GameServer
+metadata:
+  name: audit018-storage-class-test
+  namespace: gameplane-games
+  labels:
+    gameplane.io/audit: "018"
+spec:
+  templateRef:
+    name: minecraft-java
+EOF
+```
 4. Wait for the GameServer to provision its data volume and verify the PVC uses the configured StorageClass: `kubectl get pvc -n gameplane-games | grep audit018-storage-class-test` and check the CLASS column (expect `fast-nvme`).
 5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'operator.gameDataStorage.storageClassName='` (empty = use cluster default) and wait for operator to reconcile.
 6. Create another test GameServer (e.g., `audit018-storage-default-test`) and verify its PVC uses the default StorageClass (or no specific class if cluster default is unset).
@@ -535,14 +583,14 @@ Shared conventions: [conventions.md](conventions.md).
 **Steps:**
 1. Ensure you have a baseline Gameplane install with an older CRD version.
 2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'crds.autoApply.enabled=true'` and watch the pre-upgrade hook job.
-3. Observe the pre-upgrade hook job running: `kubectl get job -n gameplane-system -l job-type=crd-apply` (or similar label; check Helm chart for exact label).
-4. Verify the job completes successfully: `kubectl wait --for=condition=complete job/<job-name> -n gameplane-system --timeout=300s`.
-5. Verify CRDs are updated to the new schema: `kubectl get crd gameserver.gameplane.io -o jsonpath='{.spec.versions[0].name}'` and compare with chart's CRD definition.
-6. Revert: No specific revert needed; the hook is idempotent. A subsequent upgrade with crds.autoApply.enabled=false will skip the hook.
+3. Observe the pre-upgrade hook job: `kubectl get job -n gameplane-system gameplane-crd-apply` (fixed name `<release>-crd-apply`; no `job-type` label exists). Note: `helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded` deletes the Job immediately on success, so by the time step 2's `helm upgrade` returns, it is very likely already gone — start `kubectl get job -n gameplane-system gameplane-crd-apply --watch` in a second terminal just before running step 2 if you need to catch it live.
+4. Verify the job completes successfully — run this in the second terminal, started just before step 2, since the Job is hook-deleted right after success: `kubectl wait --for=condition=complete job/gameplane-crd-apply -n gameplane-system --timeout=300s`.
+5. Verify CRDs are updated to the new schema: `kubectl get crd gameservers.gameplane.local -o jsonpath='{.spec.versions[0].name}'` and compare with chart's CRD definition.
+6. Revert (required — this cluster's baseline is `crds.autoApply.enabled=false`, per kubelab-baseline.md, and step 2 persisted `true` via `--reuse-values`): `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'crds.autoApply.enabled=false'`.
 
 **Expected:** Pre-upgrade hook job runs `kubectl apply --server-side` on CRDs when enabled. CRDs are updated to the new schema. Job completes successfully and does not block the upgrade.
 
-**Cleanup:** No cleanup required (hook is ephemeral).
+**Cleanup:** Helm upgrade with `crds.autoApply.enabled=false` (this cluster's baseline; see step 6); the hook Job itself is ephemeral and self-deletes.
 
 **Automatable?** yes (bucket: upgrade; job existence and completion observation; requires an upgrade scenario).
 
@@ -556,13 +604,13 @@ Shared conventions: [conventions.md](conventions.md).
 
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'image.registry=my-private-registry.example.com/gameplane'` and wait for pods to restart with the new image.
-2. Verify operator pod is running with the new image: `kubectl get pod -n gameplane-system -l app=gameplane-operator -o jsonpath='{.items[0].spec.containers[0].image}'` (expect `my-private-registry.example.com/gameplane/operator:...`).
-3. Verify API pod is running with the new image: `kubectl get pod -n gameplane-system -l app=gameplane-api -o jsonpath='{.items[0].spec.containers[0].image}'` (expect `my-private-registry.example.com/gameplane/api:...`).
-4. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'image.registry=ghcr.io/valgulnecron/gameplane'` (original default) and wait for pods to restart.
+2. Verify operator pod is running with the new image: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-operator -o jsonpath='{.items[0].spec.containers[0].image}'` (expect `my-private-registry.example.com/gameplane/operator:...`).
+3. Verify API pod is running with the new image: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-api -o jsonpath='{.items[0].spec.containers[0].image}'` (expect `my-private-registry.example.com/gameplane/api:...`).
+4. Revert to this cluster's baseline registry, not the chart's own default (kubelab-baseline.md: this install overrides `image.registry`): `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'image.registry=gameplane-test'` and wait for pods to restart.
 
 **Expected:** Pods are pulled from the specified registry when image.registry is set. Pulling fails if the registry is not accessible (blocked candidate).
 
-**Cleanup:** Helm upgrade with original registry.
+**Cleanup:** Helm upgrade with `image.registry=gameplane-test` (this cluster's baseline; see kubelab-baseline.md, not the chart default).
 
 **Automatable?** no (blocked candidate: requires access to alternative registry; alternative: verify Deployment image field is updated correctly in the generated manifests without actually pulling).
 
@@ -577,13 +625,13 @@ Shared conventions: [conventions.md](conventions.md).
 **Steps:**
 1. Get the current image tag: `kubectl get deployment -n gameplane-system gameplane-operator -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -o '[^:]*$'` (extract tag from image reference).
 2. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'image.tag=latest'` and wait for pods to restart.
-3. Verify operator pod is running with the new tag: `kubectl get pod -n gameplane-system -l app=gameplane-operator -o jsonpath='{.items[0].spec.containers[0].image}'` (expect tag `latest`).
-4. Verify API pod is running with the new tag: `kubectl get pod -n gameplane-system -l app=gameplane-api -o jsonpath='{.items[0].spec.containers[0].image}'` (expect tag `latest`).
-5. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'image.tag=v0.2.0-beta.8'` (or current version) and wait for pods to restart.
+3. Verify operator pod is running with the new tag: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-operator -o jsonpath='{.items[0].spec.containers[0].image}'` (expect tag `latest`).
+4. Verify API pod is running with the new tag: `kubectl get pod -n gameplane-system -l app.kubernetes.io/name=gameplane-api -o jsonpath='{.items[0].spec.containers[0].image}'` (expect tag `latest`).
+5. Revert to this cluster's baseline tag, not the chart's appVersion (kubelab-baseline.md: this install overrides `image.tag`): `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'image.tag=016'` and wait for pods to restart.
 
 **Expected:** Pods are pulled with the specified tag. Image pulling may fail if the tag does not exist in the registry.
 
-**Cleanup:** Helm upgrade with original tag.
+**Cleanup:** Helm upgrade with `image.tag=016` (this cluster's baseline; see kubelab-baseline.md, not the chart's appVersion).
 
 **Automatable?** yes (bucket: api-auth or web e2e; Deployment image field observation; does not require actual pulling if image already exists locally).
 
@@ -598,9 +646,9 @@ Shared conventions: [conventions.md](conventions.md).
 **Steps:**
 1. Run: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'operator.leaderElect=false'` and wait for operator pod to restart.
 2. Verify operator pod environment: `kubectl get deployment -n gameplane-system gameplane-operator -o yaml | grep -i 'leader\|LEADER'` (expect no leader election flags or env vars when disabled).
-3. Access operator logs and verify no lease-related messages: `kubectl logs -n gameplane-system -l app=gameplane-operator | grep -i lease` (expect minimal/no output when disabled).
+3. Access operator logs and verify no lease-related messages: `kubectl logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator | grep -i lease` (expect minimal/no output when disabled).
 4. Revert: `helm upgrade gameplane charts/gameplane -n gameplane-system --reuse-values --set 'operator.leaderElect=true'` and wait for operator to restart.
-5. Verify operator logs now include lease-related messages: `kubectl logs -n gameplane-system -l app=gameplane-operator | grep -i lease` (expect output indicating leader election is active).
+5. Verify operator logs now include lease-related messages: `kubectl logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator | grep -i lease` (expect output indicating leader election is active).
 
 **Expected:** Leader election is disabled when flag is false; is enabled when true. Operator logs reflect the state.
 
