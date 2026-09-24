@@ -11,7 +11,7 @@ The Gameplane release is in namespace `gameplane-system`, named `gameplane`. Gam
 
 ## Reaching the API
 
-**Pending OD-016:** The ingress host `gameplane.local` does not resolve from the audit devbox. Until that is settled, run:
+Per OD-016, the ingress host `gameplane.local` is not used: it does not resolve from the audit devbox. Run:
 ```sh
 kubectl port-forward -n gameplane-system svc/gameplane-web 18080:80
 ```
@@ -53,7 +53,7 @@ One session per role per round:
 - `audit018-viewer`: read-only access
 - `audit018-collab`: collaborator access (when needed)
 
-Admin access is pending OD-015.
+Admin access follows OD-015: `audit018-admin` is created with `gameplane-api bootstrap-admin --username audit018-admin` inside the API pod, and its password is kept in `~/gameplane-audit-018/admin.env` (mode 600, off-git). The other role accounts are created through the API as that admin.
 
 ## Login budget
 
@@ -84,6 +84,8 @@ Save all evidence under `audit/evidence/<INV-ID>/`, redacted:
 - Share tokens as `<token>` (not the actual token)
 - No cookies, CSRF values, passwords or secrets
 - Each file stays under 1 MB
+
+Evidence of a security boundary or control that does not hold is a security finding. It goes to `audit/held/evidence/<ID>/` (git-ignored) instead, until the fix merges (OD-019).
 
 ## Automatable?
 

@@ -7,6 +7,8 @@
 coverage.*
 # Audit component-review coverage table (spec 018 contracts/audit-records.md), not test coverage output
 !specs/*/audit/coverage.md
+# Spec 018 OD-019: unfixed security findings stay off GitHub until their fix merges
+specs/*/audit/held/
 coverage/
 vendor/
 operator/bin/

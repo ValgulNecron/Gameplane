@@ -208,6 +208,17 @@ Facts gathered for T012 in the meantime:
 - `v0.2.0-beta.8` ships API migrations up to `006_share_links.sql`, and `master` has up to `011_user_theme_preferences.sql`.
 - So kubelab's DB is very likely ahead of beta.8 (OD-005 path (b)). The DB itself must still confirm this.
 
+### OD-019: security findings stay unpushed until fixed — RESOLVED 2026-09-24
+
+Decision (maintainer, 2026-09-24): "every security finding remain[s] unpushed until fixed". The maintainer then asked for the security material that had already been pushed to be removed. The branch was rebuilt without the `SECURITY_AUDIT.md` rewording commit, `audit/procedures/security.md`, `audit/evidence/rc.0/inventory-SEC.md`, the partial `audit/evidence/review-web/notes-routes.md` and the `## SEC` inventory rows, then force-pushed. Those files now live in `audit/held/`, and the reworded `SECURITY_AUDIT.md` stays uncommitted in the working tree.
+
+How it's applied:
+- A finding is a **security finding** when it concerns a security boundary or control: authentication, authorization/RBAC, login privacy, SSRF guard, console-injection guard, audit-chain integrity, secret handling, network exposure, privilege, or supply chain. This includes the `SECURITY_AUDIT.md` items not yet remediated, security candidates from code reviews, and any `INV-SEC-*` boundary that doesn't hold.
+- Its row, its `### F-NNN` subsection, and its evidence live in `audit/held/` (git-ignored via the root `.gitignore`): `audit/held/findings.md` and `audit/held/evidence/<ID>/`. Review agents write security candidates to `audit/held/review-<component>.md`, never to `evidence/review-*/notes.md`.
+- IDs come from the same `F-NNN` sequence, so a held finding leaves a gap in `audit/findings.md`. When its fix PR merges, the row and subsection move into `audit/findings.md` unchanged.
+- Fix PRs for held findings are titled and described as hardening, without reproduction steps, until merged.
+- Fixed items (for example merged security-fix PRs imported in T009) are not held.
+
 ### T054: `gameplane-module` tag for the v0.3.0 chart default — RESOLVED 2026-09-24
 
 Decision: a new `v0.3.0` tag in `gameplane-module`, cut only after the live module rows (`INV-MOD-*`) pass on the release candidate. `charts/gameplane/values.yaml:473` is then pinned to it on `fix/018-module-source-ref`. The README, docs and website game counts (review findings C-docs-01, C-website-01, C-website-02) are updated to the 30-module catalog in the same release. The tag in the other repo is outward-facing, so it's confirmed with you when it's ready.
