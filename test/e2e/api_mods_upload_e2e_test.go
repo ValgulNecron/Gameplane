@@ -63,10 +63,18 @@ func TestAPI_ModUpload(t *testing.T) {
 		t.Fatalf("close multipart: %v", err)
 	}
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload", &buf)
+	// F-074 regression: pace the upload so it is still in flight past the
+	// API's 60s request-timeout — /mods/upload streams the body to the
+	// agent on req.Context(), so the timeout must not apply to it.
+	const slowUploadFloor = 65 * time.Second
+	uploadLen := buf.Len()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload",
+		newPacedReader(buf.Bytes(), 64*1024, 1600*time.Millisecond))
 	if err != nil {
 		t.Fatalf("build upload req: %v", err)
 	}
+	req.ContentLength = int64(uploadLen)
+	uploadStart := time.Now()
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set("X-Gameplane-CSRF", cli.CSRF)
 	resp, err := cli.HTTP.Do(req)
@@ -75,8 +83,12 @@ func TestAPI_ModUpload(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
+	uploadElapsed := time.Since(uploadStart)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("upload expected 200, got %d body=%q", resp.StatusCode, string(body))
+		t.Fatalf("upload expected 200 after %s (cut short by requestTimeout?), got %d body=%q", uploadElapsed, resp.StatusCode, string(body))
+	}
+	if uploadElapsed < slowUploadFloor {
+		t.Fatalf("mod upload finished in %s, want it paced past %s to exercise the 60s request timeout", uploadElapsed, slowUploadFloor)
 	}
 	var uploaded modEntry
 	if err := json.Unmarshal(body, &uploaded); err != nil {

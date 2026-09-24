@@ -183,7 +183,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	const bigFileSizeMB = 200
 	if out, err := envInstance.KubectlExec(t, ns, "pod/"+gs+"-0",
 		"dd", "if=/dev/zero", "of=/data/"+bigFileName,
-		fmt.Sprintf("bs=1M"), fmt.Sprintf("count=%d", bigFileSizeMB)); err != nil {
+		"bs=1M", fmt.Sprintf("count=%d", bigFileSizeMB)); err != nil {
 		t.Fatalf("seed large file via dd: %v output=%s", err, out)
 	}
 
@@ -226,6 +226,64 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	}
 	if elapsed < slowReadFloor {
 		t.Fatalf("large download finished in %s, want it paced past %s to exercise the 60s request timeout", elapsed, slowReadFloor)
+	}
+
+	// F-074 regression, upload side: POST /files/write streams its body to
+	// the agent on req.Context() just like the download above, so a write
+	// whose body trickles in past the 60s request-timeout must still land.
+	// Pace a 2 MiB body (also over the old 1 MiB bodyLimit, F-075) so the
+	// upload is still in flight past slowWriteFloor.
+	const slowFileName = "slow-write-from-e2e.bin"
+	const slowWriteSize = 2 << 20
+	const slowWriteFloor = 65 * time.Second
+	slowBody := bytes.Repeat([]byte("s"), slowWriteSize)
+	slowWriteURL := cli.BaseURL + "/servers/" + gs + "/files/write?path=" + url.QueryEscape("/"+slowFileName)
+	slowReq, err := http.NewRequestWithContext(t.Context(), http.MethodPost, slowWriteURL,
+		newPacedReader(slowBody, 64*1024, 2200*time.Millisecond))
+	if err != nil {
+		t.Fatalf("build slow write req: %v", err)
+	}
+	slowReq.ContentLength = int64(len(slowBody))
+	slowReq.Header.Set("Content-Type", "application/octet-stream")
+	slowReq.Header.Set("X-Gameplane-CSRF", cli.CSRF)
+	slowStart := time.Now()
+	slowResp, err := cli.HTTP.Do(slowReq)
+	if err != nil {
+		t.Fatalf("POST /files/write (slow) after %s: %v", time.Since(slowStart), err)
+	}
+	slowRespBody, _ := io.ReadAll(slowResp.Body)
+	_ = slowResp.Body.Close()
+	slowElapsed := time.Since(slowStart)
+	if slowResp.StatusCode/100 != 2 {
+		t.Fatalf("/files/write (slow) expected 2xx after %s (cut short by requestTimeout?), got %d body=%q",
+			slowElapsed, slowResp.StatusCode, string(slowRespBody))
+	}
+	if slowElapsed < slowWriteFloor {
+		t.Fatalf("slow /files/write finished in %s, want it paced past %s to exercise the 60s request timeout", slowElapsed, slowWriteFloor)
+	}
+	listResp, listBody, err := cli.Get("/servers/" + gs + "/files/list?path=" + url.QueryEscape("/"))
+	if err != nil {
+		t.Fatalf("list after slow write: %v", err)
+	}
+	_ = listResp.Body.Close()
+	var slowEntries []struct {
+		Name string `json:"name"`
+		Size int64  `json:"size"`
+	}
+	if err := json.Unmarshal(listBody, &slowEntries); err != nil {
+		t.Fatalf("decode list after slow write: %v body=%q", err, string(listBody))
+	}
+	foundSlow := false
+	for _, e := range slowEntries {
+		if e.Name == slowFileName {
+			foundSlow = true
+			if e.Size != slowWriteSize {
+				t.Fatalf("slow-written file size=%d want %d", e.Size, slowWriteSize)
+			}
+		}
+	}
+	if !foundSlow {
+		t.Fatalf("slow-written file %q not in listing: %s", slowFileName, string(listBody))
 	}
 
 	// Delete and verify the file is gone from a subsequent list.
@@ -367,4 +425,32 @@ func TestAPI_AgentUnreachable(t *testing.T) {
 			return false, "unexpected status " + http.StatusText(resp.StatusCode) + " body=" + s
 		}
 	})
+}
+
+// pacedReader yields data in fixed-size chunks with a pause before each
+// chunk after the first, so a request body trickles in over a known
+// minimum duration. Used to prove large-transfer routes survive the API's
+// 60s request-timeout (F-074).
+type pacedReader struct {
+	data  []byte
+	chunk int
+	pause time.Duration
+	off   int
+}
+
+func newPacedReader(data []byte, chunk int, pause time.Duration) *pacedReader {
+	return &pacedReader{data: data, chunk: chunk, pause: pause}
+}
+
+func (p *pacedReader) Read(b []byte) (int, error) {
+	if p.off >= len(p.data) {
+		return 0, io.EOF
+	}
+	if p.off > 0 {
+		time.Sleep(p.pause)
+	}
+	n := min(len(b), p.chunk, len(p.data)-p.off)
+	copy(b, p.data[p.off:p.off+n])
+	p.off += n
+	return n, nil
 }

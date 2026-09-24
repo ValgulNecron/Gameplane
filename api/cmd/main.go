@@ -736,7 +736,12 @@ func isLargeTransferPath(method, path string) bool {
 			strings.HasSuffix(path, ":capture-file")
 	}
 	if method == http.MethodPost && strings.HasPrefix(path, "/servers/") {
-		return strings.HasSuffix(path, "/files/upload")
+		// Same set isUploadPath exempts from bodyLimit: every route that
+		// accepts a large body also streams it to the agent on
+		// req.Context(), so it must outlive the 60s timeout too.
+		return strings.HasSuffix(path, "/files/upload") ||
+			strings.HasSuffix(path, "/files/write") ||
+			strings.HasSuffix(path, "/mods/upload")
 	}
 	return false
 }
