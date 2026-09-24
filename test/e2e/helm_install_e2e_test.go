@@ -208,6 +208,55 @@ func TestHelmInstall_APIHealthz(t *testing.T) {
 	})
 }
 
+// metricsProbeScript runs in a transient curl pod. It prints the public
+// API port's status code for /metrics, flags a Prometheus body there, and
+// reports whether the dedicated metrics port serves Prometheus text.
+const metricsProbeScript = `code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://gameplane-api/metrics)
+echo "public-status=$code"
+if curl -s --max-time 5 http://gameplane-api/metrics | grep -q '^# HELP'; then echo "public-body=metrics"; fi
+if curl -fsS --max-time 5 http://gameplane-api:9090/metrics | grep -q '^# HELP go_goroutines'; then echo "metrics-port=ok"; fi
+exit 0`
+
+// TestHelmInstall_MetricsNotOnPublicPort — the API's public port (the
+// Service port the Ingress and the web front end route to) does not serve
+// Prometheus metrics, and the dedicated metrics port that the ServiceMonitor
+// scrapes does. No login. Uses the same curl image as
+// TestHelmInstall_APIHealthz.
+func TestHelmInstall_MetricsNotOnPublicPort(t *testing.T) {
+	t.Parallel()
+
+	var out string
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		// Random suffix so an Eventually retry doesn't collide with a
+		// not-yet-cleaned-up pod from the previous tick.
+		name := fmt.Sprintf("metrics-probe-%d", time.Now().UnixNano())
+		o, err := envInstance.Kubectl(
+			t.Context(),
+			"run", "-n", "gameplane-system",
+			"--rm", "--restart=Never", "--attach",
+			"--image=curlimages/curl:8.10.1",
+			name,
+			"--command", "--",
+			"sh", "-c", metricsProbeScript,
+		)
+		if err != nil {
+			return false, fmt.Sprintf("metrics probe pod failed: %v\n%s", err, o)
+		}
+		if !strings.Contains(o, "public-status=") || strings.Contains(o, "public-status=000") {
+			return false, "api public port not answering yet:\n" + o
+		}
+		if !strings.Contains(o, "metrics-port=ok") {
+			return false, "api metrics port not serving Prometheus text yet:\n" + o
+		}
+		out = o
+		return true, ""
+	})
+
+	if strings.Contains(out, "public-status=2") || strings.Contains(out, "public-body=metrics") {
+		t.Fatalf("the API's public port served /metrics:\n%s", out)
+	}
+}
+
 // lastLines returns the last n lines of s (or all of s if shorter).
 func lastLines(s string, n int) string {
 	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")

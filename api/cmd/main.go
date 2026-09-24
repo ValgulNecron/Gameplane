@@ -17,7 +17,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ValgulNecron/gameplane/api/internal/audit"
@@ -257,7 +256,8 @@ func main() {
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
-	r.Handle("/metrics", promhttp.Handler())
+	// Prometheus metrics are served by the separate metrics listener below,
+	// never on this public router.
 
 	// Public auth routes
 	r.Route("/auth", func(r chi.Router) {
@@ -378,10 +378,32 @@ func main() {
 		}
 	}()
 
+	// Prometheus metrics get their own listener, so the public API port
+	// (the one the ingress and the web front end route to) never serves
+	// them. The chart's ServiceMonitor scrapes this port in-cluster.
+	var metricsSrv *http.Server
+	if cfg.metricsAddr != "" {
+		if cfg.metricsAddr == cfg.addr {
+			logger.Error("--metrics-addr must differ from --addr", "addr", cfg.addr)
+			os.Exit(1)
+		}
+		metricsSrv = newMetricsServer(cfg.metricsAddr)
+		go func() {
+			logger.Info("metrics listening", "addr", cfg.metricsAddr)
+			if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("metrics listen", "err", err)
+				os.Exit(1)
+			}
+		}()
+	}
+
 	<-ctx.Done()
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutCancel()
 	_ = srv.Shutdown(shutCtx)
+	if metricsSrv != nil {
+		_ = metricsSrv.Shutdown(shutCtx)
+	}
 	// The webhook worker flushes its buffered audit events once ctx is
 	// cancelled; wait for that drain (bounded) so a rolling restart doesn't cut
 	// off the final events instead of letting them reach the external sink.
@@ -403,10 +425,11 @@ func main() {
 }
 
 type config struct {
-	addr     string
-	dbDriver string
-	dbDSN    string
-	logLevel string
+	addr        string
+	metricsAddr string
+	dbDriver    string
+	dbDSN       string
+	logLevel    string
 
 	oidcIssuer                    string
 	oidcClientID                  string
@@ -457,6 +480,8 @@ type config struct {
 
 func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.addr, "addr", ":8000", "HTTP listen address")
+	fs.StringVar(&c.metricsAddr, "metrics-addr", envOr("GAMEPLANE_METRICS_ADDR", ":9090"),
+		"listen address for the Prometheus metrics endpoint, separate from --addr (empty = metrics not served)")
 	fs.StringVar(&c.logLevel, "log-level", envOr("GAMEPLANE_LOG_LEVEL", "info"),
 		"log verbosity: debug, info, warn, or error")
 	fs.StringVar(&c.dbDriver, "db-driver", envOr("GAMEPLANE_DB_DRIVER", "sqlite"), "sqlite or postgres")

@@ -73,7 +73,7 @@ api/
 Two subcommands:
 
 1. **`serve` (default)** — starts the HTTP server
-   - **Core flags:** `--addr`, `--db-driver`, `--db-dsn`, `--log-level`
+   - **Core flags:** `--addr`, `--metrics-addr`, `--db-driver`, `--db-dsn`, `--log-level`
    - **OIDC flags** (install-time, Helm-seeded): `--oidc-issuer`, `--oidc-client-id`, `--oidc-client-secret`, `--oidc-redirect-url`, `--oidc-display-name` (login button label, no hostname — pre-auth surface), `--oidc-groups-claim` (configurable claim name, defaults to "groups"), `--oidc-default-role` (default for unmapped users: "", "viewer", "operator", "admin", or "deny"), `--oidc-role-mapping-admin` (comma-separated group names for admin role), `--oidc-role-mapping-operator`, `--oidc-role-mapping-viewer`. All have `GAMEPLANE_OIDC_*` env fallbacks (preferred over flags for credentials).
    - **Storage class (report-only):** `--game-data-storage-class` — echoed in `GET /admin/config`'s `installTimeSettings.gameDataStorageClass`, read-only, unaffected by overrides.
    - **Other flags:** `--audit-*`, `--agent-*`, `--namespace`, `--cluster-ops`, `--update-channel`, `--curseforge-api-key`, `--telemetry-*`, `--capture-*` (default retention, max retention, max duration, max size)
@@ -88,7 +88,7 @@ Two subcommands:
 
 ### REST surface (domain-level)
 
-The HTTP server listens on `:8000` (configurable) with these route groups:
+The HTTP server listens on `:8000` (configurable) with these route groups. Prometheus metrics are not on this listener: a separate metrics listener (`--metrics-addr`, env `GAMEPLANE_METRICS_ADDR`, default `:9090`, empty disables it; `cmd/metrics.go`) routes only `GET /metrics`, and the chart's ServiceMonitor scrapes it. `--metrics-addr` equal to `--addr` is rejected at startup.
 
 **Public (pre-auth):**
 - `/auth/providers` — GET: list enabled login methods (no version/host/count, login privacy)
@@ -99,7 +99,6 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
 - `/auth/oidc/start` (legacy) — GET: single helm-provider start
 - `/auth/oidc/callback` (legacy) — GET: single helm-provider callback
 - `/healthz` — GET: liveness probe
-- `/metrics` — GET: Prometheus metrics (openmetrics format)
 
 **Protected (authenticated + RBAC):**
 - `/servers/{name}` — CRUD for GameServer CRDs; cluster-dispatch via `?cluster=`; multiplexed console/files
@@ -568,7 +567,7 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 ### Login privacy (rule 3)
 - `/auth/providers` omits version, cluster name, server count, hostnames
 - `/login` error is always "invalid credentials" (never "wrong password" vs "unknown user")
-- No internal metrics visible pre-auth
+- No internal metrics visible pre-auth; Prometheus metrics are served only on the separate metrics listener, never on the public port (tests: `cmd/metrics_test.go`, e2e `TestHelmInstall_MetricsNotOnPublicPort`)
 
 ## Testing & coverage
 

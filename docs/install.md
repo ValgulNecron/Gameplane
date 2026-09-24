@@ -235,7 +235,9 @@ Top-level knobs (see `values.yaml` for the full list):
 ## Observability
 
 The operator, API, and in-pod agent sidecars expose Prometheus metrics on
-`/metrics` (operator `:8080`, API `:8000`, agent `:8090`). Three
+`/metrics` (operator `:8080`, API `:9090`, agent `:8090`). The API serves
+metrics on a dedicated listener (`api.metricsPort`, default `9090`), not on
+its public port, so only in-cluster scrapers reach them. Three
 **off-by-default** chart toggles wire them into a Prometheus-Operator stack
 (e.g. kube-prometheus-stack):
 
