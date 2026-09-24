@@ -939,6 +939,12 @@ func (h *captureHandler) captureDelete(w http.ResponseWriter, req *http.Request)
 
 // captureDownload downloads the capture file from the sidecar.
 // GET /servers/{name}:capture-file?id={id}
+//
+// Unlike the other capture routes, which act on NetworkCapture objects
+// through the cluster registry, the download streams from the sidecar's
+// in-cluster Service using the home cluster's mTLS material, so it is
+// served for the home cluster only: a non-local `?cluster=` answers 404
+// (audited with reason "cluster_not_local"), as rejectRemoteCluster does.
 func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Request) {
 	k, ok := resolveCluster(w, req, h.reg)
 	if !ok {
@@ -952,6 +958,14 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 	captureID := req.URL.Query().Get("id")
 	auditPath := fmt.Sprintf("/servers/%s:capture-file", name)
 	target := fmt.Sprintf("%s:%s", name, captureID)
+
+	if isRemoteCluster(req) {
+		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "cluster_not_local", http.StatusNotFound) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusNotFound, errors.New("not found"))
+		return
+	}
 
 	if captureID == "" {
 		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "missing_id", http.StatusBadRequest) {
