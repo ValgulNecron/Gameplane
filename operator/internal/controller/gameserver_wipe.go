@@ -2,10 +2,12 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -178,7 +180,20 @@ func (r *GameServerReconciler) ackWipe(ctx context.Context, gs *gameplanev1alpha
 		gs.Annotations = map[string]string{}
 	}
 	gs.Annotations[WipeCompletedAnnotation] = token
-	return r.Patch(ctx, gs, patch)
+	if err := r.Patch(ctx, gs, patch); err != nil {
+		return err
+	}
+	// A successful wipe clears a DataWipe=False left by an earlier failed
+	// request, so the condition only ever describes the latest wipe.
+	if meta.FindStatusCondition(gs.Status.Conditions, gameplanev1alpha1.GameServerConditionDataWipe) == nil {
+		return nil
+	}
+	base := gs.DeepCopy()
+	gs.Status.Conditions = removeCondition(gs.Status.Conditions, gameplanev1alpha1.GameServerConditionDataWipe)
+	if err := r.Status().Patch(ctx, gs, client.MergeFrom(base)); err != nil {
+		return fmt.Errorf("clear DataWipe condition: %w", err)
+	}
+	return nil
 }
 
 func (r *GameServerReconciler) deleteWipeJob(ctx context.Context, ns, name string) error {
