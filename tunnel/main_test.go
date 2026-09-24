@@ -493,7 +493,7 @@ func TestRenderConfigDispatchesByType(t *testing.T) {
 				TunnelType:         "frp",
 				FrpServerAddr:      "frp.example.com",
 				BackingServiceDNS:  "svc.svc",
-				BackingServicePort: "game:25565",
+				BackingServicePort: "game:25565:30000:tcp",
 			},
 		},
 		{
@@ -864,7 +864,7 @@ func TestRunContextCancellation(t *testing.T) {
 		FrpServerAddr:       "localhost",
 		FrpServerPort:       7000,
 		BackingServiceDNS:   "test.games.svc",
-		BackingServicePort:  "game:25565",
+		BackingServicePort:  "game:25565:30000:tcp",
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -903,7 +903,7 @@ func TestRunTransientFailureBacksOffThenCancels(t *testing.T) {
 		FrpServerAddr:       "localhost",
 		FrpServerPort:       7000,
 		BackingServiceDNS:   "test.games.svc",
-		BackingServicePort:  "game:25565",
+		BackingServicePort:  "game:25565:30000:tcp",
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
