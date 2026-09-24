@@ -297,7 +297,7 @@ func TestWrite_PreservesExistingFileOnCopyError(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	h := &handler{root: resolved}
-	req := httptest.NewRequest(http.MethodPost, "/files/write?path=/keep.txt", &errAfterReader{n: 4})
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/files/write?path=/keep.txt", &errAfterReader{n: 4})
 	rr := httptest.NewRecorder()
 	h.write(rr, req)
 	if rr.Code == http.StatusNoContent {
