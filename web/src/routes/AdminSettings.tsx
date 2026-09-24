@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ChangeEvent, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ChangeEvent, type ComponentType, type ReactNode, type SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -42,7 +42,7 @@ import { SlackIcon } from "@/components/ui/SlackIcon";
 import { SettingsNav, type SettingsSectionKey } from "@/components/ui/SettingsNav";
 import { cn, formatRelative } from "@/lib/utils";
 import { errorText } from "@/lib/errors";
-import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications } from "@/lib/endpoints";
+import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications, type SinkSecretBody } from "@/lib/endpoints";
 import { can, useMe } from "@/lib/auth";
 import type { ClusterInfo } from "@/types";
 import {
@@ -53,6 +53,7 @@ import {
   type AuthDefaultRole,
   type AuthKind,
   type AuthProvider,
+  type AuthRoleMappings,
   type GeneralCfg,
   type InstallTimeSettings,
   type KeyedRegistryProvider,
@@ -191,13 +192,26 @@ function SaveStatus({
   return null;
 }
 
+// A change to an API-managed Secret, staged alongside a section draft.
+// Save runs writes before the config PUT (the saved rows reference them)
+// and removals only after the PUT succeeds. Leaving the section without
+// saving discards every staged change.
+type StagedSecret = { kind: "write" | "remove"; run: () => Promise<unknown> };
+
 // useSectionForm wires the common pattern: hold a draft of the section
 // payload, submit on Save, surface server validation errors as the
 // rendered SaveStatus, and reset the "Saved" indicator on next edit.
+// Managed-Secret changes are staged with the draft (stageSecret) and
+// applied only by Save, so the stored config and its Secrets change
+// together.
 function useSectionForm<T>(initial: T, section: Parameters<typeof useUpdateConfigSection>[0]) {
   const [draft, setDraft] = useState<T>(initial);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [writing, setWriting] = useState(false);
+  // Keyed per Secret (for example "sink:<name>"): a later change to the
+  // same Secret replaces the earlier one.
+  const [staged, setStaged] = useState<Record<string, StagedSecret>>({});
   const mut = useUpdateConfigSection(section);
 
   const update = (patch: Partial<T>) => {
@@ -206,22 +220,54 @@ function useSectionForm<T>(initial: T, section: Parameters<typeof useUpdateConfi
     setSaved(false);
   };
 
-  const replace = (next: T) => {
+  const replace = (next: SetStateAction<T>) => {
     setDraft(next);
     setError(null);
     setSaved(false);
   };
 
-  const save = () => {
+  const stageSecret = (key: string, change: StagedSecret) => {
+    setStaged((s) => ({ ...s, [key]: change }));
+  };
+
+  const fail = (message: string) => {
+    setSaved(false);
+    setError(message);
+  };
+
+  const run = async () => {
     setSaved(false);
     setError(null);
+    const changes = staged;
+    const list = Object.values(changes);
+    setWriting(true);
+    try {
+      await Promise.all(list.filter((c) => c.kind === "write").map((c) => c.run()));
+    } catch (e) {
+      setError(errorText(e, "Failed to store a secret"));
+      return;
+    } finally {
+      setWriting(false);
+    }
     mut.mutate(draft as never, {
-      onSuccess: () => setSaved(true),
+      onSuccess: () => {
+        for (const c of list) {
+          if (c.kind === "remove") void c.run().catch(() => undefined);
+        }
+        setStaged((s) =>
+          Object.fromEntries(Object.entries(s).filter(([key, c]) => changes[key] !== c)),
+        );
+        setSaved(true);
+      },
       onError: (e) => setError(errorText(e, "Save failed")),
     });
   };
 
-  return { draft, update, replace, save, pending: mut.isPending, error, saved };
+  const save = () => {
+    void run();
+  };
+
+  return { draft, update, replace, save, stageSecret, fail, pending: mut.isPending || writing, error, saved };
 }
 
 const defaultGeneral: GeneralCfg = {
@@ -284,6 +330,21 @@ const parseGroups = (raw: string) =>
     .map((g) => g.trim())
     .filter(Boolean);
 
+// withoutRoleOverride drops one role's dashboard override from an auth
+// draft: the same change the reset endpoint makes to the stored config,
+// including removing containers left empty.
+function withoutRoleOverride(cfg: AuthCfg, role: "admin" | "operator" | "viewer"): AuthCfg {
+  const mappings: AuthRoleMappings = { ...cfg.helmOverride?.roleMappings };
+  delete mappings[role];
+  const next: AuthCfg = { ...cfg };
+  if (Object.keys(mappings).length > 0) {
+    next.helmOverride = { ...cfg.helmOverride, roleMappings: mappings };
+  } else {
+    delete next.helmOverride;
+  }
+  return next;
+}
+
 function AuthSection({ initial, general, installTimeSettings }: { initial?: AuthCfg; general?: GeneralCfg; installTimeSettings?: InstallTimeSettings }) {
   const f = useSectionForm<AuthCfg>(initial ?? defaultAuth, "auth");
   const [adding, setAdding] = useState(false);
@@ -306,10 +367,13 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
   };
   const removeProvider = (idx: number) => {
     const p = f.draft.providers[idx];
-    // Best-effort cleanup of the API-managed clientSecret Secret; the
-    // server refuses Secrets it didn't create.
+    // The API-managed clientSecret Secret is removed only by the Save that
+    // drops this row; the server refuses Secrets it didn't create.
     if (!p.configRef || p.configRef === providerSecretPrefix + p.name) {
-      void AuthProviders.deleteSecret(p.name).catch(() => undefined);
+      f.stageSecret(`provider:${p.name}`, {
+        kind: "remove",
+        run: () => AuthProviders.deleteSecret(p.name),
+      });
     }
     f.replace({ ...f.draft, providers: f.draft.providers.filter((_, i) => i !== idx) });
   };
@@ -397,7 +461,13 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
           <AddProviderForm
             existing={f.draft.providers.map((p) => p.name)}
             externalURLSet={Boolean(general?.externalURL)}
-            onAdd={(p) => f.replace({ ...f.draft, providers: [...f.draft.providers, p] })}
+            onAdd={(p, clientSecret) => {
+              f.stageSecret(`provider:${p.name}`, {
+                kind: "write",
+                run: () => AuthProviders.putSecret(p.name, { clientSecret }),
+              });
+              f.replace({ ...f.draft, providers: [...f.draft.providers, p] });
+            }}
             onClose={() => setAdding(false)}
           />
         ) : (
@@ -415,6 +485,8 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
           initial={f.draft}
           installTimeSettings={installTimeSettings}
           onUpdate={f.replace}
+          onResetDone={(role) => f.replace((d) => withoutRoleOverride(d, role))}
+          onResetError={f.fail}
           formState={{ pending: f.pending, error: f.error, saved: f.saved }}
           onSave={f.save}
         />
@@ -450,7 +522,7 @@ function AddProviderForm({
 }: {
   existing: string[];
   externalURLSet: boolean;
-  onAdd: (p: AuthProvider) => void;
+  onAdd: (p: AuthProvider, clientSecret: string) => void;
   onClose: () => void;
 }) {
   const [kind, setKind] = useState<AuthKind>("oidc");
@@ -465,8 +537,6 @@ function AddProviderForm({
   const [operatorGroups, setOperatorGroups] = useState("");
   const [viewerGroups, setViewerGroups] = useState("");
   const [defaultRole, setDefaultRole] = useState<AuthDefaultRole | "">("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [confirmingAdmin, setConfirmingAdmin] = useState(false);
 
 
@@ -483,7 +553,6 @@ function AddProviderForm({
   // needs a bridge (Dex or similar) whose issuer goes here.
   const applyPreset = (k: AuthKind) => {
     setKind(k);
-    setError(null);
     if (k === "google") {
       setIssuer("https://accounts.google.com");
       if (!displayName) setDisplayName("Google");
@@ -497,23 +566,20 @@ function AddProviderForm({
     dns.test(name) && name !== "helm" && name.length <= maxProviderName && !existing.includes(name);
   const valid = nameOk && /^https?:\/\/.+/.test(issuer) && clientID !== "" && clientSecret !== "";
 
-  // Store the clientSecret first; the provider row references the
-  // returned Secret and lands in the config on the section's Save.
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await AuthProviders.putSecret(name, { clientSecret });
-      const scopeList = parseScopes(scopes);
-      const claim = groupsClaim.trim();
-      onAdd({
+  // The clientSecret is written by the section's Save, just before the
+  // provider row that references it; nothing is stored before then.
+  const submit = () => {
+    const scopeList = parseScopes(scopes);
+    const claim = groupsClaim.trim();
+    onAdd(
+      {
         name,
         kind,
         ...(displayName ? { displayName } : {}),
         enabled: true,
         issuer,
         clientID,
-        configRef: res.name,
+        configRef: providerSecretPrefix + name,
         ...(scopeList.length > 0 ? { scopes: scopeList } : {}),
         ...(claim ? { groupsClaim: claim } : {}),
         ...(hasMappings
@@ -526,13 +592,10 @@ function AddProviderForm({
             }
           : {}),
         ...(hasMappings && defaultRole ? { defaultRole } : {}),
-      });
-      onClose();
-    } catch (e) {
-      setError(errorText(e, "Failed to store the client secret"));
-    } finally {
-      setBusy(false);
-    }
+      },
+      clientSecret,
+    );
+    onClose();
   };
 
   // Handle submit button click — if admin groups exist and not yet confirmed,
@@ -542,7 +605,7 @@ function AddProviderForm({
       setConfirmingAdmin(true);
       return;
     }
-    void submit();
+    submit();
   };
 
   return (
@@ -709,13 +772,12 @@ function AddProviderForm({
           </TextField>
         </div>
       </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button variant="ghost" onPress={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" isDisabled={!valid || busy} onPress={handleSubmitClick}>
-          {busy ? "Storing…" : "Add provider"}
+        <Button variant="primary" isDisabled={!valid} onPress={handleSubmitClick}>
+          Add provider
         </Button>
       </div>
 
@@ -727,10 +789,9 @@ function AddProviderForm({
           }
         }}
         adminGroups={adminList}
-        busy={busy}
         onConfirm={() => {
           setConfirmingAdmin(false);
-          void submit();
+          submit();
         }}
       />
     </div>
@@ -916,28 +977,18 @@ function SetRegistryKeyForm({
   provider: KeyedRegistryProvider;
   label: string;
   replacing: boolean;
-  onSaved: (entry: ModRegistryEntry) => void;
+  onSaved: (entry: ModRegistryEntry, apiKey: string) => void;
   onClose: () => void;
 }) {
   const [apiKey, setApiKey] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  // Store the key Secret directly; the section's Save persists the
-  // registries row referencing it. The key itself is never displayed —
-  // this input only ever writes, and the server never echoes the value.
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await ModRegistries.putSecret(provider, apiKey);
-      onSaved({ provider, configRef: res.name });
-      onClose();
-    } catch (e) {
-      setError(errorText(e, "Failed to store the API key"));
-    } finally {
-      setBusy(false);
-    }
+  // The key is written by the section's Save, just before the registries
+  // row that references it; nothing is stored before then. The key itself
+  // is never displayed — this input only ever writes, and the server never
+  // echoes the value.
+  const submit = () => {
+    onSaved({ provider, configRef: registryKeySecretPrefix + provider }, apiKey);
+    onClose();
   };
 
   return (
@@ -954,11 +1005,10 @@ function SetRegistryKeyForm({
           spellCheck={false}
         />
       </Field>
-      {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button variant="ghost" onPress={onClose}>Cancel</Button>
-        <Button isDisabled={apiKey.trim() === "" || busy} onPress={() => void submit()}>
-          {busy ? "Storing…" : "Save"}
+        <Button isDisabled={apiKey.trim() === ""} onPress={submit}>
+          Save
         </Button>
       </div>
     </div>
@@ -973,10 +1023,13 @@ function ModRegistriesSection({ initial }: { initial?: ModRegistriesCfg }) {
 
   const removeEntry = (provider: KeyedRegistryProvider) => {
     const entry = entryFor(provider);
-    // Best-effort cleanup of the API-managed key Secret; the server
-    // refuses Secrets it didn't create.
+    // The API-managed key Secret is removed only by the Save that drops
+    // this row; the server refuses Secrets it didn't create.
     if (!entry?.configRef || entry.configRef === registryKeySecretPrefix + provider) {
-      void ModRegistries.deleteSecret(provider).catch(() => undefined);
+      f.stageSecret(`registry:${provider}`, {
+        kind: "remove",
+        run: () => ModRegistries.deleteSecret(provider),
+      });
     }
     f.replace({ ...f.draft, registries: f.draft.registries.filter((r) => r.provider !== provider) });
   };
@@ -1041,12 +1094,16 @@ function ModRegistriesSection({ initial }: { initial?: ModRegistriesCfg }) {
           provider={editing}
           label={keyedRegistryProviders.find((p) => p.provider === editing)?.label ?? editing}
           replacing={Boolean(entryFor(editing))}
-          onSaved={(entry) =>
+          onSaved={(entry, apiKey) => {
+            f.stageSecret(`registry:${entry.provider}`, {
+              kind: "write",
+              run: () => ModRegistries.putSecret(entry.provider, apiKey),
+            });
             f.replace({
               ...f.draft,
               registries: [...f.draft.registries.filter((r) => r.provider !== entry.provider), entry],
-            })
-          }
+            });
+          }}
           onClose={() => setEditing(null)}
         />
       )}
@@ -1120,18 +1177,15 @@ function AddSinkForm({
   onClose,
 }: {
   existing: string[];
-  onAdd: (s: NotifSink) => void;
+  onAdd: (s: NotifSink, credentials: SinkSecretBody) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<SinkKind>("discord");
   const [events, setEvents] = useState<NotifEventType[]>(defaultOnEvents);
   const [creds, setCreds] = useState<Record<string, string>>({ tls: "starttls" });
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const cred = (key: string) => creds[key] ?? "";
   const setCred = (key: string) => (e: ChangeEvent<HTMLInputElement>) => {
-    setError(null);
     setCreds((c) => ({ ...c, [key]: e.target.value }));
   };
 
@@ -1144,35 +1198,26 @@ function AddSinkForm({
   const toggleEvent = (ev: NotifEventType) =>
     setEvents((cur) => (cur.includes(ev) ? cur.filter((e) => e !== ev) : [...cur, ev]));
 
-  // Store the credential Secret first; the sink row references it via the
-  // returned configRef and lands in the config on the section's Save.
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const body =
-        kind === "smtp"
-          ? {
-              kind,
-              host: cred("host"),
-              port: cred("port"),
-              username: cred("username"),
-              password: cred("password"),
-              from: cred("from"),
-              to: cred("to"),
-              tls: cred("tls"),
-            }
-          : kind === "ntfy"
-            ? { kind, url: cred("url"), token: cred("token") }
-            : { kind, url: cred("url"), authorization: cred("authorization") };
-      const res = await Notifications.putSecret(name, body);
-      onAdd({ name, kind, enabled: true, configRef: res.name, events });
-      onClose();
-    } catch (e) {
-      setError(errorText(e, "Failed to store the sink credentials"));
-    } finally {
-      setBusy(false);
-    }
+  // The credentials are written by the section's Save, just before the
+  // sink row that references them; nothing is stored before then.
+  const submit = () => {
+    const body: SinkSecretBody =
+      kind === "smtp"
+        ? {
+            kind,
+            host: cred("host"),
+            port: cred("port"),
+            username: cred("username"),
+            password: cred("password"),
+            from: cred("from"),
+            to: cred("to"),
+            tls: cred("tls"),
+          }
+        : kind === "ntfy"
+          ? { kind, url: cred("url"), token: cred("token") }
+          : { kind, url: cred("url"), authorization: cred("authorization") };
+    onAdd({ name, kind, enabled: true, configRef: sinkSecretPrefix + name, events }, body);
+    onClose();
   };
 
   return (
@@ -1295,11 +1340,10 @@ function AddSinkForm({
           ))}
         </div>
       </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button variant="ghost" onPress={onClose}>Cancel</Button>
-        <Button isDisabled={!nameOk || !credsOk || busy} onPress={() => void submit()}>
-          {busy ? "Storing…" : "Add sink"}
+        <Button isDisabled={!nameOk || !credsOk} onPress={submit}>
+          Add sink
         </Button>
       </div>
     </div>
@@ -1458,11 +1502,14 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
                 isIconOnly
                 aria-label={`Delete sink ${s.name}`}
                 onPress={() => {
-                  // Best-effort cleanup of the API-managed Secret; the
-                  // server refuses user-created Secrets, and a failure
-                  // only leaves an orphaned Secret behind.
+                  // The API-managed Secret is removed only by the Save
+                  // that drops this sink; the server refuses user-created
+                  // Secrets.
                   if (s.configRef === sinkSecretPrefix + s.name) {
-                    void Notifications.deleteSecret(s.name).catch(() => undefined);
+                    f.stageSecret(`sink:${s.name}`, {
+                      kind: "remove",
+                      run: () => Notifications.deleteSecret(s.name),
+                    });
                   }
                   f.update({ sinks: f.draft.sinks.filter((_, i) => i !== idx) });
                 }}
@@ -1476,7 +1523,13 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
       {adding ? (
         <AddSinkForm
           existing={f.draft.sinks.map((s) => s.name)}
-          onAdd={(s) => f.update({ sinks: [...f.draft.sinks, s] })}
+          onAdd={(s, credentials) => {
+            f.stageSecret(`sink:${s.name}`, {
+              kind: "write",
+              run: () => Notifications.putSecret(s.name, credentials),
+            });
+            f.update({ sinks: [...f.draft.sinks, s] });
+          }}
           onClose={() => setAdding(false)}
         />
       ) : (
@@ -1656,12 +1709,16 @@ function RoleMappingOverridesCard({
   initial,
   installTimeSettings,
   onUpdate,
+  onResetDone,
+  onResetError,
   formState,
   onSave,
 }: {
   initial: AuthCfg;
   installTimeSettings?: InstallTimeSettings;
   onUpdate: (cfg: AuthCfg) => void;
+  onResetDone: (role: "admin" | "operator" | "viewer") => void;
+  onResetError: (message: string) => void;
   formState: { pending: boolean; error: string | null; saved: boolean };
   onSave: () => void;
 }) {
@@ -1745,14 +1802,14 @@ function RoleMappingOverridesCard({
     });
   };
 
+  // A reset removes the stored override. Dropping it from the section
+  // draft as well keeps the card on the Helm value and keeps a later save
+  // from writing the override back. A failure shows in the section's save
+  // status and leaves the draft as it was.
   const handleReset = (role: "admin" | "operator" | "viewer") => {
     resetMutation.mutate(role, {
-      onSuccess: () => {
-        // Invalidates config query via the mutation hook, which will refetch
-      },
-      onError: (err) => {
-        console.error("Failed to reset role mapping:", err);
-      },
+      onSuccess: () => onResetDone(role),
+      onError: (err) => onResetError(errorText(err, "Reset failed")),
     });
   };
 

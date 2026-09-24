@@ -5,6 +5,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
+import { makeConfig } from "@/test/factories";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
@@ -1336,9 +1337,179 @@ describe("AdminSettingsPage", () => {
     const confirmBtn = screen.getByRole("button", { name: /Map to admin role/ });
     await userEvent.click(confirmBtn);
 
+    // The provider row lands in the draft; its secret is stored by the
+    // section's Save changes.
+    await screen.findByText(/oidc · https:\/\/example\.com/i);
+    expect(secretHandler).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /^Save changes$/i }));
+
     // Verify the secret was stored (indicating the form was submitted)
     await waitFor(() => {
       expect(secretHandler).toHaveBeenCalled();
     });
+  });
+});
+
+describe("AdminSettingsPage draft and managed Secret lifecycle", () => {
+  const helmAdminInstall = {
+    oidcHelmProvider: {
+      groupsClaim: "groups",
+      defaultRole: "viewer",
+      roleMappings: { admin: ["helm-admins"] },
+    },
+  };
+
+  it("keeps a reset role mapping reset through the next section save", async () => {
+    let configState: Record<string, unknown> = {
+      auth: {
+        providers: [{ name: "Local accounts", kind: "local", enabled: true }],
+        helmOverride: { roleMappings: { admin: ["dashboard-admins"] } },
+      },
+      installTimeSettings: helmAdminInstall,
+    };
+    let saved: Record<string, unknown> | undefined;
+    server.use(
+      http.get("/admin/config", () => HttpResponse.json(configState)),
+      http.get("/auth/providers", () => HttpResponse.json({ providers: [] })),
+      http.delete("/admin/config/auth/role-mappings/admin", () => {
+        configState = {
+          auth: { providers: [{ name: "Local accounts", kind: "local", enabled: true }] },
+          installTimeSettings: helmAdminInstall,
+        };
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.put("/admin/config/auth", async ({ request }) => {
+        saved = (await request.json()) as Record<string, unknown>;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /Reset to Helm default/ }));
+
+    // The card shows the Helm value without a reload.
+    await waitFor(() =>
+      expect(screen.queryByText("Overridden in dashboard")).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("button", { name: /Reset to Helm default/ })).not.toBeInTheDocument();
+
+    // The next save of the section doesn't carry the reset override.
+    await userEvent.click(screen.getByRole("button", { name: /^Save changes$/i }));
+    await waitFor(() => expect(saved).toBeDefined());
+    expect(saved?.helmOverride).toBeUndefined();
+  });
+
+  it("reports a failed role mapping reset and keeps the override in the draft", async () => {
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json({
+          auth: {
+            providers: [{ name: "Local accounts", kind: "local", enabled: true }],
+            helmOverride: { roleMappings: { admin: ["dashboard-admins"] } },
+          },
+          installTimeSettings: helmAdminInstall,
+        }),
+      ),
+      http.get("/auth/providers", () => HttpResponse.json({ providers: [] })),
+      http.delete("/admin/config/auth/role-mappings/admin", () =>
+        HttpResponse.text("reset refused", { status: 500 }),
+      ),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /Reset to Helm default/ }));
+
+    expect(await screen.findByText("reset refused")).toBeInTheDocument();
+    expect(screen.getByText("Overridden in dashboard")).toBeInTheDocument();
+  });
+
+  it("keeps a removed sink's Secret until the removal is saved", async () => {
+    const calls: string[] = [];
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json(
+          makeConfig({
+            notifications: {
+              sinks: [
+                {
+                  name: "team-alerts",
+                  kind: "discord",
+                  enabled: true,
+                  configRef: "gameplane-notify-team-alerts",
+                },
+              ],
+            },
+          }),
+        ),
+      ),
+      http.delete("/admin/notifications/sinks/:name/secret", ({ params }) => {
+        calls.push(`delete:${String(params.name)}`);
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.put("/admin/config/notifications", () => {
+        calls.push("config");
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /Notifications/i }));
+    await screen.findByText("team-alerts");
+    await userEvent.click(screen.getByRole("button", { name: /Delete sink team-alerts/i }));
+    expect(await screen.findByText(/No notification sinks configured/i)).toBeInTheDocument();
+
+    // Leaving the section without saving discards the draft and touches no Secret.
+    await userEvent.click(screen.getByRole("button", { name: /General/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/i }));
+    expect(await screen.findByText("team-alerts")).toBeInTheDocument();
+    expect(calls).toEqual([]);
+
+    // A saved removal removes the Secret after the config stops referencing it.
+    await userEvent.click(screen.getByRole("button", { name: /Delete sink team-alerts/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^Save changes$/i }));
+    await waitFor(() => expect(calls).toEqual(["config", "delete:team-alerts"]));
+  });
+
+  it("stores no Secret for a sink that is added but never saved", async () => {
+    const secretWrites = vi.fn(() =>
+      HttpResponse.json({ name: "gameplane-notify-ops", keys: ["url"] }),
+    );
+    server.use(http.put("/admin/notifications/sinks/:name/secret", secretWrites));
+    renderWithQuery(<AdminSettingsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /Notifications/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /Add sink/i }));
+    await userEvent.type(screen.getByPlaceholderText("team-alerts"), "ops");
+    await userEvent.type(
+      screen.getByPlaceholderText(/discord\.com/i),
+      "https://discord.com/api/webhooks/1/x",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Add sink$/i }));
+    expect(await screen.findByText(/discord · Secret: gameplane-notify-ops/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /General/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/i }));
+    expect(await screen.findByText(/No notification sinks configured/i)).toBeInTheDocument();
+    expect(secretWrites).not.toHaveBeenCalled();
+  });
+
+  it("stores no client secret for a provider that is added but never saved", async () => {
+    const secretWrites = vi.fn(() =>
+      HttpResponse.json({ name: "gameplane-auth-corp", keys: ["clientSecret"] }),
+    );
+    server.use(http.put("/admin/auth/providers/:name/secret", secretWrites));
+    renderWithQuery(<AdminSettingsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /Authentication/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    await userEvent.type(screen.getByPlaceholderText("corp-sso"), "corp");
+    await userEvent.type(screen.getByPlaceholderText(/idp\.example/i), "https://idp.corp.example");
+    await userEvent.type(screen.getByLabelText(/Client ID/i), "gameplane");
+    await userEvent.type(screen.getByLabelText(/Client secret/i), "s3cret");
+    await userEvent.click(screen.getByRole("button", { name: /^Add provider$/i }));
+    expect(await screen.findByText(/oidc · https:\/\/idp\.corp\.example/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /General/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
+    await screen.findByRole("button", { name: /Add provider/i });
+    expect(screen.queryByText(/oidc · https:\/\/idp\.corp\.example/i)).not.toBeInTheDocument();
+    expect(secretWrites).not.toHaveBeenCalled();
   });
 });

@@ -12,7 +12,9 @@ jobs:
   images:
     name: build & push images
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Go stages cross-compile (FROM --platform=$BUILDPLATFORM), so a component
+    # normally builds in a few minutes; the margin covers a cold cache.
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write

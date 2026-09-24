@@ -70,6 +70,13 @@ server {
     listen       [::]:8080;
     server_name  _;
 
+    # Matches the ingress's nginx.ingress.kubernetes.io/proxy-body-size (see
+    # charts/gameplane/values.yaml, ingress.annotations). Without this, nginx's
+    # compiled-in 1m default rejects any dashboard file/mod upload over 1 MiB
+    # with 413, even though the ingress and the API both allow up to 64 MiB.
+    # See findings.md F-251.
+    client_max_body_size 64m;
+
     # The built SPA lives here (copied from web/dist in the Dockerfile).
     root   /usr/share/nginx/html;
 
