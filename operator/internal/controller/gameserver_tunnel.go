@@ -520,8 +520,6 @@ func (r *GameServerReconciler) deleteTunnel(ctx context.Context, namespace, gsNa
 	return client.IgnoreNotFound(r.Delete(ctx, dep, &client.DeleteOptions{PropagationPolicy: &policy}))
 }
 
-// buildFrpRemotePortsConfig constructs the BACKING_SERVICE_PORT env var for frp.
-// Format: "port_name:remote_port,..." e.g. "java:25565,bedrock:19133"
 // buildFrpRemotePortsConfig constructs the BACKING_SERVICE_PORT env var for
 // frp. Format: "port_name:local_port:remote_port:protocol,..." e.g.
 // "game:34197:30000:udp". local_port and protocol come from the matching
