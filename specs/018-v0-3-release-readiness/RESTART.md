@@ -1,6 +1,6 @@
 # Restart Guide: spec 018 (v0.3 release readiness)
 
-Hand-off as of 2026-09-24 ~23:30 UTC (end of the fourth session, a cloud session). Read this first, then [tasks.md](tasks.md) and [OPEN-DECISIONS.md](OPEN-DECISIONS.md).
+Live hand-off, last updated during session 5 (a cloud session, 2026-09-25 ~00:00 UTC). **After every context compaction, re-read this file first**, then [tasks.md](tasks.md) and [OPEN-DECISIONS.md](OPEN-DECISIONS.md). Keep this file current before context runs out.
 
 ## 0. Setup
 
@@ -12,6 +12,7 @@ Hand-off as of 2026-09-24 ~23:30 UTC (end of the fourth session, a cloud session
 
 All of these still apply.
 
+- **Context:** use `Workflow` and `Agent` for triage, fixes and reviews, so the main loop's context isn't used up (maintainer, session 5). Work only in scratchpad worktrees, never by switching the main checkout's branch.
 - **OD-019:** held fixes read as neutral "hardening": no held IDs or repros in branches, commits, comments or PRs.
 - **CLAUDE.md 8:** compile checks only locally. CI is the verifier.
 - **Branches and PRs:**
@@ -20,101 +21,68 @@ All of these still apply.
   - Only the maintainer merges.
 - **Branch deletion:** the cloud session can't delete remote branches (403). Ask the maintainer, or enable GitHub's "Automatically delete head branches".
 - **`github-advanced-security`:** ignore this check. It is Copilot autofind and always fails with "model not supported", per the maintainer.
-- **Open PRs:** don't leave them to rot. Watch every open PR, fix red CI immediately, and say what is ready to merge.
+- **Open PRs:** don't leave them to rot. Watch every open PR, fix red CI immediately, and say what is ready to merge. Session 5 is subscribed to #427–#447 and has an hourly `send_later` check-in.
 - **Scope:** no design work (OD-025 groups 3, 7, 12, 13 and 36, the H31b dashboard, #434) and no held security fixes in cloud sessions. The held fixes (H31a onward) are done on the devbox.
 - **Questions:** ask with the question tool, one issue plus its proposed fix per question. Never ask a blanket "go ahead or wait".
 - **Model tiers (CLAUDE.md 13):** fable is banned. Opus work gets an independent opus review.
-- **Worktrees:** an agent once left the main checkout on a fix branch. Check `git branch --show-current` before committing records.
+- **Helm:** CI uses Helm 4 (`azure/setup-helm` latest). For local `helm template` checks, download a helm binary into the scratchpad.
 
-## 2. Record edits from session 4
+## 2. Decisions
 
-Applied: `audit/findings.md` Status/Fix PR updates (F-213/F-214/F-218 → #443, F-074/F-075 → #444, F-258 → #445, F-125 → #440, F-159..F-162 → #441, F-179/F-180 → #446, F-174 → #447; F-105/F-106 left alone), and `OPEN-DECISIONS.md` OD-021 and OD-026 marked RESOLVED 2026-09-24 with their resolutions recorded there.
-
-### Decisions from session 4
-
+- **Session 4 records (applied in `3990fa18`):**
+  - `audit/findings.md` Status/Fix PR updates.
+  - OD-021 and OD-026 RESOLVED 2026-09-24. Their resolutions are in OPEN-DECISIONS.md, and the live rounds use them.
+  - **Still to do:** set F-105/F-106 to `fixing` once the group-18 PR is open.
 - **rc.1:** don't re-run or move the tag; `v0.3.0-rc.1` predates #435. Cut **rc.2** from master once the current fixes land (T057).
-- **#430:** remote-cluster requests to home-cluster-only routes answer **501**, with the body `httperr.RemoteClusterNotImplemented`. The maintainer asked for this; the cross-cluster agent comes later. It is done, pushed as `94e79456`.
+- **#430:** remote-cluster requests to home-cluster-only routes answer **501**, with the body `httperr.RemoteClusterNotImplemented`. The maintainer asked for this; the cross-cluster agent comes later.
 - **#434** (a design PR from session 3) is ignored for now.
 
 ## 3. PR state
 
-At the end of session 4, every open PR is green on its head, except where noted below.
+### Merged (findings already `fixed-unverified`)
 
-### Merged
-
-- #432: F-215, backup/restore egress.
-- #435: F-257, Go images cross-compile. `publish-edge` on master confirmed that 9 of the 12 images build and sign in 1–4 minutes. Confirm operator, api and web finished (run 36069312826).
+- #432: F-215.
+- #435: F-257. Confirm the operator, api and web images finished on `publish-edge` (run 36069312826).
 - #438: F-121.
 - #431: held H03. Update `held/findings.md` on the devbox.
-- F-215, F-257 and F-121 are already `fixed-unverified` in findings.md.
 
-### Open, green, ready to merge
+### Green at the end of session 4; ready to merge
 
 | PR | Content |
 |---|---|
-| #427 | held H02 hardening |
-| #428 | group 8: F-172, F-052, F-173 |
+| #428 | group 8: F-172, F-052, F-173 (merge before #447) |
 | #429 | group 4: F-116, F-130 |
 | #433 | group 2: F-102, F-108 |
+| #436 | group 11: F-054 |
 | #437 | group 15: F-103, F-104 |
 | #439 | group 26: F-204 |
 
-### Open, CI pending or re-running
+### In flight in session 5
 
 | PR | Content | State |
 |---|---|---|
-| #430 | held H01 plus the 501 change | CI ran on `94e79456` |
-| #436 | group 11: F-054 | The wipe test passes on both arches. The amd64 failure was `TestGameServer_NetworkCaptureEphemeralContainer` (passed on arm64, not touched by this PR). Failed jobs of run 36067327578 were re-run once. If it fails again, investigate it as a real capture bug (new finding), not in #436. |
-| #440 | group 21: F-125 | |
-| #441 | group 23: F-159..F-162 | |
-| #443 | group 9: F-213, F-214, F-218 | |
-| #444 | group 16: F-074, F-075 | |
-| #445 | F-258 | Follow-up noted: registry errors whose message differs on every try can still cause churn. |
+| #427 | held H02 hardening | `e2e web live / arm64` failed because the kind API server stopped responding (infra). amd64 passed and master is green. Failed jobs of run 36071165449 were re-run once, with a neutral PR comment. A second failure would be real. |
+| #430 | held H01 plus the 501 change | CI on `94e79456`; check it. |
+| #440 | group 21: F-125 | Red: the PR's sessionStorage write made `?safe-mode=1` survive reloads, which breaks `done_016` contracts/theme-ui.md §4 ("removing the parameter and reloading restores normal behavior"). An opus agent is re-implementing it (an in-memory flag, kept across client-side navigation only), with the e2e spec unchanged. The rejected e2e rewrite (`6ffc6a84`) was never pushed. Worktree `scratchpad/wt440`. |
+| #441 | group 23: F-159..F-162 | The stricter validator rejected api module-builder fixtures that lack the CRD-required `spec.displayName`/`spec.version`. `86beb6c4` fixed three of them, and a sonnet agent is fixing the rest (`modules_builder_test.go:633` and others). **Test edits need maintainer sign-off** (PR comment posted). |
+| #443 | group 9: F-213, F-214, F-218 | `eac8389a`: master merged in, and the `backupEgress` template falls back to defaults under `--reuse-values`. `0bd5c776`: the CRD hook applies with `--field-manager=helm`. Without that, a Helm 4 reinstall over leftover CRDs failed with a `.spec.versions` conflict (a real user bug). The upgrade e2e now builds realistic leftover CRDs, and `docs/install.md` documents `--force-conflicts` for leftovers from beta.8 or earlier. **Sign-off needed:** the expected F-218 hook events now depend on the Helm version (PR comment posted). |
+| #444 | group 16: F-074, F-075 | Check CI. |
+| #445 | F-258 | Check CI. Follow-up: registry errors whose message differs on every try can still cause churn. |
+| #446 | group 24: F-179, F-180 (sentinel drain) | Opened in session 5. Ask the maintainer whether the 4h drain ceiling is right. Nits: the parse error isn't wrapped with %w, and the 4h constant is duplicated. |
+| #447 | F-174 (playit address, OD-026 (a)) | Opened in session 5, stacked on #428 (its base is #428's branch). `lint (tunnel)` is red; a sonnet agent is fixing it. `TestBuildCommandPlayit` was edited for `--socket-path`, which needs sign-off. |
+| (group 18) | F-105, F-106: `fix/018-agent-status-reporting` | Overview PlayersCard now shows "—" for -1, and the agent's `parseListWithRegex` returns Max:-1. An opus review found the new Overview test's `getByText("—")` was ambiguous; a sonnet agent is scoping it and pushing. **Then open the PR** (`type: fix`, `area: agent`, `area: web`) and set F-105/F-106 to `fixing`. **Sign-off needed** on the existing agent test edits (`players_test.go` 0/0→-1/-1, `heartbeat_test.go` dropping the gameVersion check). |
 
-### Red at hand-off (fix first)
-
-- **#441:** `go (api)` fails on amd64 and arm64. That is odd for a gp-module-only diff, so compare with master first.
-- **#440:** `e2e web live` fails on amd64 and arm64.
-- **#427:** `e2e web live` arm64 fails on a new head, `b5c3a88d`, which session 4 did not push.
-- **#443:** `chart render` fails.
-- **#436:** now green, 17/17 after the re-run.
-
-### Wave 3 results: local commits, NOT pushed
-
-Auto mode blocked all writes at the end of session 4.
-
-- **`fix/018-sentinel-core-reliability` at `d23f2472`, group 24, opus review APPROVED.** Push it and open a PR.
-  - Each session now runs under its own context and drains on SIGTERM (`SHUTDOWN_DRAIN_TIMEOUT`, default 4h).
-  - The operator sets the waker's terminationGracePeriod to the drain time plus 30s, except in Hostport mode, which gets 0s and 30s.
-  - F-180 surfaces the first fatal listener error.
-  - `TestProxyBidirectionalStopsOnContextCancel` is replaced as the maintainer approved.
-  - Non-blocking nits:
-    - `SHUTDOWN_DRAIN_TIMEOUT` parse error is not wrapped with %w;
-    - a stray test goroutine;
-    - the 4h constant is duplicated and only a comment keeps the two in sync.
-  - Ask the maintainer about the 4h drain choice.
-- **`fix/018-tunnel-playit-address` at `6063e07c`, F-174, stacked on #428, opus review APPROVED.** Push it and open a PR against master after #428 merges, or against #428's branch.
-- **`fix/018-agent-status-reporting` at `83897242`, group 18, review NOT approved.**
-  - The Players tab now renders "—", but **`web/src/routes/tabs/Overview.tsx:379` (PlayersCard)** also prints -1. Apply the same "—" / "unknown" handling there and add an `Overview.test.tsx` case.
-  - Optional: `parseListWithRegex` returns `Max:0` on zero matches; make it -1 for consistency.
-  - **Ask the maintainer** to sign off the edits to the existing agent tests (`players_test.go` 0/0→-1/-1, and `heartbeat_test.go` dropping the gameVersion check).
-- Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Agents used `--legacy-peer-deps` for the compile check only.
-
-### Earlier notes on these branches
-
-- **`fix/018-agent-status-reporting` (group 18: F-105, F-106).** The agent fix is pushed as `c3484c43`. The maintainer approved a text-only Players tab change: an unknown count shows "—" / "Player count unknown". The wave-3 agent adds it. Then open the PR (`type: fix`, `area: agent`, `area: web`).
-- **`fix/018-sentinel-core-reliability` (group 24: F-179, F-180).** The maintainer **approved rewriting** `TestProxyBidirectionalStopsOnContextCancel`, which asserts the buggy behaviour. Wave 3 implements it. Labels: `type: fix`, `area: optional-components`, `area: operator`.
-- **`fix/018-tunnel-playit-address` (F-174, OD-026 (a)).** Stacked on #428. If the playitd socket protocol can't be established, report back to the maintainer.
+Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
 ## 4. Next (in order)
 
-1. Apply section 2. Collect the wave-3 results, review and push them, open the PRs and watch them.
-2. Watch every open PR to green, and give the maintainer the merge-ready list. After each merge, set its findings to `fixed-unverified`.
+1. Finish the in-flight items above. Review each agent's result (one tier up), push, and watch until green.
+2. Give the maintainer the merge-ready list. After each merge, set its findings to `fixed-unverified`.
 3. The remaining public non-design fix groups from `audit/evidence/rc.1/fix-plan.md`:
    - done or in flight: groups 1, 2, 4, 5, 6, 8, 9, 11, 15, 16, 18, 20, 21, 23, 24, 26;
    - not started: 10, 14, 17, 22 (land after #429), 25, 27, 29–31, 33–35, 37–52;
    - 28 is blocked on the module tag (T054), 32 is T063, and 19 may need design.
-4. The OD-021 follow-ups:
+4. The OD-021 follow-ups (see OPEN-DECISIONS.md OD-021):
    - the new Go e2e bucket (item 12);
    - fix the Failed nuclear-option, terraria and minecraft-java Modules (items 3 and 23a);
    - the S4 finding for the unused phases (item 22);
@@ -123,7 +91,7 @@ Auto mode blocked all writes at the end of session 4.
 6. The devbox-only work:
    - held fixes H31a onward;
    - the T012 user list;
-   - T046 and the live rounds T025–T034 and T047–T049, using the OD-021 decisions above.
+   - T046 and the live rounds T025–T034 and T047–T049, using the OD-021 resolutions in OPEN-DECISIONS.md.
 
 ## 5. kubelab facts
 
