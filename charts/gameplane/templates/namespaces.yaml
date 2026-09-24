@@ -8,3 +8,9 @@ metadata:
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/enforce-version: latest
     {{- end }}
+  annotations:
+    # F-212: exclude the games Namespace from Helm's ownership so
+    # `helm uninstall` does not delete it (and, with it, every GameServer,
+    # StatefulSet, PVC and per-server Secret Kubernetes garbage-collects
+    # underneath it). Same pattern as the API PVC in api.yaml.
+    helm.sh/resource-policy: keep
