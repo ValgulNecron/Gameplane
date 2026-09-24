@@ -152,6 +152,7 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 - **api:** hardened multi-cluster request scoping.
 - **operator:** hardened module bundle integrity checks.
 - **web:** hardened the Admin Settings draft and managed-secret lifecycle.
+- **api:** hardened account removal and share-link revocation.
 
 ## [0.3.0-rc.1] — 2026-09-23
 

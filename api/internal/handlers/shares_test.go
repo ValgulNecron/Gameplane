@@ -295,7 +295,7 @@ func TestShareResolveInvalidToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create link to revoke: %v", err)
 	}
-	if err := store.RevokeShareLink(ctx, "local", revokedLink.ID); err != nil {
+	if err := store.RevokeShareLink(ctx, "local", revokedLink.Namespace, revokedLink.ServerName, revokedLink.ID); err != nil {
 		t.Fatalf("revoke link: %v", err)
 	}
 
@@ -643,13 +643,13 @@ func TestShareClusterScoping(t *testing.T) {
 	}
 
 	// 4. Revoke on "local" cluster must fail (link belongs to remote-cluster).
-	err = store.RevokeShareLink(ctx, "local", link.ID)
+	err = store.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID)
 	if err == nil {
 		t.Fatalf("expected error revoking remote link with local cluster, got nil")
 	}
 
 	// 5. Revoke on "remote-cluster" succeeds.
-	err = store.RevokeShareLink(ctx, "remote-cluster", link.ID)
+	err = store.RevokeShareLink(ctx, "remote-cluster", link.Namespace, link.ServerName, link.ID)
 	if err != nil {
 		t.Fatalf("revoke with correct cluster failed: %v", err)
 	}
@@ -860,5 +860,108 @@ func TestShareCreateDeprecatedExpiresIn(t *testing.T) {
 	wantDefault := time.Now().UTC().AddDate(0, 0, 7)
 	if diff := gotDefault.Sub(wantDefault); diff < -time.Minute || diff > time.Minute {
 		t.Fatalf("default expiresAt = %v, want approximately %v (7d default)", gotDefault, wantDefault)
+	}
+}
+
+// TestShareRevokeScopedToPathServer verifies that a revoke is scoped to the
+// server named in the path: a link of another server the caller also owns
+// answers 404 and stays valid.
+func TestShareRevokeScopedToPathServer(t *testing.T) {
+	store := newTestStore(t)
+	ownerID := insertShareTestUser(t, store, "owner-revoke-scope")
+	reg := kube.NewRegistry("local")
+	reg.Set("local", fakeKubeClient(
+		newShareTestServer("srv-scope-a", ownerID),
+		newShareTestServer("srv-scope-b", ownerID),
+	))
+	h := mountSharesRouter(reg, store)
+	owner := &auth.User{ID: ownerID, Username: "owner-revoke-scope", Role: "admin"}
+
+	status, body := shareReq(t, h, "POST", "/servers/srv-scope-a:shares", map[string]any{"canStart": false, "expiresIn": "1h"}, owner, "203.0.113.40:1")
+	if status != http.StatusOK {
+		t.Fatalf("create status = %d, want 200; body=%s", status, body)
+	}
+	var created map[string]any
+	if err := json.Unmarshal(body, &created); err != nil {
+		t.Fatalf("unmarshal create response: %v", err)
+	}
+	token, _ := created["token"].(string)
+	id, _ := created["id"].(string)
+	if token == "" || id == "" {
+		t.Fatalf("create response missing token/id; body=%s", body)
+	}
+
+	status, body = shareReq(t, h, "DELETE", "/servers/srv-scope-b/shares/"+id, nil, owner, "203.0.113.41:1")
+	if status != http.StatusNotFound {
+		t.Fatalf("revoke through another server: status = %d, want 404; body=%s", status, body)
+	}
+	status, _ = shareReq(t, h, "GET", "/shares/"+token, nil, nil, "203.0.113.42:1")
+	if status != http.StatusOK {
+		t.Fatalf("resolve after mismatched revoke: status = %d, want 200", status)
+	}
+
+	status, body = shareReq(t, h, "DELETE", "/servers/srv-scope-a/shares/"+id, nil, owner, "203.0.113.43:1")
+	if status != http.StatusNoContent {
+		t.Fatalf("revoke through its own server: status = %d, want 204; body=%s", status, body)
+	}
+}
+
+// TestShareRevokeUnknownIDReturns404 verifies that revoking an id that does
+// not exist answers 404, not a server error.
+func TestShareRevokeUnknownIDReturns404(t *testing.T) {
+	store := newTestStore(t)
+	ownerID := insertShareTestUser(t, store, "owner-revoke-unknown")
+	reg := kube.NewRegistry("local")
+	reg.Set("local", fakeKubeClient(newShareTestServer("srv-revoke-unknown", ownerID)))
+	h := mountSharesRouter(reg, store)
+	owner := &auth.User{ID: ownerID, Username: "owner-revoke-unknown", Role: "admin"}
+
+	status, body := shareReq(t, h, "DELETE", "/servers/srv-revoke-unknown/shares/no-such-id", nil, owner, "203.0.113.44:1")
+	if status != http.StatusNotFound {
+		t.Fatalf("revoke unknown id: status = %d, want 404; body=%s", status, body)
+	}
+}
+
+// TestShareLinkStopsResolvingWhenCreatorDeleted verifies that deleting a
+// user revokes the share links that user created: the token then gets the
+// same uniform 404 as any other invalid token.
+func TestShareLinkStopsResolvingWhenCreatorDeleted(t *testing.T) {
+	store := newTestStore(t)
+	ownerID := insertShareTestUser(t, store, "owner-deleted")
+	reg := kube.NewRegistry("local")
+	reg.Set("local", fakeKubeClient(newShareTestServer("srv-owner-deleted", ownerID)))
+	h := mountSharesRouter(reg, store)
+	owner := &auth.User{ID: ownerID, Username: "owner-deleted", Role: "admin"}
+
+	status, body := shareReq(t, h, "POST", "/servers/srv-owner-deleted:shares", map[string]any{"canStart": true, "neverExpires": true}, owner, "203.0.113.45:1")
+	if status != http.StatusOK {
+		t.Fatalf("create status = %d, want 200; body=%s", status, body)
+	}
+	var created map[string]any
+	if err := json.Unmarshal(body, &created); err != nil {
+		t.Fatalf("unmarshal create response: %v", err)
+	}
+	token, _ := created["token"].(string)
+	if token == "" {
+		t.Fatalf("missing token; body=%s", body)
+	}
+	if status, _ := shareReq(t, h, "GET", "/shares/"+token, nil, nil, "203.0.113.46:1"); status != http.StatusOK {
+		t.Fatalf("resolve before delete: status = %d, want 200", status)
+	}
+
+	if err := store.DeleteUser(t.Context(), ownerID); err != nil {
+		t.Fatalf("DeleteUser: %v", err)
+	}
+
+	status, body = shareReq(t, h, "GET", "/shares/"+token, nil, nil, "203.0.113.47:1")
+	if status != http.StatusNotFound {
+		t.Fatalf("resolve after creator delete: status = %d, want 404; body=%s", status, body)
+	}
+	if !bytes.Equal(body, wantShareNotFoundBody) {
+		t.Fatalf("resolve after creator delete: body = %q, want %q", body, wantShareNotFoundBody)
+	}
+	status, body = shareReq(t, h, "POST", "/shares/"+token+"/start", nil, nil, "203.0.113.48:1")
+	if status != http.StatusNotFound {
+		t.Fatalf("start after creator delete: status = %d, want 404; body=%s", status, body)
 	}
 }

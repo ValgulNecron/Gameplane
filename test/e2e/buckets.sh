@@ -179,6 +179,7 @@ TestAPI_ModUpload
 TestAPI_ModArchiveConfinement_PathTraversalRejected
 TestAPI_ModArchiveConfinement_SymlinkEscapeRejected
 TestAPI_ModArchiveConfinement_ValidArchiveExtracts
+TestAPI_AccountRemoval_RevokesSharesAndAllowsSSOReprovision
 EOF
 }
 

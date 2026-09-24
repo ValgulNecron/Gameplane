@@ -134,7 +134,7 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
 - `/users/me/servers` — GET: own GameServers (owner/collaborator)
 - `/users/me/preferences` — GET/PUT: own theme/styling preferences (feature 016)
 - `/users/me/preferences/reset` — POST: reset own theme preferences to defaults (feature 016)
-- `/users/{id}` — CRUD for users (admin only)
+- `/users/{id}` — CRUD for users (admin only). DELETE runs `db.Store.DeleteUser`: one transaction deletes the user's `oidc_links`, `user_preferences`, `sessions`, `api_tokens` and role bindings, revokes the share links the user created (sets `revoked_at`), then deletes the `users` row. It does not rely on FK cascades (off on SQLite). An SSO subject whose user was deleted is provisioned as a new user on its next login
 - `/users/{id}/role-bindings` — PATCH: role assignments (per namespace + cluster)
 - `/roles` — GET catalog and custom roles; POST/PATCH/DELETE custom roles
 - `/admin/audit` — GET: audit log (searchable, hash-chain verifiable)
@@ -486,6 +486,7 @@ Verify from `/api/go.mod`.
 **006_share_links.sql:** (unauthenticated server access tokens)
 - Creates `share_links` table: signed, revocable tokens for unauthenticated access to a single GameServer's status and connection address, optionally with start capability
 - Token never stored; only SHA-256 hash persisted and indexed for O(1) lookup
+- Revocation (`DELETE /servers/{name}/shares/{id}`, `db.Store.RevokeShareLink`) matches the link's cluster, namespace, server name and id; no match returns `db.ErrShareLinkNotFound`, which the handler answers with 404
 - Pre-existing; not part of the Phase 2 Foundational feature scope
 
 **007_audit_reason.sql:** (Phase 2 Foundational: capture operation auditing)
@@ -511,6 +512,9 @@ Verify from `/api/go.mod`.
 - Creates `user_preferences` (1:1 with `users`): base mode (`theme_type`), preset (`preset_id`), appearance mode, nullable custom colors (`custom_accent`/`custom_surface`), custom CSS overlay flag + sanitized text, `updated_at`; index `idx_user_preferences_user`
 - Backfills every pre-existing user with the legacy preset (`preset_id = 'legacy'`, dark-preserving upgrade per FR-003); accounts created later default to pink via column defaults + `db.DefaultUserPreferences()`
 - Retention rule (FR-012): the custom columns are nulled only by the reset endpoint, never by ordinary updates (see "User theme preferences" under External interface / contracts)
+
+**012_account_removal_cleanup.sql:** (account removal cleanup)
+- One-off pass that deletes `oidc_links`, `user_preferences`, `sessions`, `api_tokens` and `user_role_bindings` rows whose user no longer exists, and revokes (sets `revoked_at`, RFC3339 UTC) active `share_links` whose creator no longer exists. Clears rows left by user deletes made before `db.Store.DeleteUser` removed them explicitly; forward-only, so a rollback needs the pre-upgrade DB snapshot
 
 All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF); API layer is authoritative.
 

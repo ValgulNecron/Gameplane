@@ -32,6 +32,10 @@ type ShareLink struct {
 // an attacker probing tokens must not learn that one existed.
 var ErrShareLinkInvalid = errors.New("invalid share link")
 
+// ErrShareLinkNotFound is returned by RevokeShareLink when no share link with
+// that id belongs to the given cluster, namespace and server.
+var ErrShareLinkNotFound = errors.New("share link not found")
+
 // ErrShareLinkExpiryInvalid is returned by CreateShareLink when a given
 // expiry timestamp is invalid (zero or not strictly in the future). A nil
 // expiry (never expires) is always valid and skips this check entirely.
@@ -285,20 +289,19 @@ func (s *Store) ListShareLinks(ctx context.Context, cluster, ns, serverName stri
 }
 
 // RevokeShareLink marks a share link as revoked by setting revoked_at to the
-// current timestamp. Revocation is scoped to cluster when provided and auditable (never a delete).
-func (s *Store) RevokeShareLink(ctx context.Context, cluster, id string) error {
-	revokedAt := time.Now().UTC().Format(time.RFC3339)
-	var res sql.Result
-	var err error
-	if cluster != "" {
-		res, err = s.DB.ExecContext(ctx,
-			`UPDATE share_links SET revoked_at = ? WHERE id = ? AND cluster = ?`,
-			revokedAt, id, cluster)
-	} else {
-		res, err = s.DB.ExecContext(ctx,
-			`UPDATE share_links SET revoked_at = ? WHERE id = ?`,
-			revokedAt, id)
+// current timestamp. The link must belong to the given cluster, namespace and
+// server; an empty cluster means "local", as in CreateShareLink. Revocation is
+// auditable (never a delete). It returns ErrShareLinkNotFound when no such
+// link exists.
+func (s *Store) RevokeShareLink(ctx context.Context, cluster, ns, serverName, id string) error {
+	if cluster == "" {
+		cluster = "local"
 	}
+	revokedAt := time.Now().UTC().Format(time.RFC3339)
+	res, err := s.DB.ExecContext(ctx,
+		`UPDATE share_links SET revoked_at = ?
+		 WHERE id = ? AND cluster = ? AND namespace = ? AND server_name = ?`,
+		revokedAt, id, cluster, ns, serverName)
 	if err != nil {
 		return fmt.Errorf("revoke share link: %w", err)
 	}
@@ -309,7 +312,7 @@ func (s *Store) RevokeShareLink(ctx context.Context, cluster, id string) error {
 		return fmt.Errorf("rows affected: %w", err)
 	}
 	if n == 0 {
-		return fmt.Errorf("share link not found: %w", errors.New("unknown id"))
+		return ErrShareLinkNotFound
 	}
 
 	return nil

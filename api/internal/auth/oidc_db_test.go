@@ -102,3 +102,41 @@ func TestPickUniqueUsername_ShortSubKeepsAll(t *testing.T) {
 		t.Fatalf("expected full sub in username, got %q", u.Username)
 	}
 }
+
+// TestResolveOrLinkUser_DeletedUserIsProvisionedAgain covers account
+// removal for SSO users: once the user is deleted, the same IdP subject
+// logging in again is provisioned as a fresh user.
+func TestResolveOrLinkUser_DeletedUserIsProvisionedAgain(t *testing.T) {
+	store := newAuthDB(t)
+	o := &OIDC{}
+	o.AttachStore(store)
+	ctx := context.Background()
+
+	first, _, err := o.resolveOrLinkUser(ctx, "https://idp", "sub-returning", "returning@x", "Returning", "viewer", "none", false)
+	if err != nil {
+		t.Fatalf("first login: %v", err)
+	}
+	if err := store.DeleteUser(ctx, first.ID); err != nil {
+		t.Fatalf("DeleteUser: %v", err)
+	}
+
+	second, outcome, err := o.resolveOrLinkUser(ctx, "https://idp", "sub-returning", "returning@x", "Returning", "viewer", "none", false)
+	if err != nil {
+		t.Fatalf("login after delete: %v", err)
+	}
+	if second.ID == first.ID {
+		t.Fatalf("login after delete reused deleted user id %d", first.ID)
+	}
+	if outcome == nil || outcome.PreviousRole != "new_user" {
+		t.Fatalf("login after delete outcome = %+v, want a first-login outcome", outcome)
+	}
+	var links int
+	if err := store.DB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM oidc_links WHERE issuer = ? AND subject = ? AND user_id = ?`,
+		"https://idp", "sub-returning", second.ID).Scan(&links); err != nil {
+		t.Fatalf("count links: %v", err)
+	}
+	if links != 1 {
+		t.Fatalf("oidc links for the new user = %d, want 1", links)
+	}
+}
