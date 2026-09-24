@@ -564,6 +564,20 @@ jobs:
     defaults: { run: { working-directory: web } }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: nginx client_max_body_size matches ingress proxy-body-size
+        working-directory: .
+        run: |
+          set -eu
+          ingress_size=$(grep -oP 'proxy-body-size:\s*"\K[0-9]+(?=m")' charts/gameplane/values.yaml)
+          nginx_size=$(grep -oP 'client_max_body_size\s+\K[0-9]+(?=m;)' web/nginx.conf.template || true)
+          if [ -z "$nginx_size" ]; then
+            echo "client_max_body_size not set in web/nginx.conf.template" >&2
+            exit 1
+          fi
+          if [ "$nginx_size" -lt "$ingress_size" ]; then
+            echo "web/nginx.conf.template client_max_body_size (${nginx_size}m) is below the ingress proxy-body-size (${ingress_size}m)" >&2
+            exit 1
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
       - run: npm ci
@@ -668,6 +682,29 @@ jobs:
           grep -q 'name: allow-backup-restore-egress' /tmp/netpol.yaml
           awk '/name: allow-backup-restore-egress/,/^---$/' /tmp/netpol.yaml \
             | grep -q 'app.kubernetes.io/name: gameplane-backup-restore'
+      - name: games Namespace carries the keep policy
+        # F-212: `helm uninstall` used to delete the games Namespace and
+        # every GameServer/StatefulSet/PVC in it. Assert the Namespace is
+        # excluded from Helm's ownership via the keep resource-policy,
+        # scoped to the Namespace document specifically (a plain grep over
+        # the whole render would also match the unrelated API PVC's own
+        # keep annotation and pass even if the Namespace fix regressed).
+        run: |
+          python3 - <<'PY'
+          import sys, yaml
+          docs = list(yaml.safe_load_all(open('/tmp/rendered.yaml')))
+          ns = [d for d in docs if d and d.get('kind') == 'Namespace'
+                and d.get('metadata', {}).get('name') == 'gameplane-games']
+          if not ns:
+              sys.exit("::error::no games Namespace rendered")
+          policy = (ns[0].get('metadata', {}).get('annotations') or {}).get(
+              'helm.sh/resource-policy')
+          if policy != 'keep':
+              sys.exit(
+                  "::error::games Namespace missing "
+                  "helm.sh/resource-policy: keep (F-212)")
+          print("games Namespace carries helm.sh/resource-policy: keep")
+          PY
       - name: crd-manifests in sync with crds
         # The CRD-apply hook serves CRDs from crd-manifests/ (crds/ isn't
         # readable by Helm .Files). make manifests keeps both in sync; guard
