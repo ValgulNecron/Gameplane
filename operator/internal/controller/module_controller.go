@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"golang.org/x/mod/semver"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
@@ -22,6 +24,15 @@ import (
 	"github.com/ValgulNecron/gameplane/operator/internal/modsrc"
 	"github.com/ValgulNecron/gameplane/operator/internal/verify"
 )
+
+// moduleFailedRetryInterval paces retries of a Failed Module. A spec change
+// fixes most failure causes (a re-pin, a corrected digest); it bumps the
+// generation and reconciles at once through the Module watch. A ModuleSource
+// change (new catalog, new verify policy) enqueues the Module through
+// enqueueModulesForSource. This timer only covers causes that clear with
+// neither, such as a registry coming back up, so it reuses the ModuleSource
+// refresh floor instead of hot-looping (F-258).
+const moduleFailedRetryInterval = minRefreshInterval
 
 // ModuleReconciler materializes Module CRs into GameTemplate CRs. The
 // produced GameTemplate carries an OwnerReference back to the Module so
@@ -321,6 +332,7 @@ func (r *ModuleReconciler) getSource(ctx context.Context, name string) (*gamepla
 }
 
 func (r *ModuleReconciler) markPending(ctx context.Context, mod *gameplanev1alpha1.Module, reason string, err error) (ctrl.Result, error) {
+	before := mod.Status.DeepCopy()
 	mod.Status.Phase = gameplanev1alpha1.ModulePhasePending
 	mod.Status.LastError = err.Error()
 	mod.Status.ObservedGeneration = mod.Generation
@@ -342,13 +354,14 @@ func (r *ModuleReconciler) markPending(ctx context.Context, mod *gameplanev1alph
 		Reason:             reason,
 		ObservedGeneration: mod.Generation,
 	})
-	if uerr := r.Status().Update(ctx, mod); uerr != nil {
+	if uerr := r.updateStatusIfChanged(ctx, mod, before); uerr != nil {
 		return ctrl.Result{}, uerr
 	}
 	return ctrl.Result{Requeue: true}, nil
 }
 
 func (r *ModuleReconciler) markFailed(ctx context.Context, mod *gameplanev1alpha1.Module, reason string, err error) (ctrl.Result, error) {
+	before := mod.Status.DeepCopy()
 	mod.Status.Phase = gameplanev1alpha1.ModulePhaseFailed
 	mod.Status.LastError = err.Error()
 	mod.Status.ObservedGeneration = mod.Generation
@@ -369,14 +382,36 @@ func (r *ModuleReconciler) markFailed(ctx context.Context, mod *gameplanev1alpha
 		Reason:             reason,
 		ObservedGeneration: mod.Generation,
 	})
-	if uerr := r.Status().Update(ctx, mod); uerr != nil {
+	// Skip the write when the Module is already Failed at this generation
+	// for the same cause. Every status write is a watch event that queues
+	// another reconcile, so rewriting an unchanged Failed status would
+	// hot-loop the Module and make other writers (dashboard, kubectl)
+	// conflict with it.
+	if uerr := r.updateStatusIfChanged(ctx, mod, before); uerr != nil {
 		return ctrl.Result{}, uerr
 	}
-	return ctrl.Result{}, err
+	// Pace the retry with a timer rather than returning err: the failure is
+	// recorded on status, and it must not depend on its own status write to
+	// come round again. Spec and ModuleSource changes still reconcile at once.
+	log.FromContext(ctx).Info("module install failed; will retry",
+		"reason", reason, "error", err.Error(), "retryAfter", moduleFailedRetryInterval.String())
+	return ctrl.Result{RequeueAfter: moduleFailedRetryInterval}, nil
 }
 
 func (r *ModuleReconciler) markPullingTransition(ctx context.Context, mod *gameplanev1alpha1.Module, version string) error {
 	if mod.Status.Phase == gameplanev1alpha1.ModulePhasePulling {
+		return nil
+	}
+	// A retry of a Module that already failed at this generation re-pulls
+	// quietly and keeps showing Failed. Flipping it to Pulling would write
+	// status twice per retry (Failed to Pulling here, then back to Failed in
+	// markFailed when the cause persists), and each write re-queues the
+	// Module through its own watch (F-258). If the retry succeeds, the Ready
+	// write still lands; if it fails for a different cause, markFailed
+	// records that. A spec change bumps the generation, so a re-pin still
+	// shows Pulling.
+	if mod.Status.Phase == gameplanev1alpha1.ModulePhaseFailed &&
+		mod.Status.ObservedGeneration == mod.Generation {
 		return nil
 	}
 	mod.Status.Phase = gameplanev1alpha1.ModulePhasePulling
@@ -393,6 +428,27 @@ func (r *ModuleReconciler) markPullingTransition(ctx context.Context, mod *gamep
 		ObservedGeneration: mod.Generation,
 	})
 	return r.Status().Update(ctx, mod)
+}
+
+// updateStatusIfChanged writes mod.Status only when it differs from before
+// in more than condition LastTransitionTimes. An unchanged status is not
+// written, so it raises no watch event and no resourceVersion bump.
+func (r *ModuleReconciler) updateStatusIfChanged(ctx context.Context, mod *gameplanev1alpha1.Module, before *gameplanev1alpha1.ModuleStatus) error {
+	if !moduleStatusChanged(before, &mod.Status) {
+		return nil
+	}
+	return r.Status().Update(ctx, mod)
+}
+
+// moduleStatusChanged reports whether b differs from a, ignoring condition
+// LastTransitionTimes.
+func moduleStatusChanged(a, b *gameplanev1alpha1.ModuleStatus) bool {
+	if !sameConditions(a.Conditions, b.Conditions) {
+		return true
+	}
+	ac, bc := a.DeepCopy(), b.DeepCopy()
+	ac.Conditions, bc.Conditions = nil, nil
+	return !equality.Semantic.DeepEqual(ac, bc)
 }
 
 func (r *ModuleReconciler) fetcherFor(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (modsrc.Fetcher, error) {
