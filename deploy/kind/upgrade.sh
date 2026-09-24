@@ -29,11 +29,10 @@ REPO="$(cd "${HERE}/../.." && pwd)"
 # chart": a regression test that silently changes what it tests is not a
 # regression test.
 #
-# 0.2.0-beta.5 and not beta.6 — beta.6 was never published (its chart and all
-# three images 404 on GHCR, though the git tag exists), so beta.5 is the last
-# release a user could actually have installed before beta.7. That also makes
-# this a genuine two-version jump rather than a no-op against the current tree.
-FROM_VERSION="${GAMEPLANE_UPGRADE_FROM:-0.2.0-beta.5}"
+# 0.2.0-beta.8 is the last published beta before v0.3.0 — its chart and
+# operator/api/agent images exist on GHCR — so this is the genuine upgrade
+# path that users take to v0.3.0.
+FROM_VERSION="${GAMEPLANE_UPGRADE_FROM:-0.2.0-beta.8}"
 CHART_REF="oci://ghcr.io/valgulnecron/charts/gameplane"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
