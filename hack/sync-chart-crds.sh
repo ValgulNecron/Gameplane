@@ -33,11 +33,22 @@ if [ "${#files[@]}" -eq 0 ]; then
   echo "sync-chart-crds: no CRDs found under $src" >&2
   exit 1
 fi
-# Glob expansion is already sorted in the C locale order bash uses for the
-# pattern; force it so the hash is identical on every machine.
-mapfile -t files < <(printf '%s\n' "${files[@]}" | LC_ALL=C sort)
+# Glob expansion order depends on the locale; force C-locale order so the
+# hash is identical on every machine. A `while read` loop rather than
+# `mapfile`, which needs bash 4 (macOS ships bash 3.2).
+sorted=()
+while IFS= read -r f; do
+  sorted+=("$f")
+done < <(printf '%s\n' "${files[@]}" | LC_ALL=C sort)
+files=("${sorted[@]}")
 
-hash=$(cat "${files[@]}" | sha256sum | cut -d' ' -f1)
+# sha256sum is GNU coreutils; macOS/BSD ship `shasum -a 256` instead.
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256() { sha256sum; }
+else
+  sha256() { shasum -a 256; }
+fi
+hash=$(cat "${files[@]}" | sha256 | cut -d' ' -f1)
 
 for f in "${files[@]}"; do
   # controller-gen always emits exactly one top-level metadata.annotations

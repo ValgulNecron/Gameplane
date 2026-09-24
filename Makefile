@@ -382,10 +382,12 @@ dev-push: ## Push operator/api/web/agent images to REGISTRY (remote clusters)
 	docker push $(REGISTRY)/agent:$(TAG)
 
 dev-install: ## Install Gameplane Helm chart into the selected cluster
-	# CRD schema changes land in-place on upgrade via the chart's
-	# pre-install/pre-upgrade hook (crds.autoApply), which runs
-	# `kubectl apply --server-side` — no manual apply needed here anymore, and
-	# it works for any `helm upgrade`, not just this target.
+	# CRD schema changes land in-place on upgrade via the chart's pre-upgrade
+	# hook (crds.autoApply), which runs `kubectl apply --server-side` — no
+	# manual apply needed here anymore, and it works for any `helm upgrade`,
+	# not just this target. On a first install the hook also fires on
+	# pre-install, but only over leftover CRDs whose bundle stamp is stale or
+	# missing (an earlier, uninstalled release's); fresh CRDs come from crds/.
 	$(KUBECONFIG_ENV) helm upgrade --install $(CHART_RELEASE) $(CHART_DIR) \
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.tag=$(TAG) \
