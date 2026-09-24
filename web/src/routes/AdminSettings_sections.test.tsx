@@ -80,7 +80,7 @@ describe("AdminSettings sections", () => {
     expect(screen.getByRole("button", { name: /^Enabled$/i })).toBeDisabled();
   });
 
-  it("adds an identity provider: secret stored first, then the row references it", async () => {
+  it("adds an identity provider: on Save changes the secret is stored first, then the row references it", async () => {
     const calls: string[] = [];
     let secretBody: Record<string, string> | undefined;
     let saved: { providers: Array<Record<string, unknown>> } | undefined;
@@ -110,9 +110,11 @@ describe("AdminSettings sections", () => {
     await userEvent.type(clientSecret, "s3cret");
     await userEvent.click(screen.getByRole("button", { name: /^Add provider$/i }));
     expect(await screen.findByText(/oidc · https:\/\/idp\.corp\.example/i)).toBeInTheDocument();
-    expect(secretBody).toEqual({ clientSecret: "s3cret" });
+    // Nothing is stored until the section's Save changes.
+    expect(calls).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
     await waitFor(() => expect(saved).toBeDefined());
+    expect(secretBody).toEqual({ clientSecret: "s3cret" });
     expect(calls).toEqual(["secret", "config"]);
     expect(saved?.providers).toContainEqual({
       name: "corp",

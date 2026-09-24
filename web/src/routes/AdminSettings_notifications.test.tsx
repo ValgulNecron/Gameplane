@@ -109,13 +109,15 @@ describe("AdminSettings notifications", () => {
     await user.click(screen.getByRole("checkbox", { name: /server\.recovered/i }));
     await user.click(screen.getByRole("button", { name: /^Add sink$/i }));
     expect(await screen.findByText(/slack · Secret: gameplane-notify-ops-alerts/i)).toBeInTheDocument();
+    // Nothing is stored until the section's Save changes.
+    expect(calls).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    await waitFor(() => expect(saved).toBeDefined());
     expect(secretBody).toEqual({
       kind: "slack",
       url: "https://hooks.slack.com/services/T00/B00/xyz",
       authorization: "",
     });
-    await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
-    await waitFor(() => expect(saved).toBeDefined());
     // The Secret must exist before the config row referencing it.
     expect(calls).toEqual(["secret", "config"]);
     expect(saved?.sinks).toEqual([
@@ -148,18 +150,26 @@ describe("AdminSettings notifications", () => {
     await user.type(screen.getByPlaceholderText("tk_…"), "tk_secret");
     await user.click(screen.getByRole("button", { name: /^Add sink$/i }));
     expect(await screen.findByText(/ntfy · Secret: gameplane-notify-phone/i)).toBeInTheDocument();
-    expect(secretBody).toEqual({
-      kind: "ntfy",
-      url: "https://ntfy.sh/gameplane-oncall",
-      token: "tk_secret",
-    });
+    await user.click(screen.getByRole("button", { name: /Save changes/i }));
+    await waitFor(() =>
+      expect(secretBody).toEqual({
+        kind: "ntfy",
+        url: "https://ntfy.sh/gameplane-oncall",
+        token: "tk_secret",
+      }),
+    );
   });
 
-  it("surfaces a secret-store failure without adding the sink", async () => {
+  it("surfaces a secret-store failure on Save changes and leaves the config unsaved", async () => {
+    let configSaved = false;
     server.use(
       http.put("/admin/notifications/sinks/:name/secret", () =>
         HttpResponse.text("url must be an http(s) URL", { status: 422 }),
       ),
+      http.put("/admin/config/notifications", () => {
+        configSaved = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     renderWithQuery(<AdminSettingsPage />);
     await gotoNotifications();
@@ -170,12 +180,13 @@ describe("AdminSettings notifications", () => {
       "https://discord.com/api/webhooks/1/x",
     );
     await userEvent.click(screen.getByRole("button", { name: /^Add sink$/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /Save changes/i }));
     expect(await screen.findByText(/url must be an http\(s\) URL/i)).toBeInTheDocument();
-    // The form stays open and no sink row was added.
-    expect(screen.queryByText(/Secret: gameplane-notify-bad/i)).not.toBeInTheDocument();
+    // The config row that would reference the Secret is never written.
+    expect(configSaved).toBe(false);
   });
 
-  it("deletes a sink from the draft and cleans up its managed Secret", async () => {
+  it("deletes a sink from the draft and removes its managed Secret on Save changes", async () => {
     let deleted: string | null = null;
     seedSinks({
       sinks: [
@@ -199,6 +210,8 @@ describe("AdminSettings notifications", () => {
     await userEvent.click(screen.getByRole("button", { name: /Delete sink team-alerts/i }));
     expect(await screen.findByText(/No notification sinks configured/i)).toBeInTheDocument();
     expect(screen.queryByText("team-alerts")).not.toBeInTheDocument();
+    expect(deleted).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
     await waitFor(() => expect(deleted).toBe("team-alerts"));
   });
 
