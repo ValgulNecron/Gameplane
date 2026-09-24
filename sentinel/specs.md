@@ -18,6 +18,8 @@ Wake-on-connect daemon that runs as a replacement pod for dormant game servers. 
 6. Bound concurrent TCP handlers with a semaphore to prevent resource exhaustion under port scans.
 7. Track UDP sources by IP and apply a "N packets from one source within a window" heuristic to detect real players vs. scanners.
 8. On deadline expiry (server taking too long to wake), send a protocol-native bounce message (if one exists) and close.
+9. On shutdown (SIGTERM), stop accepting immediately but let in-flight sessions — above all a connection already handed through to the game pod — finish on their own, bounded by `SHUTDOWN_DRAIN_TIMEOUT` (see [Shutdown and Listener Failure](#shutdown-and-listener-failure)).
+10. Surface a fatal listener error (log it and exit non-zero) as soon as it happens, even while other listeners are healthy.
 
 ## Non-goals / boundaries
 
@@ -63,6 +65,7 @@ Single executable module; no subdirectories or packages.
 - **`UDP_MAX_SOURCES`** (optional, default `4096`): Maximum number of distinct UDP source IPs to track. Older sources are evicted when this limit is reached.
 - **`MAX_CONNECTIONS`** (optional, default `256`): Maximum concurrent TCP connection handlers. Excess connections queue in the OS accept backlog.
 - **`WAKE_PATCH_INTERVAL`** (optional, default `2s`): Minimum time between GameServer annotation patches. Bursts of joining clients within this window are coalesced into one apiserver call.
+- **`SHUTDOWN_DRAIN_TIMEOUT`** (optional, default `4h`, must be `>= 0`): How long in-flight sessions are kept alive after SIGTERM before they are force-closed. `0s` closes them immediately. The operator always sets it: `4h0m0s` in the ClusterIP/NodePort/LoadBalancer expose modes (with `terminationGracePeriodSeconds` = drain + 30s, so the kubelet does not SIGKILL the pod mid-drain), and `0s` in Hostport mode (grace 30s), where the terminating sentinel would otherwise keep holding the host port the game pod needs.
 
 ### Kubernetes RBAC
 
@@ -174,6 +177,13 @@ The UDP heuristic is **PARTIAL depth** in e2e testing because it's a heuristic, 
 
 To reach **JOINED depth**, the test would need to establish an actual game connection to the woken server and verify that gameplay works end-to-end. Most e2e tests for UDP are **PARTIAL** (heuristic fires, waker called, annotation patched) rather than **JOINED** (actual player login confirmed in-game).
 
+## Shutdown and Listener Failure
+
+Each accepted TCP connection runs as a *session* under its own context, separate from the listeners' context:
+
+- **SIGTERM (context cancelled).** Every listener closes at once, so new connections are refused (and a connection accepted concurrently with shutdown is closed without starting a session). Sessions already in flight keep running: a held connection keeps polling for the game pod, and a handed-through connection keeps proxying in both directions (invariant 3). `run` returns `nil` once the last session ends, or once `SHUTDOWN_DRAIN_TIMEOUT` elapses, at which point the session context is cancelled and the remaining sessions are force-closed. This is what makes a player who woke the server survive the flip-back (F-179): in the Service-backed expose modes the operator deletes the waker Deployment as soon as the game pod is Ready and stops routing the game Service to it in the same pass, and the pod then stays `Terminating` only while it still carries sessions. A proxied session also ends by itself if the game pod goes away, since the upstream side closes.
+- **Fatal listener error.** A TCP bind failure, a UDP bind failure, or an `Accept`/`ReadFrom` error on any listener is logged and returned by `run` as soon as it happens (F-180): the other listeners are stopped and every session is closed without a drain, and `main` exits non-zero so the container restarts visibly instead of the pod staying Ready with a dead port.
+
 ## Connection Lifecycle
 
 ### TCP Join Attempt Flow
@@ -230,7 +240,7 @@ To reach **JOINED depth**, the test would need to establish an actual game conne
 
 2. **Pipelined bytes are preserved.** The `*bufio.Reader` passed to gameproto is re-used by `proxyBidirectional` to read the client side. Any bytes buffered past the handshake stay in the reader and are forwarded correctly.
 
-3. **Bidirectional proxy waits for both directions.** The sentinel doesn't close the downstream connection until both the upstream→downstream and downstream→upstream copies have reached EOF. If it closed early, data in flight would be dropped.
+3. **Bidirectional proxy waits for both directions.** The sentinel doesn't close the downstream connection until both the upstream→downstream and downstream→upstream copies have reached EOF. If it closed early, data in flight would be dropped. This holds across shutdown too: SIGTERM stops the listeners, not the proxy; a proxied session is cut short only when `SHUTDOWN_DRAIN_TIMEOUT` runs out or a listener fails fatally.
 
 4. **Half-close semantics.** When one side hits EOF, the sentinel half-closes the write side of the other (if supported). This allows the other side to drain any remaining data before the connection fully closes. Generic protocol (no protocol-native disconnect) doesn't half-close (no-op).
 
@@ -279,7 +289,9 @@ To reach **JOINED depth**, the test would need to establish an actual game conne
 - **Ports parsing:** `TestWantsListener` confirms `none` protocol disables listening.
 - **UDP heuristic:** `TestUDPHeuristicThresholdAndCooldown`, `TestUDPHeuristicWindowExpiry`, `TestUDPHeuristicIndependentSources`, `TestUDPHeuristicEviction`, `TestUDPHeuristicSweep` verify packet counting, source tracking, eviction, and sweep.
 - **Upstream polling:** `TestWaitForUpstreamSucceedsImmediately`, `TestWaitForUpstreamPollsUntilAvailable`, `TestWaitForUpstreamDeadlineExpires`, `TestWaitForUpstreamRespectsParentContext` verify polling loop, deadline enforcement, context cancellation.
-- **Bidirectional proxy:** `TestProxyBidirectionalWaitsForBothDirections`, `TestProxyBidirectionalStopsOnContextCancel` verify copy goroutines, half-close semantics, both-directions-finish guarantee.
+- **Bidirectional proxy:** `TestProxyBidirectionalWaitsForBothDirections` verifies copy goroutines, half-close semantics, both-directions-finish guarantee.
+- **Shutdown drain (F-179):** `TestRunDrainsProxiedSessionAfterContextCancel` (replaces `TestProxyBidirectionalStopsOnContextCancel`, which asserted the old cut-on-cancel behaviour) verifies that after cancel new connections are refused while a handed-through session keeps working in both directions and `run` returns only once it ends; `TestRunForceClosesSessionsAfterDrainTimeout` verifies the drain is bounded; `TestLoadConfigShutdownDrainTimeout` covers `SHUTDOWN_DRAIN_TIMEOUT` parsing.
+- **Listener failure (F-180):** `TestRunSurfacesUDPListenFailureWhileTCPHealthy` verifies a UDP bind failure is returned promptly while a TCP listener is still healthy.
 - **Waker (annotation patching):** `TestWakerRequestWakeSetsAnnotation`, `TestWakerRequestWakePreservesOtherAnnotations`, `TestWakerRequestWakeCoalescesBursts` verify merge patch isolation, burst coalescing.
 - **Registry dispatch:** `TestHandleRegistryProtocolLookupSuccess`, `TestHandleRegistryProtocolStatusPing`, `TestHandleRegistryProtocolJoinAndWake`, `TestHandleRegistryProtocolUnknown` verify registry lookup, Classifier.Classify invocation, protocol-agnostic join/status/unknown handling.
 - **Startup validation:** `TestParsePortsConfigUnknownProtocol`, `TestParsePortsConfigValidRegisteredProtocols` verify that unknown protocol names cause fatal startup errors with clear error messages listing available protocols.

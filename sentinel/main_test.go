@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -163,6 +165,35 @@ func TestLoadConfigOverrides(t *testing.T) {
 	}
 	if cfg.WakePatchInterval != 500*time.Millisecond {
 		t.Errorf("WakePatchInterval = %v, want 500ms", cfg.WakePatchInterval)
+	}
+}
+
+func TestLoadConfigShutdownDrainTimeout(t *testing.T) {
+	base := map[string]string{
+		"GAMESERVER_NAME":      "my-server",
+		"GAMESERVER_NAMESPACE": "games",
+		"PORTS_CONFIG":         "25565:TCP:minecraft",
+	}
+	cfg, err := loadConfig(stubEnv(base))
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if cfg.ShutdownDrainTimeout != defaultShutdownDrainTimeout {
+		t.Errorf("default ShutdownDrainTimeout = %v, want %v", cfg.ShutdownDrainTimeout, defaultShutdownDrainTimeout)
+	}
+
+	cfg, err = loadConfig(stubEnv(withKV(base, "SHUTDOWN_DRAIN_TIMEOUT", "0s")))
+	if err != nil {
+		t.Fatalf("loadConfig(0s) error = %v", err)
+	}
+	if cfg.ShutdownDrainTimeout != 0 {
+		t.Errorf("ShutdownDrainTimeout = %v, want 0", cfg.ShutdownDrainTimeout)
+	}
+
+	for _, bad := range []string{"soon", "-1s"} {
+		if _, err := loadConfig(stubEnv(withKV(base, "SHUTDOWN_DRAIN_TIMEOUT", bad))); err == nil {
+			t.Errorf("loadConfig(SHUTDOWN_DRAIN_TIMEOUT=%q) = nil error, want an error", bad)
+		}
 	}
 }
 
@@ -534,29 +565,252 @@ func TestProxyBidirectionalWaitsForBothDirections(t *testing.T) {
 	downstreamClient.Close()
 }
 
-func TestProxyBidirectionalStopsOnContextCancel(t *testing.T) {
-	upstreamServer, upstreamClient := tcpPipe(t)
-	downstreamServer, downstreamClient := tcpPipe(t)
-	defer upstreamClient.Close()
-	defer downstreamClient.Close()
+// startLoopbackUpstream listens on loopback as a stand-in for the game pod
+// and hands each accepted connection to the returned channel.
+func startLoopbackUpstream(t *testing.T) (addr string, accepted <-chan net.Conn) {
+	t.Helper()
+	lc := &net.ListenConfig{}
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen upstream: %v", err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	ch := make(chan net.Conn, 4)
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			ch <- c
+		}
+	}()
+	return l.Addr().String(), ch
+}
+
+// dialSentinel dials the sentinel's TCP port, retrying briefly while run()
+// is still binding it.
+func dialSentinel(t *testing.T, port int) net.Conn {
+	t.Helper()
+	dialer := &net.Dialer{}
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		c, err := dialer.DialContext(context.Background(), "tcp", addr)
+		if err == nil {
+			return c
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("dial sentinel: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// proxiedRunConfig is a run() config with one generic TCP port whose
+// upstream is the given loopback address.
+func proxiedRunConfig(t *testing.T, upstreamAddr string, drain time.Duration) (Config, int) {
+	t.Helper()
+	port := freeTCPPort(t)
+	return Config{
+		GameServerName:       "gs",
+		GameServerNamespace:  "games",
+		WakeDeadline:         5 * time.Second,
+		MaxConnections:       4,
+		WakePatchInterval:    time.Second,
+		ShutdownDrainTimeout: drain,
+		upstreamAddrOverride: upstreamAddr,
+		Ports:                []PortConfig{{ContainerPort: port, Protocol: "TCP", WakeProtocol: "generic"}},
+	}, port
+}
+
+// TestRunDrainsProxiedSessionAfterContextCancel replaces the former
+// TestProxyBidirectionalStopsOnContextCancel, which asserted the F-179 bug
+// (a handed-through session cut the moment the sentinel shuts down). The
+// operator deletes the waker as soon as the game pod is Ready, so a
+// connection the sentinel already handed through must survive that: after
+// cancel, new connections are refused, but the in-flight session keeps
+// copying in both directions until it finishes on its own, and only then
+// does run() return.
+func TestRunDrainsProxiedSessionAfterContextCancel(t *testing.T) {
+	upstreamAddr, accepted := startLoopbackUpstream(t)
+	cfg, port := proxiedRunConfig(t, upstreamAddr, 30*time.Second)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runErr := make(chan error, 1)
+	go func() { runErr <- run(ctx, cfg, newCountingWaker(nil)) }()
 
-	done := make(chan struct{})
+	client := dialSentinel(t, port)
+	defer client.Close()
+	if _, err := client.Write([]byte("ping")); err != nil {
+		t.Fatalf("client write: %v", err)
+	}
+
+	var game net.Conn
+	select {
+	case game = <-accepted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("sentinel never handed the connection through to the upstream")
+	}
+	defer game.Close()
+	buf := make([]byte, 4)
+	_ = game.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if _, err := io.ReadFull(game, buf); err != nil || string(buf) != "ping" {
+		t.Fatalf("upstream read = %q, %v; want \"ping\"", buf, err)
+	}
+
+	// The game pod went Ready: the operator deletes the waker pod.
+	cancel()
+
+	// New connections are refused once the listener has closed.
+	dialer := &net.Dialer{Timeout: 500 * time.Millisecond}
+	sentinelAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	refused := false
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); {
+		c, err := dialer.DialContext(context.Background(), "tcp", sentinelAddr)
+		if err != nil {
+			refused = true
+			break
+		}
+		_ = c.Close()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !refused {
+		t.Fatal("sentinel still accepted new connections after context cancellation")
+	}
+	// A probe dial that raced the listener close may still have been
+	// handed through; close its upstream side so that stray session ends
+	// and cannot hold run() open.
 	go func() {
-		proxyBidirectional(ctx, upstreamServer, downstreamServer, bufio.NewReader(downstreamServer))
-		close(done)
+		for {
+			select {
+			case c := <-accepted:
+				_ = c.Close()
+			case <-time.After(10 * time.Second):
+				return
+			}
+		}
 	}()
 
-	// Neither side sends or closes anything: without cancellation this
-	// would hang forever.
-	time.Sleep(20 * time.Millisecond)
+	// The in-flight session still works in both directions.
+	if _, err := game.Write([]byte("pong")); err != nil {
+		t.Fatalf("upstream write after cancel: %v", err)
+	}
+	_ = client.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if _, err := io.ReadFull(client, buf); err != nil || string(buf) != "pong" {
+		t.Fatalf("client read after cancel = %q, %v; want \"pong\"", buf, err)
+	}
+	if _, err := client.Write([]byte("more")); err != nil {
+		t.Fatalf("client write after cancel: %v", err)
+	}
+	if _, err := io.ReadFull(game, buf); err != nil || string(buf) != "more" {
+		t.Fatalf("upstream read after cancel = %q, %v; want \"more\"", buf, err)
+	}
+
+	select {
+	case err := <-runErr:
+		t.Fatalf("run() returned (%v) while a proxied session was still open", err)
+	default:
+	}
+
+	// The session ends on its own: both sides finish, and run returns.
+	_ = client.Close()
+	_ = game.Close()
+	select {
+	case err := <-runErr:
+		if err != nil {
+			t.Errorf("run() = %v, want nil after a clean drain", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("run() did not return after the drained session finished")
+	}
+}
+
+// TestRunForceClosesSessionsAfterDrainTimeout checks the drain is bounded:
+// a proxied session that never finishes is cut once ShutdownDrainTimeout
+// elapses, and run() still returns.
+func TestRunForceClosesSessionsAfterDrainTimeout(t *testing.T) {
+	upstreamAddr, accepted := startLoopbackUpstream(t)
+	cfg, port := proxiedRunConfig(t, upstreamAddr, 200*time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runErr := make(chan error, 1)
+	go func() { runErr <- run(ctx, cfg, newCountingWaker(nil)) }()
+
+	client := dialSentinel(t, port)
+	defer client.Close()
+	var game net.Conn
+	select {
+	case game = <-accepted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("sentinel never handed the connection through to the upstream")
+	}
+	defer game.Close()
+
 	cancel()
 
 	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("proxyBidirectional did not return after context cancellation")
+	case err := <-runErr:
+		if err != nil {
+			t.Errorf("run() = %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("run() did not return after the shutdown drain timed out")
+	}
+
+	_ = client.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := client.Read(make([]byte, 1)); err == nil {
+		t.Error("client connection still open after the drain timed out")
+	}
+}
+
+// TestRunSurfacesUDPListenFailureWhileTCPHealthy pins F-180: a fatal error
+// on one listener must be returned as soon as it happens, not held until
+// shutdown just because another listener is still healthy.
+func TestRunSurfacesUDPListenFailureWhileTCPHealthy(t *testing.T) {
+	lc := &net.ListenConfig{}
+	busy, err := lc.ListenPacket(context.Background(), "udp", ":0")
+	if err != nil {
+		t.Fatalf("listen udp: %v", err)
+	}
+	defer busy.Close()
+	busyPort := busy.LocalAddr().(*net.UDPAddr).Port
+
+	cfg := Config{
+		GameServerName:      "gs",
+		GameServerNamespace: "games",
+		WakeDeadline:        time.Second,
+		UDPThreshold:        3,
+		UDPWindow:           time.Second,
+		UDPMaxSources:       10,
+		MaxConnections:      4,
+		WakePatchInterval:   time.Second,
+		// A long drain must not delay a fatal error either.
+		ShutdownDrainTimeout: time.Hour,
+		Ports: []PortConfig{
+			{ContainerPort: freeTCPPort(t), Protocol: "TCP", WakeProtocol: "generic"},
+			{ContainerPort: busyPort, Protocol: "UDP", WakeProtocol: "generic"},
+		},
+	}
+
+	// ctx is never cancelled: run must return on its own.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runErr := make(chan error, 1)
+	go func() { runErr <- run(ctx, cfg, newCountingWaker(nil)) }()
+
+	select {
+	case err := <-runErr:
+		if err == nil {
+			t.Fatal("run() = nil, want the UDP listen error")
+		}
+		if !strings.Contains(err.Error(), "listen udp") {
+			t.Errorf("run() = %v, want a listen udp error", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("run() held the UDP listener failure instead of returning it")
 	}
 }
 
@@ -1195,7 +1449,7 @@ func TestServeTCPBoundsConcurrentHandlers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go serveTCP(ctx, l, port, cw, cfg, sem, errCh)
+	go serveTCP(ctx, l, port, cw, cfg, sem, &sessionGroup{ctx: ctx}, errCh)
 
 	dialer := &net.Dialer{}
 	c1, err := dialer.DialContext(context.Background(), "tcp", l.Addr().String())
