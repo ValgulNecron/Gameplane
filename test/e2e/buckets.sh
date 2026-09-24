@@ -91,8 +91,13 @@ TestAddressPool_ChangePoolOnRunningServer
 TestAddressPool_RESTAPICarriesPool
 TestAddressPool_StatusVisibleInAddressAssignmentCondition
 TestAddressPool_ExplicitAddressRequest
+TestAPI_EventStreamAndRoleEdits_FollowCallerPermissions
 EOF
 }
+
+# TestAPI_EventStreamAndRoleEdits_FollowCallerPermissions sits in operator for
+# the login budget, not by subject: api-roles is at its ceiling and api-rbac is
+# over it. It costs +1 e2e-admin login plus one login as its own user.
 
 bucket_api_auth() { cat <<'EOF'
 TestAPI_BootstrapAndLogin

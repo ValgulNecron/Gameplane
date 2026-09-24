@@ -239,7 +239,9 @@ var rules = []rule{
 	{method: "GET", segment: "clusters", perm: "cluster:read"},
 	{segment: "clusters", perm: "cluster:manage"},
 
-	// Events SSE is a namespaced, multiplexed read.
+	// Events SSE is a namespaced, multiplexed read. The route needs
+	// servers:read; the handler then streams each kind only to callers who
+	// hold that kind's own read permission (see ReadPermission).
 	{method: "GET", segment: "events", perm: "servers:read"},
 
 	// WebSocket console runs RCON/PTY commands (write-capable, despite the
@@ -393,4 +395,16 @@ func allow(u *auth.User, method, path, cluster, ns string) bool {
 		return true
 	}
 	return u.Can(r.perm, Namespaced(r.perm), cluster, ns)
+}
+
+// ReadPermission returns the permission the rule table requires for a GET
+// of /<segment> (for example "servers" → "servers:read", "restores" →
+// "backups:read"). ok is false when no rule matches. The events stream uses
+// it to send each resource kind only to callers who may read that kind.
+func ReadPermission(segment string) (perm string, ok bool) {
+	r, ok := match(http.MethodGet, "/"+segment)
+	if !ok {
+		return "", false
+	}
+	return r.perm, true
 }

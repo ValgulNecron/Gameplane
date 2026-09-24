@@ -104,3 +104,20 @@ func (s *Store) UserManagerCount(ctx context.Context) (int, error) {
 	}
 	return n, nil
 }
+
+// UserManagerCountExcludingRole counts users whose primary (cluster-wide)
+// role can manage users, leaving out users whose primary role is role.
+// A role edit that removes users:manage uses it to check that some other
+// user can still manage users afterwards.
+func (s *Store) UserManagerCountExcludingRole(ctx context.Context, role string) (int, error) {
+	var n int
+	err := s.DB.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT u.id)
+		FROM users u
+		JOIN role_permissions rp ON rp.role_name = u.role
+		WHERE rp.permission IN ('users:manage', '*') AND u.role <> ?`, role).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count user managers outside role: %w", err)
+	}
+	return n, nil
+}

@@ -119,7 +119,13 @@ named set of permissions, and a user is bound to roles **per namespace**.
   the same Role vs ClusterRole split Kubernetes uses. Unmatched routes fail
   closed.
 - **Lockout guards.** The API refuses to demote or delete the last user who
-  can manage users, and refuses self-demotion below `users:manage`.
+  can manage users, and refuses self-demotion below `users:manage`. Role
+  edits follow the same rules: a change that removes `users:manage` from the
+  caller's own primary role, or from the role every user manager holds, is
+  refused.
+- **Event stream.** `GET /events` carries only the resource kinds the caller
+  may read in the resolved cluster and namespace, using the same read
+  permission as each kind's list route.
 
 ### Per-GameServer access (owner + collaborators)
 
