@@ -290,6 +290,15 @@ Every fix branch changes production code and adds tests, which needs your sign-o
 
 Decision (maintainer): Pencil screenshots don't work on this devbox, so the fix groups that need a `design.pen` pass before any React work are done by the maintainer on a machine where screenshots work. The devbox sessions skip them entirely: no `design.pen` edits and no React for these groups. From [audit/evidence/rc.1/fix-plan.md](audit/evidence/rc.1/fix-plan.md) that is groups 3 (`fix/018-web-file-overwrite-guard`), 7 (`fix/018-web-tunnel-wizard-flow`), 12 (`fix/018-web-settings-lifecycle`), 13 (`fix/018-web-server-create-placement`) and 36 (`fix/018-web-ui-polish`). No held group needs a design pass. The other web groups are plumbing or logic fixes with no design change, and stay in the devbox fix waves.
 
+### OD-026: how the tunnel supervisor learns playit's assigned address (F-174) — PENDING
+
+Fix group 8 (`fix/018-tunnel-core-reliability`) was split: F-172, F-052 and F-173 go ahead, and F-174 waits on this. `tunnel/main.go:282-285` is a TODO ("the exact mechanism ... is TBD"): nothing in the tunnel binary learns the address playit.gg assigns, so `status.endpoints` stays empty for playit tunnels. The operator already grants the tunnel a status-patch RBAC rule for this (`tunnel_rbac.go`). Options:
+- (a) poll playitd's control socket (`--socket-path`) for the assigned address;
+- (b) parse playitd's log output;
+- (c) query the playit.gg account API with the tunnel's secret key;
+- (d) let the user enter the address (a GameServer field or annotation) and have the operator copy it into status;
+- (e) document the limitation for v0.3 and close F-174 as out-of-scope with a roadmap line.
+
 ### T054: `gameplane-module` tag for the v0.3.0 chart default — RESOLVED 2026-09-24
 
 Decision: a new `v0.3.0` tag in `gameplane-module`, cut only after the live module rows (`INV-MOD-*`) pass on the release candidate. `charts/gameplane/values.yaml:473` is then pinned to it on `fix/018-module-source-ref`. The README, docs and website game counts (review findings C-docs-01, C-website-01, C-website-02) are updated to the 30-module catalog in the same release. The tag in the other repo is outward-facing, so it's confirmed with you when it's ready.

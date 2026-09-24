@@ -172,7 +172,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-208 | specs.md dependency versions stale | mcp-server | review:mcp-server | S4 | open | | | |
 | F-209 | Chart comment references nonexistent file path | mcp-server | review:mcp-server | S4 | open | | | |
 | F-210 | README example fails on typical Linux host | mcp-server | review:mcp-server | S4 | open | | | |
-| F-212 | Namespace deleted on helm uninstall, losing GameServers and volumes | charts/gameplane/ | review:charts/gameplane | S1 | open | | | |
+| F-212 | Namespace deleted on helm uninstall, losing GameServers and volumes | charts/gameplane/ | review:charts/gameplane | S1 | fixing | #425 | | |
 | F-213 | Pre-upgrade hook fails for non-default release name | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-214 | helm upgrade --reuse-values fails with nil-pointer errors on new keys | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-215 | Backup and Restore Job pods can't reach restic repository | charts/gameplane/ | review:charts/gameplane | S2 | open | | | |
@@ -200,7 +200,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-243 | coverage report posts hard-coded success | .github/workflows/ | review:github-workflows | S4 | open | | | |
 | F-244 | gp-module missing from dependabot gomod | .github/workflows/ | review:github-workflows | S3 | open | | | |
 | F-245 | actionlint doc command uses wrong extension glob | .github/workflows/ | review:github-workflows | S4 | open | | | |
-| F-251 | nginx.conf.template missing client_max_body_size | web/ | review:web | S2 | open | | | |
+| F-251 | nginx.conf.template missing client_max_body_size | web/ | review:web | S2 | fixing | #426 | | |
 | F-252 | docs/oidc.md gives clientSecretRef as plain string | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-253 | README.md / plan.md say "Go 1.25" vs go.mod's 1.26 requirement | root docs | review:root-docs | S4 | open | | | |
 | F-254 | sentinel/sentinel untracked binary, no .gitignore entry | sentinel/ | review:sentinel | S4 | open | | | |
