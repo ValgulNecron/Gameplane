@@ -31,11 +31,11 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-023 | Open question: Factorio template's `rcon.protocol: source` vs. an earlier contract claim of `none` | modules/ | imported:specs/015-top-steam-game-modules/OPEN-DECISIONS.md#2-factorio-protocol-finding-t005 | S3 | imported | | | shipped template retained pending final maintainer confirmation |
 | F-024 | Open question: Project Zomboid template's `rcon.protocol: source` vs. an earlier contract claim of `none` | modules/ | imported:specs/015-top-steam-game-modules/OPEN-DECISIONS.md#3-project-zomboid-protocol-finding-t005 | S3 | imported | | | shipped template retained pending final maintainer confirmation |
 | F-025 | Open question: generic `rest` rcon wire contract (FiveM txAdmin / Farming Simulator 25) not yet given a final ruling | agent/ | imported:specs/015-top-steam-game-modules/OPEN-DECISIONS.md#5-generic-rest-wire-contract-t005-t018-t047-t052 | S3 | imported | | | contract documented and implemented in `agent/internal/rcon/rest.go`; pending final maintainer sign-off |
-| F-026 | `hack/check-doc-versions.sh` recognises only `-beta.N` versions and matches single-digit minor/patch components where its header documents `[0-9]+` | hack/ | review:hack | S3 | fixing | #420 | | |
+| F-026 | `hack/check-doc-versions.sh` recognises only `-beta.N` versions and matches single-digit minor/patch components where its header documents `[0-9]+` | hack/ | review:hack | S3 | fixed-unverified | #420 | | |
 | F-027 | `docs/install.md` has no rollback procedure | docs/ | review:docs | S3 | open | | | fix in T063 after the live rollback (T062) |
 | F-028 | `charts/gameplane/values.yaml` git module source still pinned to `ref: v0.2.0-beta.6` | charts/gameplane/ | review:charts/gameplane | S3 | open | | | T054: pin to a new gameplane-module v0.3.0 tag after INV-MOD rows pass |
 | F-029 | CI upgrade baseline still `0.2.0-beta.5` across `deploy/kind/upgrade.sh`, `.github/workflows/ci.yaml`, `.claude/agents/ci-triager.md` | deploy/ | review:deploy | S3 | fixing | #422 | | |
-| F-030 | CLAUDE.md repository map says "14 Go modules" and omits `gp-module/` | root docs | review:root-docs | S4 | fixing | #421 | | |
+| F-030 | CLAUDE.md repository map says "14 Go modules" and omits `gp-module/` | root docs | review:root-docs | S4 | fixed-unverified | #421 | | |
 | F-031 | GameServer examples in tunnels.md use spec.template instead of templateRef.name | docs/ | review:docs | S4 | open | | | all three examples fail kubectl apply |
 | F-032 | README, roadmap and comparison cite 16 game modules but repo has 30 | docs/ | review:docs | S4 | open | | | module count drift since v0.2.0-beta.8 |
 | F-033 | security.md misstates capture feature default as "true" when it is "false" | docs/ | review:docs | S4 | open | | | contradicts install.md and architecture.md |
@@ -48,7 +48,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-040 | fast game set definitions conflict: fastGameSet (6) vs buckets.sh (3) vs specs.md (3 or 4) | test/e2e/ | review:test-e2e | S4 | open | | | factorio, tmodloader, beammp inconsistently classified |
 | F-041 | e2e/internal/specs.md depth table has 16 rows but repo has 29 probe packages | test/e2e/ | review:test-e2e | S4 | open | | | docs outdated; docs/game-coverage.md is current source |
 | F-042 | api-roles bucket admin login count undercounted in docs: real count 7, cited 5–6 | test/e2e/ | review:test-e2e | S4 | open | | | bucket at ~7 ceiling; docs say ≤~5; no test failure (429 retry absorbs) |
-| F-043 | CHANGELOG.md "[Unreleased]" missing ~60 PRs of user-facing changes since v0.2.0-beta.8 | root docs | review:root-docs | S4 | fixing | #423 | | backfilled by the rc.1 CHANGELOG PR (OD-014) |
+| F-043 | CHANGELOG.md "[Unreleased]" missing ~60 PRs of user-facing changes since v0.2.0-beta.8 | root docs | review:root-docs | S4 | fixed-unverified | #423 | | backfilled by the rc.1 CHANGELOG PR (OD-014) |
 | F-044 | Quiesce-state persisted before unquiesce completes | operator | review:operator | S3 | open | | | |
 | F-045 | Auto-scheduled backups never get the quiesce default | operator | review:operator | S3 | open | | | |
 | F-046 | Pinned module versions stuck in Pulling loop | operator | review:operator | S3 | open | | | |

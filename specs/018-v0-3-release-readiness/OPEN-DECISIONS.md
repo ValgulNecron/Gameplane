@@ -100,7 +100,7 @@ The items below are open. Work that doesn't depend on them carries on.
   - [#420](https://github.com/ValgulNecron/Gameplane/pull/420): doc-version checker (T052, F-026)
   - [#421](https://github.com/ValgulNecron/Gameplane/pull/421): CLAUDE.md gp-module (T053, F-030)
   - [#422](https://github.com/ValgulNecron/Gameplane/pull/422): upgrade baseline beta.8 (T051, F-029)
-- **SHA to tag**: the merge commit of that PR on `master`. It's recorded here once known.
+- **SHA to tag**: #420, #421 and #423 merged on 2026-09-24 (#423 → `b386103e`). The target is now the merge commit of #422 once it lands, so rc.1 includes all four; it is recorded here after CI on `master` is green.
 - **Command after approval**: `git tag -a v0.3.0-rc.1 <sha> -m "v0.3.0-rc.1" && git push origin v0.3.0-rc.1` (annotated, unsigned, per OD-013).
 
 ### OD-010: RC-03 leaves out the `imported` status — RESOLVED 2026-09-24
