@@ -1,157 +1,181 @@
 # Restart Guide: spec 018 (v0.3 release readiness)
 
-Complete hand-off as of 2026-09-24, end of the third session. Read this first, then [tasks.md](tasks.md) and [OPEN-DECISIONS.md](OPEN-DECISIONS.md).
+Hand-off as of 2026-09-24 ~23:30 UTC (end of the fourth session, a cloud session). Read this first, then [tasks.md](tasks.md) and [OPEN-DECISIONS.md](OPEN-DECISIONS.md).
 
-## 0. Setting up on another machine
+## 0. Setup
 
-1. `git fetch origin && git checkout 018-v0-3-release-readiness` (draft PR #424). Every committable audit record is on this branch.
-2. **Copy by hand from the devbox**; these are deliberately not in git (OD-019):
-   - `specs/018-v0-3-release-readiness/audit/held/`: the whole folder. It is git-ignored and holds everything about the security findings: `findings.md`, `fix-plan-held.md`, `questions.md`, `review-*.md`, `verification-*.md`, `procedures-security.md`, `inventory-SEC.md` and `evidence/`.
-   - `SECURITY_AUDIT.md`: the reworded version, an uncommitted change in the devbox working tree. Don't commit it until the maintainer says so.
-   - `~/gameplane-audit-018/` (mode 700; `admin.env`, session files, `db-snapshots/`) and `~/kubelab.yaml`, only if this machine will run the live rounds on kubelab.
-
-   Never commit any of these, and never paste their contents into a PR, issue or commit message.
+1. `git fetch origin && git checkout 018-v0-3-release-readiness` (draft PR #424 holds the audit records).
+2. The held security material (`audit/held/`, `SECURITY_AUDIT.md` rewording, `~/gameplane-audit-018/`, `~/kubelab.yaml`) exists **only on the devbox** and is git-ignored (OD-019). Never commit it or paste it anywhere public.
 3. `git submodule update --init modules`.
 
-## 1. Working rules (all still apply)
+## 1. Working rules
 
-- **OD-019, security findings:** they stay off GitHub until fixed.
-  - Public files carry at most a stub such as "held (OD-019)".
-  - Fix branches, commits, code comments, test names and PR text for held findings read as neutral "hardening". They cite no held ID and give no repro.
-  - After a held fix merges, its row and subsection move from `held/findings.md` into `audit/findings.md` unchanged.
-- **SECURITY_AUDIT.md:** never read an older version from git (`git show <rev>:SECURITY_AUDIT.md`, or `git log -p`, `git diff` or `git blame` on it).
-- **Model tiers (CLAUDE.md 13):** fable is banned (OD-020, cost). Tier+1 review of opus work is done by an independent opus agent. Sonnet's cyber safeguard stops it on security-adjacent work (`procedures/api.md`, `procedures/crd.md`, anything in `held/`), so use opus there.
-- **Design (OD-025):** groups that need a `design.pen` pass are done on a machine where Pencil screenshots work.
-  - Public groups: 3 `fix/018-web-file-overwrite-guard`, 7 `fix/018-web-tunnel-wizard-flow`, 12 `fix/018-web-settings-lifecycle`, 13 `fix/018-web-server-create-placement`, 36 `fix/018-web-ui-polish`.
-  - Held: the dashboard half of H31 (H31b).
-  - Design first, then the maintainer's OK, then React.
-- **Verification (CLAUDE.md 8):** no test or lint suites locally; compile checks only (`go build ./...`, `helm template`, `npx tsc --noEmit`, `go vet -tags e2e` for e2e compile). CI is the verifier.
-- **Commits and PRs:** `git commit -s` with trailers. PR labels go through the REST API (`gh pr edit` is broken). Only the maintainer merges; PRs from the maintainer's account need the ruleset bypass.
-- **Editing records:** apply record edit lists with an exact, unique-match replacement script (the devbox copy is `/tmp/claude-1000/-home-dev-Gameplane/e0cf04a8-b80e-4fc8-92df-ee2396f7dbe8/scratchpad/apply_edits.py`; it's short to rewrite). Model `Edit` calls fed with JSON-escaped text corrupted shell quoting.
-- **Auto mode:** its safety check blocked shell commands several times. Run the live security checks, T012 and T046 in the default permission mode.
-- **Current focus:** the maintainer asked for the held security fixes (S1 → S4) first. Public fix groups continue only when asked.
+All of these still apply.
 
-## 2. Done
+- **OD-019:** held fixes read as neutral "hardening": no held IDs or repros in branches, commits, comments or PRs.
+- **CLAUDE.md 8:** compile checks only locally. CI is the verifier.
+- **Branches and PRs:**
+  - One `fix/018-<group>` branch and PR per fix group. The maintainer approved this.
+  - PR labels are set with the GitHub API (issue labels).
+  - Only the maintainer merges.
+- **Branch deletion:** the cloud session can't delete remote branches (403). Ask the maintainer, or enable GitHub's "Automatically delete head branches".
+- **`github-advanced-security`:** ignore this check. It is Copilot autofind and always fails with "model not supported", per the maintainer.
+- **Open PRs:** don't leave them to rot. Watch every open PR, fix red CI immediately, and say what is ready to merge.
+- **Scope:** no design work (OD-025 groups 3, 7, 12, 13 and 36, the H31b dashboard, #434) and no held security fixes in cloud sessions. The held fixes (H31a onward) are done on the devbox.
+- **Questions:** ask with the question tool, one issue plus its proposed fix per question. Never ask a blanket "go ahead or wait".
+- **Model tiers (CLAUDE.md 13):** fable is banned. Opus work gets an independent opus review.
+- **Worktrees:** an agent once left the main checkout on a fix branch. Check `git branch --show-current` before committing records.
 
-### Git, PRs, release
-- **Branch history:** `018-v0-3-release-readiness` was rebuilt without the security material and force-pushed (OD-019). The devbox keeps the old tip as `local/018-pre-rewrite`; never push it.
-- **Merged to master:**
-  - #420: doc-version checker handles bare versions, with fixture tests (OD-011, OD-012).
-  - #421: CLAUDE.md repo map.
-  - #422: e2e upgrade baseline beta.8.
-  - #423: CHANGELOG rc.1.
-  - #425: F-212, the games Namespace gets `helm.sh/resource-policy: keep`.
-  - #426: F-251, nginx `client_max_body_size`.
-  - Their findings are `fixed-unverified`, and their branches and worktrees are deleted.
-- **Tag `v0.3.0-rc.1`:** on `c44cb179`, annotated (OD-013), with the maintainer's approval. CI on it is green (74/74 after one re-run of an arm64 Go-proxy flake).
-- **Release run 36051057887** (`release.yaml` for the tag):
-  - The first attempt was cancelled: the operator image build hit the 30-minute `timeout-minutes` (`release.yaml:15`), so the chart and GitHub-release jobs were skipped.
-  - The re-run of the failed jobs was **cancelled the same way**. rc.1 therefore has images for every component except the operator, and no chart and no GitHub release.
-  - This is a real pipeline defect. Record it as a finding (release pipeline, S2: an RC can't be published), then fix it in a PR: raise `timeout-minutes` for the image job (`release.yaml:15`), or speed up the operator multi-arch build.
-  - After that merges, re-run the release for the same tag, or cut rc.1 again with the maintainer's approval.
+## 2. APPLY FIRST: record edits not yet written
 
-### Records (all in `audit/`)
-- **Findings:** 256 in total. `findings.md` holds the 199 public ones; the rest are in `held/findings.md`. Each batch was checked one tier up and cross-chunk duplicates were reconciled.
-- **Coverage:** every row in `coverage.md` is complete (code reviews on opus, verified by an independent opus agent). Evidence is in `evidence/review-*/`; held candidates are in `held/`.
-- **Inventory:**
-  - `inventory.md`: UPG and NODE rows sit in their own sections, SEC rows are held, and evidence links point under `evidence/`.
-  - Procedures: every file except the held security one had a correctness pass, factual follow-ups and a quoting sweep.
-  - `procedures/upgrade.md` baseline-beta8 step 3 carries a DO NOT RUN banner (OD-023).
-- **T012 (kubelab):**
-  - `audit018-admin` was created via `kubectl exec -n gameplane-system deploy/gameplane-api -- /api bootstrap-admin --username audit018-admin`; its password is in `~/gameplane-audit-018/admin.env`.
-  - API state names and DB migration level 011 are recorded in `kubelab-baseline.md`.
-  - Still missing: the API user list.
-- **T050 fix plans:** `evidence/rc.1/fix-plan.md` (52 public groups) and `held/fix-plan-held.md` (held groups). The maintainer approved all of them (OD-024).
-- **Decisions resolved:** OD-001..OD-020, OD-022..OD-025, and RC-TAG-1. The maintainer's answers on the held questions are in `held/questions.md`.
+Auto mode blocked the scripted edit at the end of session 4. Apply these to the 018 branch, commit and push.
 
-### Tasks
-- **Done (`[X]`):** T001–T011, T013, T024, T035–T045 and T050. T014 has started (tag pushed, release still running).
+### 2a. `audit/findings.md`: set Status to `fixing` with these Fix PRs
 
-## 3. In flight
+| Findings | Fix PR |
+|---|---|
+| F-213, F-214, F-218 | #443 |
+| F-074, F-075 | #444 |
+| F-258 | #445 |
+| F-125 | #440 |
+| F-159, F-160, F-161, F-162 | #441 |
 
-### Open PRs (waiting for the maintainer to review and merge)
-| PR | Branch | Content |
-|----|--------|---------|
-| #428 | `fix/018-tunnel-core-reliability` | group 8: F-172, F-052, F-173 (F-174 waits on OD-026) |
-| #429 | `fix/018-web-namespace-scoping` | group 4: F-116, F-130 |
-| #427 | `fix/018-harden-module-bundle-integrity` | held H02 (hardening) |
-| #430 | `fix/018-harden-api-cluster-scoping` | held H01 (hardening) |
-| #431 | `fix/018-harden-admin-settings-state` | held H03 (hardening) |
-| #424 | `018-v0-3-release-readiness` | draft, the audit records |
+Once their PRs exist, also set F-105/F-106 (group 18), F-179/F-180 (group 24) and F-174.
 
-When a fix PR merges: set its findings to `fixed-unverified` (held ones in `held/findings.md`, moved into `findings.md` once merged), and delete the branch and worktree (CLAUDE.md 12).
+### 2b. `OPEN-DECISIONS.md`
 
-### Pushed work-in-progress branches (no PR yet, review not passed)
-- `fix/018-agent-file-write-safety` (group 2: F-102, F-108). The atomic write now creates files with `os.CreateTemp` (0600), which regresses the mode game containers need. Fix the code, not the linter config:
-  - for an existing target, copy its mode onto the temp file from `os.Stat` (a runtime mode, not a constant, so gosec G302 doesn't flag it);
-  - for a new file, create the temp file with `os.Create` semantics (0666 & ~umask) under a unique name;
-  - assert the mode in `files_test.go` and add one line to `agent/specs.md`;
-  - then run a sonnet review and open a PR (`type: fix`, `area: agent`).
-- `fix/018-charts-backup-restore-egress` (group 5: F-215). `test/e2e/restore_e2e_test.go` ~135-155 declares `restoreJob` and never reads it, a compile error under the `e2e` tag. Remove it or assert on it, compile-check with `go vet -tags e2e ./...` in `test/e2e/`, re-review, then open a PR (`type: fix`, `area: chart`, `area: operator`).
+Mark OD-021 **RESOLVED 2026-09-24** and add the resolution below after its question list.
 
-### Held security fixes (current focus)
-- S1: done (#430, #427).
-- S2: H03 is done (#431). Next is **H31a**, the API half of H31.
-  - The maintainer approved the split and the scope. Details are in `held/questions.md` and the H31 section of `held/fix-plan-held.md`.
-  - H31b (dashboard) goes to the design queue.
-- Then the remaining held S2 groups, then S3 and S4, from `held/fix-plan-held.md`.
+1. Each agent procedure creates and deletes its own `audit018-` server (no shared server).
+2. Test quiesce through a Backup of an `audit018-` server, and check the save sequence in the agent log.
+3. Re-check the `nuclear-option` and `terraria` Modules before the round. If they are still Failed, **root-cause and fix them** and file a finding. Don't switch modules to avoid the bug.
+4. Retarget users-get to `GET /users`.
+5. default-module-source and upload-module-source: `helm template` check only. The live toggle is blocked.
+6. and 21. Module signature: an in-cluster `audit018-registry` plus an `audit018-` OCI ModuleSource created with kubectl. Push one signed and one unsigned bundle; the unsigned one must be rejected.
+7. web-dashboard-ui runs last, through a temporary port-forward to `svc/gameplane-api`, then `web.enabled` is restored.
+8. existing-storage-claim runs alone at the end of the round against an `audit018-` PVC: DB snapshot before, revert, snapshot-diff after.
+9. and 16. Restic: an `audit018-restic` restic-server (from `test/e2e/fixtures/restic-server.yaml`) plus an `audit018-restic` Secret per round, both removed at teardown.
+10. nuclear-option `Automatable?` is `yes` (bucket `bot-heavy`), with a note that the client join is manual.
+11. Drain: assert the pod is Running on another node while the drained node is still cordoned, then uncordon.
+12. **Add a new Go e2e bucket** for the web.md procedures that currently say `api` (new `buckets.sh` entry plus a CI job). This is its own task.
+13. The service-accounts and OIDC placeholder tabs are `n/a`, with a `docs/roadmap.md` citation.
+14. Create an `audit018-games2` namespace with one small server per round, both removed at teardown.
+15. `audit018-collab`: primary role `audit018-norole` (no permissions) plus a collaborator grant on one `audit018-` server. Teardown removes all three.
+17. `capture.enabled=true` is approved as a per-round override. Record it in rounds.md, restore it, and snapshot-diff.
+18. INV-CRD-034: deleting the game pod mid-capture (the controller reports PodRestarted) counts as the crash test.
+19. INV-CRD-029/030 (Cluster CR): **blocked**. Home-cluster-only routes answer 501 for a remote cluster (#430).
+20. INV-CRD-036/037: **install a snapshot-capable CSI driver** (csi-driver-host-path plus the snapshot controller) on kubelab for the round, then remove it.
+22. Retitle INV-CRD-012/020 to match the code, and file an S4 finding for the `Resuming`/`Stopped` phases that are never set.
+23. Fixtures:
+    - (a) Fix the `minecraft-java` Module stuck in Pulling (check it against F-258/#445), then copy it.
+    - (b) The crash-loop fixture uses `busybox:1.37.0`, the operator's config-init image.
+    - (c) kubelab reaches ghcr.io, so modulesource-oci-sync runs live.
+    - (d) The devbox has no Minecraft ping tool. Use the repo's full Minecraft client (the e2e game bot) for wake-on-connect.
+24. A cold first boot must reach Running within 10 minutes. Record the actual boot time.
 
-## 4. Left to do (in order)
+Mark OD-026 **RESOLVED 2026-09-24**: option (a), poll playitd's control socket and patch `status.endpoints`. It is being implemented on `fix/018-tunnel-playit-address`, stacked on #428.
 
-1. Held security fixes: H31a, then the rest of the held plan S2 → S4.
-2. Finish the two WIP public branches (groups 2 and 5).
-3. T014: once the release run finishes, check it against contracts/rc-deploy.md §1:
-   - the run is green;
-   - `ghcr.io/valgulnecron/gameplane/<component>:v0.3.0-rc.1` images exist and pass `cosign verify --key cosign.pub`;
-   - the chart `oci://ghcr.io/valgulnecron/charts/gameplane:0.3.0-rc.1` exists and is signed;
-   - the GitHub release is a prerelease;
-   - no `0.3` image tag was created or moved.
+### 2c. Other maintainer decisions from session 4
 
-   Record the results under a new `## rc.1` in `audit/rounds.md`.
-4. T015: deploy rc.1 to kubelab. Take a DB snapshot first, pass the `capture` and `operator.gameDataStorage` keys explicitly (F-214), record the overrides in `rounds.md`, and compare `helm get values` with the baseline.
-5. OD-022: add `.github/actions/` and `images/` rows to `coverage.md` and contracts/audit-records.md, and review both.
-6. The remaining public fix groups (S2 → S4) from `evidence/rc.1/fix-plan.md`, when the maintainer asks. Skip the OD-025 design groups and anything blocked by OD-021 or OD-026.
-7. T012 user list and T046 (rewrite `held/procedures-security.md` as control checks), both in the default permission mode.
-8. Live rounds on rc.1: T025–T034 (these need the OD-021 answers), T047/T048 (the security checks, default permission mode), and T049 (re-check the 25 imported findings).
-9. rc.2 (T057): a CHANGELOG PR, RC-TAG-2 approval, tag and deploy.
-   - rc.2 contains #425, so OD-023 path (e) applies: reinstall beta.8 on kubelab with the rc.2 chart (the games namespace now survives `helm uninstall`), then run the US4 upgrade and node rounds (T060–T065).
-   - Remove the DO NOT RUN banner only once the keep policy is confirmed on kubelab's namespace.
-10. Loop T055–T059 until no finding blocks the release, then the report and go/no-go (T066–T070), then the final release (T071–T076).
+- **rc.1:** don't re-run or move the tag; `v0.3.0-rc.1` predates #435. Cut **rc.2** from master once the current fixes land (T057).
+- **#430:** remote-cluster requests to home-cluster-only routes answer **501**, with the body `httperr.RemoteClusterNotImplemented`. The maintainer asked for this; the cross-cluster agent comes later. It is done, pushed as `94e79456`.
+- **#434** (a design PR from session 3) is ignored for now.
 
-## 5. Pending with the maintainer
+## 3. PR state
 
-- **OD-021:** 24 procedure design questions. Proposed defaults were sent in chat on 2026-09-24:
-  1. one shared `audit018-agent-mc`;
-  2. quiesce tested via a Backup;
-  3. re-check the failed Modules before the round;
-  4. users-get is n/a;
-  5. module-source toggles are blocked;
-  6. signature check with an `audit018-` OCI ModuleSource;
-  7. `web.enabled` runs last, via an api port-forward;
-  8. existingClaim is blocked;
-  9. and 16. one `audit018-restic` per round;
-  10. nuclear-option `Automatable?` is `no`;
-  11. drop the different-node assertion;
-  12. map each procedure to a real bucket;
-  13. the placeholder tabs are n/a with a roadmap cite;
-  14. the namespace filter is blocked;
-  15. `audit018-collab` gets an `audit018-norole` role plus collaborator;
-  17. a per-round `capture.enabled` override;
-  18. pod delete as the closest alternative;
-  19. kubelab's own kubeconfig, else blocked;
-  20. VolumeSnapshot is blocked;
-  21. an in-cluster `audit018-registry`;
-  22. retitle the rows and add an S4 finding for the unused phases;
-  23. fixtures OK;
-  24. a 10-minute boot bound.
-- **OD-026:** how the tunnel learns playit's address (F-174).
-- **Merges:** the PRs in section 3.
+At the end of session 4, every open PR is green on its head, except where noted below.
 
-## 6. kubelab facts (captured 2026-09-23)
+### Merged
 
-- `KUBECONFIG=~/kubelab.yaml`, context `default`. Nodes `kubelab-control`, `kubelab-worker-1` and `kubelab-worker-2`, on k3s `v1.36.2+k3s1`.
-- Helm release `gameplane` in `gameplane-system`, revision 6, labelled chart `0.2.0-beta.8`. It runs side-loaded images `gameplane-test/{api,operator,web,agent,sentinel}:016`.
+- #432: F-215, backup/restore egress.
+- #435: F-257, Go images cross-compile. `publish-edge` on master confirmed that 9 of the 12 images build and sign in 1–4 minutes. Confirm operator, api and web finished (run 36069312826).
+- #438: F-121.
+- #431: held H03. Update `held/findings.md` on the devbox.
+- F-215, F-257 and F-121 are already `fixed-unverified` in findings.md.
+
+### Open, green, ready to merge
+
+| PR | Content |
+|---|---|
+| #427 | held H02 hardening |
+| #428 | group 8: F-172, F-052, F-173 |
+| #429 | group 4: F-116, F-130 |
+| #433 | group 2: F-102, F-108 |
+| #437 | group 15: F-103, F-104 |
+| #439 | group 26: F-204 |
+
+### Open, CI pending or re-running
+
+| PR | Content | State |
+|---|---|---|
+| #430 | held H01 plus the 501 change | CI ran on `94e79456` |
+| #436 | group 11: F-054 | The wipe test passes on both arches. The amd64 failure was `TestGameServer_NetworkCaptureEphemeralContainer` (passed on arm64, not touched by this PR). Failed jobs of run 36067327578 were re-run once. If it fails again, investigate it as a real capture bug (new finding), not in #436. |
+| #440 | group 21: F-125 | |
+| #441 | group 23: F-159..F-162 | |
+| #443 | group 9: F-213, F-214, F-218 | |
+| #444 | group 16: F-074, F-075 | |
+| #445 | F-258 | Follow-up noted: registry errors whose message differs on every try can still cause churn. |
+
+### Red at hand-off (fix first)
+
+- **#441:** `go (api)` fails on amd64 and arm64. That is odd for a gp-module-only diff, so compare with master first.
+- **#440:** `e2e web live` fails on amd64 and arm64.
+- **#427:** `e2e web live` arm64 fails on a new head, `b5c3a88d`, which session 4 did not push.
+- **#443:** `chart render` fails.
+- **#436:** now green, 17/17 after the re-run.
+
+### Wave 3 results: local commits, NOT pushed
+
+Auto mode blocked all writes at the end of session 4.
+
+- **`fix/018-sentinel-core-reliability` at `d23f2472`, group 24, opus review APPROVED.** Push it and open a PR.
+  - Each session now runs under its own context and drains on SIGTERM (`SHUTDOWN_DRAIN_TIMEOUT`, default 4h).
+  - The operator sets the waker's terminationGracePeriod to the drain time plus 30s, except in Hostport mode, which gets 0s and 30s.
+  - F-180 surfaces the first fatal listener error.
+  - `TestProxyBidirectionalStopsOnContextCancel` is replaced as the maintainer approved.
+  - Non-blocking nits:
+    - `SHUTDOWN_DRAIN_TIMEOUT` parse error is not wrapped with %w;
+    - a stray test goroutine;
+    - the 4h constant is duplicated and only a comment keeps the two in sync.
+  - Ask the maintainer about the 4h drain choice.
+- **`fix/018-tunnel-playit-address` at `6063e07c`, F-174, stacked on #428, opus review APPROVED.** Push it and open a PR against master after #428 merges, or against #428's branch.
+- **`fix/018-agent-status-reporting` at `83897242`, group 18, review NOT approved.**
+  - The Players tab now renders "—", but **`web/src/routes/tabs/Overview.tsx:379` (PlayersCard)** also prints -1. Apply the same "—" / "unknown" handling there and add an `Overview.test.tsx` case.
+  - Optional: `parseListWithRegex` returns `Max:0` on zero matches; make it -1 for consistency.
+  - **Ask the maintainer** to sign off the edits to the existing agent tests (`players_test.go` 0/0→-1/-1, and `heartbeat_test.go` dropping the gameVersion check).
+- Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Agents used `--legacy-peer-deps` for the compile check only.
+
+### Earlier notes on these branches
+
+- **`fix/018-agent-status-reporting` (group 18: F-105, F-106).** The agent fix is pushed as `c3484c43`. The maintainer approved a text-only Players tab change: an unknown count shows "—" / "Player count unknown". The wave-3 agent adds it. Then open the PR (`type: fix`, `area: agent`, `area: web`).
+- **`fix/018-sentinel-core-reliability` (group 24: F-179, F-180).** The maintainer **approved rewriting** `TestProxyBidirectionalStopsOnContextCancel`, which asserts the buggy behaviour. Wave 3 implements it. Labels: `type: fix`, `area: optional-components`, `area: operator`.
+- **`fix/018-tunnel-playit-address` (F-174, OD-026 (a)).** Stacked on #428. If the playitd socket protocol can't be established, report back to the maintainer.
+
+## 4. Next (in order)
+
+1. Apply section 2. Collect the wave-3 results, review and push them, open the PRs and watch them.
+2. Watch every open PR to green, and give the maintainer the merge-ready list. After each merge, set its findings to `fixed-unverified`.
+3. The remaining public non-design fix groups from `audit/evidence/rc.1/fix-plan.md`:
+   - done or in flight: groups 1, 2, 4, 5, 6, 8, 9, 11, 15, 16, 18, 20, 21, 23, 24, 26;
+   - not started: 10, 14, 17, 22 (land after #429), 25, 27, 29–31, 33–35, 37–52;
+   - 28 is blocked on the module tag (T054), 32 is T063, and 19 may need design.
+4. The OD-021 follow-ups:
+   - the new Go e2e bucket (item 12);
+   - fix the Failed nuclear-option, terraria and minecraft-java Modules (items 3 and 23a);
+   - the S4 finding for the unused phases (item 22);
+   - procedure edits for every item.
+5. rc.2 (T057): a CHANGELOG PR, then RC-TAG-2 approval, the tag, the release run (check it against contracts/rc-deploy.md §1) and a deploy to kubelab.
+6. The devbox-only work:
+   - held fixes H31a onward;
+   - the T012 user list;
+   - T046 and the live rounds T025–T034 and T047–T049, using the OD-021 decisions above.
+
+## 5. kubelab facts
+
+Unchanged from session 3.
+
+- `KUBECONFIG=~/kubelab.yaml`. Nodes: `kubelab-control` and `kubelab-worker-{1,2}`, on k3s v1.36.2.
+- Helm release `gameplane` in `gameplane-system`, revision 6, chart 0.2.0-beta.8.
 - Site settings to preserve: `image.registry=gameplane-test`, `image.tag=016`, `operator.addressManager=metallb`, `ingress.host=gameplane.local`, `defaultModuleSource` git `ref: main`, `crds.autoApply.enabled=false`.
-- Pre-existing GameServers (never write to them): `mc-fabric` and `soak-bogus-pool` (control), `soak-no-preference` and `squad` (worker-1; `squad` is Failed), `soak-pool-west` (worker-2). ModuleSources `default` and `uploads`.
-- API access: `kubectl port-forward -n gameplane-system svc/gameplane-web 18080:80` and `GP=http://127.0.0.1:18080` (OD-016). The API DB is at migration 011, so OD-005 path (b), refined by OD-023.
-- Baseline JSON: `audit/evidence/baseline/`. Tools: `audit/tools/snapshot.sh`, `snapshot-diff.sh`, `cleanup-check.sh`.
+- Pre-existing GameServers (never write to them): `mc-fabric`, `soak-bogus-pool`, `soak-no-preference`, `squad` and `soak-pool-west`. ModuleSources `default` and `uploads` are also off limits.
+- API access: `kubectl port-forward -n gameplane-system svc/gameplane-web 18080:80`, then `GP=http://127.0.0.1:18080`. The DB is at migration 011.
