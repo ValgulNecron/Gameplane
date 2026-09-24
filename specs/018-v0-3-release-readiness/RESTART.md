@@ -152,7 +152,7 @@ Still pending: **RC-TAG-1**, which needs the maintainer's approval after #423 me
 ### Still pending with the maintainer
 - **OD-021:** 24 procedure questions. The proposed defaults were sent in chat; the answer is still pending.
 - **OD-026:** how the tunnel learns playit's address (F-174).
-- **Merges:** PRs #425, #426, #428 and #429, and each new fix PR.
+- **Merges:** PRs #425, #426, #428 and #429 (public), #427 and #430 (held hardening), and each new fix PR.
 - **T012 and T046:** both need a session in the default permission mode.
 
 ## kubelab facts (captured 2026-09-23)
