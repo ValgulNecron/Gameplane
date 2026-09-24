@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -123,6 +124,38 @@ func TestRestore_RoundTrip(t *testing.T) {
 	})
 
 	waitRestoreSucceeded(t, ns, rsName, 5*time.Minute)
+
+	// Verify the Restore Job was labeled so the chart's allow-backup-
+	// restore-egress NetworkPolicy could select it (F-215). The Job pod
+	// must carry the app.kubernetes.io/name=gameplane-backup-restore label
+	// so default-deny-egress's podSelector: {} doesn't block its egress.
+	// This is a shape-only assertion (not enforcement, since kind's default
+	// CNI doesn't enforce NetworkPolicy), mirroring the style of
+	// TestGameServer_IngressNetworkPolicyShapeAndCascade.
+	var restoreJob *batchv1.Job
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		jobs, err := envInstance.K8s.BatchV1().Jobs(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, "list jobs: " + err.Error()
+		}
+		for i, j := range jobs.Items {
+			for _, owner := range j.OwnerReferences {
+				if owner.Kind == "Restore" && owner.Name == rsName {
+					// Found the restore Job.
+					restoreJob = &jobs.Items[i]
+					if j.Spec.Template.Labels == nil {
+						return false, "restore job " + j.Name + " has nil Labels"
+					}
+					labelValue, exists := j.Spec.Template.Labels["app.kubernetes.io/name"]
+					if !exists || labelValue != "gameplane-backup-restore" {
+						return false, "restore job " + j.Name + " app.kubernetes.io/name label is " + labelValue + ", want gameplane-backup-restore"
+					}
+					return true, ""
+				}
+			}
+		}
+		return false, "no Job owned by Restore " + rsName
+	})
 
 	got, err := envInstance.Dyn.Resource(restoreGVR).Namespace(ns).
 		Get(ctx, rsName, metav1.GetOptions{})

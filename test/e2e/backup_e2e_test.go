@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -81,6 +82,19 @@ func TestBackup_OperatorMaterializesJob(t *testing.T) {
 		for _, j := range jobs.Items {
 			for _, owner := range j.OwnerReferences {
 				if owner.Kind == "Backup" && owner.Name == bkName {
+					// Check that the Job pod template is labeled so the
+					// chart's allow-backup-restore-egress NetworkPolicy can
+					// select it (F-215). Without this label the Job pod
+					// carries only the Job controller's own labels, default-
+					// deny-egress's podSelector: {} is the only policy that
+					// applies to it, and it can't reach any restic repository.
+					if j.Spec.Template.Labels == nil {
+						return false, "job " + j.Name + " owned by Backup but has nil Labels"
+					}
+					labelValue, exists := j.Spec.Template.Labels["app.kubernetes.io/name"]
+					if !exists || labelValue != "gameplane-backup-restore" {
+						return false, "job " + j.Name + " owned by Backup but app.kubernetes.io/name label is " + labelValue + ", want gameplane-backup-restore"
+					}
 					// Sanity-check that the Job pod template references
 					// the right Secret (so a future refactor that
 					// silently drops RESTIC_PASSWORD trips this test).
