@@ -661,6 +661,13 @@ jobs:
           grep -q 'kind: Deployment' /tmp/rendered.yaml
           grep -q 'kind: ClusterRole' /tmp/rendered.yaml
           grep -q 'kind: NetworkPolicy' /tmp/rendered.yaml
+      - name: backup/restore Job egress policy renders (F-215)
+        run: |
+          helm template gameplane charts/gameplane \
+            --show-only templates/networkpolicies.yaml > /tmp/netpol.yaml
+          grep -q 'name: allow-backup-restore-egress' /tmp/netpol.yaml
+          awk '/name: allow-backup-restore-egress/,/^---$/' /tmp/netpol.yaml \
+            | grep -q 'app.kubernetes.io/name: gameplane-backup-restore'
       - name: crd-manifests in sync with crds
         # The CRD-apply hook serves CRDs from crd-manifests/ (crds/ isn't
         # readable by Helm .Files). make manifests keeps both in sync; guard
