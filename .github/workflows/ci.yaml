@@ -675,6 +675,29 @@ jobs:
           grep -q 'kind: Deployment' /tmp/rendered.yaml
           grep -q 'kind: ClusterRole' /tmp/rendered.yaml
           grep -q 'kind: NetworkPolicy' /tmp/rendered.yaml
+      - name: games Namespace carries the keep policy
+        # F-212: `helm uninstall` used to delete the games Namespace and
+        # every GameServer/StatefulSet/PVC in it. Assert the Namespace is
+        # excluded from Helm's ownership via the keep resource-policy,
+        # scoped to the Namespace document specifically (a plain grep over
+        # the whole render would also match the unrelated API PVC's own
+        # keep annotation and pass even if the Namespace fix regressed).
+        run: |
+          python3 - <<'PY'
+          import sys, yaml
+          docs = list(yaml.safe_load_all(open('/tmp/rendered.yaml')))
+          ns = [d for d in docs if d and d.get('kind') == 'Namespace'
+                and d.get('metadata', {}).get('name') == 'gameplane-games']
+          if not ns:
+              sys.exit("::error::no games Namespace rendered")
+          policy = (ns[0].get('metadata', {}).get('annotations') or {}).get(
+              'helm.sh/resource-policy')
+          if policy != 'keep':
+              sys.exit(
+                  "::error::games Namespace missing "
+                  "helm.sh/resource-policy: keep (F-212)")
+          print("games Namespace carries helm.sh/resource-policy: keep")
+          PY
       - name: crd-manifests in sync with crds
         # The CRD-apply hook serves CRDs from crd-manifests/ (crds/ isn't
         # readable by Helm .Files). make manifests keeps both in sync; guard
