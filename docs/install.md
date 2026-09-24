@@ -161,6 +161,9 @@ Top-level knobs (see `values.yaml` for the full list):
     - `gameEgress.enabled` — toggle public-egress allowance (default `true`)
     - `gameEgress.ports` — TCP ports for downloads (default 80, 443)
     - `gameEgress.privateCIDRs` — exclude private ranges from public-egress (anti-SSRF)
+  - `networkPolicies.backupEgress` — control egress from Backup/Restore restic Job pods to their configured repository
+    - `backupEgress.enabled` — toggle backup/restore-egress allowance (default `true`)
+    - `backupEgress.ports` — TCP ports for repository connections (default 443, 22); unlike `gameEgress` there is no private-range exclusion, since the destination is an admin-configured repository Secret rather than an attacker-influenced URL, and is often itself private
 - `clusterOps.enabled` — credential-minting cluster operations (Add node, Download kubeconfig) in the dashboard's Cluster page (default off; grants powerful kube-system + CSR-approval RBAC)
 - `mcpServer.enabled` — optional strictly read-only MCP (Model Context Protocol) server [optional] for AI assistants to read cluster state and propose fixes (default off); see [mcp-server/README.md](../mcp-server/README.md)
   - `mcpServer.replicas` — MCP server replicas (default 1)

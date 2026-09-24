@@ -90,6 +90,18 @@ describe("openWS", () => {
     expect(FakeSocket.instances).toHaveLength(1);
   });
 
+  it("close() during a pending backoff timer cancels the scheduled reconnect (F-121)", () => {
+    const handle = openWS("/ws/x", { onMessage: () => {} });
+    const first = FakeSocket.instances[0];
+    first.triggerClose(); // schedules a reconnect at ~1000ms
+    vi.advanceTimersByTime(100); // still inside the backoff window
+    handle.close();
+    vi.advanceTimersByTime(60_000);
+    // No second socket should ever be constructed: the pending timer
+    // must have been cancelled by close(), not merely raced.
+    expect(FakeSocket.instances).toHaveLength(1);
+  });
+
   it("reconnect:false skips reconnect after close", () => {
     openWS("/ws/x", { onMessage: () => {}, reconnect: false });
     FakeSocket.instances[0].triggerClose();

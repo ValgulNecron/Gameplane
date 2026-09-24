@@ -167,6 +167,39 @@ spec:
         - { protocol: {{ .protocol }}, port: {{ .port }} }
         {{- end }}
 {{- end }}
+{{- if .Values.networkPolicies.backupEgress.enabled }}
+---
+# Allow Backup/Restore restic Job pods to reach their configured
+# repository (F-215). Job pods carry no chart-managed label of their
+# own (only the Job controller's batch.kubernetes.io/job-name) until
+# the operator's Backup/Restore reconcilers stamp them with
+# app.kubernetes.io/name=gameplane-backup-restore — this policy
+# selects that label. The destination is whatever an admin's repo
+# Destination Secret points at (s3/b2/rest/sftp/swift/azure/gcs,
+# in-cluster or public), so, unlike allow-game-public-egress, no
+# private-range exception is applied here: the destination is
+# operator-configured, not attacker-influenced, and restic
+# repositories are at least as often private (an in-cluster or LAN
+# store, like this chart's own e2e fixture) as they are public.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backup-restore-egress
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-backup-restore
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock: { cidr: 0.0.0.0/0 }
+      ports:
+        {{- range .Values.networkPolicies.backupEgress.ports }}
+        - { protocol: {{ .protocol }}, port: {{ .port }} }
+        {{- end }}
+{{- end }}
 ---
 # Allow inbound traffic to the wake sentinel on its advertised ports.
 # The sentinel pod holds the advertised ports while a game is asleep, and must

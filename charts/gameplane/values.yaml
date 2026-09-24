@@ -357,6 +357,23 @@ networkPolicies:
       - 172.16.0.0/12
       - 192.168.0.0/16
       - 169.254.0.0/16
+  # Egress allowance for Backup/Restore restic Job pods to reach their
+  # configured repository (F-215). Without this the default-deny egress
+  # policy blocks the connection and the backup/restore Job fails after
+  # its backoffLimit. Unlike gameEgress there is no privateCIDRs
+  # exception: the destination comes from an admin-created repo
+  # Destination Secret, not an attacker-influenced game download URL,
+  # and restic repositories are commonly private (an in-cluster or LAN
+  # store) as well as public.
+  backupEgress:
+    enabled: true
+    # Ports opened for restic repository connections. Defaults cover
+    # HTTPS-based backends (S3, B2, REST-over-TLS, Swift, Azure, GCS)
+    # and SFTP. Add your repository's port if it uses neither, e.g. a
+    # plain-HTTP REST server on a non-standard port.
+    ports:
+      - { protocol: TCP, port: 443 }
+      - { protocol: TCP, port: 22 }
   # Ingress allowance for the game port(s) themselves. The operator
   # reconciles one NetworkPolicy per GameServer, opening only that game's
   # `Advertise: true` container ports (read from its GameTemplate) — this

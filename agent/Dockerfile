@@ -1,4 +1,4 @@
-FROM golang:1.27-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 WORKDIR /src
 
 # netguard and gameaction are in-repo modules the agent depends on via local
@@ -15,7 +15,11 @@ COPY agent/ ./agent/
 WORKDIR /src/agent
 
 ARG VERSION=dev
-RUN CGO_ENABLED=0 GOOS=linux go build \
+# Cross-compile on the build host ($BUILDPLATFORM above) rather than under
+# QEMU emulation: multi-arch release builds of the arm64 image were slow
+# enough to hit the release job timeout.
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     -trimpath \
     -ldflags="-s -w -X main.Version=${VERSION}" \
     -o /out/agent ./cmd

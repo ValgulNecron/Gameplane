@@ -793,6 +793,15 @@ package.json                # @gameplane/web v0.2.0-beta.8; dev: vite, npm scrip
 9. **AdminSettings** (`/admin`) → `AdminSettingsPage` (gated by `config:manage` permission)
    - Sections: General (version, telemetry), Authentication (OIDC providers), Mod registries (API keys),
      Notification sinks (Discord/Slack/SMTP/webhook), Backup destinations
+   - **Section save semantics:** each config section edits a local draft (`useSectionForm`). Nothing is stored until
+     that section's Save; leaving the section discards the draft.
+   - **Managed Secrets:** the API-managed Secrets behind identity providers (`gameplane-auth-<name>`), keyed mod
+     registries (`gameplane-modreg-<provider>`) and notification sinks (`gameplane-notify-<name>`) change only as part
+     of a section Save. Adding a row or replacing a key stages a Secret write; removing a row stages a Secret removal.
+     Save runs the staged writes first, then the config `PUT` (whose rows reference those Secrets), then the staged
+     removals once the `PUT` succeeds. A failed write or `PUT` shows in the section's save status and keeps the staged
+     changes for a retry. A row added or removed but never saved leaves its Secret as it was. Secrets the section
+     didn't create (a user-set `configRef`) are never removed.
 
 ### Install-Time Settings Display & OIDC Role Mapping Overrides (AdminSettings & Cluster split)
 
@@ -833,7 +842,7 @@ For each role (admin/operator/viewer), the card displays:
 1. **Effective mapping:** the list of IdP group names currently mapped (from override if present, else from Helm-seeded)
 2. **Provenance badge:** one of the three states above
 3. **Edit controls:** add/remove IdP group names
-4. **Reset button:** "Reset to Helm default" shown only when an override exists (allows reverting to Helm values)
+4. **Reset button:** "Reset to Helm default" shown only when an override exists (allows reverting to Helm values). A successful reset also drops that role's override from the section draft, so the card shows the Helm value at once and a later save doesn't write the override back. A failed reset shows its error in the Authentication card's save status and leaves the draft unchanged.
 5. **Empty state:** a visual indicator when zero groups are mapped
 
 **FR-012 — Empty state & remediation:**  

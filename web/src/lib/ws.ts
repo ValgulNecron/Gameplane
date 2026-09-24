@@ -34,6 +34,11 @@ export function openWS(path: string, opts: WSOptions) {
   let sock: WebSocket | null = null;
   const reconnect = opts.reconnect ?? true;
   let attempt = 0;
+  // The timer scheduled by onclose's backoff retry. Tracked so close()
+  // can cancel a reconnect that hasn't fired yet (F-121): without this,
+  // a tab switch during a backoff window leaves the timer armed, and it
+  // later opens a socket into a component that already unmounted.
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Queue for messages sent while the first connection is opening.
   // After the first successful open, messages sent while disconnected
@@ -44,6 +49,9 @@ export function openWS(path: string, opts: WSOptions) {
   let hasEverOpened = false;
 
   function connect() {
+    // A reconnect scheduled before close() was called must not open a
+    // new socket once the caller has torn down (F-121).
+    if (closedByUser) return;
     opts.onStatus?.("connecting", { attempt });
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     sock = new WebSocket(`${proto}//${location.host}${path}`);
@@ -78,7 +86,7 @@ export function openWS(path: string, opts: WSOptions) {
       attempt++;
       const delayMs = Math.min(30_000, 500 * 2 ** Math.min(attempt, 6));
       opts.onStatus?.("reconnecting", { attempt, nextRetryMs: delayMs });
-      setTimeout(connect, delayMs);
+      reconnectTimer = setTimeout(connect, delayMs);
     };
   }
   connect();
@@ -106,6 +114,10 @@ export function openWS(path: string, opts: WSOptions) {
     close() {
       closedByUser = true;
       messageQueue = [];
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       sock?.close();
     },
   };
