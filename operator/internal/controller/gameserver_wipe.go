@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +22,17 @@ const (
 	WipeRequestedAnnotation = "gameplane.local/wipe-data-requested"
 	WipeCompletedAnnotation = "gameplane.local/wipe-data-completed"
 	wipeTokenLabel          = "gameplane.local/wipe-token"
+
+	// wipeScript empties the directory given as $1 and verifies it is empty
+	// afterwards; see the comment at its use in createWipeJob for why the
+	// verification step is required.
+	wipeScript = `find "$1" -mindepth 1 -delete
+left=$(ls -A "$1") || exit 1
+if [ -n "$left" ]; then
+  echo "data wipe incomplete; entries remain under $1:" >&2
+  printf '%s\n' "$left" >&2
+  exit 1
+fi`
 )
 
 // reconcileWipe runs a one-shot Job that empties the GameServer's data PVC
@@ -123,10 +133,16 @@ func (r *GameServerReconciler) createWipeJob(
 						// empty directory (unlike the glob patterns this replaced,
 						// which errored on "no match" and had to swallow that with
 						// `2>/dev/null; true` — which also swallowed a real EACCES
-						// from a subdirectory this uid can't write into). Any real
-						// deletion failure now surfaces as a non-zero exit, which
-						// fails the Job.
-						Args:         []string{fmt.Sprintf("find %[1]s -mindepth 1 -delete", mountPath)},
+						// from a subdirectory this uid can't write into).
+						//
+						// find's exit status alone is NOT trusted: BusyBox find
+						// (the default image) prints a failed unlink/rmdir from
+						// -delete to stderr but still exits 0. So the script then
+						// checks the volume is actually empty and exits non-zero
+						// (failing the Job) if anything is left, or if the listing
+						// itself fails. The mount path is passed as $1 rather than
+						// spliced into the script.
+						Args:         []string{wipeScript, "wipe", mountPath},
 						VolumeMounts: []corev1.VolumeMount{{Name: "data", MountPath: mountPath}},
 						SecurityContext: &corev1.SecurityContext{
 							RunAsNonRoot:             &nonRoot,
