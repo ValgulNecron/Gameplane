@@ -52,7 +52,8 @@ func shortSocketDir(t *testing.T) string {
 func newFakePlayitd(t *testing.T, respond func(req map[string]any) []string) *fakePlayitd {
 	t.Helper()
 	path := filepath.Join(shortSocketDir(t), "p.sock")
-	ln, err := net.Listen("unix", path)
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "unix", path)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -634,7 +635,7 @@ func TestRunPlayitReporterStopsWhenSocketMissing(t *testing.T) {
 	}
 }
 
-func TestStartPlayitReporterDisabledOutsideCluster(t *testing.T) {
+func TestStartPlayitReporterDisabledOutsideCluster(_ *testing.T) {
 	// Outside a cluster the ServiceAccount mount is absent: the reporter is
 	// skipped and the returned wait function returns immediately. The
 	// context is pre-cancelled so that, should the test host happen to have

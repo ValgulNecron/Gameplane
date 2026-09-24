@@ -355,6 +355,7 @@ type kubeStatusPatcher struct {
 	baseURL   string // kubeAPIServerURL in production; an httptest URL in tests
 	namespace string
 	name      string
+	caPath    string
 	tokenPath string
 	client    *http.Client
 }
@@ -362,7 +363,30 @@ type kubeStatusPatcher struct {
 // newInClusterStatusPatcher builds a patcher from the ServiceAccount mount
 // under saDir (serviceAccountMountDir in production).
 func newInClusterStatusPatcher(saDir, namespace, name string) (*kubeStatusPatcher, error) {
-	caPEM, err := os.ReadFile(filepath.Join(saDir, "ca.crt"))
+	p := &kubeStatusPatcher{
+		baseURL:   kubeAPIServerURL,
+		namespace: namespace,
+		name:      name,
+		caPath:    filepath.Join(saDir, "ca.crt"),
+		tokenPath: filepath.Join(saDir, "token"),
+	}
+	pool, err := p.loadCAPool()
+	if err != nil {
+		return nil, err
+	}
+	transport := &http.Transport{
+		TLSClientConfig:     &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
+		TLSHandshakeTimeout: 10 * time.Second,
+		IdleConnTimeout:     90 * time.Second,
+	}
+	p.client = &http.Client{Transport: transport, Timeout: 10 * time.Second}
+	return p, nil
+}
+
+// loadCAPool reads the ServiceAccount CA bundle from the path recorded on p
+// and parses it into a certificate pool.
+func (p *kubeStatusPatcher) loadCAPool() (*x509.CertPool, error) {
+	caPEM, err := os.ReadFile(p.caPath)
 	if err != nil {
 		return nil, fmt.Errorf("read service account CA: %w", err)
 	}
@@ -370,18 +394,7 @@ func newInClusterStatusPatcher(saDir, namespace, name string) (*kubeStatusPatche
 	if !pool.AppendCertsFromPEM(caPEM) {
 		return nil, errors.New("service account CA contains no certificates")
 	}
-	transport := &http.Transport{
-		TLSClientConfig:     &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
-		TLSHandshakeTimeout: 10 * time.Second,
-		IdleConnTimeout:     90 * time.Second,
-	}
-	return &kubeStatusPatcher{
-		baseURL:   kubeAPIServerURL,
-		namespace: namespace,
-		name:      name,
-		tokenPath: filepath.Join(saDir, "token"),
-		client:    &http.Client{Transport: transport, Timeout: 10 * time.Second},
-	}, nil
+	return pool, nil
 }
 
 // PatchTunnelEndpoints merge-patches status.tunnelEndpoints. An empty set is
