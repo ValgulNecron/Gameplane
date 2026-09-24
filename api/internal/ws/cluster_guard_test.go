@@ -3,15 +3,17 @@ package ws
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // TestRejectRemoteCluster_TableDriven is the guard's core logic in
-// isolation: a non-local ?cluster= selector must 404 before the wrapped
+// isolation: a non-local ?cluster= selector must 501 before the wrapped
 // handler ever runs; an absent, blank, or explicitly-local selector must
 // reach it.
 func TestRejectRemoteCluster_TableDriven(t *testing.T) {
@@ -24,7 +26,7 @@ func TestRejectRemoteCluster_TableDriven(t *testing.T) {
 		{"no cluster param", "", true, http.StatusOK},
 		{"explicit local cluster", "?cluster=local", true, http.StatusOK},
 		{"blank cluster param trims to empty", "?cluster=%20%20", true, http.StatusOK},
-		{"remote cluster", "?cluster=remote-1", false, http.StatusNotFound},
+		{"remote cluster", "?cluster=remote-1", false, http.StatusNotImplemented},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -41,6 +43,9 @@ func TestRejectRemoteCluster_TableDriven(t *testing.T) {
 			}
 			if rr.Code != tc.wantCode {
 				t.Errorf("code = %d, want %d", rr.Code, tc.wantCode)
+			}
+			if !tc.wantCalled && !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+				t.Errorf("body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
 			}
 		})
 	}
@@ -67,8 +72,11 @@ func TestMount_RejectsNonLocalCluster(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path+"?cluster=remote-1", nil)
 		r.ServeHTTP(rr, req)
-		if rr.Code != http.StatusNotFound {
-			t.Errorf("%s %s?cluster=remote-1: got %d, want 404", tc.method, tc.path, rr.Code)
+		if rr.Code != http.StatusNotImplemented {
+			t.Errorf("%s %s?cluster=remote-1: got %d, want 501", tc.method, tc.path, rr.Code)
+		}
+		if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+			t.Errorf("%s %s?cluster=remote-1: body = %q, want it to contain %q", tc.method, tc.path, rr.Body.String(), httperr.RemoteClusterNotImplemented)
 		}
 	}
 }
@@ -76,7 +84,7 @@ func TestMount_RejectsNonLocalCluster(t *testing.T) {
 // TestMount_LocalClusterStillReachesHandler proves the guard doesn't
 // regress the single-cluster (and explicit-local) case: the request must
 // still reach the proxy handler, which then answers its own dev-mode 503
-// (no mTLS material configured) — never the guard's 404.
+// (no mTLS material configured) — never the guard's 501.
 func TestMount_LocalClusterStillReachesHandler(t *testing.T) {
 	r := chi.NewRouter()
 	Mount(r, nil, "", "", "")
@@ -100,23 +108,26 @@ func TestMountAttach_RejectsNonLocalCluster(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/servers/alpha/console-pty?cluster=remote-1", nil)
 	r.ServeHTTP(rr, req)
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("got %d, want 404", rr.Code)
+	if rr.Code != http.StatusNotImplemented {
+		t.Fatalf("got %d, want 501", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+		t.Errorf("body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
 	}
 }
 
 // TestMountAttach_LocalClusterReachesHandler proves an absent cluster
 // selector still reaches attachProxy.handle — it then fails
 // websocket.Accept (this is a plain HTTP request, not a real upgrade),
-// but that failure is never a 404.
+// but that failure is never a 501.
 func TestMountAttach_LocalClusterReachesHandler(t *testing.T) {
 	r := chi.NewRouter()
 	mountAttach(r, &kube.Client{})
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/servers/alpha/console-pty", nil)
 	r.ServeHTTP(rr, req)
-	if rr.Code == http.StatusNotFound {
-		t.Fatal("got 404, guard should have passed an absent cluster selector through to the handler")
+	if rr.Code == http.StatusNotImplemented {
+		t.Fatal("got 501, guard should have passed an absent cluster selector through to the handler")
 	}
 }
 
@@ -128,8 +139,11 @@ func TestMountPodLogs_RejectsNonLocalCluster(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/servers/alpha/logs/pod?cluster=remote-1", nil)
 	r.ServeHTTP(rr, req)
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("got %d, want 404", rr.Code)
+	if rr.Code != http.StatusNotImplemented {
+		t.Fatalf("got %d, want 501", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+		t.Errorf("body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
 	}
 }
 
@@ -141,7 +155,7 @@ func TestMountPodLogs_LocalClusterReachesHandler(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/servers/alpha/logs/pod", nil)
 	r.ServeHTTP(rr, req)
-	if rr.Code == http.StatusNotFound {
-		t.Fatal("got 404, guard should have passed an absent cluster selector through to the handler")
+	if rr.Code == http.StatusNotImplemented {
+		t.Fatal("got 501, guard should have passed an absent cluster selector through to the handler")
 	}
 }

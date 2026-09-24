@@ -14,6 +14,7 @@ import (
 
 	"github.com/ValgulNecron/gameplane/api/internal/audit"
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 	"github.com/ValgulNecron/gameplane/api/internal/notify"
 	"github.com/ValgulNecron/gameplane/api/internal/rbac"
@@ -22,7 +23,7 @@ import (
 )
 
 // TestRejectRemoteCluster_TableDriven is the guard's core logic in
-// isolation: a non-local ?cluster= selector must write a 404 (and report
+// isolation: a non-local ?cluster= selector must write a 501 (and report
 // "rejected"); an absent, blank, or explicitly-local selector must let the
 // caller proceed.
 func TestRejectRemoteCluster_TableDriven(t *testing.T) {
@@ -44,8 +45,11 @@ func TestRejectRemoteCluster_TableDriven(t *testing.T) {
 			if got != tc.wantRejected {
 				t.Errorf("rejectRemoteCluster() = %v, want %v", got, tc.wantRejected)
 			}
-			if tc.wantRejected && rr.Code != http.StatusNotFound {
-				t.Errorf("code = %d, want 404", rr.Code)
+			if tc.wantRejected && rr.Code != http.StatusNotImplemented {
+				t.Errorf("code = %d, want 501", rr.Code)
+			}
+			if tc.wantRejected && !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+				t.Errorf("body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
 			}
 			if !tc.wantRejected && rr.Code != http.StatusOK {
 				// httptest.ResponseRecorder defaults to 200 when nothing wrote
@@ -58,7 +62,7 @@ func TestRejectRemoteCluster_TableDriven(t *testing.T) {
 
 // TestModIDs_RejectsNonLocalCluster proves the guard is wired onto
 // MountModIDs' GET and PUT — the handlers hold a bare *kube.Client (the
-// LOCAL cluster only), so a non-local ?cluster= must 404 rather than
+// LOCAL cluster only), so a non-local ?cluster= must 501 rather than
 // silently acting on the local, same-named GameServer.
 func TestModIDs_RejectsNonLocalCluster(t *testing.T) {
 	k := fakeKubeClient(
@@ -67,11 +71,19 @@ func TestModIDs_RejectsNonLocalCluster(t *testing.T) {
 	)
 	r := mountModIDsRouter(k)
 
-	if rr := do(t, r, "GET", "/servers/alpha/mods/ids?cluster=remote-1", nil); rr.Code != http.StatusNotFound {
-		t.Errorf("GET: got %d, want 404: %s", rr.Code, rr.Body)
+	rr := do(t, r, "GET", "/servers/alpha/mods/ids?cluster=remote-1", nil)
+	if rr.Code != http.StatusNotImplemented {
+		t.Errorf("GET: got %d, want 501: %s", rr.Code, rr.Body)
 	}
-	if rr := do(t, r, "PUT", "/servers/alpha/mods/ids?cluster=remote-1", []ModID{{ID: "1"}}); rr.Code != http.StatusNotFound {
-		t.Errorf("PUT: got %d, want 404: %s", rr.Code, rr.Body)
+	if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+		t.Errorf("GET: body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
+	}
+	rr = do(t, r, "PUT", "/servers/alpha/mods/ids?cluster=remote-1", []ModID{{ID: "1"}})
+	if rr.Code != http.StatusNotImplemented {
+		t.Errorf("PUT: got %d, want 501: %s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+		t.Errorf("PUT: body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
 	}
 }
 
@@ -99,8 +111,11 @@ func TestModUpdates_RejectsNonLocalCluster(t *testing.T) {
 	r := mountUpdatesRouter(updatesFixtureKube(), fakeSet{p: &fakeVersionsProvider{}}, lister)
 
 	rr := do(t, r, "GET", "/servers/alpha/mods/updates?cluster=remote-1", nil)
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("got %d, want 404: %s", rr.Code, rr.Body)
+	if rr.Code != http.StatusNotImplemented {
+		t.Fatalf("got %d, want 501: %s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+		t.Errorf("body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
 	}
 }
 
@@ -162,7 +177,7 @@ func registryHomeClient() *kube.Client {
 }
 
 // TestRegistry_ServesHomeClusterOnly checks that every MountRegistry route
-// answers 404 for a non-local ?cluster= selector without any call to the
+// answers 501 for a non-local ?cluster= selector without any call to the
 // home-cluster client, and still serves the home cluster.
 func TestRegistry_ServesHomeClusterOnly(t *testing.T) {
 	for _, rt := range registryRoutes {
@@ -171,8 +186,11 @@ func TestRegistry_ServesHomeClusterOnly(t *testing.T) {
 			r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
 
 			rr := do(t, r, rt.method, rt.path+"?cluster=remote-1", rt.body)
-			if rr.Code != http.StatusNotFound {
-				t.Fatalf("cluster=remote-1: got %d, want 404: %s", rr.Code, rr.Body)
+			if rr.Code != http.StatusNotImplemented {
+				t.Fatalf("cluster=remote-1: got %d, want 501: %s", rr.Code, rr.Body)
+			}
+			if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+				t.Errorf("cluster=remote-1: body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
 			}
 			if n := kubeClientCalls(t, k); n != 0 {
 				t.Errorf("cluster=remote-1: home client saw %d API calls, want 0", n)
@@ -189,7 +207,7 @@ func TestRegistry_ServesHomeClusterOnly(t *testing.T) {
 }
 
 // TestCaptureDownload_ServesHomeClusterOnly checks that the capture file
-// download answers 404 for a non-local ?cluster= selector before any
+// download answers 501 for a non-local ?cluster= selector before any
 // Kubernetes lookup or sidecar request, records that outcome in the audit
 // log, and still serves the home cluster.
 func TestCaptureDownload_ServesHomeClusterOnly(t *testing.T) {
@@ -210,8 +228,11 @@ func TestCaptureDownload_ServesHomeClusterOnly(t *testing.T) {
 
 	path := "/servers/" + server + ":capture-file?id=" + captureID
 	rr := do(t, r, http.MethodGet, path+"&cluster=remote-1", nil)
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("cluster=remote-1: got %d, want 404: %s", rr.Code, rr.Body)
+	if rr.Code != http.StatusNotImplemented {
+		t.Fatalf("cluster=remote-1: got %d, want 501: %s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+		t.Errorf("cluster=remote-1: body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
 	}
 	for name, k := range map[string]*kube.Client{"home": home, "remote-1": remote} {
 		if n := kubeClientCalls(t, k); n != 0 {
@@ -227,8 +248,8 @@ func TestCaptureDownload_ServesHomeClusterOnly(t *testing.T) {
 		server+":"+captureID).Scan(&reason, &status); err != nil {
 		t.Fatalf("read audit row: %v", err)
 	}
-	if reason != "cluster_not_local" || status != http.StatusNotFound {
-		t.Errorf("audit row = (%q, %d), want (%q, %d)", reason, status, "cluster_not_local", http.StatusNotFound)
+	if reason != "cluster_not_local" || status != http.StatusNotImplemented {
+		t.Errorf("audit row = (%q, %d), want (%q, %d)", reason, status, "cluster_not_local", http.StatusNotImplemented)
 	}
 
 	// The home cluster is still served. With no mTLS client configured in
@@ -267,7 +288,7 @@ func mountHomeClientRoutes(t *testing.T, r chi.Router, home *kube.Client, reg *k
 // handlers that hold the home-cluster client, through the RBAC middleware,
 // as a user whose only grant is on a registered non-local cluster, with
 // ?cluster= naming that cluster. Server-scoped routes pass the namespaced
-// permission check for that cluster and must answer 404 from the handler;
+// permission check for that cluster and must answer 501 from the handler;
 // the other routes need a cluster-wide grant and answer 403. In every case
 // the home-cluster client sees no API call.
 func TestHomeClientMounts_ServeHomeClusterOnly(t *testing.T) {
@@ -295,7 +316,7 @@ func TestHomeClientMounts_ServeHomeClusterOnly(t *testing.T) {
 		path := routeParam.ReplaceAllString(route, "alpha")
 		want := http.StatusForbidden
 		if strings.HasPrefix(path, "/servers/") || strings.HasPrefix(path, "/ws/servers/") {
-			want = http.StatusNotFound
+			want = http.StatusNotImplemented
 		}
 		before := kubeClientCalls(t, home)
 
@@ -305,6 +326,9 @@ func TestHomeClientMounts_ServeHomeClusterOnly(t *testing.T) {
 
 		if rr.Code != want {
 			t.Errorf("%s %s?cluster=%s: got %d, want %d: %s", method, path, remote, rr.Code, want, rr.Body)
+		}
+		if want == http.StatusNotImplemented && !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
+			t.Errorf("%s %s?cluster=%s: body = %q, want it to contain %q", method, path, remote, rr.Body.String(), httperr.RemoteClusterNotImplemented)
 		}
 		if n := kubeClientCalls(t, home) - before; n != 0 {
 			t.Errorf("%s %s?cluster=%s: home client saw %d API calls, want 0", method, path, remote, n)

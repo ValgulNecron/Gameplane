@@ -431,7 +431,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 
 // checkHomeClusterOnlyRoutes covers the routes built on the API's home-cluster
 // client: the mod registry browser, modpack install and capture file
-// download. A user whose write grant is on the remote cluster only gets 404
+// download. A user whose write grant is on the remote cluster only gets 501
 // from them for ?cluster=<remote>, the home cluster's GameServer keeps its
 // spec, and the capture download refusal is recorded in the audit log.
 func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string) {
@@ -533,7 +533,7 @@ func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string
 			homeGS, resp.StatusCode, http.StatusForbidden, string(body))
 	}
 
-	// With ?cluster=<remote>, the home-cluster-only routes answer 404.
+	// With ?cluster=<remote>, the home-cluster-only routes answer 501 (no cross-cluster agent yet).
 	for _, c := range []struct {
 		method, path string
 		body         any
@@ -547,8 +547,8 @@ func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string
 			t.Fatalf("%s %s: %v", c.method, c.path, err)
 		}
 		resp.Body.Close()
-		if resp.StatusCode != http.StatusNotFound {
-			t.Errorf("%s %s: status=%d want=%d body=%s", c.method, c.path, resp.StatusCode, http.StatusNotFound, string(body))
+		if resp.StatusCode != http.StatusNotImplemented {
+			t.Errorf("%s %s: status=%d want=%d body=%s", c.method, c.path, resp.StatusCode, http.StatusNotImplemented, string(body))
 		}
 	}
 
@@ -588,9 +588,9 @@ func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string
 			continue
 		}
 		found = true
-		if e.Reason != notLocalWhy || e.Status != http.StatusNotFound {
+		if e.Reason != notLocalWhy || e.Status != http.StatusNotImplemented {
 			t.Errorf("audit row for %s: reason=%q status=%d, want reason=%q status=%d",
-				target, e.Reason, e.Status, notLocalWhy, http.StatusNotFound)
+				target, e.Reason, e.Status, notLocalWhy, http.StatusNotImplemented)
 		}
 	}
 	if !found {

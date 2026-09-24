@@ -41,7 +41,8 @@ type registrySet interface {
 //
 // The handlers hold the home-cluster client, so every route serves the home
 // cluster only: each one calls rejectRemoteCluster first, and a non-local
-// `?cluster=` selector answers 404, as MountModIDs and MountModUpdates do.
+// `?cluster=` selector answers 501 Not Implemented (no cross-cluster agent
+// yet), as MountModIDs and MountModUpdates do.
 func MountRegistry(r chi.Router, k *kube.Client, reg registrySet) {
 	h := &registryHandler{k: k, reg: reg}
 	r.Get("/servers/{name}/mods/registry/providers", h.providers)
