@@ -103,7 +103,7 @@ Still pending: **RC-TAG-1**, which needs the maintainer's approval after #423 me
    - fill in the RC-TAG-1 SHA and ask the maintainer to approve the tag;
    - after approval, T014: `git tag -a v0.3.0-rc.1 <sha> -m "v0.3.0-rc.1" && git push origin v0.3.0-rc.1`, then verify the release (contracts/rc-deploy.md §1);
    - then T015: deploy rc.1 to kubelab. Pass the `capture` and `operator.gameDataStorage` keys explicitly (F-214).
-4. T046: rewrite the held security procedures as control checks, in `audit/held/`.
+4. T046: rewrite the held security procedures as control checks, in `audit/held/`. The auto-mode attempt on 2026-09-24 was stopped before writing anything; run it in the default permission mode. The brief is in workflow script `audit018-t046-control-checks-wf_73ac3913-087.js` in the third session's workflows folder.
 5. T050 is done: the fix plan is `audit/evidence/rc.1/fix-plan.md`, and the held plan is `audit/held/fix-plan-held.md`. Fix waves (T055) start only after the maintainer signs off OD-024, because they change production code and tests. Fixes go on `fix/018-*` branches off master. Fixes for held findings are described as hardening, with no repro, until merged.
 6. **Live rounds**: T025–T034, T047–T048, T049 onward, then US4 (T061–T065) once OD-023 is settled.
 

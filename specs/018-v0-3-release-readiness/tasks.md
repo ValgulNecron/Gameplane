@@ -166,7 +166,7 @@ description: "Task list for the v0.3 release readiness audit"
 
 ### Security boundaries: active violation attempts (FR-008, SC-007; need T015)
 
-- [ ] T046 [US2] (drafted 2026-09-24 but defective and unreviewed; DO NOT RUN. Held off-git with the INV-SEC rows in `audit/held/` per OD-019; the rewrite as control checks stays there too) Write `audit/procedures/security.md` with one `### <slug>` per boundary, and add the `INV-SEC-NNN` rows to `audit/inventory.md`. The six boundaries:
+- [ ] T046 [US2] (drafted 2026-09-24 but defective and unreviewed; DO NOT RUN. Held off-git with the INV-SEC rows in `audit/held/` per OD-019; the rewrite as control checks stays there too. 2026-09-24: an opus rewrite attempt was stopped by the auto-mode safety check before writing anything; redo it in the default permission mode) Write `audit/procedures/security.md` with one `### <slug>` per boundary, and add the `INV-SEC-NNN` rows to `audit/inventory.md`. The six boundaries:
   - (a) login privacy: `api/internal/auth/local.go:105-173`, `/auth/providers`, and identical errors for an unknown user and a wrong password
   - (b) RBAC: `api/internal/rbac/rbac.go:54-254`. Viewer write → 403, the collaborator-only paths, cross-namespace access
   - (c) netguard: `netguard/netguard.go:77-145`. `audit018-` ModuleSource at `http://169.254.169.254/…` and `metadata.google.internal`, and an agent mod fetch to CGNAT `100.64.0.0/10`
