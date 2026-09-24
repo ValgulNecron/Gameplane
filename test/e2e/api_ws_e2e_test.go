@@ -107,6 +107,20 @@ func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
 			continue
 		}
 		if strings.Contains(string(raw), marker) {
+			// F-103 regression: previously the router's blanket 30s Timeout
+			// middleware force-closed this socket at ~30s regardless of activity.
+			time.Sleep(35 * time.Second)
+			pingEnv := ptyEnvelope{
+				Kind: "stdin",
+				Body: base64.StdEncoding.EncodeToString([]byte("echo ping\n")),
+			}
+			pingBytes, err := json.Marshal(pingEnv)
+			if err != nil {
+				t.Fatalf("marshal ping envelope: %v", err)
+			}
+			if err := wsConn.Write(ctx, websocket.MessageText, pingBytes); err != nil {
+				t.Fatalf("socket closed by router timeout: %v", err)
+			}
 			return
 		}
 	}
@@ -146,6 +160,12 @@ func TestAPI_LogsTailWS(t *testing.T) {
 			t.Fatalf("read log frame: %v (no marker observed)", err)
 		}
 		if strings.Contains(string(frame), marker) {
+			// F-103 regression: previously the router's blanket 30s Timeout
+			// middleware force-closed this socket at ~30s regardless of activity.
+			time.Sleep(35 * time.Second)
+			if err := wsConn.Write(ctx, websocket.MessageText, []byte("ping")); err != nil {
+				t.Fatalf("socket closed by router timeout: %v", err)
+			}
 			return
 		}
 	}
