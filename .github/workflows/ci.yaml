@@ -675,6 +675,13 @@ jobs:
           grep -q 'kind: Deployment' /tmp/rendered.yaml
           grep -q 'kind: ClusterRole' /tmp/rendered.yaml
           grep -q 'kind: NetworkPolicy' /tmp/rendered.yaml
+      - name: backup/restore Job egress policy renders (F-215)
+        run: |
+          helm template gameplane charts/gameplane \
+            --show-only templates/networkpolicies.yaml > /tmp/netpol.yaml
+          grep -q 'name: allow-backup-restore-egress' /tmp/netpol.yaml
+          awk '/name: allow-backup-restore-egress/,/^---$/' /tmp/netpol.yaml \
+            | grep -q 'app.kubernetes.io/name: gameplane-backup-restore'
       - name: games Namespace carries the keep policy
         # F-212: `helm uninstall` used to delete the games Namespace and
         # every GameServer/StatefulSet/PVC in it. Assert the Namespace is
