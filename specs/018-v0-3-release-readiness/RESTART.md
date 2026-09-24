@@ -32,8 +32,7 @@ All of these still apply.
 - **Session 4 records (applied in `3990fa18`):**
   - `audit/findings.md` Status/Fix PR updates.
   - OD-021 and OD-026 RESOLVED 2026-09-24. Their resolutions are in OPEN-DECISIONS.md, and the live rounds use them.
-  - **Still to do:** set F-105/F-106 to `fixing` once the group-18 PR is open.
-- **rc.1:** don't re-run or move the tag; `v0.3.0-rc.1` predates #435. Cut **rc.2** from master once the current fixes land (T057).
+  - **rc.1:** don't re-run or move the tag; `v0.3.0-rc.1` predates #435. Cut **rc.2** from master once the current fixes land (T057).
 - **#430:** remote-cluster requests to home-cluster-only routes answer **501**, with the body `httperr.RemoteClusterNotImplemented`. The maintainer asked for this; the cross-cluster agent comes later.
 - **#434** (a design PR from session 3) is ignored for now.
 
@@ -70,7 +69,7 @@ All of these still apply.
 | #445 | F-258 | Check CI. Follow-up: registry errors whose message differs on every try can still cause churn. |
 | #446 | group 24: F-179, F-180 (sentinel drain) | Opened in session 5. Ask the maintainer whether the 4h drain ceiling is right. Nits: the parse error isn't wrapped with %w, and the 4h constant is duplicated. |
 | #447 | F-174 (playit address, OD-026 (a)) | Opened in session 5, stacked on #428 (its base is #428's branch). `lint (tunnel)` is red; a sonnet agent is fixing it. `TestBuildCommandPlayit` was edited for `--socket-path`, which needs sign-off. |
-| #448 | group 18: F-105, F-106 | Overview PlayersCard now shows "—" for -1, and the agent's `parseListWithRegex` returns Max:-1. An opus review found the new Overview test's `getByText("—")` was ambiguous; a sonnet agent is scoping it and pushing. **Then open the PR** (`type: fix`, `area: agent`, `area: web`) and set F-105/F-106 to `fixing`. **Sign-off needed** on the existing agent test edits (`players_test.go` 0/0→-1/-1, `heartbeat_test.go` dropping the gameVersion check). |
+| #448 | group 18: F-105, F-106 | Overview PlayersCard now shows "—" for -1, and the agent's `parseListWithRegex` returns Max:-1. PR opened in session 5 (head `f903a78b`, with the Overview test scoped to the Players card heading); F-105/F-106 are `fixing`. **Sign-off needed** on the existing agent test edits (`players_test.go` 0/0→-1/-1, `heartbeat_test.go` dropping the gameVersion check). |
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
