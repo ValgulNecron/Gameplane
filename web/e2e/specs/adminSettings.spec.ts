@@ -73,4 +73,29 @@ test.describe("admin settings page", () => {
     await page.getByRole("button", { name: /^about$/i }).click();
     await expect(page.getByText(/agpl-3\.0/i)).toBeVisible();
   });
+
+  test("a sink added but never saved stores no Secret", async ({ page }) => {
+    const secretRequests: string[] = [];
+    page.on("request", (req) => {
+      if (/\/admin\/(notifications\/sinks|auth\/providers|registries)\/[^/]+\/secret$/.test(req.url())) {
+        secretRequests.push(`${req.method()} ${req.url()}`);
+      }
+    });
+    await page.goto("/admin");
+    await page.waitForLoadState("domcontentloaded");
+
+    const nav = page.getByRole("navigation", { name: "Settings sections" });
+    await nav.getByRole("button", { name: /^notifications$/i }).click();
+    await page.getByRole("button", { name: /^add sink$/i }).click();
+    await page.getByPlaceholder("team-alerts").fill("e2e-unsaved");
+    await page.getByPlaceholder(/discord\.com/i).fill("https://discord.com/api/webhooks/1/x");
+    await page.getByRole("button", { name: /^add sink$/i }).click();
+    await expect(page.getByText(/Secret: gameplane-notify-e2e-unsaved/i)).toBeVisible();
+
+    // Leave the section without saving: the draft row is discarded.
+    await nav.getByRole("button", { name: /^general$/i }).click();
+    await nav.getByRole("button", { name: /^notifications$/i }).click();
+    await expect(page.getByText(/Secret: gameplane-notify-e2e-unsaved/i)).toHaveCount(0);
+    expect(secretRequests).toEqual([]);
+  });
 });

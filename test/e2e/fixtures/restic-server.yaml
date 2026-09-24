@@ -58,11 +58,15 @@ spec:
   ports:
     - { name: http, port: 8000, targetPort: http }
 ---
-# Default game-namespace egress allows only DNS. Backup pods run in
-# gameplane-games and need to reach the restic-server in gameplane-system,
-# so widen the policy for this single port. Scoped to the gameplane-system
-# namespace (and the restic Service's pod label) so we're not opening a
-# back door to anything else.
+# Default game-namespace egress allows only DNS. Backup/Restore Job pods
+# run in gameplane-games and need to reach the restic-server in
+# gameplane-system; the chart's own allow-backup-restore-egress policy
+# (F-215) opens that traffic in production, keyed off the
+# app.kubernetes.io/name=gameplane-backup-restore label the operator now
+# stamps on those Job pods. Mirror that selector here (rather than
+# podSelector: {}) so this fixture proves the operator's labeling, not
+# just a namespace-wide hole: if a future change drops the label, this
+# policy stops admitting the Job pod and the test fails.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -71,7 +75,9 @@ metadata:
   labels:
     app.kubernetes.io/component: e2e-fixture
 spec:
-  podSelector: {}
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-backup-restore
   policyTypes: [Egress]
   egress:
     - to:

@@ -86,20 +86,20 @@ describe("AdminSettings mod registries", () => {
     await userEvent.click(within(steamRow).getByRole("button", { name: /Set API key/i }));
     await userEvent.type(screen.getByLabelText(/API key/i), "steam-secret-key");
     await userEvent.click(screen.getByRole("button", { name: /^Save$/i }));
-    // The row flips to Configured locally, but the config section itself
-    // isn't persisted until the section's own Save changes.
+    // The row flips to Configured locally, but neither the key nor the
+    // config row is stored until the section's own Save changes.
     expect(await screen.findByText(/Active in the Mods browser/i)).toBeInTheDocument();
-    expect(secretBody).toEqual({ apiKey: "steam-secret-key" });
-    expect(calls).toEqual(["secret"]);
+    expect(calls).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: /^Save changes$/i }));
     await waitFor(() => expect(saved).toBeDefined());
+    expect(secretBody).toEqual({ apiKey: "steam-secret-key" });
     expect(calls).toEqual(["secret", "config"]);
     expect(saved?.registries).toEqual([
       { provider: "steam", configRef: "gameplane-modreg-steam" },
     ]);
   });
 
-  it("removes a configured key: deletes the managed Secret and updates the draft immediately", async () => {
+  it("removes a configured key: updates the draft at once and deletes the managed Secret on Save changes", async () => {
     let deletedProvider: string | null = null;
     seedRegistries({ registries: [{ provider: "curseforge", configRef: "gameplane-modreg-curseforge" }] });
     server.use(
@@ -118,6 +118,8 @@ describe("AdminSettings mod registries", () => {
     const list = screen.getByRole("list");
     expect(await within(list).findAllByText("Not configured")).toHaveLength(3);
     expect(within(list).getAllByText(/Hidden from the Mods browser/i)).toHaveLength(3);
+    expect(deletedProvider).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /^Save changes$/i }));
     await waitFor(() => expect(deletedProvider).toBe("curseforge"));
   });
 
