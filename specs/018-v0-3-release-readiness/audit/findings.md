@@ -34,7 +34,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-026 | `hack/check-doc-versions.sh` recognises only `-beta.N` versions and matches single-digit minor/patch components where its header documents `[0-9]+` | hack/ | review:hack | S3 | fixed-unverified | #420 | | |
 | F-027 | `docs/install.md` has no rollback procedure | docs/ | review:docs | S3 | open | | | fix in T063 after the live rollback (T062) |
 | F-028 | `charts/gameplane/values.yaml` git module source still pinned to `ref: v0.2.0-beta.6` | charts/gameplane/ | review:charts/gameplane | S3 | open | | | T054: pin to a new gameplane-module v0.3.0 tag after INV-MOD rows pass |
-| F-029 | CI upgrade baseline still `0.2.0-beta.5` across `deploy/kind/upgrade.sh`, `.github/workflows/ci.yaml`, `.claude/agents/ci-triager.md` | deploy/ | review:deploy | S3 | fixing | #422 | | |
+| F-029 | CI upgrade baseline still `0.2.0-beta.5` across `deploy/kind/upgrade.sh`, `.github/workflows/ci.yaml`, `.claude/agents/ci-triager.md` | deploy/ | review:deploy | S3 | fixed-unverified | #422 | | |
 | F-030 | CLAUDE.md repository map says "14 Go modules" and omits `gp-module/` | root docs | review:root-docs | S4 | fixed-unverified | #421 | | |
 | F-031 | GameServer examples in tunnels.md use spec.template instead of templateRef.name | docs/ | review:docs | S4 | open | | | all three examples fail kubectl apply |
 | F-032 | README, roadmap and comparison cite 16 game modules but repo has 30 | docs/ | review:docs | S4 | open | | | module count drift since v0.2.0-beta.8 |
