@@ -256,7 +256,7 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: b.Name, Namespace: b.Namespace}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, job, func() error {
 		if job.CreationTimestamp.IsZero() {
-			job.Spec.Template.ObjectMeta.Labels = map[string]string{backupRestoreJobLabel: backupRestoreJobValue}
+			job.Spec.Template.Labels = map[string]string{backupRestoreJobLabel: backupRestoreJobValue}
 			job.Spec.Template.Spec = r.buildBackupPodSpec(&b)
 			job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyNever
 		}
