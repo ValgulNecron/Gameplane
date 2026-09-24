@@ -19,6 +19,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // Owner annotations record which user a GameServer belongs to. Ownership
@@ -50,6 +51,37 @@ func stampOwner(obj *unstructured.Unstructured, req *http.Request) {
 	delete(ann, collaboratorsAnnotation)
 	delete(ann, collaboratorNamesAnnotation)
 	obj.SetAnnotations(ann)
+}
+
+// requireOwnerOrAdmin admits the caller to an owner-only server operation
+// (ownership transfer, collaborator edits, data wipe) only when they own
+// the server or hold the admin wildcard ("*") in the target cluster and
+// namespace. rbac.Middleware applies the same rule before the handler
+// runs; this repeats it at the handler. It returns the live server so the
+// caller can reuse it. ok=false means a response was already written.
+func requireOwnerOrAdmin(w http.ResponseWriter, req *http.Request, reg *kube.Registry, k *kube.Client, ns, name string) (*unstructured.Unstructured, bool) {
+	u := auth.UserFromContext(req.Context())
+	if u == nil {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return nil, false
+	}
+	cl, err := scope.ResolveCluster(req, reg)
+	if err != nil {
+		httperr.Write(w, req, err)
+		return nil, false
+	}
+	obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
+		Namespace(ns).
+		Get(req.Context(), name, metav1.GetOptions{})
+	if err != nil {
+		httperr.Write(w, req, err)
+		return nil, false
+	}
+	if !u.Can("*", true, cl, ns) && !isServerOwner(obj, u.ID) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return nil, false
+	}
+	return obj, true
 }
 
 // MountOwnership wires the server ownership and collaborator endpoints.
@@ -84,6 +116,9 @@ func (h *ownershipHandler) transfer(w http.ResponseWriter, req *http.Request) {
 	name := chi.URLParam(req, "name")
 	ns, ok := resolveNS(w, req)
 	if !ok {
+		return
+	}
+	if _, ok := requireOwnerOrAdmin(w, req, h.reg, k, ns, name); !ok {
 		return
 	}
 	var body transferReq
@@ -132,18 +167,15 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 	if !ok {
 		return
 	}
+	// The owner-or-admin check returns the live server; the owner-ID
+	// filter below reads it.
+	obj, ok := requireOwnerOrAdmin(w, req, h.reg, k, ns, name)
+	if !ok {
+		return
+	}
 	var body setCollaboratorsReq
 	if err := json.NewDecoder(io.LimitReader(req.Body, 1<<16)).Decode(&body); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
-		return
-	}
-
-	// Get the server to check ownership and access current state.
-	obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
-		Namespace(ns).
-		Get(req.Context(), name, metav1.GetOptions{})
-	if err != nil {
-		httperr.Write(w, req, err)
 		return
 	}
 

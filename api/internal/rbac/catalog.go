@@ -24,7 +24,7 @@ type PermGroup struct {
 var Catalog = []PermGroup{
 	{Resource: "servers", Label: "Game servers", Permissions: []Permission{
 		{Key: "servers:read", Label: "View servers, logs, players, and files", Namespaced: true},
-		{Key: "servers:write", Label: "Create, edit, delete, and control servers", Namespaced: true},
+		{Key: "servers:write", Label: "Create, edit, and control servers (owner-only actions need the server's owner or an admin)", Namespaced: true},
 		{Key: "servers:console", Label: "Use the live console (RCON / PTY)", Namespaced: true},
 	}},
 	{Resource: "backups", Label: "Backups", Permissions: []Permission{

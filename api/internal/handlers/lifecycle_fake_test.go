@@ -106,14 +106,14 @@ func TestLifecycle_WipeData(t *testing.T) {
 	r := mountLifecycleRouter(k)
 
 	t.Run("requires matching confirmation", func(t *testing.T) {
-		rr := do(t, r, "POST", "/servers/alpha:wipe-data", map[string]any{"confirm": "wrong"})
+		rr := doWithUser(t, r, "POST", "/servers/alpha:wipe-data", map[string]any{"confirm": "wrong"}, testAdminUser())
 		if rr.Code != 400 {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
 	})
 
 	t.Run("suspends and stamps the wipe annotation", func(t *testing.T) {
-		rr := do(t, r, "POST", "/servers/alpha:wipe-data", map[string]any{"confirm": "alpha"})
+		rr := doWithUser(t, r, "POST", "/servers/alpha:wipe-data", map[string]any{"confirm": "alpha"}, testAdminUser())
 		if rr.Code != 202 {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}

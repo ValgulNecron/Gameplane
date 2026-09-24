@@ -65,6 +65,9 @@ func wipeDataHandler(reg *kube.Registry) http.HandlerFunc {
 		if !ok {
 			return
 		}
+		if _, ok := requireOwnerOrAdmin(w, req, reg, k, ns, name); !ok {
+			return
+		}
 		var body wipeDataReq
 		if err := json.NewDecoder(io.LimitReader(req.Body, 1<<16)).Decode(&body); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)

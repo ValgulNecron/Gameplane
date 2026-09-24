@@ -408,6 +408,8 @@ audit:read, config:read, config:manage (cluster-scoped)
 **Owner/collaborator fallback:**
 - When namespace permission is denied and request targets a GameServer, check if caller is owner or collaborator
 - Owner-only operations (`:transfer`, `:collaborators`, `:wipe-data`, bare DELETE) deny collaborators
+- Owner-only operations need the server's owner or an admin (a role holding `*` in the resolved cluster and namespace), whatever namespace permission the caller holds: the namespace `servers:write` permission alone does not grant them, and a server with no owner annotation (for example one created with kubectl or GitOps) is admin-only for them. `rbac.Middleware` enforces the rule for all four; the `:transfer`, `:collaborators` and `:wipe-data` handlers repeat the check (`requireOwnerOrAdmin` in `handlers/ownership.go`). Other server writes keep their namespace permission rules.
+  - Tests: `TestMiddleware_OwnerOnlyOperationsNeedOwnerOrAdmin`, `TestMiddleware_ServerWithoutOwnerIsAdminOnlyForOwnerOnlyOperations`, `TestMiddleware_OtherServerWritesUnchangedForServersWriteHolders`, `TestMiddleware_OwnerOnlyOperationOnMissingServer`, `TestMiddleware_OwnerOnlyOperationWithoutFetcherFailsClosed` (`rbac/owner_only_test.go`); `TestOwnership_TransferRequiresOwnerOrAdmin`, `TestOwnership_SetCollaboratorsRequiresOwnerOrAdmin`, `TestLifecycle_WipeDataRequiresOwnerOrAdmin` (`handlers/owner_only_ops_test.go`); e2e `TestAPI_OwnerOnlyServerOperations_RequireOwnerOrAdmin` (bucket `api-mods`)
 - Fetch GameServer from `?cluster=` (cluster-gated in middleware)
 
 ## Key invariants
