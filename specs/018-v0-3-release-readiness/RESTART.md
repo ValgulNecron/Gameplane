@@ -46,8 +46,9 @@ Complete hand-off as of 2026-09-24, end of the third session. Read this first, t
 - **Tag `v0.3.0-rc.1`:** on `c44cb179`, annotated (OD-013), with the maintainer's approval. CI on it is green (74/74 after one re-run of an arm64 Go-proxy flake).
 - **Release run 36051057887** (`release.yaml` for the tag):
   - The first attempt was cancelled: the operator image build hit the 30-minute `timeout-minutes` (`release.yaml:15`), so the chart and GitHub-release jobs were skipped.
-  - Failed jobs were re-run; at hand-off the re-run was **still in progress** and no GitHub release existed yet.
-  - If it times out again, record a release-pipeline finding and raise the timeout in a fix PR.
+  - The re-run of the failed jobs was **cancelled the same way**. rc.1 therefore has images for every component except the operator, and no chart and no GitHub release.
+  - This is a real pipeline defect. Record it as a finding (release pipeline, S2: an RC can't be published), then fix it in a PR: raise `timeout-minutes` for the image job (`release.yaml:15`), or speed up the operator multi-arch build.
+  - After that merges, re-run the release for the same tag, or cut rc.1 again with the maintainer's approval.
 
 ### Records (all in `audit/`)
 - **Findings:** 256 in total. `findings.md` holds the 199 public ones; the rest are in `held/findings.md`. Each batch was checked one tier up and cross-chunk duplicates were reconciled.
