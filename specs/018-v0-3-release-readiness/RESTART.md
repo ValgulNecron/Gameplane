@@ -70,7 +70,7 @@ All of these still apply.
 | #445 | F-258 | Check CI. Follow-up: registry errors whose message differs on every try can still cause churn. |
 | #446 | group 24: F-179, F-180 (sentinel drain) | Opened in session 5. Ask the maintainer whether the 4h drain ceiling is right. Nits: the parse error isn't wrapped with %w, and the 4h constant is duplicated. |
 | #447 | F-174 (playit address, OD-026 (a)) | Opened in session 5, stacked on #428 (its base is #428's branch). `lint (tunnel)` is red; a sonnet agent is fixing it. `TestBuildCommandPlayit` was edited for `--socket-path`, which needs sign-off. |
-| (group 18) | F-105, F-106: `fix/018-agent-status-reporting` | Overview PlayersCard now shows "—" for -1, and the agent's `parseListWithRegex` returns Max:-1. An opus review found the new Overview test's `getByText("—")` was ambiguous; a sonnet agent is scoping it and pushing. **Then open the PR** (`type: fix`, `area: agent`, `area: web`) and set F-105/F-106 to `fixing`. **Sign-off needed** on the existing agent test edits (`players_test.go` 0/0→-1/-1, `heartbeat_test.go` dropping the gameVersion check). |
+| #448 | group 18: F-105, F-106 | Overview PlayersCard now shows "—" for -1, and the agent's `parseListWithRegex` returns Max:-1. An opus review found the new Overview test's `getByText("—")` was ambiguous; a sonnet agent is scoping it and pushing. **Then open the PR** (`type: fix`, `area: agent`, `area: web`) and set F-105/F-106 to `fixing`. **Sign-off needed** on the existing agent test edits (`players_test.go` 0/0→-1/-1, `heartbeat_test.go` dropping the gameVersion check). |
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
