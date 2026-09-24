@@ -58,7 +58,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-050 | Deleted managed GameTemplate not recreated on next reconcile | operator | review:operator | S3 | open | | | |
 | F-051 | Capture expiration waits for unreachable sidecar | operator | review:operator | S4 | open | | | |
 | F-052 | UDP tunnel forwarding sends TCP | operator | review:operator | S3 | fixing | #428 | | |
-| F-054 | Wipe always succeeds even if it failed | operator | review:operator | S3 | open | | | |
+| F-054 | Wipe always succeeds even if it failed | operator | review:operator | S3 | fixing | #436 | | |
 | F-055 | TunnelHostnameIgnored condition not removed | operator | review:operator | S4 | open | | | |
 | F-056 | Address not validated before sending to MetalLB/Cilium | operator | review:operator | S4 | open | | | |
 | F-057 | Idle window parse error appears only in status, not as condition | operator | review:operator | S4 | open | | | |
@@ -80,13 +80,13 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-087 | Spec capture/audit/RBAC statements contradictory | api/ | review:api | S4 | open | | | |
 | F-088 | Spec session/limits/roles statements contradictory | api/ | review:api | S4 | open | | | |
 | F-089 | Spec dependencies and flags stale vs. go.mod and main.go | api/ | review:api | S4 | open | | | |
-| F-102 | File write operations lose previous file on error | agent | review:agent | S1 | open | | | |
-| F-103 | WebSocket and file streams drop after 30s context timeout | agent | review:agent | S3 | open | | | |
-| F-104 | RCON reply size check rejects packets 4087 bytes or larger | agent | review:agent | S3 | open | | | |
+| F-102 | File write operations lose previous file on error | agent | review:agent | S1 | fixing | #433 | | |
+| F-103 | WebSocket and file streams drop after 30s context timeout | agent | review:agent | S3 | fixing | #437 | | |
+| F-104 | RCON reply size check rejects packets 4087 bytes or larger | agent | review:agent | S3 | fixing | #437 | | |
 | F-105 | gameVersion field holds template identifier instead of version | agent | review:agent | S3 | open | | | |
 | F-106 | Player count reports non-standard values for unknown state | agent | review:agent | S3 | open | | | |
 | F-107 | Quiesce rollback skipped when first command fails | agent | review:agent | S4 | open | | | |
-| F-108 | File delete follows symlinks and deletes target | agent | review:agent | S3 | open | | | |
+| F-108 | File delete follows symlinks and deletes target | agent | review:agent | S3 | fixing | #433 | | |
 | F-109 | Agent spec and code contracts differ in 9 places | agent | review:agent | S4 | open | | | |
 | F-110 | Agent dependencies stale vs go.mod; intentional pin note false | agent | review:agent | S4 | open | | | |
 | F-111 | Agent doc comments contradict current code | agent | review:agent | S4 | open | | | |
@@ -96,7 +96,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-118 | Tunnel create blocked by missing Secret | web | review:web | S2 | open | | | |
 | F-119 | Tunnel enable flows fail validation | web | review:web | S2 | open | | | |
 | F-120 | Share links resolve hangs on extended wake | web | review:web | S3 | open | | | |
-| F-121 | WebSocket reconnect after close leaks connections | web | review:web | S3 | open | | | |
+| F-121 | WebSocket reconnect after close leaks connections | web | review:web | S3 | fixing | #438 | | |
 | F-122 | Settings dirty state persists on tab switch | web | review:web | S3 | open | | | |
 | F-123 | Revoked share links show as active | web | review:web | S3 | open | | | |
 | F-124 | Node selector never applied to running server | web | review:web | S3 | open | | | |
@@ -165,7 +165,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-198 | RFC 5424 APP-NAME validation missing | audit-syslog-bridge | review:audit-syslog-bridge | S4 | open | | | |
 | F-200 | specs.md says Go 1.25 but go.mod is 1.26 | telemetry-receiver | review:telemetry-receiver | S4 | open | | | |
 | F-201 | specs.md claims untested HTTP method guards | telemetry-receiver | review:telemetry-receiver | S4 | open | | | |
-| F-204 | Pod logs truncation keeps old end instead of newest | mcp-server | review:mcp-server | S3 | open | | | |
+| F-204 | Pod logs truncation keeps old end instead of newest | mcp-server | review:mcp-server | S3 | fixing | #439 | | |
 | F-205 | Examples use nonexistent label keys | mcp-server | review:mcp-server | S4 | open | | | |
 | F-206 | Malformed labelSelector returns full list silently | mcp-server | review:mcp-server | S4 | open | | | |
 | F-207 | Docs claim 7 CRDs but 9 exist | mcp-server | review:mcp-server | S4 | open | | | |
@@ -175,7 +175,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-212 | Namespace deleted on helm uninstall, losing GameServers and volumes | charts/gameplane/ | review:charts/gameplane | S1 | fixed-unverified | #425 | | |
 | F-213 | Pre-upgrade hook fails for non-default release name | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-214 | helm upgrade --reuse-values fails with nil-pointer errors on new keys | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
-| F-215 | Backup and Restore Job pods can't reach restic repository | charts/gameplane/ | review:charts/gameplane | S2 | open | | | |
+| F-215 | Backup and Restore Job pods can't reach restic repository | charts/gameplane/ | review:charts/gameplane | S2 | fixing | #432 | | |
 | F-216 | PodMonitor scrape for agent metrics always down (TLS mismatch) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-217 | Telemetry receiver /metrics endpoint unreachable (NetworkPolicy) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-218 | CRD schema not updated on reinstall (pre-upgrade hook is upgrade-only) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
@@ -206,6 +206,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-254 | sentinel/sentinel untracked binary, no .gitignore entry | sentinel/ | review:sentinel | S4 | open | | | |
 | F-255 | make dev-load loads 4 of 12 built images | deploy/ | review:deploy | S3 | open | | | |
 | F-257 | Release image job times out building the multi-arch operator image, so an RC publishes no operator image, chart or GitHub release | .github/workflows/ | review:.github/workflows | S2 | fixing | #435 | | seen on the `v0.3.0-rc.1` release run (T014); ID after F-255 assumes F-256 is taken in the held list, so check on the devbox |
+| F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | open | | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
 
 ## Details
 
@@ -2909,3 +2910,17 @@ Control: the optional telemetry-receiver Service accepts ingress on port 8080 on
 **Actual:** rc.1 has images for every component except the operator, no chart and no GitHub release, so the RC can't be installed from the registry.
 
 **Evidence:** release run 36051057887 (both attempts cancelled at the `images / operator` timeout); `release.yaml:15`, `:62`; `operator/Dockerfile:1`, `:18`.
+
+### F-258
+
+**Repro / observation**
+1. Put a Module into `Failed` (for example a digest pin that doesn't match, reason `DigestMismatch`).
+2. Each reconcile of a Failed Module calls `markPullingTransition` (phase `Failed` → `Pulling`, `Pulling` condition flipped to `True` with a new `LastTransitionTime`) and then `markFailed` (phase back to `Failed`): two status writes.
+3. The controller watches `For(&Module{})` without a generation-changed predicate, so each status write queues another reconcile, and the loop repeats for as long as the Module stays Failed.
+4. Seen in envtest: a test that does Get+Update on the Module's spec while it is Failed lost all five `retry.DefaultRetry` attempts with "the object has been modified".
+
+**Expected:** A Module that stays Failed for the same generation settles: no status write when nothing changed, or retries paced by a requeue delay instead of its own watch events.
+
+**Actual:** Continuous status churn on every Failed Module: apiserver write load, and conflicts for any client that updates the Module (the dashboard or kubectl) while it is Failed.
+
+**Evidence:** CI job 107809566821 (`TestModule_DigestPinCheckedOnReadyModule`, conflict at `module_verify_envtest_test.go:186`); `operator/internal/controller/module_controller.go` (`markPullingTransition`, `markFailed`).
