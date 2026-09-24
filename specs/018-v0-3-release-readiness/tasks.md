@@ -196,7 +196,7 @@ description: "Task list for the v0.3 release readiness audit"
 **Independent Test**: `grep -cE '\| (imported|open|fixing|fixed-unverified) \|' audit/findings.md` returns 0. Every `verified` row links a passing live repeat on a named `rc.N`. Every `out-of-scope` row cites a `docs/roadmap.md` line.
 
 - [ ] T049 [US3] Reproduce each `imported` finding live on rc.1 using its `### F-NNN` repro. Set it to `open`, or to `closed-already-fixed` when the repro passes, with evidence in `audit/evidence/F-NNN/`. Findings that can't be reproduced live (docs or CI-only) are checked by reading the current `master` file at the cited lines
-- [ ] T050 [US3] Triage `audit/findings.md`:
+- [X] T050 [US3] (done 2026-09-24: fix plan in `audit/evidence/rc.1/fix-plan.md`, checked by opus; the held plan is off-git; sign-off requested in OD-024) Triage `audit/findings.md`:
   - Order the `open` findings S1 → S4, and within each severity put core paths first.
   - Close items as `not-a-defect` only with a written justification.
   - Close items as `out-of-scope` only for capabilities `docs/roadmap.md` places after v0.3 (for example "Postgres driver" `docs/roadmap.md:228-234` or "Explicitly out of scope for v1"), citing the line.

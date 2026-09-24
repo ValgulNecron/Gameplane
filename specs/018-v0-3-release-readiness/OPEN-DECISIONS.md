@@ -274,6 +274,12 @@ Options:
 
 Related (verified, same chunk): F-214 (C-charts-gameplane-03) shows `helm upgrade --reuse-values` from 0.2.0-beta.8 fails to render unless the stored values already contain the `capture` and `operator.gameDataStorage` keys. T015's rc deploy (contracts/rc-deploy.md §2) needs those keys passed explicitly.
 
+### OD-024: sign-off to start the fix waves (T055) — PENDING
+
+T050 produced the fix plan: [audit/evidence/rc.1/fix-plan.md](audit/evidence/rc.1/fix-plan.md), checked one tier up. It groups the git-bound findings into `fix/018-*` branches, S1 first, each with its regression test. 25 imported findings are listed to re-check live first (T049), and the 4 with open PRs (#420–#423) are listed as in flight. A separate plan for the held security findings is in `audit/held/fix-plan-held.md` (off-git, OD-019).
+
+Every fix branch changes production code and adds tests, which needs your sign-off (CLAUDE.md override 1). Options: (a) approve the whole plan; (b) approve by severity (for example S1 and S2 now, S3/S4 later); (c) approve group by group. Nothing is closed as `not-a-defect` or `out-of-scope` without you: the plan proposes none.
+
 ### T054: `gameplane-module` tag for the v0.3.0 chart default — RESOLVED 2026-09-24
 
 Decision: a new `v0.3.0` tag in `gameplane-module`, cut only after the live module rows (`INV-MOD-*`) pass on the release candidate. `charts/gameplane/values.yaml:473` is then pinned to it on `fix/018-module-source-ref`. The README, docs and website game counts (review findings C-docs-01, C-website-01, C-website-02) are updated to the 30-module catalog in the same release. The tag in the other repo is outward-facing, so it's confirmed with you when it's ready.
