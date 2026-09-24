@@ -96,7 +96,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-118 | Tunnel create blocked by missing Secret | web | review:web | S2 | open | | | |
 | F-119 | Tunnel enable flows fail validation | web | review:web | S2 | open | | | |
 | F-120 | Share links resolve hangs on extended wake | web | review:web | S3 | open | | | |
-| F-121 | WebSocket reconnect after close leaks connections | web | review:web | S3 | fixing | #438 | | |
+| F-121 | WebSocket reconnect after close leaks connections | web | review:web | S3 | fixed-unverified | #438 | | |
 | F-122 | Settings dirty state persists on tab switch | web | review:web | S3 | open | | | |
 | F-123 | Revoked share links show as active | web | review:web | S3 | open | | | |
 | F-124 | Node selector never applied to running server | web | review:web | S3 | open | | | |
