@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -214,10 +215,12 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	// CRDs and make step 4 pass whether or not the pre-upgrade hook works.
 	//
 	// The scenario: a user uninstalls an older release (`helm uninstall`
-	// never deletes CRDs) and later `helm install`s the new chart. Helm's
+	// never deletes CRDs) and later `helm install`s the new chart. Helm 3's
 	// native crds/ install silently skips every CRD that already exists, so
 	// only the crds.autoApply hook firing on pre-install can bring the
-	// leftover schema up to date. To reproduce it, the cluster's CRDs are put
+	// leftover schema up to date. Helm 4's crds/ install is a server-side
+	// apply under manager "helm" that updates them itself, provided no other
+	// manager holds the fields it changes. To reproduce it, the cluster's CRDs are put
 	// back to the PREVIOUS release's exact content with no bundle stamp
 	// (releases that predate the stamp carry none), the working-tree release
 	// is uninstalled, and the working-tree chart is installed over them.
@@ -248,11 +251,16 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 		t.Fatalf("helm uninstall of the working-tree release failed: %v\n%s", err, out)
 	}
 
-	// Put the previous release's CRDs back, exactly as its chart ships them.
-	// `kubectl replace` (a full PUT), not a server-side apply: an apply under
-	// a different field manager could not remove the schema properties the
-	// hook's apply owns, so the schema would stay current and this phase
-	// would prove nothing.
+	// Put the previous release's CRDs back, exactly as its chart ships them
+	// AND with the ownership a real install of it leaves: a server-side
+	// apply under field manager "helm", which is what Helm 4's crds/ install
+	// does (and the manager the crds.autoApply hook now applies under, so it
+	// is also the state an upgrade-then-uninstall leaves). Being the same
+	// manager that owns the working-tree schema from step 3, this apply
+	// removes the properties the old release lacks, so the schema really is
+	// stale. A `kubectl replace` here would instead hand .spec.versions to a
+	// "kubectl-replace" manager no real flow produces, and Helm 4's crds/
+	// apply would then conflict with it on reinstall.
 	fromVersion := os.Getenv("GAMEPLANE_UPGRADE_FROM")
 	if fromVersion == "" {
 		fromVersion = defaultUpgradeFromVersion
@@ -271,7 +279,8 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	if err := os.WriteFile(oldCRDFile, oldCRDs, 0o600); err != nil {
 		t.Fatalf("write %s: %v", oldCRDFile, err)
 	}
-	if out, err := envInstance.Kubectl(ctx, "replace", "-f", oldCRDFile); err != nil {
+	if out, err := envInstance.Kubectl(ctx, "apply", "--server-side", "--force-conflicts",
+		"--field-manager=helm", "-f", oldCRDFile); err != nil {
 		t.Fatalf("re-apply the %s release's CRDs: %v\n%s", fromVersion, err, out)
 	}
 
@@ -344,14 +353,23 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 		}
 	}
 	// The schema check above would also pass if the hook fired on EVERY
-	// install. Pin down that it fired here BECAUSE the leftover CRDs carried
-	// no stamp, and that it left them carrying the chart's stamp, which is
-	// what keeps the next genuinely fresh install from firing it.
+	// install. Pin down exactly which path brought the schema up to date,
+	// and that it left the CRDs carrying the chart's stamp, which is what
+	// keeps the next genuinely fresh install from firing the hook.
 	// TestHelmInstall_CRDApplyHookSkippedOnFreshInstall covers the other
 	// half on a fresh cluster.
-	if got := crdApplyHookEvents(ctx, t, "gameplane", "gameplane-system"); got != "pre-install,pre-upgrade" {
+	//   - Helm 3: crds/ skipped the leftover CRDs, so the hook must have fired
+	//     on pre-install BECAUSE they carried no stamp.
+	//   - Helm 4: crds/ server-side-applied them (stamp included) before the
+	//     templates were rendered, so the stamps matched and the hook must
+	//     NOT have fired on pre-install.
+	wantEvents := "pre-install,pre-upgrade"
+	if helmMajorVersion(ctx, t) >= 4 {
+		wantEvents = "pre-upgrade"
+	}
+	if got := crdApplyHookEvents(ctx, t, "gameplane", "gameplane-system"); got != wantEvents {
 		t.Errorf("install over unstamped leftover CRDs rendered the crd-apply hook for %q, "+
-			"want \"pre-install,pre-upgrade\" (F-218)", got)
+			"want %q (F-218)", got, wantEvents)
 	}
 	if got := liveCRDStamp(ctx, t, "gameservers.gameplane.local"); got != chartStamp {
 		t.Errorf("live gameservers CRD %s = %q after installing over leftover CRDs, want the chart's %q",
@@ -478,6 +496,25 @@ func crdApplyHookEvents(ctx context.Context, t *testing.T, release, namespace st
 	t.Fatalf("release %s in %s has no %s-crd-apply Job hook (is crds.autoApply enabled?)",
 		release, namespace, release)
 	return ""
+}
+
+// helmMajorVersion returns the major version of the helm binary on PATH
+// (3 or 4). Helm 3 and 4 install crds/ differently (create-and-skip vs
+// server-side apply), which decides whether the crd-apply hook is needed on
+// an install over leftover CRDs.
+func helmMajorVersion(ctx context.Context, t *testing.T) int {
+	t.Helper()
+	out, err := exec.CommandContext(ctx, "helm", "version", "--template", "{{.Version}}").Output()
+	if err != nil {
+		t.Fatalf("helm version: %v", err)
+	}
+	v := strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
+	major, _, _ := strings.Cut(v, ".")
+	n, err := strconv.Atoi(major)
+	if err != nil {
+		t.Fatalf("parse helm version %q: %v", out, err)
+	}
+	return n
 }
 
 // manifestCRDStamp reads the bundle-hash stamp from the working-tree chart's

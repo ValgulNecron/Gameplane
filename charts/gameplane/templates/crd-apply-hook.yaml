@@ -44,6 +44,12 @@ a hash over the whole generated CRD set. So:
     that predate it) or different -> also fire on pre-install, which applies
     crd-manifests/ and so brings both the schema and the stamp up to date.
 
+Helm 4 differs: its crds/ install is a server-side apply (manager "helm"),
+so it updates leftover CRDs itself, stamp included, before this file is
+rendered; the stamps then match and the hook stays pre-upgrade only, which
+is correct because the schema is already current. That apply only succeeds
+when "helm" owns the fields it changes, hence the Job's --field-manager.
+
 `lookup` returns an empty map during `helm template`/client-side dry-run or
 without cluster access, so render checks always see pre-upgrade only.
 gameservers is the probe because it has existed in every release; the hash
@@ -236,7 +242,18 @@ spec:
         - name: kubectl
           image: {{ .Values.crds.autoApply.image | quote }}
           imagePullPolicy: {{ .Values.crds.autoApply.pullPolicy }}
-          command: ["kubectl", "apply", "--server-side", "--force-conflicts", "-f", "/crds"]
+          # --field-manager=helm: Helm 4 installs crds/ with a server-side
+          # apply under field manager "helm" and WITHOUT --force-conflicts.
+          # .spec.versions is an atomic list, so under kubectl's default
+          # manager ("kubectl") every schema change this hook applied left
+          # "kubectl" the sole owner of it, and a later `helm install` over
+          # the leftover CRDs (after `helm uninstall`) failed with
+          # "Apply failed with 1 conflict: conflict with \"kubectl\" ...
+          # .spec.versions". Applying as "helm" keeps one owner, so Helm's own
+          # crds/ apply can move the schema on. --force-conflicts still takes
+          # the fields over from any other manager (e.g. "kubectl" from an
+          # older release's hook).
+          command: ["kubectl", "apply", "--server-side", "--force-conflicts", "--field-manager=helm", "-f", "/crds"]
           env:
             # kubectl caches API discovery under $HOME/.kube; point it at the
             # writable emptyDir so readOnlyRootFilesystem holds.

@@ -558,6 +558,19 @@ not run. A fresh install therefore never depends on pulling the hook's
 never owned or deleted by Helm here, so `helm uninstall` leaves your
 GameServers intact.
 
+**Helm 4** installs `crds/` with a server-side apply under the field manager
+`helm` instead of skipping existing CRDs, so a `helm install` over leftover
+CRDs updates them itself (stamp included) and the hook stays pre-upgrade
+only. The hook applies under the same `helm` field manager so that apply
+never conflicts with it. Releases up to `0.2.0-beta.8` applied under
+kubectl's default manager (`kubectl`); if CRDs such a release upgraded were
+left behind, a Helm 4 `helm install` stops with `conflict with "kubectl" …
+.spec.versions`. Re-run it with `--force-conflicts` to take them over:
+
+```sh
+helm install gameplane charts/gameplane -n gameplane-system --create-namespace --force-conflicts
+```
+
 ### RBAC and permissions
 
 Registering a cluster grants **no implicit RBAC** on it — a user who
