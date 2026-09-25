@@ -279,7 +279,11 @@ func updateHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.Han
 				cl = scope.DefaultCluster
 			}
 			if err := validateAndProtectGameServer(req.Context(), k, cl, ns, name, obj, live); err != nil {
-				httperr.WriteCode(w, req, http.StatusForbidden, err)
+				code := http.StatusForbidden
+				if errors.Is(err, errTemplateRefImmutable) {
+					code = http.StatusConflict
+				}
+				httperr.WriteCode(w, req, code, err)
 				return
 			}
 		}
@@ -418,8 +422,21 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// errTemplateRefImmutable is returned by validateAndProtectGameServer when
+// an update attempts to change spec.templateRef on an existing GameServer.
+// It mirrors the CRD's CEL rule (self == oldSelf on
+// GameServerSpec.TemplateRef, see operator/api/v1alpha1/gameserver_types.go)
+// so the handler can reject the change with a clear 409 before it ever
+// reaches the API server, instead of surfacing the apiserver's 422 CEL
+// validation error to the caller (F-047).
+var errTemplateRefImmutable = errors.New(
+	"spec.templateRef is immutable; delete and recreate the GameServer to switch templates",
+)
+
 // validateAndProtectGameServer enforces RBAC and security boundaries on
 // GameServer spec fields during create and update mutations:
+//   - spec.templateRef: Immutable once the GameServer exists. Changing it is
+//     rejected with errTemplateRefImmutable regardless of role.
 //   - spec.capture: Requires captures:manage permission. Non-admins cannot enable,
 //     modify, or configure capture settings.
 //   - spec.serviceAccountName: Requires admin privileges. Non-admins cannot set or override
@@ -443,6 +460,15 @@ func validateAndProtectGameServer(
 	if u != nil {
 		isAdmin = u.Role == "admin" || u.Can("*", false, cl, ns)
 		canManageCaptures = isAdmin || u.Can("captures:manage", true, cl, ns)
+	}
+
+	// 0. Validate spec.templateRef is unchanged (immutable once created).
+	if live != nil {
+		desiredRef, _, _ := unstructured.NestedString(desired.Object, "spec", "templateRef", "name")
+		liveRef, _, _ := unstructured.NestedString(live.Object, "spec", "templateRef", "name")
+		if desiredRef != liveRef {
+			return errTemplateRefImmutable
+		}
 	}
 
 	// 1. Validate spec.capture
