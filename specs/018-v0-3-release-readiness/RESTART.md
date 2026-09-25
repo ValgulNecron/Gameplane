@@ -46,6 +46,7 @@ All of these still apply.
 - #431: held H03. Update `held/findings.md` on the devbox.
 - #428: group 8, F-172/F-052/F-173 (merged 2026-09-25 11:08 UTC; findings `fixed-unverified`). #447 retargeted to master.
 - #429: group 4, F-116/F-130 (merged 2026-09-25 11:08 UTC; findings `fixed-unverified`). Group 22 can start now (it waited on #429).
+- #436: group 11, F-054 (merged; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Green at the end of session 4; ready to merge
@@ -53,7 +54,6 @@ All of these still apply.
 | PR | Content |
 |---|---|
 | #433 | group 2: F-102, F-108 |
-| #436 | group 11: F-054 |
 | #437 | group 15: F-103, F-104 |
 | #439 | group 26: F-204 |
 | #444 | group 16: F-074, F-075 (green in session 5) |

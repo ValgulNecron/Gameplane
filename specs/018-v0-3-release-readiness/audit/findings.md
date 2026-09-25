@@ -58,7 +58,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-050 | Deleted managed GameTemplate not recreated on next reconcile | operator | review:operator | S3 | open | | | |
 | F-051 | Capture expiration waits for unreachable sidecar | operator | review:operator | S4 | open | | | |
 | F-052 | UDP tunnel forwarding sends TCP | operator | review:operator | S3 | fixed-unverified | #428 | | |
-| F-054 | Wipe always succeeds even if it failed | operator | review:operator | S3 | fixing | #436 | | |
+| F-054 | Wipe always succeeds even if it failed | operator | review:operator | S3 | fixed-unverified | #436 | | |
 | F-055 | TunnelHostnameIgnored condition not removed | operator | review:operator | S4 | open | | | |
 | F-056 | Address not validated before sending to MetalLB/Cilium | operator | review:operator | S4 | open | | | |
 | F-057 | Idle window parse error appears only in status, not as condition | operator | review:operator | S4 | open | | | |
