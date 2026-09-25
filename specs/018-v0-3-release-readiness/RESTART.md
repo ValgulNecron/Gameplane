@@ -79,7 +79,7 @@ All of these still apply.
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
-## 3b. Session-5 scout briefs (in the session scratchpad; regenerate if lost)
+## 3b. Session-5 scout briefs (`audit/evidence/rc.1/fix-groups-brief-session5.md`, `od021-followups-brief-session5.md`)
 
 - **Fix-group waves** (from `fixgroups-brief.md`; all verified against master, none needs design):
   - wave 1: 10, 14, 22, 27, 29, 30 (in flight in session 5);
