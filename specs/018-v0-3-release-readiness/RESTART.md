@@ -79,6 +79,21 @@ All of these still apply.
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
+## 3b. Session-5 scout briefs (in the session scratchpad; regenerate if lost)
+
+- **Fix-group waves** (from `fixgroups-brief.md`; all verified against master, none needs design):
+  - wave 1: 10, 14, 22, 27, 29, 30 (in flight in session 5);
+  - wave 2: 17, 35, 39, 41, 43, 47;
+  - wave 3: 25, 37, 40, 45, 46, 49;
+  - wave 4: 31, 34, 42, 52;
+  - wave 5: 38, 44, 48, 50.
+  - Group 33 waits for #430 (shared `httperr.go`/`api/specs.md`). Group 51 has an external blocker. Re-check F-181 (group 41), which may already be fixed by #446. F-253's citation exists only on the 018 branch.
+- **OD-021 follow-ups** (from `od021-brief.md`):
+  - (a) new `api-web` Go e2e bucket: 71 web.md procedures in 13 table-driven test functions; the login-budget sizing is still open;
+  - (b) the nuclear-option, terraria and minecraft-java bundles all pass `gp-module validate`; the likely cause is F-258 churn (#445, now merged) plus live factors, which need kubelab to confirm;
+  - (c) filed as F-260.
+- **F-259 follow-up:** the operator-side redesign goes on the new branch `fix/018-capture-stop-operator`, because #449 merged the API-side wait first.
+
 ## 4. Next (in order)
 
 1. Finish the in-flight items above. Review each agent's result (one tier up), push, and watch until green.

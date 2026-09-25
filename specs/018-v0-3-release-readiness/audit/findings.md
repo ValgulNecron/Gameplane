@@ -208,6 +208,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-257 | Release image job times out building the multi-arch operator image, so an RC publishes no operator image, chart or GitHub release | .github/workflows/ | review:.github/workflows | S2 | fixed-unverified | #435 | | seen on the `v0.3.0-rc.1` release run (T014); ID after F-255 assumes F-256 is taken in the held list, so check on the devbox |
 | F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | fixed-unverified | #445 | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
 | F-259 | Capture download returns 409 right after a user stop although the capture reads Completed | api | ci:e2e | S3 | fixed-unverified | #449 | | seen as sporadic arm64 e2e failures on unrelated PRs (#441); same caveat on the ID as F-257 |
+| F-260 | GameServer.Stopped and Restore.Resuming phases declared but never assigned | operator | review:operator | S4 | open | | | |
 
 ## Details
 
@@ -2940,3 +2941,43 @@ Control: the optional telemetry-receiver Service accepts ingress on port 8080 on
 **Evidence:** CI job 107886876010 (`gameserver_e2e_test.go:630`, `download capture file: status=409 Conflict`).
 
 **Note:** an earlier amd64 failure, `TestGameServer_NetworkCaptureEphemeralContainer` (run 36067327578, job 107864038508, "status.capture.ready still false" after 90s), is a different symptom: the ephemeral sidecar was never reported running. Its cause wasn't found, because the pod was gone before the dump ran. Watch for a repeat.
+
+### F-260
+
+**Repro / observation**
+1. `GameServerPhase` (`operator/api/v1alpha1/gameserver_types.go:8-22`)
+   declares `Pending;Starting;Running;Stopping;Stopped;Suspended;Failed`.
+   `derivePhase` (`operator/internal/controller/gameserver_status.go:268-294`),
+   the only function that assigns `gs.Status.Phase`, returns `Pending`,
+   `Starting`, `Stopping`, `Suspended`, or `Running` — never `Stopped`.
+2. `GameServerPhaseStopped` is still referenced downstream as if it were
+   reachable: `gameserver_status.go:251` clears `StartedAt` on it,
+   `metrics.go:23` includes it in the phase-count gauge's label set (so
+   that series is permanently zero), and `restore_controller.go:127`
+   accepts it as a valid pre-restore precondition that can never actually
+   be observed.
+3. `RestorePhase` (`operator/api/v1alpha1/restore_types.go:8-16`) declares
+   `Pending;Suspending;Running;Resuming;Succeeded;Failed`.
+   `restore_controller.go` only ever assigns `Pending` (:70), `Running`
+   (:83, :130), `Suspending` (:85), `Succeeded` (:161), or `Failed` (:200)
+   — `RestorePhaseResuming` is never written.
+4. `inventory-CRD.md` row `INV-CRD-020` ("Restore Running → Resuming →
+   Succeeded") documents the never-observed `Resuming` transition as if it
+   happens.
+
+**Expected:** Every declared enum value is either reachable by some code
+path, or removed from the CRD/type if the transition it names was never
+implemented (e.g. a suspend-then-resume restore, or an explicit stopped-
+vs-suspended GameServer distinction).
+
+**Actual:** `GameServerPhase.Stopped` and `RestorePhase.Resuming` are both
+permanently dead values — present in the OpenAPI schema (`+kubebuilder:
+validation:Enum` on both types), documented, and even branched on
+elsewhere in the operator, but no reconciler ever sets either one.
+
+**Evidence:** `operator/api/v1alpha1/gameserver_types.go:10,19`;
+`operator/api/v1alpha1/restore_types.go:8,16`;
+`operator/internal/controller/gameserver_status.go:251,268-294`;
+`operator/internal/controller/metrics.go:23`;
+`operator/internal/controller/restore_controller.go:70,83,85,127,130,161,200`;
+`inventory-CRD.md` (018 branch) row `INV-CRD-020`.
