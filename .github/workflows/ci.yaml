@@ -174,6 +174,9 @@ jobs:
             specs:
               - '**/specs.md'
               - 'hack/check-specs.sh'
+              - 'hack/check-dev-load-images.sh'
+              - 'hack/test-up-registry.sh'
+              - 'deploy/kind/up.sh'
             docs:
               - 'README.md'
               - 'docs/architecture.md'
@@ -455,6 +458,16 @@ jobs:
       - name: check specs compliance
         if: matrix.module == 'netguard'
         run: make check-specs
+      # Repository-wide check that `dev-load` loads every image `images` builds
+      # (F-255); gated to one matrix entry like check-specs (ruling D5).
+      - name: check dev-load image coverage
+        if: matrix.module == 'netguard'
+        run: make check-dev-load-images
+      # Fixture tests for deploy/kind/up.sh's registry bootstrap (F-234) and
+      # kubectl context pinning (F-232); gated like check-specs (ruling D5).
+      - name: test up.sh registry/context bootstrap
+        if: matrix.module == 'netguard'
+        run: make test-up-registry
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: lint-${{ matrix.module }}
