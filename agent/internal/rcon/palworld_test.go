@@ -561,3 +561,22 @@ func TestPalworldCooldownClearsOnSuccess(t *testing.T) {
 		t.Error("a successful call must clear the auth cooldown, not leave it armed")
 	}
 }
+
+func TestSplitPalworldCommand(t *testing.T) {
+	cases := []struct {
+		in, first, rest string
+	}{
+		{"", "", ""},
+		{"   ", "", ""},
+		{"Shutdown", "Shutdown", ""},
+		{"  Shutdown  ", "Shutdown", ""},
+		{"Shutdown 30 Server is restarting", "Shutdown", "30 Server is restarting"},
+		{"Broadcast   hello   world  ", "Broadcast", "hello   world"},
+	}
+	for _, c := range cases {
+		first, rest := splitPalworldCommand(c.in)
+		if first != c.first || rest != c.rest {
+			t.Errorf("splitPalworldCommand(%q) = (%q, %q), want (%q, %q)", c.in, first, rest, c.first, c.rest)
+		}
+	}
+}

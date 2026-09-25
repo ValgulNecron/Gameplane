@@ -60,6 +60,31 @@ func TestTail_OpenError(t *testing.T) {
 	}
 }
 
+// TestTail_NonWebSocketRequestRejected covers the websocket.Accept
+// failure branch in tail(): a plain GET without the Upgrade/Connection
+// handshake headers fails the WS handshake, and the handler must return
+// immediately (no panic, no attempt to read/write a *websocket.Conn)
+// rather than proceeding into streamFile.
+func TestTail_NonWebSocketRequestRejected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "log")
+	if err := os.WriteFile(path, []byte("line\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	url := mountServer(t, path)
+
+	resp, err := testGet(t, url+"/logs/tail")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	// websocket.Accept rejects the non-upgrade request with a 4xx before
+	// tail() ever reaches streamFile; assert it wasn't silently upgraded.
+	if resp.StatusCode < 400 || resp.StatusCode >= 500 {
+		t.Fatalf("status=%d, want a 4xx handshake rejection", resp.StatusCode)
+	}
+}
+
 // TestStreamFile_CtxCanceledImmediately covers the early ctx.Err()
 // guard at the top of the loop.
 func TestStreamFile_CtxCanceledImmediately(t *testing.T) {
