@@ -81,8 +81,8 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-088 | Spec session/limits/roles statements contradictory | api/ | review:api | S4 | open | | | |
 | F-089 | Spec dependencies and flags stale vs. go.mod and main.go | api/ | review:api | S4 | open | | | |
 | F-102 | File write operations lose previous file on error | agent | review:agent | S1 | fixing | #433 | | |
-| F-103 | WebSocket and file streams drop after 30s context timeout | agent | review:agent | S3 | fixing | #437 | | |
-| F-104 | RCON reply size check rejects packets 4087 bytes or larger | agent | review:agent | S3 | fixing | #437 | | |
+| F-103 | WebSocket and file streams drop after 30s context timeout | agent | review:agent | S3 | fixed-unverified | #437 | | |
+| F-104 | RCON reply size check rejects packets 4087 bytes or larger | agent | review:agent | S3 | fixed-unverified | #437 | | |
 | F-105 | gameVersion field holds template identifier instead of version | agent | review:agent | S3 | fixing | #448 | | |
 | F-106 | Player count reports non-standard values for unknown state | agent | review:agent | S3 | fixing | #448 | | |
 | F-107 | Quiesce rollback skipped when first command fails | agent | review:agent | S4 | open | | | |
