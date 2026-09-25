@@ -26,10 +26,18 @@ REMOTE_KUBECONFIG ?= $(HOME)/kubelab.yaml
 REMOTE_CONTEXT    ?= default
 MODULE_SOURCE_URL      ?= kind-registry:5000
 MODULE_SOURCE_INSECURE ?= true
+# F-232: every helm/kubectl call the dev targets make must be pinned to the
+# selected cluster's own context, never whatever context happens to be
+# current on the operator's machine — the same hazard deploy/kind/up.sh's
+# kubectl() wrapper guards against for direct kubectl calls in that script.
+# kind-$(KIND_CLUSTER) matches the context name up.sh derives from the same
+# KIND_CLUSTER variable.
 ifeq ($(CLUSTER),remote)
 KUBECONFIG_ENV := KUBECONFIG=$(REMOTE_KUBECONFIG)
+KUBE_CONTEXT   := $(REMOTE_CONTEXT)
 else
 KUBECONFIG_ENV :=
+KUBE_CONTEXT   := kind-$(KIND_CLUSTER)
 endif
 
 GO_MODULES     := netguard gameaction gameproto gp-module operator api agent audit-syslog-bridge telemetry-receiver sentinel mcp-server capture-sidecar svcutil tunnel
@@ -406,6 +414,7 @@ dev-install: ## Install Gameplane Helm chart into the selected cluster
 	# pre-install, but only over leftover CRDs whose bundle stamp is stale or
 	# missing (an earlier, uninstalled release's); fresh CRDs come from crds/.
 	$(KUBECONFIG_ENV) helm upgrade --install $(CHART_RELEASE) $(CHART_DIR) \
+		--kube-context $(KUBE_CONTEXT) \
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.tag=$(TAG) \
 		--set image.registry=$(REGISTRY) \
@@ -416,7 +425,7 @@ dev-install: ## Install Gameplane Helm chart into the selected cluster
 
 dev-down: ## Tear down: delete the kind cluster, or uninstall on a remote cluster
 ifeq ($(CLUSTER),remote)
-	$(KUBECONFIG_ENV) helm uninstall $(CHART_RELEASE) --namespace $(NAMESPACE)
+	$(KUBECONFIG_ENV) helm uninstall $(CHART_RELEASE) --kube-context $(KUBE_CONTEXT) --namespace $(NAMESPACE)
 else
 	kind delete cluster --name $(KIND_CLUSTER)
 endif

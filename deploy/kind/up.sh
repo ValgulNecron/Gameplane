@@ -183,7 +183,12 @@ if [ -n "${GAMEPLANE_UP_SH_SOURCE_ONLY:-}" ]; then
     return 0 2>/dev/null || exit 0
 fi
 
-need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
+# `type -P` (unlike `command -v`) only matches an actual executable on PATH
+# and ignores shell functions — required here because kubectl() above is a
+# shell function of the same name, and `command -v kubectl` would report it
+# as found even with no real kubectl binary installed, silently defeating
+# this check.
+need() { type -P "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
 need kind
 need kubectl
 need helm
