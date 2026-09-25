@@ -63,6 +63,7 @@ All of these still apply.
 - #446: group 24, F-179/F-180 (merged; findings `fixed-unverified`).
 - #447: F-174 playit address (merged; findings `fixed-unverified`).
 - #448: group 18, F-105/F-106 (merged; findings `fixed-unverified`).
+- #449: F-259 API-side wait. The maintainer-chosen operator-side redesign follows as a new PR from master (the rework in scratchpad/wtcap is rebased on master, which now includes #449) (merged; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Green at the end of session 4; ready to merge
@@ -75,7 +76,6 @@ All of these still apply.
 | PR | Content | State |
 |---|---|---|
 | #430 | held H01 plus the 501 change | CI never ran on `94e79456` because of a CHANGELOG merge conflict. Master merged in as `258d8a27` (both CHANGELOG bullets kept); the PR body now says 501. Master merged again as `51e069a5` after #427 (CHANGELOG conflict); CI re-running. |
-| #449 | F-259 (new): capture download 409 right after a user stop | **Green** on `357cddbd`. Lint (SA4006) fixed in `357cddbd`. The api download waits up to 15s for `SidecarStopped` before proxying. An independent opus review approved option A (polling in the api); the operator-set-Completed alternative was rejected because it would break two existing test assertions and research.md's lifecycle decision. Also watch for a repeat of the separate amd64 `NetworkCaptureEphemeralContainer` "ready still false" failure (cause unknown). |
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 

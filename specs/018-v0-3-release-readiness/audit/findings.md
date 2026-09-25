@@ -207,7 +207,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-255 | make dev-load loads 4 of 12 built images | deploy/ | review:deploy | S3 | open | | | |
 | F-257 | Release image job times out building the multi-arch operator image, so an RC publishes no operator image, chart or GitHub release | .github/workflows/ | review:.github/workflows | S2 | fixed-unverified | #435 | | seen on the `v0.3.0-rc.1` release run (T014); ID after F-255 assumes F-256 is taken in the held list, so check on the devbox |
 | F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | fixed-unverified | #445 | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
-| F-259 | Capture download returns 409 right after a user stop although the capture reads Completed | api | ci:e2e | S3 | fixing | #449 | | seen as sporadic arm64 e2e failures on unrelated PRs (#441); same caveat on the ID as F-257 |
+| F-259 | Capture download returns 409 right after a user stop although the capture reads Completed | api | ci:e2e | S3 | fixed-unverified | #449 | | seen as sporadic arm64 e2e failures on unrelated PRs (#441); same caveat on the ID as F-257 |
 
 ## Details
 
