@@ -27,6 +27,7 @@ import { FilterPopover } from "@/components/ui/FilterPopover";
 import { GameIcon } from "@/components/ui/GameIcon";
 import { useGameCodes } from "@/lib/useGameCodes";
 import { PageHeader } from "@/components/PageHeader";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { describeStorageProvisioned, formatBytes, cn } from "@/lib/utils";
 import { useMediaQuery } from "@/lib/media";
 import type { ClusterStats, ClusterView, GameServer, GameServerPhase, GameTemplate } from "@/types";
@@ -185,6 +186,8 @@ export function ServersPage() {
           }
         />
       )}
+
+      {act.error && <ErrorBanner err={act.error} onDismiss={() => act.reset()} />}
 
       {!isMobile && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">

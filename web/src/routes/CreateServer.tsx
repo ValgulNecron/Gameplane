@@ -415,7 +415,7 @@ export function CreateServerWizard() {
           <Button
             isIconOnly
             variant="ghost"
-            onPress={() => nav({ to: "/servers" })}
+            onPress={() => void nav({ to: "/servers" })}
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -458,7 +458,7 @@ export function CreateServerWizard() {
               </span>
             )}
             {stepIndex === 0 ? (
-              <Button variant="ghost" onPress={() => nav({ to: "/servers" })}>
+              <Button variant="ghost" onPress={() => void nav({ to: "/servers" })}>
                 Cancel
               </Button>
             ) : (

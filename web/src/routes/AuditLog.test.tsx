@@ -181,6 +181,30 @@ describe("AuditLogPage", () => {
     clickSpy.mockRestore();
   });
 
+  // F-126: exporting CSV while the API is failing did nothing visible —
+  // exportMutation had no error handler.
+  it("shows an error banner when the CSV export fails", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [event(1, { actor: "alice", method: "POST" })];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      if (u.includes("/admin/audit/export")) {
+        return Promise.resolve(new Response("export temporarily unavailable", { status: 503 }));
+      }
+      return Promise.resolve(jsonRes(events));
+    });
+
+    const user = userEvent.setup();
+    renderWithQuery(<AuditLogPage />);
+    await screen.findByText("Created server");
+
+    await user.click(screen.getByText("Export CSV"));
+
+    expect(await screen.findByText(/export temporarily unavailable/i)).toBeInTheDocument();
+  });
+
   it("renders the integrity banner when chain is verified", async () => {
     const verifyResult: AuditVerifyResult = { ok: true, checked: 150, message: "audit chain intact" };
     const events = [event(1)];

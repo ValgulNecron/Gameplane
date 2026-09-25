@@ -19,6 +19,7 @@ import { GameIcon } from "@/components/ui/GameIcon";
 import { capitalize, formatUptime } from "@/lib/utils";
 import { ServerActionsMenu } from "@/components/server/ServerActionsMenu";
 import { CaptureWidget } from "@/components/CaptureWidget";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 import { OverviewTab } from "./tabs/Overview";
 import { EventsTab } from "./tabs/Events";
@@ -247,6 +248,12 @@ export function ServerDetailPage() {
             )}
           </div>
         </div>
+
+        {act.error && (
+          <div className="pb-4">
+            <ErrorBanner err={act.error} onDismiss={() => act.reset()} />
+          </div>
+        )}
 
         <nav className="scrollbar-thin">
           <Tabs

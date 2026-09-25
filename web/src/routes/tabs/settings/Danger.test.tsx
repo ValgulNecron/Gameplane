@@ -88,6 +88,23 @@ describe("DangerSection", () => {
     await waitFor(() => expect(body).toEqual({ userId: 2 }));
   });
 
+  // F-137: onDeleted's navigate() call returned its promise unhandled from
+  // the onPress-style callback prop; a rejecting navigate used to produce
+  // an "Uncaught (in promise)" instead of being silently absorbed like any
+  // other post-mutation navigation in this file.
+  it("does not throw when navigate rejects after a successful delete", async () => {
+    navigate.mockRejectedValueOnce(new Error("navigation aborted"));
+    server.use(
+      http.delete("/servers/alpha", () => HttpResponse.json({})),
+    );
+    renderWithQuery(<DangerSection name="alpha" />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const inp = await screen.findByRole("textbox");
+    await userEvent.type(inp, "alpha");
+    await userEvent.click(await screen.findByRole("button", { name: /Confirm|Delete/i }));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/servers" }));
+  });
+
   it("delete failure surfaces the error", async () => {
     server.use(
       http.delete("/servers/alpha", () =>

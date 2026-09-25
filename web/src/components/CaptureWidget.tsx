@@ -464,12 +464,13 @@ export function CaptureWidget({ name, ns, gs }: Props) {
               <AlertDialogHeader className="flex flex-col gap-1">
                 <AlertDialogHeading>Delete capture?</AlertDialogHeading>
               </AlertDialogHeader>
-              <AlertDialogBody>
+              <AlertDialogBody className="flex flex-col gap-3">
                 <p className="text-sm">
                   This permanently deletes capture{" "}
                   <span className="font-mono">{deleteTarget?.captureId}</span> and its
                   recorded packets. This cannot be undone.
                 </p>
+                {deleteMut.error && <ErrorBanner err={deleteMut.error} />}
               </AlertDialogBody>
               <AlertDialogFooter>
                 <Button

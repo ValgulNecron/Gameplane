@@ -57,7 +57,7 @@ export function DangerSection({ name, ns }: Props) {
         ns={ns}
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        onDeleted={() => navigate({ to: "/servers" })}
+        onDeleted={() => void navigate({ to: "/servers" })}
       />
     </div>
   );

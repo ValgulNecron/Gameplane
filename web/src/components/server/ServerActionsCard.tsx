@@ -61,6 +61,7 @@ import { rconAvailable } from "@/lib/capabilities";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
 import { useMe, can } from "@/lib/auth";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 // Curated icon map for the lucide names modules declare. Unknown names
 // fall back to a generic bolt so a typo never breaks the row.
@@ -193,6 +194,11 @@ export function ServerActionsCard({
           <h2 className="text-base font-semibold text-foreground">Quick actions</h2>
         </CardHeader>
         <CardContent className="space-y-1 px-0 py-2">
+          {lifecycle.error && (
+            <div className="px-6 pb-2">
+              <ErrorBanner err={lifecycle.error} onDismiss={() => lifecycle.reset()} />
+            </div>
+          )}
           <LifecycleButton
             icon={RotateCw}
             label="Restart"

@@ -443,6 +443,45 @@ describe("SettingsTab", () => {
     });
   });
 
+  // F-137: reload() had no try/catch — a failed GET during the conflict
+  // banner's "Reload" rejected silently (uncaught in promise), no message.
+  it("shows an error when Reload's fetch fails", async () => {
+    stubTemplate();
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
+    await waitFor(() => screen.getByPlaceholderText(/Long-standing/));
+
+    fetchMock.mockImplementation(async (url: string, init?: FetchInit) => {
+      if (url.startsWith("/templates/")) {
+        return jsonRes({
+          metadata: { name: "minecraft-java" },
+          spec: { displayName: "Minecraft", game: "minecraft-java", version: "1.0", image: "x" },
+        });
+      }
+      if (url === "/servers/mc-survival" && init?.method === "PUT") {
+        return jsonRes({ error: "conflict" }, 409);
+      }
+      if (url === "/servers/mc-survival" && (!init || init.method === "GET")) {
+        return jsonRes({ error: "server unreachable" }, 502);
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/Long-standing/), {
+      target: { value: "edited" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/changed since you opened this page/i)).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Reload/i }));
+
+    // The conflict banner is replaced by an error, not silently swallowed.
+    await waitFor(() => {
+      expect(screen.getByText(/server unreachable/i)).toBeInTheDocument();
+    });
+  });
+
   it("filters out version section when template has no versions", async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url.startsWith("/templates/")) {
