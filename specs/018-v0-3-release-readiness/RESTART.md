@@ -94,22 +94,23 @@ Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #
   - (c) filed as F-260.
 - **F-259 follow-up:** the operator-side redesign goes on the new branch `fix/018-capture-stop-operator`, because #449 merged the API-side wait first.
 
-## 3c. Session-5 wave-1 PRs (state at 2026-09-25 ~12:50 UTC)
+## 3c. Session-5 wave-1 PRs (state at 2026-09-25 ~14:00 UTC)
 
 | PR | Content | State |
 |---|---|---|
 | #430 | held H01 plus the 501 change | Green on `592b9771`; ready to merge. |
 | #450 | group 30: F-238..F-244 (CI reporting and trigger gaps) | `chart render` fixed (`310d0516`). `go (agent / amd64)` failed the agent's 90% coverage gate at 89.9%: not PR-caused, the gate sits on the boundary. PR comment posted; re-run the failed jobs of run 36135725521 once it finishes. |
-| #451 | group 10: F-046, F-047, F-050 | `03f89864`: the api PUT handler rejects a templateRef change with 4xx, since the CRD now makes it immutable. **Sign-off needed:** the pre-existing `TestResources_GameServerCRUDRoundTrip` no longer changes templateRef. |
-| #452 | group 29: F-232, F-234, F-255, F-237 | `bb395a69`: `chart render` was red on MASTER too. Commit 4bdbe329 left the chart CRD copies with a stale bundle-hash stamp; the fix (re-synced CRDs) is ported into #452. **Merge #452 early:** until it lands, any PR that doesn't touch the CRDs fails `chart render`. |
-| #453 | F-259 follow-up: the operator-side capture stop (maintainer-chosen design) | Opened; CI pending. **Sign-off needed** on the `networkcapture_envtest_test.go` disable assertion (now expects the annotation). |
-| #454 | group 14: F-044, F-045, F-048, F-049 | `lint (operator)` and `e2e operator / arm64` red; being fixed. The `go (agent)` failure is the coverage-gate issue. |
+| #451 | group 10: F-046, F-047, F-050 | **Green** on `03f89864` (the api PUT handler rejects a templateRef change with 4xx, since the CRD now makes it immutable). **Sign-off needed:** the pre-existing `TestResources_GameServerCRUDRoundTrip` no longer changes templateRef. |
+| #452 | group 29: F-232, F-234, F-255, F-237 | **Green** on `bb395a69`. It also carries the fix for `chart render`, which was red on MASTER: commit 4bdbe329 left the chart CRD copies with a stale bundle-hash stamp, and #452 re-syncs them. **Merge #452 early:** until it lands, any PR that doesn't touch the CRDs fails `chart render`. |
+| #453 | F-259 follow-up: the operator-side capture stop (maintainer-chosen design) | **Green** (14/14) on `2f5b7695`. **Sign-off needed** on the `networkcapture_envtest_test.go` disable assertion, which now expects the annotation. |
+| #454 | group 14: F-044, F-045, F-048, F-049 | **Green** on `e335a473`: events.k8s.io RBAC for the event recorder, and restic restore keeps `--include /data`. |
 | #455 | group 22: F-126, F-137 (web silent failures) | Opened; CI pending. |
 | (group 27) | F-216, F-217 (PodMonitor TLS, telemetry scrape) | Branch `fix/018-charts-observability-scrape` exists only locally, in scratchpad/wtg27. **Needs a maintainer decision:** the fix gave Prometheus the agent's full mTLS client cert, which the agent accepts for all control routes. Options: a separate plain metrics port on the agent, a separate scrape-only CA/cert that the agent checks for /metrics only, or drop the agent PodMonitor. |
 
 The cloud container restarted twice. The scratchpad worktrees survived, but re-check them after a restart. The helper `scratchpad/merged.sh PR "IDs" "label"` records a merge in findings.md and this file.
 
-- **Agent coverage margin:** a new branch `fix/018-agent-coverage-margin` adds agent tests so coverage clears the 90% gate. PR to follow.
+- **Agent coverage margin:** the local branch `fix/018-agent-coverage-margin` (scratchpad/wtagentcov) was rejected twice in review: its tests add only about 2 statements. The next step is to settle the denominator (`.testcoverage.yml` excludes `^cmd/`, while `make cover-go` uses `-coverpkg=./...`) and find the timing-dependent coverage, working from CI evidence. A workflow is investigating this; lowering the gate is not an option.
+- **Wave 2** (groups 17, 35, 39, 41, 43, 47) is in flight in session 5 (workflow run `wf_fde12aaa-9c4`, worktrees scratchpad/wtg<N>). Each group gets its own PR, opened by the workflow after an opus review.
 
 ## 4. Next (in order)
 
