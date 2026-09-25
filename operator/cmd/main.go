@@ -406,7 +406,7 @@ func main() {
 		Clientset:     kubernetes.NewForConfigOrDie(mgr.GetConfig()),
 		AgentClient:   agentClient,
 		ResticImage:   resticImage,
-		EventRecorder: mgr.GetEventRecorderFor("backup-controller"),
+		EventRecorder: mgr.GetEventRecorder("backup-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "Backup")
 		os.Exit(1)

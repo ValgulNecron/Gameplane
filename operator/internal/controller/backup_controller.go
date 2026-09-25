@@ -20,11 +20,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 
-	"k8s.io/client-go/tools/record"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/recorder"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 	"github.com/ValgulNecron/gameplane/operator/internal/agent"
@@ -102,8 +101,11 @@ type BackupReconciler struct {
 	SnapshotScrapeGracePeriod time.Duration
 	// EventRecorder surfaces the UnquiesceAbandoned warning when
 	// finalizeDelete gives up on a bounded unquiesce retry (F-048). May be
-	// nil in tests that don't assert on events.
-	EventRecorder record.EventRecorder
+	// nil in tests that don't assert on events. Uses controller-runtime's
+	// current recorder.EventRecorder (Manager.GetEventRecorder) rather than
+	// the deprecated client-go record.EventRecorder that
+	// Manager.GetEventRecorderFor returns.
+	EventRecorder recorder.EventRecorder
 }
 
 // defaultSnapshotScrapeGracePeriod bounds how long, after the restic Job
@@ -679,12 +681,12 @@ func (r *BackupReconciler) unquiesceRetryExpired(ctx context.Context, b *gamepla
 		}
 		return false, nil
 	}
-	firstFailedAt, err := time.Parse(time.RFC3339, since)
-	if err != nil {
-		// A malformed annotation shouldn't wedge deletion forever.
-		return true, nil
+	firstFailedAt, parseErr := time.Parse(time.RFC3339, since)
+	if parseErr == nil {
+		return time.Since(firstFailedAt) >= maxUnquiesceFinalizeRetry, nil
 	}
-	return time.Since(firstFailedAt) >= maxUnquiesceFinalizeRetry, nil
+	// A malformed annotation shouldn't wedge deletion forever.
+	return true, nil
 }
 
 // recordEvent emits a Kubernetes event on b when EventRecorder is
@@ -694,7 +696,10 @@ func (r *BackupReconciler) recordEvent(b *gameplanev1alpha1.Backup, eventType, r
 	if r.EventRecorder == nil {
 		return
 	}
-	r.EventRecorder.Event(b, eventType, reason, message)
+	// events.EventRecorder's Eventf has no direct message-only form: reason
+	// doubles as the action (both are short UpperCamelCase per its contract)
+	// and message is passed through verbatim as the note.
+	r.EventRecorder.Eventf(b, nil, eventType, reason, reason, "%s", message)
 }
 
 // missingRepoSecretKeys returns the restic Secret keys the backup/restore
