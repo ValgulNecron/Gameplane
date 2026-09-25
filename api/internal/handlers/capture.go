@@ -1045,7 +1045,7 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 	// when no mTLS client is configured: no sidecar can be reached then, and
 	// proxyFileDownload reports that on its own.
 	if h.tlsClient != nil && !nc.FileFinalized() {
-		nc, err = h.waitFileFinalized(req.Context(), k, ns, name, captureID)
+		_, err = h.waitFileFinalized(req.Context(), k, ns, name, captureID)
 		if err != nil {
 			switch {
 			case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
