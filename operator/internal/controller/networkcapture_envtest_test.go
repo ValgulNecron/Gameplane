@@ -717,9 +717,9 @@ func TestGameServerCapture_EnableInjectsEphemeralContainer(t *testing.T) {
 // TestGameServerCapture_DisableStopsActiveCaptureAndLeavesEphemeralContainer
 // covers T052(b): disabling spec.capture.enabled stops routing new captures
 // (status.capture.ready flips false, activeCapture clears) AND stops a
-// capture that is Running (transitioned to Completed with the exact message
-// networkcapture_controller.go's Reconcile watches for, to tell the sidecar
-// to actually stop) — while the ephemeral container REMAINS in both
+// capture that is Running (by setting the stop-requested annotation that
+// networkcapture_controller.go's Reconcile acts on: it stops the sidecar and
+// only then marks the capture Completed, F-259) — while the ephemeral container REMAINS in both
 // pod.spec.ephemeralContainers and pod.status.ephemeralContainerStatuses.
 // That persistence is the documented platform limitation (Kubernetes has no
 // API to remove an ephemeral container), not a bug: this test asserts the
@@ -820,12 +820,11 @@ func TestGameServerCapture_DisableStopsActiveCaptureAndLeavesEphemeralContainer(
 	})
 
 	eventually(t, func() (bool, string) {
+		// F-259: disable only requests the stop; NetworkCaptureReconciler
+		// (not wired here) stops the sidecar and then completes it.
 		got := getNetworkCapture(t, ns, "cap-running")
-		if got.Status.Phase != gameplanev1alpha1.CapturePhaseCompleted {
-			return false, fmt.Sprintf("phase = %s, want Completed", got.Status.Phase)
-		}
-		if got.Status.Message != userStoppedMessage {
-			return false, fmt.Sprintf("message = %q, want %q", got.Status.Message, userStoppedMessage)
+		if _, ok := got.Annotations[stopRequestedAnnotation]; !ok {
+			return false, "stop-requested annotation not set"
 		}
 		return true, ""
 	})

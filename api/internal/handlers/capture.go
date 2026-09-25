@@ -472,10 +472,11 @@ func (h *captureHandler) captureDisable(w http.ResponseWriter, req *http.Request
 
 // stopActiveCaptures requests a stop (kube.StopNetworkCapture's
 // stop-requested annotation) of every Pending/Running NetworkCapture for
-// the named server; the operator completes them asynchronously. It scans live captures rather than trusting
-// status.capture.activeCapture alone, for the same eventual-consistency
-// reason hasActiveCapture does below: that status field is maintained by
-// the operator's reconciler and can lag behind the true CR state.
+// the named server; the operator completes them asynchronously. It scans
+// live captures rather than trusting status.capture.activeCapture alone,
+// for the same eventual-consistency reason hasActiveCapture does below:
+// that status field is maintained by the operator's reconciler and can
+// lag behind the true CR state.
 func (h *captureHandler) stopActiveCaptures(ctx context.Context, k *kube.Client, ns, name string) error {
 	captures, err := k.ListNetworkCaptures(ctx, ns, name)
 	if err != nil {

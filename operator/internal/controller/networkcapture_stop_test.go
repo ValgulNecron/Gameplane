@@ -22,11 +22,15 @@ import (
 // marks the capture Completed.
 
 // stopRecordingSidecar is a SidecarCaptureClient that records StopCapture
-// calls and fails every other method, so a test notices any sidecar call
-// it did not expect.
+// calls and fails StartCapture/DeleteCaptureFile, so a test notices any
+// sidecar call it did not expect. GetCaptureStatus reports the capture as
+// unknown unless known is set, in which case it returns packets/bytes.
 type stopRecordingSidecar struct {
 	stopCalls []string
 	stopErr   error
+	known     bool
+	packets   int64
+	bytes     int64
 }
 
 func (s *stopRecordingSidecar) StartCapture(context.Context, string, string, string, *string, int64, int64) error {
@@ -39,7 +43,10 @@ func (s *stopRecordingSidecar) StopCapture(_ context.Context, _, serverName, cap
 }
 
 func (s *stopRecordingSidecar) GetCaptureStatus(context.Context, string, string, string) (string, int64, int64, string, error) {
-	return "", 0, 0, "", errors.New("unexpected GetCaptureStatus")
+	if !s.known {
+		return "", 0, 0, "", errors.New("capture not found")
+	}
+	return "running", s.packets, s.bytes, "", nil
 }
 
 func (s *stopRecordingSidecar) DeleteCaptureFile(context.Context, string, string, string) error {
@@ -206,5 +213,105 @@ func TestNetworkCaptureStopRequested_LegacyFallback(t *testing.T) {
 	}
 	if gs.Status.Capture == nil || gs.Status.Capture.ActiveCapture != nil {
 		t.Errorf("gameserver activeCapture = %+v, want released (nil)", gs.Status.Capture)
+	}
+}
+
+// TestNetworkCaptureStopRequested_PendingKnownToSidecarStops: the Pending
+// branch starts the sidecar before its status write, so a stop request that
+// makes that write conflict leaves the object Pending while the sidecar is
+// capturing. The stop must then go to the sidecar, not short-circuit as
+// never_started.
+func TestNetworkCaptureStopRequested_PendingKnownToSidecarStops(t *testing.T) {
+	for _, phase := range []gameplanev1alpha1.CapturePhase{"", gameplanev1alpha1.CapturePhasePending} {
+		t.Run("phase="+string(phase), func(t *testing.T) {
+			sidecar := &stopRecordingSidecar{known: true, packets: 7, bytes: 4096}
+			nc, _ := reconcileStopTest(t, sidecar, stopTestServer("cap-race"), stopTestCapture("cap-race", phase, true))
+
+			if len(sidecar.stopCalls) != 1 || sidecar.stopCalls[0] != "srv/cap-race" {
+				t.Errorf("StopCapture calls = %v, want exactly [srv/cap-race]", sidecar.stopCalls)
+			}
+			assertUserStopCompleted(t, nc, "stopped")
+			if nc.Status.PacketsWritten != 7 {
+				t.Errorf("packetsWritten = %d, want 7", nc.Status.PacketsWritten)
+			}
+		})
+	}
+}
+
+// TestNetworkCaptureStopRequested_RunningRefreshesFinalCounts: after a
+// successful stop the final counts come from the sidecar.
+func TestNetworkCaptureStopRequested_RunningRefreshesFinalCounts(t *testing.T) {
+	sidecar := &stopRecordingSidecar{known: true, packets: 42, bytes: 8192}
+	nc, _ := reconcileStopTest(t, sidecar, stopTestServer("cap-cnt"), stopTestCapture("cap-cnt", gameplanev1alpha1.CapturePhaseRunning, true))
+
+	assertUserStopCompleted(t, nc, "stopped")
+	if nc.Status.PacketsWritten != 42 {
+		t.Errorf("packetsWritten = %d, want 42", nc.Status.PacketsWritten)
+	}
+	if nc.Status.BytesWritten == nil || nc.Status.BytesWritten.Value() != 8192 {
+		t.Errorf("bytesWritten = %v, want 8192", nc.Status.BytesWritten)
+	}
+}
+
+// TestGameServerStopActiveCaptures_RequestsStopWithoutWritingPhase: capture
+// disable must not complete a capture before its sidecar is stopped (F-259).
+// It only sets the stop-requested annotation on non-terminal captures of
+// that server, keeps an existing annotation value, and leaves terminal and
+// other servers' captures alone.
+func TestGameServerStopActiveCaptures_RequestsStopWithoutWritingPhase(t *testing.T) {
+	running := stopTestCapture("cap-run", gameplanev1alpha1.CapturePhaseRunning, false)
+	pending := stopTestCapture("cap-pend", gameplanev1alpha1.CapturePhasePending, false)
+	already := stopTestCapture("cap-already", gameplanev1alpha1.CapturePhaseRunning, true)
+	done := stopTestCapture("cap-done", gameplanev1alpha1.CapturePhaseCompleted, false)
+	other := stopTestCapture("cap-other", gameplanev1alpha1.CapturePhaseRunning, false)
+	other.Spec.ServerRef.Name = "other"
+
+	gs := stopTestServer("cap-run")
+	c := fake.NewClientBuilder().
+		WithScheme(testScheme(t)).
+		WithObjects(gs, running, pending, already, done, other).
+		WithStatusSubresource(&gameplanev1alpha1.GameServer{}, &gameplanev1alpha1.NetworkCapture{}).
+		Build()
+	r := &GameServerReconciler{Client: c, Scheme: c.Scheme()}
+
+	if err := r.stopActiveCaptures(context.Background(), gs); err != nil {
+		t.Fatalf("stopActiveCaptures: %v", err)
+	}
+	if gs.Status.Capture.ActiveCapture != nil {
+		t.Errorf("activeCapture = %q, want cleared", *gs.Status.Capture.ActiveCapture)
+	}
+	if gs.Status.Capture.LastCaptureTime == nil {
+		t.Error("lastCaptureTime should be recorded")
+	}
+
+	get := func(name string) *gameplanev1alpha1.NetworkCapture {
+		t.Helper()
+		var nc gameplanev1alpha1.NetworkCapture
+		if err := c.Get(context.Background(), types.NamespacedName{Namespace: stopTestNS, Name: name}, &nc); err != nil {
+			t.Fatalf("get %s: %v", name, err)
+		}
+		return &nc
+	}
+
+	for name, wantPhase := range map[string]gameplanev1alpha1.CapturePhase{
+		"cap-run":  gameplanev1alpha1.CapturePhaseRunning,
+		"cap-pend": gameplanev1alpha1.CapturePhasePending,
+	} {
+		nc := get(name)
+		if _, ok := nc.Annotations[stopRequestedAnnotation]; !ok {
+			t.Errorf("%s: stop-requested annotation not set", name)
+		}
+		if nc.Status.Phase != wantPhase {
+			t.Errorf("%s: phase = %q, want %q unchanged (the capture reconciler completes it)", name, nc.Status.Phase, wantPhase)
+		}
+	}
+	if v := get("cap-already").Annotations[stopRequestedAnnotation]; v != "2026-09-25T10:00:00Z" {
+		t.Errorf("cap-already annotation = %q, want the original value kept", v)
+	}
+	if _, ok := get("cap-done").Annotations[stopRequestedAnnotation]; ok {
+		t.Error("terminal capture must not be annotated")
+	}
+	if _, ok := get("cap-other").Annotations[stopRequestedAnnotation]; ok {
+		t.Error("another server's capture must not be annotated")
 	}
 }

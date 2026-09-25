@@ -546,14 +546,23 @@ func isTerminalCapturePhase(phase gameplanev1alpha1.CapturePhase) bool {
 }
 
 // completeRequestedStop handles a non-terminal capture carrying
-// stopRequestedAnnotation (F-259). A capture still Pending (or not yet
-// reconciled at all) never reached the sidecar, so it is completed without
-// a sidecar call. Otherwise the sidecar is told to stop first — its :stop
-// is synchronous and closes the PCAPNG file — and only then is the capture
-// marked Completed with SidecarStopped=True. A failed sidecar stop (e.g.
-// the pod is already gone) is recorded as SidecarStopFailed but still
-// completes the capture, matching the upgrade-fallback branch in
-// Reconcile, so a vanished sidecar can never wedge a stop.
+// stopRequestedAnnotation (F-259). The sidecar is told to stop first — its
+// :stop is synchronous and closes the PCAPNG file — and only then is the
+// capture marked Completed with SidecarStopped=True.
+//
+// A capture still Pending (or not yet reconciled at all) may nonetheless
+// already be capturing: the Pending branch of Reconcile starts the sidecar
+// before its own status write, and a stop request landing in between makes
+// that write conflict, leaving the object Pending while the sidecar runs.
+// So a Pending capture is only treated as never started when the sidecar
+// has no record of it (GetCaptureStatus errors); if the sidecar knows it,
+// it is stopped exactly like a Running capture.
+//
+// A failed sidecar stop (e.g. the pod is already gone) is recorded as
+// SidecarStopFailed but still completes the capture, matching the
+// upgrade-fallback branch in Reconcile, so a vanished sidecar can never
+// wedge a stop. After a successful stop the final packet/byte counts are
+// refreshed from the sidecar on a best-effort basis.
 func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture) (ctrl.Result, error) {
 	now := metav1.Now()
 	stopped := metav1.Condition{
@@ -565,10 +574,17 @@ func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc
 		LastTransitionTime: now,
 	}
 
+	serverName := nc.Spec.ServerRef.Name
+	neverStarted := false
 	if nc.Status.Phase == "" || nc.Status.Phase == gameplanev1alpha1.CapturePhasePending {
+		_, _, _, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name)
+		neverStarted = statusErr != nil
+	}
+
+	if neverStarted {
 		stopped.Reason = "never_started"
 		stopped.Message = "stop requested before the sidecar started capturing"
-	} else if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
+	} else if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, serverName, nc.Name); err != nil {
 		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
 			Type:               "SidecarStopFailed",
 			Status:             metav1.ConditionTrue,
@@ -577,6 +593,11 @@ func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc
 			Message:            err.Error(),
 			LastTransitionTime: now,
 		})
+	} else if _, packets, bytesWritten, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name); statusErr == nil {
+		// Best effort: the stop closed the file, so these are the final
+		// counts. A failed status read keeps the last polled values.
+		nc.Status.PacketsWritten = packets
+		nc.Status.BytesWritten = resource.NewQuantity(bytesWritten, resource.BinarySI)
 	}
 	meta.SetStatusCondition(&nc.Status.Conditions, stopped)
 
