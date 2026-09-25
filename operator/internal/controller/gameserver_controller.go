@@ -2211,6 +2211,13 @@ func (r *GameServerReconciler) reconcileBackupSchedule(
 		bs.Spec.RepoRef = &gs.Spec.BackupPolicy.RepoRef
 		bs.Spec.Retention = gs.Spec.BackupPolicy.Retention
 		bs.Spec.Suspend = gs.Spec.BackupPolicy.Suspend
+		// InlineBackupPolicy exposes no quiesce field, so this is the only
+		// place that sets it. bs.Spec.Quiesce has no `omitempty` (see its
+		// doc comment), so leaving it unset here would send an explicit
+		// `false` on every Create/Update via the typed client and defeat
+		// the CRD's `default: true` (F-045) — always send the true the CRD
+		// documents as the default.
+		bs.Spec.Quiesce = true
 		return controllerutil.SetControllerReference(gs, bs, r.Scheme)
 	})
 	return err

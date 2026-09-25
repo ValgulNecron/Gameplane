@@ -70,6 +70,13 @@ rules:
   - update
   - watch
 - apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
   - gameplane.local
   resources:
   - backups
@@ -84,6 +91,14 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - gameplane.local
+  resources:
+  - backups/finalizers
+  - gameservers/finalizers
+  - modules/finalizers
+  verbs:
+  - update
 - apiGroups:
   - gameplane.local
   resources:
@@ -123,13 +138,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - gameplane.local
-  resources:
-  - gameservers/finalizers
-  - modules/finalizers
-  verbs:
-  - update
 - apiGroups:
   - gameplane.local
   resources:

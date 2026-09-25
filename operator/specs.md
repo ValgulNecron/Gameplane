@@ -471,7 +471,7 @@ Forgetting codegen leaves the YAML out of sync with types — CI's `make manifes
 
 5. **Network policies:** Per-GameServer ingress NetworkPolicy admits only the advertised game ports from declared CIDR(s) (default 0.0.0.0/0, customizable via `--game-ingress-from-cidr`).
 
-6. **Finalizers:** Controllers use ownership and finalizers to ensure cleanup (e.g., Module deletion cascades to GameTemplate; Backup deletion removes associated Jobs).
+6. **Finalizers:** Controllers use ownership and finalizers to ensure cleanup (e.g., Module deletion cascades to GameTemplate; a quiesced Backup's `gameplane.local/backup-finalizer` blocks deletion until the matching unquiesce is sent, so `kubectl delete` can't drop it and leave the game with auto-save off; associated Jobs are reclaimed via ownerReference GC, not a finalizer).
 
 ## Testing & coverage
 
