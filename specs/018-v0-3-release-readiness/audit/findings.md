@@ -68,8 +68,8 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-061 | Operator specs.md dependencies stale vs go.mod | operator | review:operator | S4 | open | | | |
 | F-062 | Seven spec.md statements contradict code | operator | review:operator | S4 | open | | | |
 | F-063 | Operator config/ dev path samples fail end-to-end | operator | review:operator | S4 | open | | | |
-| F-074 | requestTimeout(60s) exempts WebSocket/SSE only; upload/capture proxies cut at 60s | api/ | review:api | S3 | fixing | #444 | | |
-| F-075 | bodyLimit(1 MiB) deadcaps /mods/upload and /files/write; declared limits ignored | api/ | review:api | S3 | fixing | #444 | | |
+| F-074 | requestTimeout(60s) exempts WebSocket/SSE only; upload/capture proxies cut at 60s | api/ | review:api | S3 | fixed-unverified | #444 | | |
+| F-075 | bodyLimit(1 MiB) deadcaps /mods/upload and /files/write; declared limits ignored | api/ | review:api | S3 | fixed-unverified | #444 | | |
 | F-076 | config row missing returns 500 instead of 200 on idempotent reset | api/ | review:api | S4 | open | | | |
 | F-077 | Plain errors mapped to 500 instead of hand-written 400/409 | api/ | review:api | S4 | open | | | |
 | F-081 | kubeconfig and join command address is in-cluster ClusterIP (unreachable) | api/ | review:api | S3 | open | | | |
