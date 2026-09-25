@@ -141,7 +141,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-171 | Specs outdated: sections missing and test count wrong | svcutil | review:svcutil | S4 | open | | | |
 | F-172 | Exponential backoff overflows after 64 retries | tunnel | review:tunnel | S3 | fixed-unverified | #428 | | |
 | F-173 | Tailscale config drops backing service settings | tunnel | review:tunnel | S2 | fixed-unverified | #428 | | |
-| F-174 | Playit endpoint not written to GameServer status | tunnel | review:tunnel | S3 | fixing | #447 | | |
+| F-174 | Playit endpoint not written to GameServer status | tunnel | review:tunnel | S3 | fixed-unverified | #447 | | |
 | F-175 | Troubleshooting docs use wrong label selector | tunnel | review:tunnel | S4 | open | | | |
 | F-176 | Specs file misses sections, lists stale dependency | tunnel | review:tunnel | S4 | open | | | |
 | F-179 | Connected session cut on game-pod Ready | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |

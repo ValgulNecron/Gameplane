@@ -61,6 +61,7 @@ All of these still apply.
 - #444: group 16, F-074/F-075 (merged; findings `fixed-unverified`).
 - #445: F-258 (merged; findings `fixed-unverified`).
 - #446: group 24, F-179/F-180 (merged; findings `fixed-unverified`).
+- #447: F-174 playit address (merged; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Green at the end of session 4; ready to merge
@@ -74,7 +75,6 @@ All of these still apply.
 |---|---|---|
 | #430 | held H01 plus the 501 change | CI never ran on `94e79456` because of a CHANGELOG merge conflict. Master merged in as `258d8a27` (both CHANGELOG bullets kept); the PR body now says 501. Master merged again as `51e069a5` after #427 (CHANGELOG conflict); CI re-running. |
 | #449 | F-259 (new): capture download 409 right after a user stop | **Green** on `357cddbd`. Lint (SA4006) fixed in `357cddbd`. The api download waits up to 15s for `SidecarStopped` before proxying. An independent opus review approved option A (polling in the api); the operator-set-Completed alternative was rejected because it would break two existing test assertions and research.md's lifecycle decision. Also watch for a repeat of the separate amd64 `NetworkCaptureEphemeralContainer` "ready still false" failure (cause unknown). |
-| #447 | F-174 (playit address, OD-026 (a)) | Opened in session 5, originally stacked on #428; retargeted to master after #428 merged. **Green** on `639c765f` (after one re-run of an infra setup failure). `lint (tunnel)` is fixed in `639c765f` (gosec G304, noctx and an unused parameter, all fixed structurally with no suppressions). `TestBuildCommandPlayit` was edited for `--socket-path`, which needs sign-off. |
 | #448 | group 18: F-105, F-106 | **Green** on `e53ab942`. Overview PlayersCard now shows "—" for -1, and the agent's `parseListWithRegex` returns Max:-1. PR opened in session 5. The `web` job failed because the Players.test `getByText("—")` added by this PR was ambiguous; it is now scoped with `within()` (`e53ab942`). Earlier head `f903a78b` with the Overview test scoped to the Players card heading); F-105/F-106 are `fixing`. **Sign-off needed** on the existing agent test edits (`players_test.go` 0/0→-1/-1, `heartbeat_test.go` dropping the gameVersion check). |
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
