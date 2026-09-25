@@ -180,7 +180,7 @@ Top-level knobs (see `values.yaml` for the full list):
     - `git.subPath` — module subdirectory within the repository (default `""`, empty means root)
   - `defaultModuleSource.oci.*` — OCI registry configuration (when `type: oci`)
     - `oci.url` — OCI registry URL (e.g., `ghcr.io/valgulnecron/gameplane-modules`)
-    - `oci.insecure` — skip TLS verification for plain-HTTP registries (e.g., local development)
+    - `oci.insecure` — use plain HTTP (no TLS) for local registries such as kind/k3d; TLS verification is never skipped
     - `oci.modules` — which modules to pull from the registry
     - `oci.pullSecretName` — optional kubernetes.io/dockerconfigjson Secret for private registries
     - `oci.verify.enabled` — enable cosign signature verification for official bundles (default off)
