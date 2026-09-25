@@ -35,15 +35,39 @@ import (
 // gated behind an explicit opt-in: when enabled is false they return 501,
 // and the chart grants the underlying kube-system RBAC only when the
 // operator turns clusterOps on. Safe-by-default off.
-func MountClusterActions(r chi.Router, k *kube.Client, enabled bool) {
-	h := &clusterActions{k: k, enabled: enabled}
+//
+// externalAddr, when set (chart value clusterOps.externalAddress / flag
+// --cluster-external-address), overrides the in-cluster API server address
+// used in the join command and the downloaded kubeconfig's "server:" field.
+// Left empty, both fall back to the in-cluster kube client's configured
+// Host — typically the apiserver's ClusterIP — which is unreachable from
+// outside the cluster, so operators fronting the apiserver with a
+// node-routable address or a LoadBalancer must set this for those two
+// responses to actually work off-cluster.
+func MountClusterActions(r chi.Router, k *kube.Client, enabled bool, externalAddr string) {
+	h := &clusterActions{k: k, enabled: enabled, externalAddr: strings.TrimSpace(externalAddr)}
 	r.Post("/cluster/nodes:join", h.addNode)
 	r.Post("/cluster/kubeconfig", h.kubeconfig)
 }
 
 type clusterActions struct {
-	k       *kube.Client
-	enabled bool
+	k            *kube.Client
+	enabled      bool
+	externalAddr string
+}
+
+// apiServerHost returns the scheme+host[:port] external clients (a joining
+// node, a downloaded kubeconfig) should use to reach the API server: the
+// configured external address when set, otherwise the in-cluster Host the
+// API server itself was reached at.
+func (h *clusterActions) apiServerHost() string {
+	if h.externalAddr == "" {
+		return h.k.Config.Host
+	}
+	if strings.Contains(h.externalAddr, "://") {
+		return h.externalAddr
+	}
+	return "https://" + h.externalAddr
 }
 
 func (h *clusterActions) notEnabled(w http.ResponseWriter, req *http.Request) bool {
@@ -98,7 +122,7 @@ func (h *clusterActions) addNode(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	endpoint := strings.TrimPrefix(strings.TrimPrefix(h.k.Config.Host, "https://"), "http://")
+	endpoint := strings.TrimPrefix(strings.TrimPrefix(h.apiServerHost(), "https://"), "http://")
 	writeJSON(w, joinResponse{
 		Command: fmt.Sprintf("kubeadm join %s --token %s.%s --discovery-token-ca-cert-hash %s",
 			endpoint, id, secret, hash),
@@ -204,7 +228,7 @@ func (h *clusterActions) kubeconfig(w http.ResponseWriter, req *http.Request) {
 	if len(caPEM) == 0 && h.k.Config.CAFile != "" {
 		caPEM, _ = os.ReadFile(h.k.Config.CAFile)
 	}
-	kubeconfig := renderKubeconfig(h.k.Config.Host, caPEM, certPEM, keyPEM, username)
+	kubeconfig := renderKubeconfig(h.apiServerHost(), caPEM, certPEM, keyPEM, username)
 
 	w.Header().Set("Content-Type", "application/yaml")
 	w.Header().Set("Content-Disposition", `attachment; filename="gameplane-kubeconfig.yaml"`)
