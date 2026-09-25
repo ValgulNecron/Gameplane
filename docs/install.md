@@ -26,7 +26,7 @@ overrides are needed for a released version.
 
 ### Edge channel (latest beta)
 
-Every push to `main` publishes rolling `:edge` images. To track them, install
+Every push to `master` publishes rolling `:edge` images. To track them, install
 the chart and point images at the edge tag:
 
 ```sh
