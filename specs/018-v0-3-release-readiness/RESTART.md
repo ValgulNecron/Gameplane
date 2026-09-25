@@ -75,7 +75,7 @@ All of these still apply.
 
 | PR | Content | State |
 |---|---|---|
-| #430 | held H01 plus the 501 change | CI never ran on `94e79456` because of a CHANGELOG merge conflict. Master merged in as `258d8a27` (both CHANGELOG bullets kept); the PR body now says 501. Master merged again as `51e069a5` after #427 (CHANGELOG conflict); CI re-running. |
+| #430 | held H01 plus the 501 change | **Green** on `592b9771` (master merged after #449; the 501 check runs before #449's wait). Ready to merge. |
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
