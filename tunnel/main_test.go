@@ -286,7 +286,7 @@ func TestRenderFrpConfig(t *testing.T) {
 		FrpServerAddr:       "frp.example.com",
 		FrpServerPort:       7000,
 		BackingServiceDNS:   "my-server.games.svc",
-		BackingServicePort:  "game:25565",
+		BackingServicePort:  "game:25565:30000:tcp",
 	}
 
 	path, err := renderFrpConfig(cfg, "test-token")
@@ -313,6 +313,15 @@ func TestRenderFrpConfig(t *testing.T) {
 	if !strings.Contains(content, "localIP = \"my-server.games.svc\"") {
 		t.Errorf("config missing backing service DNS")
 	}
+	if !strings.Contains(content, "type = \"tcp\"") {
+		t.Errorf("config missing proxy type")
+	}
+	if !strings.Contains(content, "localPort = 25565") {
+		t.Errorf("config missing local (Service) port")
+	}
+	if !strings.Contains(content, "remotePort = 30000") {
+		t.Errorf("config missing remote (public) port")
+	}
 }
 
 func TestRenderFrpConfigInvalidPortMapping(t *testing.T) {
@@ -334,7 +343,7 @@ func TestRenderFrpConfigMultiplePorts(t *testing.T) {
 		FrpServerAddr:      "frp.example.com",
 		FrpServerPort:      7000,
 		BackingServiceDNS:  "my-server.games.svc",
-		BackingServicePort: "java:25565,bedrock:19133",
+		BackingServicePort: "java:25565:25565:tcp,bedrock:19133:19133:udp",
 	}
 
 	path, err := renderFrpConfig(cfg, "token")
@@ -354,6 +363,55 @@ func TestRenderFrpConfigMultiplePorts(t *testing.T) {
 	}
 	if !strings.Contains(content, "name = \"bedrock\"") {
 		t.Errorf("config missing bedrock port mapping")
+	}
+}
+
+func TestRenderFrpConfigUDPProtocol(t *testing.T) {
+	// F-052: a UDP-advertised port (e.g. Factorio 34197/UDP) must render
+	// type = "udp", not the old hard-coded "tcp", and localPort must be the
+	// backing Service's own port even when it differs from the public
+	// remotePort the user chose.
+	cfg := Config{
+		FrpServerAddr:      "frp.example.com",
+		FrpServerPort:      7000,
+		BackingServiceDNS:  "factorio.games.svc",
+		BackingServicePort: "game:34197:30000:udp",
+	}
+
+	path, err := renderFrpConfig(cfg, "token")
+	if err != nil {
+		t.Fatalf("renderFrpConfig() error = %v", err)
+	}
+	defer os.Remove(path)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read config file: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "type = \"udp\"") {
+		t.Errorf("config missing udp proxy type, got:\n%s", content)
+	}
+	if !strings.Contains(content, "localPort = 34197") {
+		t.Errorf("config missing local (Service) port 34197, got:\n%s", content)
+	}
+	if !strings.Contains(content, "remotePort = 30000") {
+		t.Errorf("config missing remote (public) port 30000, got:\n%s", content)
+	}
+}
+
+func TestRenderFrpConfigInvalidProtocol(t *testing.T) {
+	cfg := Config{
+		FrpServerAddr:      "frp.example.com",
+		FrpServerPort:      7000,
+		BackingServiceDNS:  "my-server.games.svc",
+		BackingServicePort: "game:25565:25565:sctp",
+	}
+
+	_, err := renderFrpConfig(cfg, "token")
+	if err == nil || !strings.Contains(err.Error(), "invalid port mapping protocol") {
+		t.Errorf("renderFrpConfig() error = %v, want invalid port mapping protocol error", err)
 	}
 }
 
@@ -435,7 +493,7 @@ func TestRenderConfigDispatchesByType(t *testing.T) {
 				TunnelType:         "frp",
 				FrpServerAddr:      "frp.example.com",
 				BackingServiceDNS:  "svc.svc",
-				BackingServicePort: "game:25565",
+				BackingServicePort: "game:25565:30000:tcp",
 			},
 		},
 		{
@@ -738,6 +796,27 @@ func TestExponentialBackoffCap(t *testing.T) {
 	}
 }
 
+func TestExponentialBackoffNeverZeroAcrossLifetimeRetries(t *testing.T) {
+	// F-172: uncapped, retry 64 overflowed the shift and returned 0s,
+	// putting the supervisor into a busy restart loop. Call next() 70
+	// times (past that point) and confirm every delay stays in [1s, 5m].
+	b := &exponentialBackoff{}
+	for i := 1; i <= 70; i++ {
+		d := b.next()
+		if d < time.Second {
+			t.Fatalf("retry %d: backoff = %v, want >= 1s (want never 0)", i, d)
+		}
+		if d > 5*time.Minute {
+			t.Fatalf("retry %d: backoff = %v, want <= 5m", i, d)
+		}
+	}
+	// From retry 64 on (the old overflow point) the delay must have
+	// settled at the 5-minute cap, not reset or wrapped.
+	if d := b.next(); d != 5*time.Minute {
+		t.Fatalf("retry 71: backoff = %v, want exactly 5m (capped)", d)
+	}
+}
+
 // -----------------------------------------------------------------------
 // isUnrecoverable tests
 // -----------------------------------------------------------------------
@@ -785,7 +864,7 @@ func TestRunContextCancellation(t *testing.T) {
 		FrpServerAddr:       "localhost",
 		FrpServerPort:       7000,
 		BackingServiceDNS:   "test.games.svc",
-		BackingServicePort:  "game:25565",
+		BackingServicePort:  "game:25565:30000:tcp",
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -824,7 +903,7 @@ func TestRunTransientFailureBacksOffThenCancels(t *testing.T) {
 		FrpServerAddr:       "localhost",
 		FrpServerPort:       7000,
 		BackingServiceDNS:   "test.games.svc",
-		BackingServicePort:  "game:25565",
+		BackingServicePort:  "game:25565:30000:tcp",
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
