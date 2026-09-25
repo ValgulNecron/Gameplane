@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
@@ -38,6 +40,11 @@ import (
 //  3. The database. Migrations run against a populated SQLite PVC on startup;
 //     a user created before the upgrade must still be able to log in after.
 //  4. The new components must actually come up clean.
+//
+// A final phase (F-218) then covers the install-side twin of (1): a fresh
+// `helm install` onto CRDs an uninstalled older release left behind must
+// also bring them up to date. It runs last so steps 1-6 start from the old
+// release's genuinely stale schema.
 func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	ctx := context.Background()
 	ns := "gameplane-games"
@@ -97,8 +104,6 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 			len(newProps), strings.Join(newProps, ", "))
 	}
 
-	// ---- 3. upgrade to the working tree ----------------------------------
-
 	repoRoot, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
@@ -107,6 +112,9 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	if tag == "" {
 		tag = "e2e"
 	}
+
+	// ---- 3. upgrade to the working tree ----------------------------------
+
 	upgrade := exec.CommandContext(ctx, "helm", "upgrade", "gameplane",
 		filepath.Join(repoRoot, "charts", "gameplane"),
 		"--namespace", "gameplane-system",
@@ -198,6 +206,175 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 		t.Errorf("upgraded API does not return the pre-upgrade GameServer %q; body=%s", gs, body)
 	}
 	resp.Body.Close()
+
+	// ---- 7. F-218: a fresh `helm install` over leftover, STALE CRDs ------
+	//
+	// Deliberately LAST, after steps 3-6 have proven the pre-upgrade hook
+	// against the old release's genuinely stale schema: running any
+	// working-tree install before step 3 would server-side-apply the current
+	// CRDs and make step 4 pass whether or not the pre-upgrade hook works.
+	//
+	// The scenario: a user uninstalls an older release (`helm uninstall`
+	// never deletes CRDs) and later `helm install`s the new chart. Helm 3's
+	// native crds/ install silently skips every CRD that already exists, so
+	// only the crds.autoApply hook firing on pre-install can bring the
+	// leftover schema up to date. Helm 4's crds/ install is a server-side
+	// apply under manager "helm" that updates them itself, provided no other
+	// manager holds the fields it changes. To reproduce it, the cluster's CRDs are put
+	// back to the PREVIOUS release's exact content with no bundle stamp
+	// (releases that predate the stamp carry none), the working-tree release
+	// is uninstalled, and the working-tree chart is installed over them.
+
+	// The GameServer carries an operator finalizer, so remove it while the
+	// operator is still running; otherwise uninstalling the release (which
+	// owns the games Namespace) would leave that Namespace stuck terminating.
+	if err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+		Delete(ctx, gs, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		t.Fatalf("delete GameServer %s/%s before uninstall: %v", ns, gs, err)
+	}
+	envInstance.Eventually(t, 3*time.Minute, func() (bool, string) {
+		_, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gs, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return true, ""
+		}
+		if err != nil {
+			return false, "get GameServer: " + err.Error()
+		}
+		return false, "GameServer still present (finalizer pending)"
+	})
+
+	uninstall := exec.CommandContext(ctx, "helm", "uninstall", "gameplane",
+		"--namespace", "gameplane-system", "--wait", "--timeout", "5m")
+	uninstall.Env = append(os.Environ(), "KUBECONFIG="+os.Getenv("KUBECONFIG"))
+	if out, err := uninstall.CombinedOutput(); err != nil {
+		t.Fatalf("helm uninstall of the working-tree release failed: %v\n%s", err, out)
+	}
+
+	// Put the previous release's CRDs back, exactly as its chart ships them
+	// AND with the ownership a real install of it leaves: a server-side
+	// apply under field manager "helm", which is what Helm 4's crds/ install
+	// does (and the manager the crds.autoApply hook now applies under, so it
+	// is also the state an upgrade-then-uninstall leaves). Being the same
+	// manager that owns the working-tree schema from step 3, this apply
+	// removes the properties the old release lacks, so the schema really is
+	// stale. A `kubectl replace` here would instead hand .spec.versions to a
+	// "kubectl-replace" manager no real flow produces, and Helm 4's crds/
+	// apply would then conflict with it on reinstall.
+	fromVersion := os.Getenv("GAMEPLANE_UPGRADE_FROM")
+	if fromVersion == "" {
+		fromVersion = defaultUpgradeFromVersion
+	}
+	showCRDs := exec.CommandContext(ctx, "helm", "show", "crds", upgradeFromChartRef, "--version", fromVersion)
+	showCRDs.Env = append(os.Environ(), "KUBECONFIG="+os.Getenv("KUBECONFIG"))
+	oldCRDs, err := showCRDs.Output()
+	if err != nil {
+		t.Fatalf("helm show crds %s --version %s: %v", upgradeFromChartRef, fromVersion, err)
+	}
+	if !strings.Contains(string(oldCRDs), "gameservers.gameplane.local") {
+		t.Fatalf("helm show crds %s --version %s returned no gameservers CRD:\n%s",
+			upgradeFromChartRef, fromVersion, oldCRDs)
+	}
+	oldCRDFile := filepath.Join(t.TempDir(), "old-release-crds.yaml")
+	if err := os.WriteFile(oldCRDFile, oldCRDs, 0o600); err != nil {
+		t.Fatalf("write %s: %v", oldCRDFile, err)
+	}
+	if out, err := envInstance.Kubectl(ctx, "apply", "--server-side", "--force-conflicts",
+		"--field-manager=helm", "-f", oldCRDFile); err != nil {
+		t.Fatalf("re-apply the %s release's CRDs: %v\n%s", fromVersion, err, out)
+	}
+
+	// Strip the bundle stamp from every Gameplane CRD, including any the old
+	// release did not ship (which the replace above therefore left stamped).
+	crds, err := envInstance.Dyn.Resource(crdGVR).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("list CRDs: %v", err)
+	}
+	for i := range crds.Items {
+		c := &crds.Items[i]
+		if group, _, _ := unstructured.NestedString(c.Object, "spec", "group"); group != "gameplane.local" {
+			continue
+		}
+		if _, ok := c.GetAnnotations()[crdBundleStampAnnotation]; !ok {
+			continue
+		}
+		if out, err := envInstance.Kubectl(ctx, "annotate", "crd", c.GetName(),
+			crdBundleStampAnnotation+"-"); err != nil {
+			t.Fatalf("strip %s from CRD %s: %v\n%s", crdBundleStampAnnotation, c.GetName(), err, out)
+		}
+	}
+
+	// Pin down that the leftover state really is stale, or the assertions
+	// below would pass vacuously.
+	if got := liveCRDStamp(ctx, t, "gameservers.gameplane.local"); got != "" {
+		t.Fatalf("live gameservers CRD still carries %s=%q after stripping it", crdBundleStampAnnotation, got)
+	}
+	staleProps := crdSpecProperties(t, crdName)
+	for _, p := range newProps {
+		if _, ok := staleProps[p]; ok {
+			t.Fatalf("GameTemplate CRD still declares %q after re-applying the %s release's CRDs; "+
+				"the reinstall assertion below would be vacuous", p, fromVersion)
+		}
+	}
+
+	// --timeout without --wait: hooks block `helm install` until they finish
+	// regardless of --wait, so the CRD-apply Job has completed and the schema
+	// is settled when this returns. operator.replicas=0 / api.replicas=0
+	// because only the hook matters here. gamesNamespace is fresh so the
+	// install cannot race the uninstalled release's games Namespace deletion.
+	chartStamp := manifestCRDStamp(t, "gameplane.local_gameservers.yaml")
+	reinstall := exec.CommandContext(ctx, "helm", "install", "gameplane",
+		filepath.Join(repoRoot, "charts", "gameplane"),
+		"--namespace", "gameplane-system",
+		"--create-namespace",
+		"--set", "image.registry=gameplane-test",
+		"--set", "image.tag="+tag,
+		"--set", "ingress.enabled=false",
+		"--set", "web.enabled=false",
+		"--set", "operator.agentImage=gameplane-test/agent:"+tag,
+		"--set", "operator.leaderElect=false",
+		"--set", "operator.replicas=0",
+		"--set", "api.replicas=0",
+		"--set", "gamesNamespace=e2e-crd-reinstall-games",
+		"--set", "defaultModuleSource.enabled=false",
+		"--timeout", "3m",
+	)
+	reinstall.Env = append(os.Environ(), "KUBECONFIG="+os.Getenv("KUBECONFIG"))
+	if out, err := reinstall.CombinedOutput(); err != nil {
+		t.Fatalf("helm install of the working-tree chart over leftover CRDs failed: %v\n%s", err, out)
+	}
+
+	liveAfterReinstall := crdSpecProperties(t, crdName)
+	for p := range wantAfter {
+		if _, ok := liveAfterReinstall[p]; !ok {
+			t.Errorf("GameTemplate CRD is missing spec property %q after a fresh `helm install` "+
+				"over CRDs the %s release left behind; the crds.autoApply hook did not fire "+
+				"on pre-install (F-218)", p, fromVersion)
+		}
+	}
+	// The schema check above would also pass if the hook fired on EVERY
+	// install. Pin down exactly which path brought the schema up to date,
+	// and that it left the CRDs carrying the chart's stamp, which is what
+	// keeps the next genuinely fresh install from firing the hook.
+	// TestHelmInstall_CRDApplyHookSkippedOnFreshInstall covers the other
+	// half on a fresh cluster.
+	//   - Helm 3: crds/ skipped the leftover CRDs, so the hook must have fired
+	//     on pre-install BECAUSE they carried no stamp.
+	//   - Helm 4: crds/ server-side-applied them (stamp included) before the
+	//     templates were rendered, so the stamps matched and the hook must
+	//     NOT have fired on pre-install.
+	wantEvents := "pre-install,pre-upgrade"
+	if helmMajorVersion(ctx, t) >= 4 {
+		wantEvents = "pre-upgrade"
+	}
+	if got := crdApplyHookEvents(ctx, t, "gameplane", "gameplane-system"); got != wantEvents {
+		t.Errorf("install over unstamped leftover CRDs rendered the crd-apply hook for %q, "+
+			"want %q (F-218)", got, wantEvents)
+	}
+	if got := liveCRDStamp(ctx, t, "gameservers.gameplane.local"); got != chartStamp {
+		t.Errorf("live gameservers CRD %s = %q after installing over leftover CRDs, want the chart's %q",
+			crdBundleStampAnnotation, got, chartStamp)
+	}
 }
 
 // waitGameContainerReady polls until the named pod's "game" container reports
@@ -278,4 +455,94 @@ func keySet(m map[string]any) map[string]struct{} {
 		out[k] = struct{}{}
 	}
 	return out
+}
+
+// crdBundleStampAnnotation is the annotation `make manifests`
+// (hack/sync-chart-crds.sh) stamps on every chart CRD; crd-apply-hook.yaml
+// compares the live CRD's value with the chart's to decide whether a
+// `helm install` lands on stale, leftover CRDs (F-218).
+const crdBundleStampAnnotation = "gameplane.local/crd-bundle-sha256"
+
+// upgradeFromChartRef and defaultUpgradeFromVersion mirror CHART_REF and
+// FROM_VERSION in deploy/kind/upgrade.sh: the published chart the upgrade
+// cluster was installed from. CI sets GAMEPLANE_UPGRADE_FROM for both.
+const (
+	upgradeFromChartRef       = "oci://ghcr.io/valgulnecron/charts/gameplane"
+	defaultUpgradeFromVersion = "0.2.0-beta.8"
+)
+
+// crdApplyHookEvents returns the helm.sh/hook annotation Helm stored for the
+// release's crds.autoApply Job, i.e. which lifecycle events that release
+// rendered the CRD-apply hook for. Helm stores every hook with the release
+// whatever its events, so this is present even when the hook never ran.
+func crdApplyHookEvents(ctx context.Context, t *testing.T, release, namespace string) string {
+	t.Helper()
+	cmd := exec.CommandContext(ctx, "helm", "get", "hooks", release, "--namespace", namespace)
+	cmd.Env = append(os.Environ(), "KUBECONFIG="+os.Getenv("KUBECONFIG"))
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("helm get hooks %s -n %s: %v", release, namespace, err)
+	}
+	for _, doc := range strings.Split(string(out), "\n---") {
+		var obj map[string]any
+		if err := yaml.Unmarshal([]byte(doc), &obj); err != nil || obj == nil {
+			continue
+		}
+		u := unstructured.Unstructured{Object: obj}
+		if u.GetKind() == "Job" && u.GetName() == release+"-crd-apply" {
+			return u.GetAnnotations()["helm.sh/hook"]
+		}
+	}
+	t.Fatalf("release %s in %s has no %s-crd-apply Job hook (is crds.autoApply enabled?)",
+		release, namespace, release)
+	return ""
+}
+
+// helmMajorVersion returns the major version of the helm binary on PATH
+// (3 or 4). Helm 3 and 4 install crds/ differently (create-and-skip vs
+// server-side apply), which decides whether the crd-apply hook is needed on
+// an install over leftover CRDs.
+func helmMajorVersion(ctx context.Context, t *testing.T) int {
+	t.Helper()
+	out, err := exec.CommandContext(ctx, "helm", "version", "--template", "{{.Version}}").Output()
+	if err != nil {
+		t.Fatalf("helm version: %v", err)
+	}
+	v := strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
+	major, _, _ := strings.Cut(v, ".")
+	n, err := strconv.Atoi(major)
+	if err != nil {
+		t.Fatalf("parse helm version %q: %v", out, err)
+	}
+	return n
+}
+
+// manifestCRDStamp reads the bundle-hash stamp from the working-tree chart's
+// crd-manifests/ copy of the named CRD file.
+func manifestCRDStamp(t *testing.T, file string) string {
+	t.Helper()
+	path := filepath.Join("..", "..", "charts", "gameplane", "crd-manifests", file)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	stamp := (&unstructured.Unstructured{Object: doc}).GetAnnotations()[crdBundleStampAnnotation]
+	if stamp == "" {
+		t.Fatalf("%s carries no %s annotation; run `make manifests`", path, crdBundleStampAnnotation)
+	}
+	return stamp
+}
+
+// liveCRDStamp returns the bundle-hash stamp on the live CRD ("" if absent).
+func liveCRDStamp(ctx context.Context, t *testing.T, crdName string) string {
+	t.Helper()
+	crd, err := envInstance.Dyn.Resource(crdGVR).Get(ctx, crdName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get CRD %s: %v", crdName, err)
+	}
+	return crd.GetAnnotations()[crdBundleStampAnnotation]
 }

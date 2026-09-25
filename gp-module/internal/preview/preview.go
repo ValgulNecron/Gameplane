@@ -95,34 +95,55 @@ func GeneratePreview(opts Options) (*Result, error) {
 	}
 
 	effectiveImage := defaultImage
-	selectedVer := "default"
+	selectedVer := ""
 	var versionEnv []any
 
-	// Version overlay
-	if opts.VersionID != "" {
-		found := false
-		if vers, ok := spec["versions"].([]any); ok && len(vers) > 0 {
+	// Version overlay. Mirrors the operator's resolveVersion
+	// (operator/internal/controller/gameserver_version.go): an explicit
+	// VersionID must match one of spec.versions; with no explicit choice,
+	// the entry marked default wins, else the first declared version.
+	// Only templates with no spec.versions at all skip this layer.
+	if vers, ok := spec["versions"].([]any); ok && len(vers) > 0 {
+		var chosen map[string]any
+		if opts.VersionID != "" {
 			for _, v := range vers {
 				vMap, ok := v.(map[string]any)
 				if !ok {
 					continue
 				}
-				vid, _ := vMap["id"].(string)
-				if vid == opts.VersionID {
-					selectedVer = vid
-					found = true
-					if img, ok := vMap["image"].(string); ok && img != "" {
-						effectiveImage = img
-					}
-					if envList, ok := vMap["env"].([]any); ok {
-						versionEnv = envList
-					}
+				if vid, _ := vMap["id"].(string); vid == opts.VersionID {
+					chosen = vMap
 					break
 				}
 			}
+			if chosen == nil {
+				return nil, fmt.Errorf("requested version %q not found in template.yaml", opts.VersionID)
+			}
+		} else {
+			for _, v := range vers {
+				vMap, ok := v.(map[string]any)
+				if !ok {
+					continue
+				}
+				if def, _ := vMap["default"].(bool); def {
+					chosen = vMap
+					break
+				}
+			}
+			if chosen == nil {
+				if first, ok := vers[0].(map[string]any); ok {
+					chosen = first
+				}
+			}
 		}
-		if !found {
-			return nil, fmt.Errorf("requested version %q not found in template.yaml", opts.VersionID)
+		if chosen != nil {
+			selectedVer, _ = chosen["id"].(string)
+			if img, ok := chosen["image"].(string); ok && img != "" {
+				effectiveImage = img
+			}
+			if envList, ok := chosen["env"].([]any); ok {
+				versionEnv = envList
+			}
 		}
 	}
 

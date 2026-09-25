@@ -2830,6 +2830,62 @@ func TestGameServer_TunnelCreatesDeploymentAndPolicy(t *testing.T) {
 	})
 }
 
+// TestGameServer_TunnelFrpPortCarriesLocalPortAndProtocol verifies the
+// BACKING_SERVICE_PORT env var reaching the tunnel Deployment carries the
+// template port's own containerPort and protocol, not just the
+// operator-chosen public remotePort (F-052). Uses a UDP port with a
+// remotePort that deliberately differs from the Service port, the exact
+// combination that silently broke before the fix.
+func TestGameServer_TunnelFrpPortCarriesLocalPortAndProtocol(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("tunnel-udp-test"))
+	tmpl.Spec.Ports[0].ContainerPort = 34197
+	tmpl.Spec.Ports[0].Protocol = corev1.ProtocolUDP
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "tunnel-udp-gs", tmpl.Name)
+	gs.Spec.Networking.Tunnel = &gameplanev1alpha1.GameServerTunnel{
+		Enabled:              true,
+		Provider:             "frp",
+		CredentialsSecretRef: &gameplanev1alpha1.SecretNameRef{Name: "tunnel-udp-gs-tunnel-creds"},
+		Frp: &gameplanev1alpha1.FrpTunnelSpec{
+			ServerAddr:  "tunnel.example.com",
+			ServerPort:  7000,
+			RemotePorts: []gameplanev1alpha1.RemotePortMapping{{Name: "game", RemotePort: 30000}},
+		},
+	}
+
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var dep appsv1.Deployment
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "tunnel-udp-gs-tunnel"}, &dep); err != nil {
+			return false, "tunnel deployment: " + err.Error()
+		}
+		if len(dep.Spec.Template.Spec.Containers) == 0 {
+			return false, "tunnel deployment has no containers"
+		}
+		for _, e := range dep.Spec.Template.Spec.Containers[0].Env {
+			if e.Name == "BACKING_SERVICE_PORT" {
+				want := "game:34197:30000:udp"
+				if e.Value != want {
+					return false, "BACKING_SERVICE_PORT = " + e.Value + ", want " + want
+				}
+				return true, ""
+			}
+		}
+		return false, "no BACKING_SERVICE_PORT env var on tunnel container"
+	})
+}
+
 // TestGameServer_PlanTunnelComputes verifies that planTunnel correctly
 // computes endpoints for frp tunnel provider.
 func TestGameServer_PlanTunnelComputes(t *testing.T) {

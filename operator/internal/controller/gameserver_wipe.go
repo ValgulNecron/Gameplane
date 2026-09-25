@@ -7,6 +7,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,6 +24,17 @@ const (
 	WipeRequestedAnnotation = "gameplane.local/wipe-data-requested"
 	WipeCompletedAnnotation = "gameplane.local/wipe-data-completed"
 	wipeTokenLabel          = "gameplane.local/wipe-token"
+
+	// wipeScript empties the directory given as $1 and verifies it is empty
+	// afterwards; see the comment at its use in createWipeJob for why the
+	// verification step is required.
+	wipeScript = `find "$1" -mindepth 1 -delete
+left=$(ls -A "$1") || exit 1
+if [ -n "$left" ]; then
+  echo "data wipe incomplete; entries remain under $1:" >&2
+  printf '%s\n' "$left" >&2
+  exit 1
+fi`
 )
 
 // reconcileWipe runs a one-shot Job that empties the GameServer's data PVC
@@ -68,6 +80,15 @@ func (r *GameServerReconciler) reconcileWipe(
 		}
 		return r.deleteWipeJob(ctx, gs.Namespace, jobName)
 	}
+	// The Job exhausted its retries without succeeding (e.g. a permission
+	// error the wipe container's uid can't get past) — report the failure
+	// on the GameServer instead of leaving the request silently pending.
+	// Do not ack and do not delete the Job, so its pod logs stay available
+	// for the operator to inspect; a new request (a different token) will
+	// still replace it via the "leftover Job" branch above.
+	if jobPermanentlyFailed(&job) {
+		return r.setWipeFailed(ctx, gs)
+	}
 	return nil
 }
 
@@ -110,9 +131,20 @@ func (r *GameServerReconciler) createWipeJob(
 						Image:   configInitImageOrDefault(r.ConfigInitImage),
 						Command: []string{"/bin/sh", "-c"},
 						// Remove all contents (including dotfiles) but keep the
-						// mount point itself.
-						Args: []string{fmt.Sprintf(
-							"rm -rf %[1]s/..?* %[1]s/.[!.]* %[1]s/* 2>/dev/null; true", mountPath)},
+						// mount point itself. `find -delete` doesn't error on an
+						// empty directory (unlike the glob patterns this replaced,
+						// which errored on "no match" and had to swallow that with
+						// `2>/dev/null; true` — which also swallowed a real EACCES
+						// from a subdirectory this uid can't write into).
+						//
+						// find's exit status alone is NOT trusted: BusyBox find
+						// (the default image) prints a failed unlink/rmdir from
+						// -delete to stderr but still exits 0. So the script then
+						// checks the volume is actually empty and exits non-zero
+						// (failing the Job) if anything is left, or if the listing
+						// itself fails. The mount path is passed as $1 rather than
+						// spliced into the script.
+						Args:         []string{wipeScript, "wipe", mountPath},
 						VolumeMounts: []corev1.VolumeMount{{Name: "data", MountPath: mountPath}},
 						SecurityContext: &corev1.SecurityContext{
 							RunAsNonRoot:             &nonRoot,
@@ -148,7 +180,20 @@ func (r *GameServerReconciler) ackWipe(ctx context.Context, gs *gameplanev1alpha
 		gs.Annotations = map[string]string{}
 	}
 	gs.Annotations[WipeCompletedAnnotation] = token
-	return r.Patch(ctx, gs, patch)
+	if err := r.Patch(ctx, gs, patch); err != nil {
+		return err
+	}
+	// A successful wipe clears a DataWipe=False left by an earlier failed
+	// request, so the condition only ever describes the latest wipe.
+	if meta.FindStatusCondition(gs.Status.Conditions, gameplanev1alpha1.GameServerConditionDataWipe) == nil {
+		return nil
+	}
+	base := gs.DeepCopy()
+	gs.Status.Conditions = removeCondition(gs.Status.Conditions, gameplanev1alpha1.GameServerConditionDataWipe)
+	if err := r.Status().Patch(ctx, gs, client.MergeFrom(base)); err != nil {
+		return fmt.Errorf("clear DataWipe condition: %w", err)
+	}
+	return nil
 }
 
 func (r *GameServerReconciler) deleteWipeJob(ctx context.Context, ns, name string) error {
@@ -158,4 +203,30 @@ func (r *GameServerReconciler) deleteWipeJob(ctx context.Context, ns, name strin
 	}
 	policy := metav1.DeletePropagationBackground
 	return client.IgnoreNotFound(r.Delete(ctx, &job, &client.DeleteOptions{PropagationPolicy: &policy}))
+}
+
+// jobPermanentlyFailed reports whether job has given up (batch/v1 sets
+// JobConditionFailed True once BackoffLimit is exhausted).
+func jobPermanentlyFailed(job *batchv1.Job) bool {
+	for _, c := range job.Status.Conditions {
+		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+// setWipeFailed upserts the DataWipe=False/JobFailed condition on the
+// GameServer so a wipe that didn't actually empty the volume is visible
+// instead of silently acked (F-054).
+func (r *GameServerReconciler) setWipeFailed(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
+	base := gs.DeepCopy()
+	gs.Status.Conditions = upsertCondition(gs.Status.Conditions, metav1.Condition{
+		Type:               gameplanev1alpha1.GameServerConditionDataWipe,
+		Status:             metav1.ConditionFalse,
+		Reason:             "JobFailed",
+		Message:            "data wipe job did not complete; the volume may not be fully cleared",
+		ObservedGeneration: gs.Generation,
+	})
+	return r.Status().Patch(ctx, gs, client.MergeFrom(base))
 }

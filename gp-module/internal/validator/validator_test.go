@@ -306,6 +306,156 @@ spec:
 	}
 }
 
+func TestValidate_EnumFieldUsesEnumKey(t *testing.T) {
+	t.Parallel()
+	files := map[string][]byte{
+		"module.yaml": []byte(`apiVersion: gameplane.local/module/v1
+name: test-enum-mod
+displayName: Test Enum Mod
+version: 1.0.0
+game: test
+summary: Test
+`),
+		"template.yaml": []byte(`apiVersion: gameplane.io/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test-enum-mod
+spec:
+  displayName: Test Enum Mod
+  game: test
+  version: 1.0.0
+  image: "example.com/img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  ports:
+    - name: game
+      containerPort: 25565
+  configSchema:
+    - name: DIFFICULTY
+      type: enum
+      enum: ["easy", "normal", "hard"]
+      default: "normal"
+    - name: BAD_ENUM
+      type: enum
+      options: ["a", "b"]
+`),
+		"README.md": []byte("# Test\n"),
+	}
+
+	report, err := ValidateFiles("test-enum-mod", files, ValidateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, f := range report.Findings {
+		if f.Field == "spec.configSchema[0].enum" {
+			t.Errorf("CRD-correct 'enum:' field must not be flagged, got: %+v", f)
+		}
+	}
+
+	found := false
+	for _, f := range report.Findings {
+		if f.RuleID == RuleInvalidConfigType && f.Field == "spec.configSchema[1].enum" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected an enum field spelled with legacy 'options:' to be flagged as missing 'enum:'")
+	}
+}
+
+func TestValidate_BooleanTypeRejected(t *testing.T) {
+	t.Parallel()
+	files := map[string][]byte{
+		"module.yaml": []byte(`apiVersion: gameplane.local/module/v1
+name: test-bool-mod
+displayName: Test Bool Mod
+version: 1.0.0
+game: test
+summary: Test
+`),
+		"template.yaml": []byte(`apiVersion: gameplane.io/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test-bool-mod
+spec:
+  displayName: Test Bool Mod
+  game: test
+  version: 1.0.0
+  image: "example.com/img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  ports:
+    - name: game
+      containerPort: 25565
+  configSchema:
+    - name: HARDCORE
+      type: boolean
+      default: "true"
+`),
+		"README.md": []byte("# Test\n"),
+	}
+
+	report, err := ValidateFiles("test-bool-mod", files, ValidateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if report.Clean {
+		t.Errorf("expected 'type: boolean' to be rejected since the CRD only accepts 'bool'")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.RuleID == RuleInvalidConfigType && strings.Contains(f.Message, `"boolean"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected invalid-config-type finding naming 'boolean', got: %+v", report.Findings)
+	}
+}
+
+func TestValidate_MissingCRDRequiredFields(t *testing.T) {
+	t.Parallel()
+	files := map[string][]byte{
+		"module.yaml": []byte(`apiVersion: gameplane.local/module/v1
+name: test-required-mod
+displayName: Test Required Mod
+version: 1.0.0
+game: test
+summary: Test
+`),
+		"template.yaml": []byte(`apiVersion: gameplane.io/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test-required-mod
+spec:
+  game: test
+  image: "example.com/img@sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  ports:
+    - containerPort: 25565
+`),
+		"README.md": []byte("# Test\n"),
+	}
+
+	report, err := ValidateFiles("test-required-mod", files, ValidateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantFields := map[string]bool{
+		"spec.displayName":   false,
+		"spec.version":       false,
+		"spec.ports[0].name": false,
+	}
+	for _, f := range report.Findings {
+		if _, ok := wantFields[f.Field]; ok {
+			wantFields[f.Field] = true
+		}
+	}
+	for field, gotIt := range wantFields {
+		if !gotIt {
+			t.Errorf("expected a finding for missing required field %q", field)
+		}
+	}
+}
+
 func TestValidate_ReportJSON(t *testing.T) {
 	report := ValidationReport{
 		Timestamp:    "2026-08-27T12:00:00Z",

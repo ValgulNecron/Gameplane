@@ -18,10 +18,11 @@ import { RetentionFields, buildRetention, type RetentionForm } from "./Retention
 
 interface Props {
   serverName: string;
+  ns?: string;
   onClose: () => void;
 }
 
-export function ScheduleForm({ serverName, onClose }: Props) {
+export function ScheduleForm({ serverName, ns, onClose }: Props) {
   const qc = useQueryClient();
   const { data: destinations = [] } = useBackupDestinations();
   const [form, setForm] = useState({
@@ -42,18 +43,21 @@ export function ScheduleForm({ serverName, onClose }: Props) {
 
   const create = useMutation({
     mutationFn: () =>
-      Schedules.create({
-        serverRef: { name: serverName },
-        schedule: form.schedule,
-        strategy: form.strategy,
-        // restic needs a repo; volume-snapshot captures a CSI snapshot.
-        ...(isVolumeSnapshot
-          ? {}
-          : { repoRef: { name: form.repoName, key: form.repoKey } }),
-        retention: buildRetention(retention),
-      }),
+      Schedules.create(
+        {
+          serverRef: { name: serverName },
+          schedule: form.schedule,
+          strategy: form.strategy,
+          // restic needs a repo; volume-snapshot captures a CSI snapshot.
+          ...(isVolumeSnapshot
+            ? {}
+            : { repoRef: { name: form.repoName, key: form.repoKey } }),
+          retention: buildRetention(retention),
+        },
+        ns,
+      ),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["schedules"] });
+      void qc.invalidateQueries({ queryKey: ["schedules", ns] });
       onClose();
     },
   });

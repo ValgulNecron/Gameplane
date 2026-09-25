@@ -24,6 +24,7 @@ import {
   applyThemePreferences,
   isSafeModeActive,
   readThemePreferences,
+  resetUrlSafeModeForTests,
   unmountCustomCssOverlay,
   useThemePreferences,
   writeThemePreferences,
@@ -92,6 +93,40 @@ describe("isSafeModeActive", () => {
   it("returns true from the session flag when set", () => {
     window.sessionStorage.setItem(SAFE_MODE_SESSION_KEY, "1");
     expect(isSafeModeActive()).toBe(true);
+  });
+
+  it("keeps URL safe mode across in-app navigation that drops the query string (F-125)", () => {
+    const originalPath = window.location.pathname + window.location.search;
+    resetUrlSafeModeForTests();
+    window.history.replaceState(null, "", "/?safe-mode=1");
+    try {
+      expect(isSafeModeActive()).toBe(true);
+      // In-memory only: the URL entry point must not survive a full reload.
+      expect(window.sessionStorage.getItem(SAFE_MODE_SESSION_KEY)).toBeNull();
+
+      // Simulate the in-app navigation that drops the query string (e.g.
+      // the banner's navigate() to /settings/theme).
+      window.history.replaceState(null, "", "/settings/theme");
+      expect(isSafeModeActive()).toBe(true);
+    } finally {
+      resetUrlSafeModeForTests();
+      window.history.replaceState(null, "", originalPath);
+    }
+  });
+
+  it("does not apply URL safe mode on a fresh page load without the parameter", () => {
+    const originalPath = window.location.pathname + window.location.search;
+    window.history.replaceState(null, "", "/?safe-mode=1");
+    try {
+      expect(isSafeModeActive()).toBe(true);
+      // A full reload re-evaluates the module: simulate with the reset hook.
+      resetUrlSafeModeForTests();
+      window.history.replaceState(null, "", "/");
+      expect(isSafeModeActive()).toBe(false);
+    } finally {
+      resetUrlSafeModeForTests();
+      window.history.replaceState(null, "", originalPath);
+    }
   });
 });
 

@@ -59,7 +59,7 @@ From `tools.go` `registeredToolNames`:
 | `list_pods` | Optional `namespace`, optional `labelSelector` | Core Pod list as JSON |
 | `get_pod` | `namespace`, `name` | Single Pod (spec+status) as JSON |
 | `list_events` | Optional `namespace`, optional `fieldSelector`, optional `labelSelector` | Core Event list as JSON |
-| `get_pod_logs` | `namespace`, `pod`, optional `container`, optional `tailLines` (capped 5000), optional `previous` | Log text (capped 256 KiB) |
+| `get_pod_logs` | `namespace`, `pod`, optional `container`, optional `tailLines` (capped 5000), optional `previous` | Log text (up to 256 KiB of the newest bytes; when truncated, prefixed with a notice) |
 | `propose_fix` | Optional `kind`/`namespace`/`name`, required `symptom` (free text) | Suggested diagnostics + fix text (never applies anything) |
 
 **Artifact scope:**

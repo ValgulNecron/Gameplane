@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -127,7 +128,9 @@ func (r *GameServerReconciler) planTunnel(
 		if tunnel.Playit == nil {
 			return tunnelPlan{}
 		}
-		// TODO(tunnel): playit endpoint arrives via the gameservers/status subresource
+		// The tunnel pod polls playitd's IPC socket for the assigned address
+		// and patches it into status.tunnelEndpoints (tunnel/playit_reporter.go);
+		// reconcileStatus validates and merges those into status.endpoints.
 	}
 
 	return tunnelPlan{
@@ -246,7 +249,7 @@ func (r *GameServerReconciler) reconcileTunnel(
 				{Name: "FRP_SERVER_ADDR", Value: tunnel.Frp.ServerAddr},
 				{Name: "FRP_SERVER_PORT", Value: fmt.Sprintf("%d", serverPort)},
 				{Name: "BACKING_SERVICE_DNS", Value: backingServiceDNS},
-				{Name: "BACKING_SERVICE_PORT", Value: buildFrpRemotePortsConfig(tunnel.Frp)},
+				{Name: "BACKING_SERVICE_PORT", Value: buildFrpRemotePortsConfig(tunnel.Frp, tmpl)},
 			}
 
 		case "tailscale":
@@ -519,15 +522,34 @@ func (r *GameServerReconciler) deleteTunnel(ctx context.Context, namespace, gsNa
 	return client.IgnoreNotFound(r.Delete(ctx, dep, &client.DeleteOptions{PropagationPolicy: &policy}))
 }
 
-// buildFrpRemotePortsConfig constructs the BACKING_SERVICE_PORT env var for frp.
-// Format: "port_name:remote_port,..." e.g. "java:25565,bedrock:19133"
-func buildFrpRemotePortsConfig(frp *gameplanev1alpha1.FrpTunnelSpec) string {
-	if frp == nil {
+// buildFrpRemotePortsConfig constructs the BACKING_SERVICE_PORT env var for
+// frp. Format: "port_name:local_port:remote_port:protocol,..." e.g.
+// "game:34197:30000:udp". local_port and protocol come from the matching
+// GameTemplate port (the backing Service's own port and protocol);
+// remote_port is the public frps-side port the user picked in
+// spec.networking.tunnel.frp.remotePorts. The two ports are independent, so
+// this always carries both rather than assuming remotePort also names the
+// Service port and the port is always TCP -- the old format let frp work
+// only when a user's remotePort happened to equal the Service port and the
+// game used TCP (F-052). A RemotePorts mapping whose Name has no matching
+// advertised template port is skipped, same as before.
+func buildFrpRemotePortsConfig(frp *gameplanev1alpha1.FrpTunnelSpec, tmpl *gameplanev1alpha1.GameTemplate) string {
+	if frp == nil || tmpl == nil {
 		return ""
 	}
 	var entries []string
 	for _, mapping := range frp.RemotePorts {
-		entries = append(entries, fmt.Sprintf("%s:%d", mapping.Name, mapping.RemotePort))
+		for _, p := range tmpl.Spec.Ports {
+			if p.Name != mapping.Name {
+				continue
+			}
+			protocol := strings.ToLower(string(p.Protocol))
+			if protocol == "" {
+				protocol = "tcp"
+			}
+			entries = append(entries, fmt.Sprintf("%s:%d:%d:%s", mapping.Name, p.ContainerPort, mapping.RemotePort, protocol))
+			break
+		}
 	}
 	if len(entries) == 0 {
 		return ""

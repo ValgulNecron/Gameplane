@@ -2,6 +2,7 @@ package controller
 
 import (
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -235,5 +236,34 @@ func TestBuildSentinelPortConfig(t *testing.T) {
 				t.Errorf("buildSentinelPortConfig() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestSentinelShutdownSettings pins the F-179 drain wiring: in the
+// Service-backed expose modes the waker pod's grace period must outlast
+// the sentinel's shutdown drain, so a handed-through session survives the
+// waker being deleted when the game pod goes Ready; in Hostport mode there
+// is no drain and the pod releases the host port promptly.
+func TestSentinelShutdownSettings(t *testing.T) {
+	for _, expose := range []string{"ClusterIP", "NodePort", "LoadBalancer", ""} {
+		gs := &gameplanev1alpha1.GameServer{}
+		gs.Spec.Networking.Expose = expose
+		drain, grace := sentinelShutdownSettings(gs)
+		if drain != sentinelShutdownDrainTimeout {
+			t.Errorf("expose=%q: drain = %v, want %v", expose, drain, sentinelShutdownDrainTimeout)
+		}
+		if time.Duration(grace)*time.Second <= drain {
+			t.Errorf("expose=%q: grace %ds does not outlast drain %v", expose, grace, drain)
+		}
+	}
+
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Spec.Networking.Expose = "Hostport"
+	drain, grace := sentinelShutdownSettings(gs)
+	if drain != 0 {
+		t.Errorf("Hostport: drain = %v, want 0", drain)
+	}
+	if grace != 30 {
+		t.Errorf("Hostport: grace = %ds, want 30s", grace)
 	}
 }

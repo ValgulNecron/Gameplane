@@ -31,7 +31,43 @@ const (
 	// fires. This must stay bounded and must never gate skipping the rest
 	// of Reconcile — see planSentinel's doc comment for the bug this fixes.
 	sentinelBackstopRequeue = 5 * time.Second
+
+	// sentinelShutdownDrainTimeout is how long a terminating sentinel keeps
+	// a player connection it already handed through to the game pod alive
+	// (F-179). The operator deletes the waker Deployment the moment the
+	// game pod is Ready, and the game Service stops routing to the waker in
+	// the same pass, so no new connection reaches it; but a player who
+	// woke the server is still connected *through* it. Deleting the pod
+	// sends SIGTERM, on which the sentinel closes its listeners and then
+	// waits (up to this long) for its in-flight sessions to end on their
+	// own. The pod's terminationGracePeriodSeconds covers the whole drain,
+	// so the kubelet does not SIGKILL it first: the waker pod lingers in
+	// Terminating only while it still has sessions, and exits as soon as
+	// the last one closes (a session also ends by itself when the game pod
+	// goes away). Must match the sentinel's defaultShutdownDrainTimeout.
+	sentinelShutdownDrainTimeout = 4 * time.Hour
+
+	// sentinelShutdownGraceSlack is the extra terminationGracePeriodSeconds
+	// on top of the drain, for the sentinel to close what is left once the
+	// drain runs out.
+	sentinelShutdownGraceSlack = 30 * time.Second
+
+	// sentinelHostportGracePeriod is the Hostport-mode grace period. There
+	// is no drain in that mode (see planSentinel): the terminating sentinel
+	// holds the very host port the game pod needs, so it must let go fast.
+	sentinelHostportGracePeriod = 30 * time.Second
 )
+
+// sentinelShutdownSettings returns the sentinel's SHUTDOWN_DRAIN_TIMEOUT
+// and its pod's terminationGracePeriodSeconds for this GameServer's expose
+// mode. Both are always set explicitly (never left to the apiserver
+// default) so CreateOrUpdate sees a stable pod template.
+func sentinelShutdownSettings(gs *gameplanev1alpha1.GameServer) (drain time.Duration, graceSeconds int64) {
+	if gs.Spec.Networking.Expose == "Hostport" {
+		return 0, int64(sentinelHostportGracePeriod / time.Second)
+	}
+	return sentinelShutdownDrainTimeout, int64((sentinelShutdownDrainTimeout + sentinelShutdownGraceSlack) / time.Second)
+}
 
 // sentinelSAName builds the name of the ServiceAccount used by the wake sentinel.
 // This is the single source of truth for the sentinel SA name, used by both
@@ -91,7 +127,11 @@ type sentinelPlan struct {
 //     with the game pod for anything, so it is kept alive — and the
 //     Service kept routed to it — until the game pod itself reports Ready.
 //     A player connection the sentinel is holding open can then be handed
-//     straight through instead of being dropped mid-wake.
+//     straight through instead of being dropped mid-wake. Once the game
+//     pod is Ready the Deployment is deleted, but the pod's long
+//     terminationGracePeriodSeconds plus the sentinel's shutdown drain
+//     (sentinelShutdownDrainTimeout) keep any handed-through session alive
+//     until it ends on its own; only new connections stop reaching it.
 //   - Hostport: the sentinel and the game pod bind the exact same host
 //     port, so the sentinel cannot outlive the wake decision — the game
 //     pod cannot even schedule until the sentinel releases that port. The
@@ -233,6 +273,8 @@ func (r *GameServerReconciler) reconcileSentinel(
 		// Build the per-port config env var (comma-separated list).
 		// Format: "port:protocol:wakeProtocol,..." e.g. "25565:TCP:minecraft,19133:UDP:generic"
 		portConfig := buildSentinelPortConfig(tmpl)
+		drain, graceSeconds := sentinelShutdownSettings(gs)
+		dep.Spec.Template.Spec.TerminationGracePeriodSeconds = &graceSeconds
 
 		dep.Spec.Template.Spec.ServiceAccountName = sentinelSAName(gs)
 		dep.Spec.Template.Spec.Containers = []corev1.Container{{
@@ -242,6 +284,7 @@ func (r *GameServerReconciler) reconcileSentinel(
 				{Name: "GAMESERVER_NAME", Value: gs.Name},
 				{Name: "GAMESERVER_NAMESPACE", Value: gs.Namespace},
 				{Name: "PORTS_CONFIG", Value: portConfig},
+				{Name: "SHUTDOWN_DRAIN_TIMEOUT", Value: drain.String()},
 			},
 			Ports: ports,
 			SecurityContext: &corev1.SecurityContext{

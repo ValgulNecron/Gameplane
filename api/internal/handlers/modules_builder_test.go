@@ -280,7 +280,7 @@ func TestBuilderExport_DownloadArchive(t *testing.T) {
 	r, _ := setupTestBuilderRouter(t)
 
 	validModule := "apiVersion: gameplane.local/module/v1\nname: cs2-match\ndisplayName: CS2 Match\nversion: 1.0.0\ngame: cs2\nsummary: A CS2 server\ncategories:\n  - Shooter\n"
-	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  game: cs2\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
+	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  displayName: CS2 Match\n  game: cs2\n  version: 1.0.0\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
 
 	reqBody := BuilderExportRequest{
 		Name:         "cs2-match",
@@ -338,7 +338,7 @@ func TestBuilderExport_InstallToCluster(t *testing.T) {
 	r, k8s := setupTestBuilderRouter(t, uploadSource)
 
 	validModule := "apiVersion: gameplane.local/module/v1\nname: cs2-match\ndisplayName: CS2 Match\nversion: 1.0.0\ngame: cs2\nsummary: A CS2 server\ncategories:\n  - Shooter\n"
-	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  game: cs2\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
+	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  displayName: CS2 Match\n  game: cs2\n  version: 1.0.0\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
 
 	reqBody := BuilderExportRequest{
 		Name:         "cs2-match",
@@ -407,7 +407,7 @@ func TestBuilderExport_NameMismatch(t *testing.T) {
 	reqBody := BuilderExportRequest{
 		Name:         "different-name",
 		ModuleYaml:   "apiVersion: gameplane.local/module/v1\nname: cs2-match\nversion: 1.0.0\ngame: cs2\n",
-		TemplateYaml: "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nspec:\n  game: cs2\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n",
+		TemplateYaml: "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nspec:\n  displayName: CS2 Match\n  game: cs2\n  version: 1.0.0\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n",
 		ReadmeMd:     "# CS2 Match\n",
 	}
 	jsonBytes, _ := json.Marshal(reqBody)
@@ -564,7 +564,7 @@ func TestBuilderExport_InstallToCluster_UpdateAndConflicts(t *testing.T) {
 	r, k8s := setupTestBuilderRouter(t, uploadSource)
 
 	validModule := "apiVersion: gameplane.local/module/v1\nname: cs2-match\ndisplayName: CS2 Match\nversion: 1.0.0\ngame: cs2\nsummary: A CS2 server\ncategories:\n  - Shooter\n"
-	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  game: cs2\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
+	validTemplate := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: cs2-match\nspec:\n  displayName: CS2 Match\n  game: cs2\n  version: 1.0.0\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
 
 	// 1. TargetSource does not exist -> 404
 	reqBody := BuilderExportRequest{
@@ -618,7 +618,7 @@ func TestBuilderExport_InstallToCluster_UpdateAndConflicts(t *testing.T) {
 	_, _ = k8s.CoreV1().ConfigMaps("gameplane-system").Create(context.Background(), nonUploadCM, metav1.CreateOptions{})
 
 	validModuleOther := "apiVersion: gameplane.local/module/v1\nname: other\ndisplayName: Other\nversion: 1.0.0\ngame: other\nsummary: Other server\ncategories:\n  - Other\n"
-	validTemplateOther := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: other\nspec:\n  game: other\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
+	validTemplateOther := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nmetadata:\n  name: other\nspec:\n  displayName: Other\n  game: other\n  version: 1.0.0\n  image: \"ghcr.io/valgul/cs2:v1@sha256:1111111111111111111111111111111111111111111111111111111111111111\"\n  ports:\n    - name: game\n      containerPort: 27015\n      protocol: UDP\n"
 	reqBodyOther := BuilderExportRequest{
 		Name:         "other",
 		ModuleYaml:   validModuleOther,

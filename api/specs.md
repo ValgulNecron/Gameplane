@@ -613,3 +613,144 @@ Final 20% gap concentrated in:
 - **`CLAUDE.md`** rule 10 — "The operator is authoritative" principle (API is UX layer only)
 - **`api/go.mod`** — dependency versions (source of truth for go.mod)
 - **Makefile** — `make test-go`, `make cover`, `make lint-go`, `make images`; CI runs via GitHub Actions
+
+
+## Drift Fixes
+### Removed Endpoints
+<!-- REMOVED: DELETE /module-sources — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: DELETE /roles — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /admin/cluster/{op} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /admin/system-logs — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /cluster/actions — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /login — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /mod-updates/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /module-sources — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /modules/{name}:uninstall — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /pod-events — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /registry/{provider}/search — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /servers/{name}/console — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /servers/{name}/files — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /servers/{name}:collaborators — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /servers/{name}:start — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /users/{id} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: GET /{id} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PATCH /admin/auth — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PATCH /admin/config — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PATCH /admin/notifications — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PATCH /admin/registries/{provider}/secret — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PATCH /mod-ids/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PATCH /roles — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PATCH /users/{id}/role-bindings — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /backup-destinations/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /backups/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /cluster — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /module-sources — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /modules/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /restores/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /schedules/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /servers/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /templates/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: POST /users/{id} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PUT /backup-destinations/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PUT /module-sources — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PUT /modules/{name} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+<!-- REMOVED: PUT /users/{id} — removed in commit 1749bb6396d7d4d53f8fc57ad6214164eee299b8 Mon Sep 21 00:16:43 2026 +0200 -->
+
+### Auto-Discovered Endpoints (Drift Detected)
+- `/admin/auth/providers/{name}/secret` — DELETE
+- `/admin/config/auth/role-mappings/{role}` — DELETE
+- `/admin/notifications/sinks/{name}/secret` — DELETE
+- `/admin/registries/{provider}/secret` — DELETE
+- `/clusters/{name}` — DELETE
+- `/modules/sources/{name}` — DELETE
+- `/modules/sources/{name}/upload/{module}` — DELETE
+- `/roles/{name}` — DELETE
+- `/servers/{name}/files/delete` — DELETE
+- `/servers/{name}/mods` — DELETE
+- `/servers/{name}:capture` — DELETE
+- `/servers/{name}:shares/servers/{name}/shares/{id}` — DELETE
+- `/servers/{name}:tunnel-credentials` — DELETE
+- `/users/{id}/bindings/{role}/{namespace}` — DELETE
+- `/admin/audit/export` — GET
+- `/admin/audit/verify` — GET
+- `/admin/system-logs/{component}` — GET
+- `/backup-destinations` — GET
+- `/backups` — GET
+- `/cluster/info` — GET
+- `/cluster/stats` — GET
+- `/modules/catalog` — GET
+- `/modules/sources` — GET
+- `/restores` — GET
+- `/roles/permissions` — GET
+- `/schedules` — GET
+- `/servers` — GET
+- `/servers/{name}/events` — GET
+- `/servers/{name}/files/download` — GET
+- `/servers/{name}/files/list` — GET
+- `/servers/{name}/files/read` — GET
+- `/servers/{name}/logs/download` — GET
+- `/servers/{name}/mods` — GET
+- `/servers/{name}/mods/ids` — GET
+- `/servers/{name}/mods/registry/projects/{project}/modpack` — GET
+- `/servers/{name}/mods/registry/projects/{project}/versions` — GET
+- `/servers/{name}/mods/registry/providers` — GET
+- `/servers/{name}/mods/registry/search` — GET
+- `/servers/{name}/mods/updates` — GET
+- `/servers/{name}/players` — GET
+- `/servers/{name}/players/banned` — GET
+- `/servers/{name}/players/whitelist` — GET
+- `/servers/{name}/status` — GET
+- `/servers/{name}:tunnel-credentials` — GET
+- `/shares/{token}` — GET
+- `/templates` — GET
+- `/users` — GET
+- `/users/{id}/bindings` — GET
+- `/modules/{name}` — PATCH
+- `/roles/{name}` — PATCH
+- `/users/{id}` — PATCH
+- `/admin/notifications/sinks/{name}/test` — POST
+- `/backup-destinations` — POST
+- `/backups` — POST
+- `/cluster/kubeconfig` — POST
+- `/cluster/nodes:join` — POST
+- `/clusters` — POST
+- `/modules/sources` — POST
+- `/modules/sources/{name}/upload` — POST
+- `/restores` — POST
+- `/schedules` — POST
+- `/servers` — POST
+- `/servers/{name}/actions/run` — POST
+- `/servers/{name}/files/mkdir` — POST
+- `/servers/{name}/files/upload` — POST
+- `/servers/{name}/files/write` — POST
+- `/servers/{name}/modpack` — POST
+- `/servers/{name}/mods/install` — POST
+- `/servers/{name}/mods/upload` — POST
+- `/servers/{name}/players/ban` — POST
+- `/servers/{name}/players/kick` — POST
+- `/servers/{name}/players/unban` — POST
+- `/servers/{name}/players/whitelist/add` — POST
+- `/servers/{name}/players/whitelist/remove` — POST
+- `/servers/{name}:capture-disable` — POST
+- `/servers/{name}:capture-enable` — POST
+- `/servers/{name}:clone` — POST
+- `/servers/{name}:restart` — POST
+- `/servers/{name}:start` — POST
+- `/servers/{name}:stop` — POST
+- `/servers/{name}:transfer` — POST
+- `/servers/{name}:wake` — POST
+- `/servers/{name}:wipe-data` — POST
+- `/shares/{token}` — POST
+- `/shares/{token}/start` — POST
+- `/templates` — POST
+- `/users` — POST
+- `/users/{id}/bindings` — POST
+- `/users/{id}/reset-password` — POST
+- `/admin/auth/providers/{name}/secret` — PUT
+- `/admin/config/{section}` — PUT
+- `/admin/notifications/sinks/{name}/secret` — PUT
+- `/admin/registries/{provider}/secret` — PUT
+- `/modules/sources/{name}` — PUT
+- `/servers/{name}/mods/ids` — PUT
+- `/servers/{name}:collaborators` — PUT
+- `/servers/{name}:tunnel-credentials` — PUT

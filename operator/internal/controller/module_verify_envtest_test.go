@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,6 +110,56 @@ func TestModule_DigestPinMismatch(t *testing.T) {
 	})
 
 	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseFailed, "pinned digest")
+}
+
+// TestModule_FailedDigestPinSettles — F-258: a Module that stays Failed for
+// the same cause at the same generation must stop writing status (each write
+// re-queued it through its own watch, so it hot-looped and every other writer
+// conflicted). A plain Get+Update then succeeds without conflict retries, and
+// fixing the pin still takes the Module to Ready.
+func TestModule_FailedDigestPinSettles(t *testing.T) {
+	_ = newNamespace(t)
+	fake := newFakeOCI()
+	startMgr(t, "gameplane-system", withModuleReconciler(fake))
+
+	srcName, _ := seedMC(t, fake)
+	modName := uniqueName("mod-settle")
+	createModule(t, modName, srcName, func(m *gameplanev1alpha1.Module) {
+		m.Spec.Digest = "sha256:wrong"
+	})
+	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseFailed, "pinned digest")
+
+	// Wait for the resourceVersion to hold still across a quiet window. With
+	// the churn, the status rewrites never stop and this times out.
+	var settledRV string
+	eventually(t, func() (bool, string) {
+		rv := getModule(t, modName).ResourceVersion
+		time.Sleep(time.Second)
+		after := getModule(t, modName)
+		if after.ResourceVersion != rv {
+			return false, fmt.Sprintf("resourceVersion moved %s -> %s (phase %s)",
+				rv, after.ResourceVersion, after.Status.Phase)
+		}
+		settledRV = rv
+		return true, ""
+	})
+	time.Sleep(2 * time.Second)
+	if got := getModule(t, modName); got.ResourceVersion != settledRV {
+		t.Fatalf("Failed Module kept rewriting: resourceVersion %s -> %s", settledRV, got.ResourceVersion)
+	}
+
+	// A single Get+Update (no conflict retry) must win now that nothing
+	// else is writing the Module.
+	var mod gameplanev1alpha1.Module
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &mod); err != nil {
+		t.Fatalf("get module: %v", err)
+	}
+	mod.Spec.Digest = "sha256:mc-1.0.0" // fixtureBundle's digest
+	if err := k8sClient.Update(context.Background(), &mod); err != nil {
+		t.Fatalf("update settled Failed module: %v", err)
+	}
+
+	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseReady, "")
 }
 
 // TestModule_DigestPinMatch — a correct spec.digest installs cleanly.

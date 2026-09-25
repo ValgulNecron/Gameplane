@@ -19,7 +19,7 @@ This contract defines the rule catalog, severity levels, diagnostic message form
 | `invalid-port-number` | **ERROR** | `template.yaml` | `containerPort` is outside the allowable TCP/UDP port range of 1 to 65535. | Change `containerPort` to an integer between 1 and 65535. |
 | `invalid-port-protocol` | **ERROR** | `template.yaml` | `protocol` is not `TCP` or `UDP`. | Change `protocol` to either `TCP` or `UDP`. |
 | `duplicate-port-collision` | **ERROR** | `template.yaml` | Two port entries declare the same `containerPort` and `protocol` combination. | Assign unique port numbers or change protocol. |
-| `invalid-config-type` | **ERROR** | `template.yaml` | `configSchema[].type` is not one of `string`, `int`, `enum`, `boolean`, `password`. | Change field type to one of the supported Gameplane types. |
+| `invalid-config-type` | **ERROR** | `template.yaml` | `configSchema[].type` is not one of `string`, `int`, `bool`, `enum`, `password`. | Change field type to one of the supported Gameplane types. |
 | `invalid-memory-percent` | **ERROR** | `template.yaml` | `autoFromMemoryLimit.percent` is not an integer between 1 and 100. | Set percent between 1 and 100 (e.g. 75 for 75%). |
 | `credential-field-not-password` | **ERROR** | `template.yaml` | Field name contains credential substrings (`PASSWORD`, `TOKEN`, `SECRET`, `KEY`, `AUTH`) but `type` is not `password`. | Set `type: password` so the operator stores value securely in a Secret instead of plaintext CR. |
 | `excessive-asset-size` | **WARN** | Assets | Asset `icon.png` exceeds 512 KiB or total directory size exceeds 1 MiB. | Compress asset or reduce resolution to optimize OCI bundle transfer. |

@@ -158,6 +158,19 @@ export const handlers = [
   http.get("/servers/:name([^:/]+)", ({ params }) =>
     HttpResponse.json(makeServer({ metadata: { name: String(params.name) } })),
   ),
+  // Same two servers as GET /servers, plus one in a non-default namespace
+  // that ISN'T in /servers — Servers.tsx computes the delta as "shared with
+  // you" (ServersPage.tsx: sharedServers = myServers minus servers by
+  // namespace/name key). Exercises F-130's shared-row Actions cell.
+  http.get("/users/me/servers", () =>
+    HttpResponse.json({
+      items: [
+        makeServer(),
+        makeServer({ metadata: { name: "beta", namespace: "gameplane-games" } }),
+        makeServer({ metadata: { name: "team-a-shared", namespace: "team-a" } }),
+      ],
+    }),
+  ),
   http.post("/servers", async ({ request }) => {
     const body = (await request.json().catch(() => null)) as {
       metadata?: { name?: string };
@@ -176,11 +189,11 @@ export const handlers = [
 
   // Lifecycle: chi uses `:verb` literal-colon URL syntax, which standard
   // URL pattern matchers don't parse — fall back to regex per verb.
-  http.post(/\/servers\/[^/]+:start$/, () => new HttpResponse(null, { status: 202 })),
-  http.post(/\/servers\/[^/]+:stop$/, () => new HttpResponse(null, { status: 202 })),
-  http.post(/\/servers\/[^/]+:restart$/, () => new HttpResponse(null, { status: 202 })),
-  http.post(/\/servers\/[^/]+:wake$/, () => new HttpResponse(null, { status: 202 })),
-  http.post(/\/servers\/[^/]+:clone$/, async ({ request }) => {
+  http.post(/\/servers\/[^/]+:start(\?.*)?$/, () => new HttpResponse(null, { status: 202 })),
+  http.post(/\/servers\/[^/]+:stop(\?.*)?$/, () => new HttpResponse(null, { status: 202 })),
+  http.post(/\/servers\/[^/]+:restart(\?.*)?$/, () => new HttpResponse(null, { status: 202 })),
+  http.post(/\/servers\/[^/]+:wake(\?.*)?$/, () => new HttpResponse(null, { status: 202 })),
+  http.post(/\/servers\/[^/]+:clone(\?.*)?$/, async ({ request }) => {
     const body = (await request.json().catch(() => null)) as {
       newName?: string;
     } | null;
@@ -303,9 +316,24 @@ export const handlers = [
       ],
     }),
   ),
-  http.get("/templates/:name", ({ params }) =>
-    HttpResponse.json(makeTemplate({ metadata: { name: String(params.name) } })),
-  ),
+  http.get("/templates/:name", ({ params, cookies }) => {
+    const name = String(params.name);
+    // e2e affordance: serverDetail.spec.ts's mods-install-carries-namespace
+    // case needs a template whose capabilities.mods.install is set, so the
+    // Mods tab's URL-install form renders. `path` must also be set —
+    // serverHasMods()/resolveModVolume() (src/lib/capabilities.ts) only
+    // show the Mods tab when the template declares a mod directory (or
+    // idList); `install` alone isn't enough. No-op for every other test.
+    if (cookies.e2e_mods_install === "1") {
+      return HttpResponse.json(
+        makeTemplate({
+          metadata: { name },
+          spec: { capabilities: { mods: { path: "/data/mods", install: { allowedHosts: ["example.com"] } } } },
+        }),
+      );
+    }
+    return HttpResponse.json(makeTemplate({ metadata: { name } }));
+  }),
 
   // Backups
   http.get("/backups", () =>
@@ -551,6 +579,12 @@ export const handlers = [
 
   // Pod/StatefulSet/GameServer Kubernetes events (Overview events feed).
   http.get("/servers/:name/events", () => HttpResponse.json([])),
+  http.get("/servers/:name/mods", () => HttpResponse.json([])),
+  http.get("/servers/:name/mods/updates", () => HttpResponse.json({ updates: [], checkedAt: new Date().toISOString() })),
+  http.post("/servers/:name/mods/install", async ({ request }) => {
+    const body = (await request.json().catch(() => null)) as { url?: string; name?: string } | null;
+    return HttpResponse.json({ name: body?.name ?? "mock-mod.jar", size: 1024 });
+  }),
 
   // Players
   http.get("/servers/:name/players", () => HttpResponse.json(makePlayers())),

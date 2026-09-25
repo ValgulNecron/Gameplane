@@ -18,7 +18,7 @@ Relay client supervisor that configures and supervises a third-party tunnel proc
 6. On transient failure (exit code other than 126/127, not a permission error), apply exponential backoff (2^n seconds, capped at 300 seconds) and restart.
 7. On unrecoverable failure (exit code 126/127 or "permission denied" error), exit immediately.
 8. Forward SIGTERM for graceful shutdown, waiting up to 10 seconds before SIGKILL.
-9. (Playit only) Validate and patch the GameServer's status subresource with assigned relay addresses once discovered.
+9. (Playit only) Poll playitd's IPC control socket for the assigned relay addresses and patch them into the GameServer's `status.tunnelEndpoints`, which the operator validates and merges into `status.endpoints` (see "Playit Address Reporting").
 
 ## Non-goals / boundaries
 
@@ -36,6 +36,8 @@ Relay client supervisor that configures and supervises a third-party tunnel proc
 ```
 tunnel/
 ├── main.go              # Entry point; config loading; credential reading; config rendering; relay spawning and supervision
+├── playit_reporter.go   # playit only: polls playitd's IPC socket for assigned addresses; patches status.tunnelEndpoints
+├── playit_reporter_test.go # Fake playitd IPC server + httptest API server tests for the reporter
 ├── main_test.go         # Config parsing; credential reading; config rendering per provider; command building; backoff; error classification; supervision lifecycle
 ├── Dockerfile.frp       # Image build for frp provider (sets Version via -ldflags)
 ├── Dockerfile.playit    # Image build for playit provider (one image per provider)
@@ -58,7 +60,7 @@ Single executable module; no subdirectories or packages.
 | `BACKING_SERVICE_DNS` | string | yes | DNS name of the game pod Service, format `<gs-name>.<namespace>.svc` |
 | `FRP_SERVER_ADDR` | string | if frp | Hostname or IP of the frp server |
 | `FRP_SERVER_PORT` | int | no (default 7000) | frp server port; validated 1–65535 |
-| `BACKING_SERVICE_PORT` | string | if frp | Port mappings for frp, format `name:port,name:port` (e.g., `java:25565,bedrock:19133`) |
+| `BACKING_SERVICE_PORT` | string | if frp | Port mappings for frp, format `name:localPort:remotePort:protocol,...` (e.g., `game:34197:30000:udp`); localPort and protocol come from the GameTemplate port, remotePort from `spec.networking.tunnel.frp.remotePorts` (F-052) |
 | `TAILSCALE_HOSTNAME` | string | if tailscale | MagicDNS hostname in the tailnet; fatal if unset for tailscale provider |
 | `TAILSCALE_TAGS` | string | no | Comma-separated ACL tags for Tailscale device registration; parsed by loadConfig but NOT currently applied to rendered tailscaled config or command (known gap; operator sets it from spec.networking.tunnel.tailscale.tags) |
 | `BACKING_SERVICE_PORTS` | string | if tailscale or playit | Container ports for non-frp providers, format `name:port,name:port` |
@@ -94,9 +96,19 @@ All files are written with mode `0o600` (read/write by owner only) via `os.Write
 |---|---|---|
 | frp | `/usr/local/bin/frpc` | `-c /tmp/gameplane-tunnel-frpc.toml` (config file flag) |
 | tailscale | `/usr/local/bin/tailscaled` | `--tun=userspace-networking` (hardened pod context), `--state=/tmp/tailscale.state`, `--config=/tmp/gameplane-tunnel-tailscaled.json` |
-| playit | `/usr/local/bin/playitd` | `--secret-path /tmp/gameplane-tunnel-playit-auth`, `--platform-docker` |
+| playit | `/usr/local/bin/playitd` | `--secret-path /tmp/gameplane-tunnel-playit-auth`, `--socket-path /tmp/gameplane-tunnel-playitd.sock`, `--platform-docker` |
 
 All binary paths are fixed constants, not configurable. Secrets are never passed via command-line arguments (gosec G204 compliance).
+
+### Playit Address Reporting (F-174)
+
+playit.gg assigns a tunnel's public address server-side, so the supervisor learns it at runtime (`playit_reporter.go`) and reports it back:
+
+1. `playitd` is started with `--socket-path /tmp/gameplane-tunnel-playitd.sock`. Its Linux default, `/run/playit/playitd.sock`, can't be created by the non-root distroless image. `playitd` chmods the socket to `0660` under its own uid (65532), which the supervisor shares.
+2. A goroutine started by `run` polls that socket with playitd's IPC protocol (playit-agent v1.0.10, `packages/playit-ipc`). The protocol is newline-delimited JSON over a Unix stream socket. The server sends `{"message_kind":"hello","data":{"protocol":{"ipc_version":2,...}}}`. The client then sends `{"ipc_version":2,"request_id":1,"request":{"type":"get_state"}}`. The reply is `{"message_kind":"response","data":{...,"response":{"type":"state","data":{"state":"running","data":{"tunnels":[{"display_address","destination","is_disabled",...}]}}}}}`. Any IPC version other than 2 is treated as an error.
+3. `TunnelState` carries no tunnel name, so each enabled tunnel is mapped to a `BACKING_SERVICE_PORTS` name by matching the port in its `destination` (the local origin, `ip:port`). With exactly one advertised port and one enabled tunnel, the two are paired even if the ports differ. A `display_address` without a port (an SRV-style playit hostname) is reported with the backing port number. HTTPS tunnels and unmatched tunnels are skipped. The list is capped at 32 entries (the CRD's `MaxItems`).
+4. When the mapped set differs from the last one reported, it's merge-patched into `status.tunnelEndpoints` on `PATCH https://kubernetes.default.svc/apis/gameplane.local/v1alpha1/namespaces/<ns>/gameservers/<name>/status`. The request uses the pod's projected ServiceAccount token and CA from `/var/run/secrets/kubernetes.io/serviceaccount`. The first report after startup is always sent, and an empty set is sent as `null` so stale addresses from a previous pod are cleared. The operator validates those entries (`validatePlayitEndpoints`) and merges them into `status.endpoints`, the same place frp/tailscale endpoints land.
+5. Timing: while the socket is down, playitd isn't `running` yet, or a patch fails, the reporter backs off from 1s, doubling up to 30s. Once a set has been reported, it re-polls every 30s so address changes are picked up. It stops when `run`'s context ends. If the ServiceAccount CA can't be read (not in a cluster) or `BACKING_SERVICE_PORTS` doesn't parse, the reporter logs and is skipped. The relay still runs.
 
 ## Key Invariants
 
@@ -117,6 +129,8 @@ All binary paths are fixed constants, not configurable. Secrets are never passed
 ## Known Gaps
 
 - **TAILSCALE_TAGS not applied:** The `TAILSCALE_TAGS` environment variable is parsed by `loadConfig` but is not currently rendered into the tailscaled declarative config or command-line arguments. The operator accepts and stores `spec.networking.tunnel.tailscale.tags[]` from the CRD, but this field does not flow through the tunnel pod yet.
+
+- **Tailscale doesn't forward tailnet traffic to the game (F-173):** `BACKING_SERVICE_DNS` and `BACKING_SERVICE_PORTS` are read and validated for presence when `TUNNEL_TYPE=tailscale`, but neither reaches `renderTailscaleConfig` or the `tailscaled` process. The rendered config carries only `version`/`authKey`/`hostname`. The tunnel pod registers as a tailnet device, but nothing bridges an inbound tailnet connection to the backing Service — tailscaled's declarative `--config` file has no serve/forward field, and `tailscale serve` (the real mechanism) only proxies TCP/HTTP(S) to a local `127.0.0.1` target, never a remote host, and has no UDP support. Fixing this is an architecture decision (a local proxy + headless `tailscale serve`, TCP-only; a subnet route via `advertiseRoutes`, which needs tailnet ACL auto-approval and widens reachability into cluster-internal networking; or replacing subprocess `tailscaled` with an embedded `tsnet` listener, which would end this module's stdlib-only dependency policy), tracked pending a decision in `specs/018-v0-3-release-readiness/OPEN-DECISIONS.md`.
 
 ## CRD Integration
 
@@ -196,7 +210,7 @@ When the pod receives SIGTERM (e.g., during cluster shutdown or pod deletion):
 ## Dependencies
 
 **Internal:** None  
-**External:** Go stdlib only (context, encoding/json, errors, fmt, log, os, os/exec, os/signal, path/filepath, strconv, strings, sync, syscall, time)  
+**External:** Go stdlib only (bufio, bytes, context, crypto/tls, crypto/x509, encoding/json, errors, fmt, io, log, net, net/http, net/url, os, os/exec, os/signal, path/filepath, reflect, sort, strconv, strings, sync, syscall, time). The playit status patch uses plain `net/http` against the API server rather than client-go, keeping the module free of third-party dependencies.  
 **Go version:** 1.26+
 
 No third-party dependencies. The operator provides provider-specific binaries (frpc, tailscaled, playitd) in each container image.
@@ -229,6 +243,7 @@ No third-party dependencies. The operator provides provider-specific binaries (f
 - **Exponential backoff:** `TestExponentialBackoff`, `TestExponentialBackoffCap` verify delay calculations and the 300-second cap.
 - **Error classification:** `TestIsUnrecoverable` verifies that exit codes 126/127 and "permission denied" errors are unrecoverable, and that other errors trigger retry.
 - **Supervision lifecycle:** `TestRunContextCancellation`, `TestRunTransientFailureBacksOffThenCancels`, `TestRunRenderConfigFailure`, `TestRunReadCredentialsFailure`, `TestRunPlayitConfigDispatch` verify clean context cancellation, backoff retry, and error path handling.
+- **Playit address reporting** (`playit_reporter_test.go`): a fake playitd IPC server on a Unix socket speaks the v1.0.10 wire format. `TestQueryPlayitState*` cover running/starting/error lifecycles, skipped event frames, protocol errors (wrong IPC version, missing hello, service error, mismatched request id, blank frame), a missing socket and a context timeout. `TestParseBackingPorts` and `TestPlayitEndpoints*` cover the port-name mapping, the single-port fallback, portless addresses, dedup and the 32-entry cap. `TestKubeStatusPatcher*` and `TestNewInClusterStatusPatcher` run against an `httptest` TLS server and check the merge-patch path, headers, body and `null` clear. `TestRunPlayitReporter*` check backoff, patching only on change, the initial empty clear, and shutdown on context end.
 - **Process execution:** `TestRunCommandSuccess`, `TestRunCommandNonZeroExit`, `TestRunCommandStartError`, `TestRunCommandContextCancellation` verify command spawning, exit code propagation, and graceful SIGTERM shutdown with 10-second grace period.
 
 **Test doubles:**

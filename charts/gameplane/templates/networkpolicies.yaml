@@ -167,7 +167,11 @@ spec:
         - { protocol: {{ .protocol }}, port: {{ .port }} }
         {{- end }}
 {{- end }}
-{{- if .Values.networkPolicies.backupEgress.enabled }}
+{{- /* `helm upgrade --reuse-values` from a release older than this key
+       (F-214) carries no networkPolicies.backupEgress; fall back to the
+       values.yaml defaults so upgraded clusters keep backup egress. */ -}}
+{{- $backupEgress := .Values.networkPolicies.backupEgress | default (dict "enabled" true "ports" (list (dict "protocol" "TCP" "port" 443) (dict "protocol" "TCP" "port" 22))) }}
+{{- if $backupEgress.enabled }}
 ---
 # Allow Backup/Restore restic Job pods to reach their configured
 # repository (F-215). Job pods carry no chart-managed label of their
@@ -196,7 +200,7 @@ spec:
     - to:
         - ipBlock: { cidr: 0.0.0.0/0 }
       ports:
-        {{- range .Values.networkPolicies.backupEgress.ports }}
+        {{- range $backupEgress.ports }}
         - { protocol: {{ .protocol }}, port: {{ .port }} }
         {{- end }}
 {{- end }}

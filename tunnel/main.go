@@ -10,10 +10,11 @@
 //   - frp: FRP_SERVER_ADDR, FRP_SERVER_PORT, BACKING_SERVICE_DNS, BACKING_SERVICE_PORT.
 //   - tailscale: TAILSCALE_HOSTNAME, TAILSCALE_TAGS, BACKING_SERVICE_DNS, BACKING_SERVICE_PORTS.
 //   - playit: PLAYIT_TUNNEL_NAME, BACKING_SERVICE_DNS, BACKING_SERVICE_PORTS. Validated for the
-//     operator contract (and as a label for the future playit address-discovery reporter, see the
-//     TODO on renderConfig below), but NOT passed to playitd: playitd has no local config file for
-//     port forwards -- those are managed against the account tied to the secret key via the
-//     playit.gg dashboard/API, not by this supervisor.
+//     operator contract but NOT passed to playitd: playitd has no local config file for port
+//     forwards -- those are managed against the account tied to the secret key via the playit.gg
+//     dashboard/API, not by this supervisor. BACKING_SERVICE_PORTS also names the ports the
+//     address reporter (playit_reporter.go) maps playitd's assigned addresses onto before
+//     patching them into the GameServer's status.tunnelEndpoints.
 //   - Credentials Secret is mounted read-only at /etc/gameplane/tunnel-auth.
 //   - Credential key names: frp uses "token", tailscale uses "authKey", playit uses "secretKey".
 package main
@@ -211,6 +212,18 @@ func run(ctx context.Context, cfg Config) error {
 		}
 	}()
 
+	// playit assigns the public address server-side; poll playitd for it
+	// and report it into status.tunnelEndpoints for the lifetime of run.
+	// frp and tailscale addresses are computed by the operator from spec.
+	if cfg.TunnelType == "playit" {
+		reporterCtx, stopReporter := context.WithCancel(ctx)
+		waitReporter := startPlayitReporter(reporterCtx, cfg)
+		defer func() {
+			stopReporter()
+			waitReporter()
+		}()
+	}
+
 	// Supervise the relay process with exponential backoff on exit.
 	backoff := &exponentialBackoff{}
 	for {
@@ -278,11 +291,6 @@ func readCredentials(cfg Config) (string, error) {
 
 // renderConfig generates the provider-specific config file and returns its path.
 // The caller is responsible for cleaning it up.
-//
-// TODO: addAddressReporter is the extension point for playit address discovery.
-// Once playit reports a discovered address (via gameservers/status or similar),
-// a provider-specific reporter should be invoked here. The exact mechanism
-// (interface, callback, status update) is TBD.
 func renderConfig(cfg Config, credential string) (string, error) {
 	switch cfg.TunnelType {
 	case "frp":
@@ -308,28 +316,42 @@ auth.method = "token"
 auth.token = "%s"
 `, cfg.FrpServerAddr, cfg.FrpServerPort, escapeTomlString(token))
 
-	// Parse BACKING_SERVICE_PORT format: "name:port,name:port,..."
-	// and create a proxy section for each.
+	// Parse BACKING_SERVICE_PORT format:
+	// "name:localPort:remotePort:protocol,name:localPort:remotePort:protocol,...".
+	// localPort is the backing Service's own port (from the GameTemplate's
+	// containerPort) and remotePort is the public port on the frps host the
+	// user picked (spec.networking.tunnel.frp.remotePorts); they are
+	// independent values. protocol is "tcp" or "udp", from the template
+	// port's own protocol. Using localPort/protocol unconditionally, rather
+	// than assuming remotePort also names the Service port and the port is
+	// always TCP, is the fix for F-052: frp only worked before when a
+	// user's remotePort happened to equal the Service port and the game
+	// used TCP.
 	for _, entry := range strings.Split(cfg.BackingServicePort, ",") {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
 		}
 		parts := strings.Split(entry, ":")
-		if len(parts) != 2 {
+		if len(parts) != 4 {
 			return "", fmt.Errorf("invalid port mapping: %q", entry)
 		}
 		name := strings.TrimSpace(parts[0])
-		port := strings.TrimSpace(parts[1])
+		localPort := strings.TrimSpace(parts[1])
+		remotePort := strings.TrimSpace(parts[2])
+		protocol := strings.ToLower(strings.TrimSpace(parts[3]))
+		if protocol != "tcp" && protocol != "udp" {
+			return "", fmt.Errorf("invalid port mapping protocol: %q", entry)
+		}
 
 		config += fmt.Sprintf(`
 [[proxies]]
 name = "%s"
-type = "tcp"
+type = "%s"
 localIP = "%s"
 localPort = %s
 remotePort = %s
-`, name, cfg.BackingServiceDNS, port, port)
+`, name, protocol, cfg.BackingServiceDNS, localPort, remotePort)
 	}
 
 	if err := os.WriteFile(frpConfigPath, []byte(config), 0o600); err != nil {
@@ -488,7 +510,16 @@ func buildCommand(ctx context.Context, cfg Config) *exec.Cmd {
 		// "playit") is a separate *service manager* around playitd with no flag
 		// to run a tunnel in the foreground under this file's exec+Wait
 		// supervision model, so playitd -- not playit-cli -- is the binary here.
-		return exec.CommandContext(ctx, "/usr/local/bin/playitd", "--secret-path", playitAuthPath, "--platform-docker")
+		//
+		// --socket-path moves playitd's IPC control socket from its Linux
+		// default (/run/playit/playitd.sock, which this non-root distroless
+		// image can't create) to a fixed /tmp path; the address reporter in
+		// playit_reporter.go polls it for the assigned public address (F-174).
+		return exec.CommandContext(ctx, "/usr/local/bin/playitd",
+			"--secret-path", playitAuthPath,
+			"--socket-path", playitSocketPath,
+			"--platform-docker",
+		)
 	default:
 		return nil
 	}
@@ -558,7 +589,6 @@ type exponentialBackoff struct {
 func (b *exponentialBackoff) next() time.Duration {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.retries++
 
 	// Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 5 minutes.
 	//
@@ -568,6 +598,19 @@ func (b *exponentialBackoff) next() time.Duration {
 	// dedicated relay connection, so there's no herd here to spread out,
 	// and adding one would only make restart timing less predictable to
 	// operators reading logs.
+	//
+	// retries is capped at 10 before the shift: base already saturates at
+	// the 300s cap below by retries==10 (1<<9 = 512 > 300), so counting any
+	// higher never changes the returned delay. The cap matters because,
+	// uncapped, a relay that stays up long enough to reach 64 lifetime
+	// retries hit undefined shift behavior: on a 64-bit int, 1<<63 is
+	// math.MinInt64, which is not > 300 so the cap below was skipped, and
+	// time.Duration(MinInt64)*time.Second wrapped again to 0 -- sending the
+	// supervisor into a busy restart loop from the 64th retry on (F-172).
+	if b.retries < 10 {
+		b.retries++
+	}
+
 	base := 1 << uint(b.retries-1)
 	if base > 300 {
 		base = 300

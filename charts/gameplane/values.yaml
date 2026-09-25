@@ -26,15 +26,19 @@ image:
 # hook closes that gap: a pre-UPGRADE Job runs `kubectl apply --server-side`
 # over the CRDs, so a plain `helm upgrade` always brings the CRD schema up to
 # date. First installs get the CRDs from Helm's native crds/ (no pod), so the
-# hook only runs on upgrades — air-gapped first installs need no extra image.
-# It never deletes CRDs, so `helm uninstall` still leaves your GameServers
-# intact.
+# hook normally runs only on upgrades — air-gapped first installs need no
+# extra image. The exception: a `helm install` onto CRDs an earlier,
+# uninstalled release left behind (crds/ skips existing CRDs), detected by the
+# bundle-hash annotation `make manifests` stamps on every CRD; the hook then
+# also runs on that install (F-218). It never deletes CRDs, so
+# `helm uninstall` still leaves your GameServers intact.
 crds:
   autoApply:
     enabled: true
     # kubectl image the apply Job runs. Any image with kubectl on PATH works;
-    # retag to a private mirror for air-gapped installs (only needed at upgrade
-    # time — first installs don't run the hook).
+    # retag to a private mirror for air-gapped installs (needed at upgrade
+    # time, and also on an install over CRDs an earlier, uninstalled release
+    # left behind — a genuinely fresh first install doesn't run the hook).
     image: registry.k8s.io/kubectl:v1.36.3
     # Pull policy for the kubectl image above. Kept separate from image.pullPolicy
     # so tracking :edge components (image.pullPolicy=Always) doesn't force a

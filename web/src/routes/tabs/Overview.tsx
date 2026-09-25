@@ -278,7 +278,7 @@ export function OverviewTab({
 
           <PlayersCard roster={roster} fallbackOnline={players} />
 
-          <ServerStatusCard name={name} tmpl={tmpl} running={running} gs={gs} />
+          <ServerStatusCard name={name} ns={ns} tmpl={tmpl} running={running} gs={gs} />
 
           <ServerSleepCard gs={gs} />
 
@@ -377,6 +377,9 @@ function PlayersCard({
   fallbackOnline: number;
 }) {
   const online = roster?.online ?? fallbackOnline;
+  // A negative online count is the agent's "unknown" sentinel (RCON
+  // unavailable or a stale heartbeat) — render "—", matching the Players tab.
+  const onlineUnknown = online < 0;
   const names = roster?.players ?? [];
   const supported =
     roster === undefined || roster.capabilities !== undefined;
@@ -386,7 +389,8 @@ function PlayersCard({
       <CardHeader className="border-b border-border px-4 py-3">
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-semibold text-foreground">
-            Players online · <span className="font-mono">{online}</span>
+            Players online ·{" "}
+            <span className="font-mono">{onlineUnknown ? "—" : online}</span>
           </h3>
           {names.length > 0 && (
             <span className="text-xs text-muted">{names.length} listed</span>
@@ -398,6 +402,8 @@ function PlayersCard({
           <p className="text-sm text-muted">
             Player list not supported for this game.
           </p>
+        ) : onlineUnknown ? (
+          <p className="text-sm text-muted">Player count unknown.</p>
         ) : online === 0 ? (
           <p className="text-sm text-muted">No players connected.</p>
         ) : names.length === 0 ? (

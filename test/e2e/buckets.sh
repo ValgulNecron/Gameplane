@@ -36,6 +36,7 @@ cd "$(dirname "$0")"
 bucket_operator() { cat <<'EOF'
 TestHelmInstall_AllPodsReady
 TestHelmInstall_AllCRDsPresent
+TestHelmInstall_CRDApplyHookSkippedOnFreshInstall
 TestHelmInstall_APIHealthz
 TestHelmInstall_APILogsClean
 TestHelmInstall_OperatorLogsClean
@@ -54,6 +55,7 @@ TestGameServer_TemplateDefaultOverridesInstallTime
 TestGameServer_ExplicitStorageClassOverridesDefault
 TestGameServer_NonexistentStorageClassSurfacesError
 TestGameServer_VersionSwitch
+TestGameServer_WipeReportsFailureOnPermissionDenied
 TestGameServer_CascadingDelete
 TestGameServer_IngressNetworkPolicyShapeAndCascade
 TestGameServer_NetworkCaptureStartStopDownload

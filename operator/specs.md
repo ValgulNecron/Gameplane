@@ -238,6 +238,7 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - Create GameTemplate CR with owner reference to Module (delete Module → delete template).
   - Validate operator version against bundle's gameplaneMinVersion.
   - Report InstallFailed condition with root cause (signature mismatch, version too old, fetch failed, etc.).
+  - Retry a Failed Module every `minRefreshInterval` (1 minute) via `RequeueAfter`. A spec change (new generation) or a change to its ModuleSource reconciles it at once. A same-generation retry keeps Phase=Failed while it re-pulls (no Pulling flip), and status is written only when something other than condition timestamps changes, so a Module stuck on the same failure does not rewrite its status or re-queue itself (F-258).
 
 ### ClusterStatusReconciler
 - **Responsibility:** Periodic health checks on remote clusters.
@@ -389,7 +390,7 @@ Forgetting codegen leaves the YAML out of sync with types — CI's `make manifes
 
 3. **Codegen is mandatory after CRD type edits.** Generated deepcopy + YAML must ship in the same commit as type changes.
 
-4. **CRDs are owned by the control plane, not Helm.** Helm's `crds/` is applied only on first install; updates come from a pre-upgrade hook running `kubectl apply --server-side --server-side-apply-manager=gameplane` on every `helm upgrade`. CRDs are never owned or deleted by Helm.
+4. **CRDs are owned by the control plane, not Helm.** Helm's `crds/` is applied only on first install; updates come from a pre-upgrade hook running `kubectl apply --server-side --server-side-apply-manager=gameplane` on every `helm upgrade`, which also fires on a `helm install` over leftover CRDs whose `gameplane.local/crd-bundle-sha256` stamp (written by `make manifests` via `hack/sync-chart-crds.sh`) differs from the chart's (F-218). CRDs are never owned or deleted by Helm.
 
 5. **Agent mTLS is optional but recommended.** Operator boots without `--agent-ca-bundle`/`--agent-client-cert`/`--agent-client-key` (client.Disabled=true); Agent methods silently no-op. Production installs should supply all three.
 
