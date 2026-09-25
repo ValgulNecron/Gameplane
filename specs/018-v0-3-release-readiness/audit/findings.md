@@ -91,7 +91,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-110 | Agent dependencies stale vs go.mod; intentional pin note false | agent | review:agent | S4 | open | | | |
 | F-111 | Agent doc comments contradict current code | agent | review:agent | S4 | open | | | |
 | F-115 | New file truncates existing file | web | review:web | S1 | open | | | |
-| F-116 | Multi-namespace server features 404 | web | review:web | S2 | fixing | #429 | | |
+| F-116 | Multi-namespace server features 404 | web | review:web | S2 | fixed-unverified | #429 | | |
 | F-117 | Settings save merges entire spec, losing concurrent changes | web | review:web | S3 | open | | | |
 | F-118 | Tunnel create blocked by missing Secret | web | review:web | S2 | open | | | |
 | F-119 | Tunnel enable flows fail validation | web | review:web | S2 | open | | | |
@@ -105,7 +105,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-127 | Default namespace not used on server create | web | review:web | S3 | open | | | |
 | F-128 | Modules hash navigation fails | web | review:web | S4 | open | | | |
 | F-129 | Add cluster links to unusable page | web | review:web | S4 | open | | | |
-| F-130 | Namespace row actions disabled | web | review:web | S4 | fixing | #429 | | |
+| F-130 | Namespace row actions disabled | web | review:web | S4 | fixed-unverified | #429 | | |
 | F-131 | Invalid sections don't block save | web | review:web | S4 | open | | | |
 | F-132 | Reset text editor preserves old content | web | review:web | S4 | open | | | |
 | F-133 | Invite dialog retains previous entry | web | review:web | S4 | open | | | |
