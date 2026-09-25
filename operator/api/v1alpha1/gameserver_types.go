@@ -40,7 +40,13 @@ const (
 // GameServerSpec is the desired state of a single game server instance.
 type GameServerSpec struct {
 	// TemplateRef references a GameTemplate that provides defaults for
-	// image, ports, probes, etc. Required.
+	// image, ports, probes, etc. Required. Immutable after creation: the
+	// StatefulSet fields derived from a template (image, selector labels)
+	// cannot be repointed at another template in place, so changing this
+	// after create wedges the StatefulSet reconcile with only an operator
+	// log to explain why (F-047). Delete and recreate the GameServer to
+	// switch templates.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="templateRef is immutable; delete and recreate the GameServer to switch templates"
 	TemplateRef GameTemplateRef `json:"templateRef"`
 
 	// Suspend, when true, scales the underlying StatefulSet to zero.
