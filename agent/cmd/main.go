@@ -157,7 +157,6 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer)
-	r.Use(middleware.Timeout(30 * time.Second))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
@@ -166,15 +165,27 @@ func main() {
 
 	r.Group(func(protected chi.Router) {
 		protected.Use(authCheck.Middleware)
-		files.Mount(protected, dataRoot)
+
+		// Console/Logs open long-lived WebSockets and Mods installs can run
+		// well past a short request deadline (a large download bounded by
+		// its own HTTP client timeout, not the router's). None of these are
+		// ordinary bounded REST calls, so they're mounted without
+		// middleware.Timeout (F-103): applying a request-scoped deadline to
+		// them force-closes the socket / aborts the download every time the
+		// deadline elapses, regardless of whether the stream is still healthy.
 		logs.Mount(protected, gameLogPath)
 		console.Mount(protected, rconClient)
-		players.Mount(protected, rconClient, gameName, playerActions)
-		quiesce.Mount(protected, rconClient, gameName, quiesceSpec)
-		lifecycle.Mount(protected, rconClient, gameName, lifecycleSpec)
-		actions.Mount(protected, rconClient, gameName, actionSpecs)
-		status.Mount(protected, rconClient, statusSpec)
 		mods.Mount(protected, dataRoot, modsSpec)
+
+		protected.Group(func(bounded chi.Router) {
+			bounded.Use(middleware.Timeout(30 * time.Second))
+			files.Mount(bounded, dataRoot)
+			players.Mount(bounded, rconClient, gameName, playerActions)
+			quiesce.Mount(bounded, rconClient, gameName, quiesceSpec)
+			lifecycle.Mount(bounded, rconClient, gameName, lifecycleSpec)
+			actions.Mount(bounded, rconClient, gameName, actionSpecs)
+			status.Mount(bounded, rconClient, statusSpec)
+		})
 	})
 
 	srv := &http.Server{
