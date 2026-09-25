@@ -16,7 +16,7 @@ import { useGameCodes } from "@/lib/useGameCodes";
 import { resolveConsoleMode, serverHasMods, serverHasModpacks } from "@/lib/capabilities";
 import { PhaseChip } from "@/components/ui/PhaseChip";
 import { GameIcon } from "@/components/ui/GameIcon";
-import { capitalize, formatUptime } from "@/lib/utils";
+import { capitalize, formatUptime, ignoreRejection } from "@/lib/utils";
 import { ServerActionsMenu } from "@/components/server/ServerActionsMenu";
 import { CaptureWidget } from "@/components/CaptureWidget";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
@@ -243,7 +243,7 @@ export function ServerDetailPage() {
             {gs && (
               <ServerActionsMenu
                 gs={gs}
-                onDeleted={() => void nav({ to: "/servers" })}
+                onDeleted={() => ignoreRejection(nav({ to: "/servers" }))}
               />
             )}
           </div>
