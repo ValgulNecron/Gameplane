@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	unstructuredpkg "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -70,6 +71,36 @@ type NetworkCaptureStatus struct {
 	BytesWritten *resource.Quantity `json:"bytesWritten,omitempty"`
 	// Message is a human-readable status or error message.
 	Message string `json:"message,omitempty"`
+	// Conditions mirrors the operator's structured status conditions (e.g.
+	// SidecarStopped).
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// CaptureUserStoppedMessage is the status.message StopNetworkCapture writes.
+// It must match operator/internal/controller/networkcapture_controller.go's
+// userStoppedMessage exactly: the operator keys its "tell the sidecar to
+// stop" step on this string.
+const CaptureUserStoppedMessage = "stopped by user request"
+
+// CaptureSidecarStoppedCondition mirrors the operator's
+// SidecarStoppedCondition: set True once the reconciler has told the capture
+// sidecar to stop (and the sidecar's synchronous :stop has closed and
+// flushed the PCAPNG file).
+const CaptureSidecarStoppedCondition = "SidecarStopped"
+
+// FileFinalized reports whether the capture's backing file is safe to
+// download. A user-requested stop sets phase=Completed directly (see
+// StopNetworkCapture) before the sidecar has been told anything — the
+// operator stops the sidecar asynchronously and only then records
+// SidecarStopped=True. Until that condition lands, the sidecar still holds
+// the capture as running (its download endpoint answers 409) and the file
+// is not yet closed. Every other Completed capture was completed by the
+// sidecar itself, which closes the file before reporting completion.
+func (nc *NetworkCapture) FileFinalized() bool {
+	if nc.Status.Phase != CapturePhaseCompleted || nc.Status.Message != CaptureUserStoppedMessage {
+		return true
+	}
+	return meta.IsStatusConditionTrue(nc.Status.Conditions, CaptureSidecarStoppedCondition)
 }
 
 // NetworkCapture mirrors operator/api/v1alpha1.NetworkCapture.
@@ -320,7 +351,7 @@ func (c *Client) StopNetworkCapture(ctx context.Context, ns, name string) (*Netw
 		"status": map[string]any{
 			"phase":          string(CapturePhaseCompleted),
 			"completionTime": now.Format(time.RFC3339),
-			"message":        "stopped by user request",
+			"message":        CaptureUserStoppedMessage,
 		},
 	}
 	patchBytes, err := json.Marshal(patch)
