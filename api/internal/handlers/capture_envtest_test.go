@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
@@ -148,11 +150,38 @@ func TestCapture_StartStopDownload(t *testing.T) {
 		if err := json.NewDecoder(resp.Body).Decode(&stopResp); err != nil {
 			t.Fatalf("decode stop response: %v", err)
 		}
-		if stopResp.Phase != "Completed" {
-			t.Errorf("stop response phase = %s, want Completed", stopResp.Phase)
+		// F-259 (maintainer decision 2026-09-25): stop only requests the
+		// stop via the stop-requested annotation; the operator, not the
+		// API, sets phase=Completed once the sidecar has stopped.
+		if stopResp.Phase == "Completed" {
+			t.Errorf("stop response phase = %s, want the pre-stop phase (the operator completes the capture)", stopResp.Phase)
 		}
 		if stopResp.StoppingReason != "user_requested" {
 			t.Errorf("stop response stoppingReason = %s, want user_requested", stopResp.StoppingReason)
+		}
+
+		ncRes := kubeC.Dynamic.Resource(kube.GVRNetworkCapture).Namespace(scope.DefaultNamespace)
+		u, err := ncRes.Get(context.Background(), captureID, metav1.GetOptions{})
+		if err != nil {
+			t.Fatalf("get capture after stop: %v", err)
+		}
+		if _, ok := u.GetAnnotations()[kube.CaptureStopRequestedAnnotation]; !ok {
+			t.Fatalf("capture annotations = %v, want %s set", u.GetAnnotations(), kube.CaptureStopRequestedAnnotation)
+		}
+
+		// No operator runs in this tier: emulate its reaction to the
+		// annotation (sidecar stopped, then phase=Completed) so the
+		// remaining subtests see the capture the way a real cluster
+		// leaves it.
+		now := time.Now().UTC().Format(time.RFC3339)
+		if err := unstructured.SetNestedField(u.Object, "Completed", "status", "phase"); err != nil {
+			t.Fatalf("set phase: %v", err)
+		}
+		if err := unstructured.SetNestedField(u.Object, now, "status", "completionTime"); err != nil {
+			t.Fatalf("set completionTime: %v", err)
+		}
+		if _, err := ncRes.UpdateStatus(context.Background(), u, metav1.UpdateOptions{}); err != nil {
+			t.Fatalf("emulate operator completing the capture: %v", err)
 		}
 	})
 

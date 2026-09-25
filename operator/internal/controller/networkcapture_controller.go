@@ -52,18 +52,31 @@ type SidecarCaptureClient interface {
 }
 
 // SidecarStoppedCondition marks that the reconciler has already told the
-// sidecar to stop capturing for this NetworkCapture, so a Completed phase
-// set from outside (the API's user-requested stop) triggers exactly one
-// StopCapture call rather than one per reconcile.
+// sidecar to stop capturing for this NetworkCapture (or that a stop was
+// requested before the sidecar ever started it), so a user-requested stop
+// triggers exactly one StopCapture call rather than one per reconcile.
 const SidecarStoppedCondition = "SidecarStopped"
 
-// userStoppedMessage is the status.message the API's StopNetworkCapture
-// writes (api/internal/kube/capture.go) when a user stops a capture early.
-// The reconciler matches on this exact string to distinguish a user-driven
-// stop (sidecar still capturing, needs to be told to stop) from a capture
-// that finished on its own (sidecar already stopped itself). There is no
-// spec-level "stop requested" field to reconcile against instead — see the
-// accepted design in research.md, "Capture lifecycle".
+// stopRequestedAnnotation is how the API asks for a capture to be stopped
+// (F-259; maintainer decision 2026-09-25 — see operator/specs.md, "Network
+// capture stop flow"). The API's StopNetworkCapture
+// (api/internal/kube/capture.go, CaptureStopRequestedAnnotation — the two
+// strings must match) sets it to the RFC3339 time of the first stop request
+// and never touches status. This reconciler tells the sidecar to stop,
+// which closes and flushes the PCAPNG file, and only then sets
+// phase=Completed, so Completed always means the file is downloadable. The
+// annotation is left in place afterwards as a record of the request. It is
+// an annotation rather than a spec field so no CRD schema change is needed.
+const stopRequestedAnnotation = "gameplane.local/stop-requested"
+
+// userStoppedMessage is the status.message of a capture completed because a
+// user asked for it to stop. This reconciler writes it when it completes a
+// stop-requested capture. API versions before F-259 wrote it themselves,
+// together with phase=Completed, straight after the request; the
+// reconciler still recognizes that shape (Completed + this message +
+// no SidecarStopped condition) during a rolling upgrade and stops the
+// sidecar after the fact. See operator/specs.md, "Network capture stop
+// flow".
 const userStoppedMessage = "stopped by user request"
 
 // capturePodUIDAnnotation records, on the NetworkCapture object itself, the
@@ -142,12 +155,20 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// The API's StopNetworkCapture (api/internal/kube/capture.go) sets
-	// phase=Completed directly via a status patch — there is no reconciler
-	// step in between. Before treating that as terminal, make sure the
-	// sidecar is actually told to stop; otherwise it keeps writing packets
-	// until it hits its own max-duration/max-size limit. Guarded by a
-	// condition so this fires exactly once per user-requested stop.
+	// A user asked for this capture to stop (the API's StopNetworkCapture
+	// set stopRequestedAnnotation). Stop the sidecar first, then complete
+	// the capture, so phase=Completed is only ever observed once the file
+	// has been closed (F-259).
+	if _, requested := nc.Annotations[stopRequestedAnnotation]; requested && !isTerminalCapturePhase(nc.Status.Phase) {
+		return r.completeRequestedStop(ctx, &nc)
+	}
+
+	// Rolling-upgrade fallback: an API from before F-259 sets
+	// phase=Completed directly via a status patch, with no reconciler step
+	// in between. Before treating that as terminal, make sure the sidecar
+	// is actually told to stop; otherwise it keeps writing packets until it
+	// hits its own max-duration/max-size limit. Guarded by a condition so
+	// this fires exactly once per user-requested stop.
 	if nc.Status.Phase == gameplanev1alpha1.CapturePhaseCompleted &&
 		nc.Status.Message == userStoppedMessage &&
 		!meta.IsStatusConditionTrue(nc.Status.Conditions, SidecarStoppedCondition) {
@@ -177,17 +198,8 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			LastTransitionTime: metav1.Now(),
 		})
 
-		// Release the GameServer's active capture lock.
-		var gs gameplanev1alpha1.GameServer
-		if err := r.Get(ctx, types.NamespacedName{
-			Namespace: nc.Namespace,
-			Name:      nc.Spec.ServerRef.Name,
-		}, &gs); err == nil {
-			if gs.Status.Capture != nil && gs.Status.Capture.ActiveCapture != nil && *gs.Status.Capture.ActiveCapture == nc.Name {
-				if err := r.patchGameServerActiveCapture(ctx, &gs, nil, stopTime); err != nil {
-					return ctrl.Result{}, fmt.Errorf("release gameserver active capture lock for user-stopped capture %s: %w", nc.Name, err)
-				}
-			}
+		if err := r.releaseActiveCaptureLock(ctx, &nc, stopTime); err != nil {
+			return ctrl.Result{}, err
 		}
 
 		if err := r.Status().Update(ctx, &nc); err != nil {
@@ -519,6 +531,90 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// isTerminalCapturePhase reports whether phase is one the capture can no
+// longer leave through its normal lifecycle (Completed, Failed, Expired).
+func isTerminalCapturePhase(phase gameplanev1alpha1.CapturePhase) bool {
+	switch phase {
+	case gameplanev1alpha1.CapturePhaseCompleted,
+		gameplanev1alpha1.CapturePhaseFailed,
+		gameplanev1alpha1.CapturePhaseExpired:
+		return true
+	}
+	return false
+}
+
+// completeRequestedStop handles a non-terminal capture carrying
+// stopRequestedAnnotation (F-259). A capture still Pending (or not yet
+// reconciled at all) never reached the sidecar, so it is completed without
+// a sidecar call. Otherwise the sidecar is told to stop first — its :stop
+// is synchronous and closes the PCAPNG file — and only then is the capture
+// marked Completed with SidecarStopped=True. A failed sidecar stop (e.g.
+// the pod is already gone) is recorded as SidecarStopFailed but still
+// completes the capture, matching the upgrade-fallback branch in
+// Reconcile, so a vanished sidecar can never wedge a stop.
+func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture) (ctrl.Result, error) {
+	now := metav1.Now()
+	stopped := metav1.Condition{
+		Type:               SidecarStoppedCondition,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: nc.Generation,
+		Reason:             "stopped",
+		Message:            "sidecar told to stop capturing",
+		LastTransitionTime: now,
+	}
+
+	if nc.Status.Phase == "" || nc.Status.Phase == gameplanev1alpha1.CapturePhasePending {
+		stopped.Reason = "never_started"
+		stopped.Message = "stop requested before the sidecar started capturing"
+	} else if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
+		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
+			Type:               "SidecarStopFailed",
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: nc.Generation,
+			Reason:             "sidecar_stop_failed",
+			Message:            err.Error(),
+			LastTransitionTime: now,
+		})
+	}
+	meta.SetStatusCondition(&nc.Status.Conditions, stopped)
+
+	nc.Status.Phase = gameplanev1alpha1.CapturePhaseCompleted
+	nc.Status.CompletionTime = &now
+	nc.Status.Message = userStoppedMessage
+
+	if err := r.releaseActiveCaptureLock(ctx, nc, &now); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.Status().Update(ctx, nc); err != nil {
+		return ctrl.Result{}, fmt.Errorf("complete user-stopped capture %s: %w", nc.Name, err)
+	}
+	return ctrl.Result{}, nil
+}
+
+// releaseActiveCaptureLock clears the owning GameServer's
+// status.capture.activeCapture when it still points at nc, recording
+// stopTime as the last capture time. A missing GameServer is not an error:
+// there is no lock left to release.
+func (r *NetworkCaptureReconciler) releaseActiveCaptureLock(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture, stopTime *metav1.Time) error {
+	var gs gameplanev1alpha1.GameServer
+	err := r.Get(ctx, types.NamespacedName{
+		Namespace: nc.Namespace,
+		Name:      nc.Spec.ServerRef.Name,
+	}, &gs)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("get gameserver %s to release capture lock for %s: %w", nc.Spec.ServerRef.Name, nc.Name, err)
+	}
+	if gs.Status.Capture != nil && gs.Status.Capture.ActiveCapture != nil && *gs.Status.Capture.ActiveCapture == nc.Name {
+		if err := r.patchGameServerActiveCapture(ctx, &gs, nil, stopTime); err != nil {
+			return fmt.Errorf("release gameserver active capture lock for user-stopped capture %s: %w", nc.Name, err)
+		}
+	}
+	return nil
 }
 
 // ensureOwnerReference sets a controller owner reference from nc to gs, if
