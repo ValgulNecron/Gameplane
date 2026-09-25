@@ -204,13 +204,14 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
   - Returns 404 if capture phase == Expired (TTL window elapsed)
   - Returns 409 if capture phase == Pending or Running (still recording)
   - Proxies from sidecar's `https://<gs>-agent.<ns>.svc.cluster.local:9091/captures/{id}/file` over mTLS
+  - Home cluster only: that Service name resolves in the API's own cluster and the mTLS material is the home cluster's, so a `?cluster=` naming any other registered cluster returns 501 not implemented (no cross-cluster agent yet) before any lookup, audited with reason "cluster_not_local" (see Authorization → Home-cluster-only routes)
   - **CRITICAL (FR-006):** Audit `WriteSync()` with status code BEFORE streaming starts (on both success and error paths); if audit write fails, returns 500 and stops download entirely (audit failure fails the operation)
   - Sets response headers: `Content-Type: application/vnd.tcpdump.pcap`, `Content-Disposition: attachment; filename="capture-{id}.pcapng"`
   - Streams file without buffering via `io.Copy(responseWriter, sidecarResponse.Body)` so large captures don't accumulate in memory
   - On sidecar error (non-2xx), classifies via `writeUpstreamError` (timeout→504, other transport error→502); error message is safe generic text to client, full error logged server-side
   - Audit reason field: "not_found", "not_running", "expired", "invalid_host", "download_failed", or "" on success; a second audit row (with "download_failed") is written post-stream if sidecar returned non-2xx (to correct the initial optimistic row)
 
-- **Error responses:** All errors are plain text via `httperr.WriteCode()`, no JSON envelope. Status codes: 400 (validation), 404 (not found), 409 (conflict/wrong state), 503 (sidecar unavailable), 500 (internal error)
+- **Error responses:** All errors are plain text via `httperr.WriteCode()`, no JSON envelope. Status codes: 400 (validation), 404 (not found), 409 (conflict/wrong state), 501 (non-home `?cluster=`: no cross-cluster agent yet), 503 (sidecar unavailable), 500 (internal error)
 
 **Fully implemented endpoints (all routing registered, RBAC gated, handlers complete):**
 
@@ -423,6 +424,7 @@ audit:read, config:read, config:manage (cluster-scoped)
 13. **WebSocket/HTTP proxy path validation:** `api/internal/ws/dialer.go` takes the namespace and pod name from the request path before building the agent's upstream URL. Both are validated as DNS-1123 labels (`isDNS1123Label`) and rejected with a 400 before any URL is constructed — gosec's taint analysis doesn't model a custom validator as a sanitizer, hence the scoped G704 exclusion on that file.
 14. **Capture rule-table ordering:** All 8 capture permission checks (POST `:capture-enable`, `:capture-disable`, `:capture-start`, `:capture-stop`; GET `:captures`, `:capture`, `:capture-file`; DELETE `:capture`) **MUST precede** the `servers:write` catch-all rule in `api/internal/rbac/rbac.go` lines 189-196 before line 211. Because all `/servers/{name}:verb` paths match the segment "servers" (chi's `{name}` segment strips the verb suffix), an unordered insertion after `servers:write` (which the operator role holds) would **silently grant all 8 capture endpoints to the operator role**, breaking the security requirement that only admin has capture permissions (FR-005/SC-005). This regression is a structural bug CI does not currently catch — moving the capture rules after servers:write is a one-line security break. Any future RBAC edits must preserve this order; consider a structural test to prevent silent reordering.
 15. **Helm-seeded OIDC role mappings:** The "helm" provider is synthesized from CLI flags and the optional helmOverride overlay. No database migration carries the Helm seed; it lives only in flags. The helmOverride.roleMappings lives on the existing "auth" config row, per-role independently optional (key presence = overridden, absence = use Helm seed). Re-evaluated at login time so changes take effect without restart. Demotion guard prevents removing the last user able to manage users.
+16. **Home-cluster-only routes:** Handlers built on the API's home-cluster client, and routes that reach agent or sidecar Services, serve the home cluster only and answer 501 not implemented (no cross-cluster agent yet) for a `?cluster=` naming any other registered cluster, so a permission granted on one cluster is never applied to another. The route list and its tests are under Authorization → Home-cluster-only routes.
 
 ## Dependencies
 
@@ -522,6 +524,12 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 - **RBAC middleware:** intercepts all protected routes; namespace + cluster gating
 - **Owner/collaborator fallback:** fallback only when RBAC denies AND GameServer is explicitly named; fail-closed on malformed paths
 - **Cluster dispatch validation:** `?cluster=` against registry; unknown cluster is a 400 (malformed request, not 403 forbidden)
+- **Home-cluster-only routes:** some server-scoped handlers are built on the API's own (home) cluster client instead of the cluster registry, or reach agent and sidecar Services that resolve only in the home cluster. They serve the home cluster only: a `?cluster=` naming any other registered cluster answers 501 not implemented (no cross-cluster agent yet) before the handler reads or writes anything (`rejectRemoteCluster` and `isRemoteCluster` in `handlers/resources.go`, `rejectRemoteCluster` in `ws/dialer.go`), so a permission is only ever applied to the cluster it was granted on. The routes are:
+  - the mod registry browser and modpack install (`MountRegistry`): GET `/servers/{name}/mods/registry/providers`, `/servers/{name}/mods/registry/search`, `/servers/{name}/mods/registry/projects/{project}/versions`, `/servers/{name}/mods/registry/projects/{project}/modpack`, and POST `/servers/{name}/modpack`
+  - the mod update check (GET `/servers/{name}/mods/updates`) and the mod-id list (GET/PUT `/servers/{name}/mods/ids`)
+  - the capture file download (GET `/servers/{name}:capture-file`), which also records the refusal in the audit log with reason "cluster_not_local"
+  - every agent and pod route in `api/internal/ws`: console, PTY console, logs, pod logs, log download, files, players, actions, status and mods
+  - Tests: `TestHomeClientMounts_ServeHomeClusterOnly` (`handlers/cluster_guard_test.go`) calls every route of every mount that `cmd/main.go` builds with the home-cluster client, as a user whose only grant is on another cluster, and checks that the home-cluster client sees no call. `TestHomeClientMounts_MatchMain` (`cmd/mounts_test.go`) fails when `main.go` passes that client to a mount the first test doesn't cover. The multicluster e2e bucket (`TestMultiCluster_ClusterDispatchAndScopedRBAC`) checks the registry, modpack and capture download routes across two real clusters.
 
 ### Audit
 - **Scope:** every mutating request (POST/PATCH/DELETE); reads excluded

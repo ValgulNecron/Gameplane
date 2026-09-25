@@ -38,6 +38,11 @@ type registrySet interface {
 // server-scoped so the API resolves the active version's loader and
 // game-version token from the cluster (the operator is authoritative). A
 // game may declare multiple providers; the client picks one via ?provider=.
+//
+// The handlers hold the home-cluster client, so every route serves the home
+// cluster only: each one calls rejectRemoteCluster first, and a non-local
+// `?cluster=` selector answers 501 Not Implemented (no cross-cluster agent
+// yet), as MountModIDs and MountModUpdates do.
 func MountRegistry(r chi.Router, k *kube.Client, reg registrySet) {
 	h := &registryHandler{k: k, reg: reg}
 	r.Get("/servers/{name}/mods/registry/providers", h.providers)
@@ -64,6 +69,9 @@ type providerInfo struct {
 // which are usable (engine configured) and which offer modpacks. The
 // dashboard shows a provider switch from this.
 func (h *registryHandler) providers(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
@@ -86,6 +94,9 @@ func (h *registryHandler) providers(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *registryHandler) search(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
@@ -123,6 +134,9 @@ func (h *registryHandler) search(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *registryHandler) versions(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
@@ -147,6 +161,9 @@ func (h *registryHandler) versions(w http.ResponseWriter, req *http.Request) {
 // then installs one-by-one via /mods/install (deps-mode providers, e.g.
 // Thunderstore).
 func (h *registryHandler) modpackDeps(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
@@ -169,6 +186,9 @@ func (h *registryHandler) modpackDeps(w http.ResponseWriter, req *http.Request) 
 // rolls out. Deps-mode providers (no refEnv) are installed via modpackDeps
 // + /mods/install instead, so they get a 409 here.
 func (h *registryHandler) installModpack(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return

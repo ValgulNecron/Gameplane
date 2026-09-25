@@ -87,24 +87,34 @@ func resolveCluster(w http.ResponseWriter, req *http.Request, reg *kube.Registry
 	return c, true
 }
 
-// rejectRemoteCluster 404s a request carrying a non-local `?cluster=`
-// selector, for handlers that hold a bare *kube.Client (the LOCAL/home
-// cluster only) instead of a cluster-dispatch *kube.Registry — MountModIDs
-// and MountModUpdates. rbac.Middleware (api/internal/rbac/rbac.go)
-// authorizes namespaced permissions against whatever `?cluster=` the caller
-// supplies; without this guard, a user bound only to a registered REMOTE
-// cluster could pass `?cluster=<remote>` to satisfy that check while still
-// reaching the LOCAL cluster's same-named GameServer here. A non-local
-// selector 404s (not 400/403): these handlers have no notion of "that
-// cluster" to even be forbidden from. See ws.rejectRemoteCluster for the
-// WS-side twin of this guard. Returns true if the request was rejected
-// (caller must stop processing).
+// rejectRemoteCluster answers 501 Not Implemented for a request carrying a
+// non-local `?cluster=` selector, for handlers that hold a bare *kube.Client
+// (the LOCAL/home cluster only) instead of a cluster-dispatch *kube.Registry —
+// MountModIDs, MountModUpdates and MountRegistry. These routes serve only the
+// home cluster until a cross-cluster agent exists to serve them on a remote
+// cluster, so 501 (with a readable reason) is the honest answer.
+//
+// The guard must also stay in place for correctness: rbac.Middleware
+// (api/internal/rbac/rbac.go) authorizes namespaced permissions against
+// whatever `?cluster=` the caller supplies, so without it a user bound only
+// to a registered REMOTE cluster could pass `?cluster=<remote>` to satisfy
+// that check while still reaching the LOCAL cluster's same-named GameServer
+// here. See ws.rejectRemoteCluster for the WS-side twin of this guard.
+// Returns true if the request was rejected (caller must stop processing).
 func rejectRemoteCluster(w http.ResponseWriter, req *http.Request) bool {
-	if c := strings.TrimSpace(req.URL.Query().Get("cluster")); c != "" && c != scope.DefaultCluster {
-		http.NotFound(w, req)
+	if isRemoteCluster(req) {
+		httperr.WriteRemoteClusterNotImplemented(w)
 		return true
 	}
 	return false
+}
+
+// isRemoteCluster reports whether req carries a `?cluster=` selector naming
+// a cluster other than the home cluster (scope.DefaultCluster). An absent or
+// blank selector means the home cluster.
+func isRemoteCluster(req *http.Request) bool {
+	c := strings.TrimSpace(req.URL.Query().Get("cluster"))
+	return c != "" && c != scope.DefaultCluster
 }
 
 func listHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.HandlerFunc {

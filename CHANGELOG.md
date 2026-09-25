@@ -149,6 +149,7 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Security hardening
 
+- **api:** hardened multi-cluster request scoping.
 - **operator:** hardened module bundle integrity checks.
 - **web:** hardened the Admin Settings draft and managed-secret lifecycle.
 
