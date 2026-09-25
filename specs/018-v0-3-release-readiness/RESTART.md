@@ -94,6 +94,21 @@ Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #
   - (c) filed as F-260.
 - **F-259 follow-up:** the operator-side redesign goes on the new branch `fix/018-capture-stop-operator`, because #449 merged the API-side wait first.
 
+## 3c. Session-5 wave-1 PRs (state at 2026-09-25 ~12:50 UTC)
+
+| PR | Content | State |
+|---|---|---|
+| #430 | held H01 plus the 501 change | Green on `592b9771`; ready to merge. |
+| #450 | group 30: F-238..F-244 (CI reporting and trigger gaps) | `chart render` fix pushed as `310d0516`; `go (agent / amd64)` then went red and is being triaged. |
+| #451 | group 10: F-046, F-047, F-050 (module flap, templateRef made immutable by CEL, template recreate) | `go (api)` red on both arches, probably api tests that change templateRef; being fixed. |
+| #452 | group 29: F-232, F-234, F-255, F-237 (kind dev tooling) | `chart render` red; being fixed. |
+| #453 | F-259 follow-up: the operator-side capture stop (maintainer-chosen design) | Opened; CI pending. **Sign-off needed** on the `networkcapture_envtest_test.go` disable assertion (now expects the annotation). |
+| #454 | group 14: F-044, F-045, F-048, F-049 (backup quiesce lifecycle) | Opened; CI pending. |
+| #455 | group 22: F-126, F-137 (web silent failures) | Opened; CI pending. |
+| (group 27) | F-216, F-217 (PodMonitor TLS, telemetry scrape) | Branch `fix/018-charts-observability-scrape` exists only locally, in scratchpad/wtg27. **Needs a maintainer decision:** the fix gave Prometheus the agent's full mTLS client cert, which the agent accepts for all control routes. Options: a separate plain metrics port on the agent, a separate scrape-only CA/cert that the agent checks for /metrics only, or drop the agent PodMonitor. |
+
+The cloud container restarted twice. The scratchpad worktrees survived, but re-check them after a restart. The helper `scratchpad/merged.sh PR "IDs" "label"` records a merge in findings.md and this file.
+
 ## 4. Next (in order)
 
 1. Finish the in-flight items above. Review each agent's result (one tier up), push, and watch until green.
