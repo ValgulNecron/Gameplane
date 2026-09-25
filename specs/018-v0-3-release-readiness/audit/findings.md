@@ -207,6 +207,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-255 | make dev-load loads 4 of 12 built images | deploy/ | review:deploy | S3 | open | | | |
 | F-257 | Release image job times out building the multi-arch operator image, so an RC publishes no operator image, chart or GitHub release | .github/workflows/ | review:.github/workflows | S2 | fixed-unverified | #435 | | seen on the `v0.3.0-rc.1` release run (T014); ID after F-255 assumes F-256 is taken in the held list, so check on the devbox |
 | F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | fixing | #445 | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
+| F-259 | Capture download returns 409 right after a user stop although the capture reads Completed | api | ci:e2e | S3 | fixing | #449 | | seen as sporadic arm64 e2e failures on unrelated PRs (#441); same caveat on the ID as F-257 |
 
 ## Details
 
@@ -2924,3 +2925,18 @@ Control: the optional telemetry-receiver Service accepts ingress on port 8080 on
 **Actual:** Continuous status churn on every Failed Module: apiserver write load, and conflicts for any client that updates the Module (the dashboard or kubectl) while it is Failed.
 
 **Evidence:** CI job 107809566821 (`TestModule_DigestPinCheckedOnReadyModule`, conflict at `module_verify_envtest_test.go:186`); `operator/internal/controller/module_controller.go` (`markPullingTransition`, `markFailed`).
+
+### F-259
+
+**Repro / observation**
+1. Start a capture, then `POST /servers/{name}:capture-stop`. It returns 200, and the NetworkCapture reads `phase=Completed` at once, because `StopNetworkCapture` (`api/internal/kube/capture.go`) patches the phase directly.
+2. Straight away, `GET /servers/{name}:capture-file?id=…` returns 409. The download handler checks only the phase, so it proxies to the sidecar. The sidecar still holds the capture as running (`capture-sidecar/internal/httpserver/handlers.go`), because the operator's reconcile that tells the sidecar to stop and sets `SidecarStopped=True` (`operator/internal/controller/networkcapture_controller.go`) hasn't run yet.
+3. Seen in CI as a sporadic failure: `TestGameServer_NetworkCaptureStartStopDownload` on arm64 kind (run 36074674471, job 107886876010), on a PR that didn't touch capture code.
+
+**Expected:** Completed means the file is downloadable.
+
+**Actual:** The download fails with 409 until the operator reconciles; a retry succeeds.
+
+**Evidence:** CI job 107886876010 (`gameserver_e2e_test.go:630`, `download capture file: status=409 Conflict`).
+
+**Note:** an earlier amd64 failure, `TestGameServer_NetworkCaptureEphemeralContainer` (run 36067327578, job 107864038508, "status.capture.ready still false" after 90s), is a different symptom: the ephemeral sidecar was never reported running. Its cause wasn't found, because the pod was gone before the dump ran. Watch for a repeat.
