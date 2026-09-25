@@ -144,8 +144,8 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-174 | Playit endpoint not written to GameServer status | tunnel | review:tunnel | S3 | fixing | #447 | | |
 | F-175 | Troubleshooting docs use wrong label selector | tunnel | review:tunnel | S4 | open | | | |
 | F-176 | Specs file misses sections, lists stale dependency | tunnel | review:tunnel | S4 | open | | | |
-| F-179 | Connected session cut on game-pod Ready | sentinel | review:sentinel | S3 | fixing | #446 | | |
-| F-180 | TCP listen error not logged while waiting for async UDP error | sentinel | review:sentinel | S3 | fixing | #446 | | |
+| F-179 | Connected session cut on game-pod Ready | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |
+| F-180 | TCP listen error not logged while waiting for async UDP error | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |
 | F-181 | Startup error exits 0 instead of non-zero | sentinel | review:sentinel | S4 | open | | | |
 | F-182 | Close errors logged on healthy proxied connections | sentinel | review:sentinel | S4 | open | | | |
 | F-183 | Hostport hold-window asymmetry undocumented | sentinel | review:sentinel | S4 | open | | | |
