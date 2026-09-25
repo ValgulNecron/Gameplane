@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
 func newSrv(t *testing.T, game string, rc Rcon) *httptest.Server {
@@ -172,5 +174,40 @@ func TestUnsupportedCommander_ParseBanList(t *testing.T) {
 	got := unsupportedCommander{}.ParseBanList("anything")
 	if got != nil {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+// TestPlayers_UnknownRepresentationIsConsistent locks in F-106: a game with
+// RCON disabled entirely and a game with RCON enabled but no recognized
+// player-list format (no capabilities.players declared) must report the
+// same "unknown" sentinel — online=-1, max=-1 — never the two different
+// shapes (-1/-1 vs 0/0) the agent used to emit.
+func TestPlayers_UnknownRepresentationIsConsistent(t *testing.T) {
+	t.Parallel()
+
+	noRCON := newSrv(t, "cs2-018-no-rcon", rcon.Disabled{})
+	rconNoFormat := newSrv(t, "cs2-018-no-format", &fakeRcon{
+		respond: func(string) (string, error) {
+			return "hostname: my server\nplayers : 0 humans, 0 bots (16 max)\n", nil
+		},
+	})
+
+	for _, srv := range []*httptest.Server{noRCON, rconNoFormat} {
+		resp, err := testGet(t, srv.URL+"/players")
+		if err != nil {
+			t.Fatalf("GET /players: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status=%d body=%s", resp.StatusCode, b)
+		}
+		var snap Snapshot
+		if err := json.NewDecoder(resp.Body).Decode(&snap); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if snap.Online != -1 || snap.Max != -1 {
+			t.Fatalf("snapshot=%+v, want online=-1 max=-1 (unknown)", snap)
+		}
 	}
 }

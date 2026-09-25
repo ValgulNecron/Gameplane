@@ -126,7 +126,13 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 	agent := map[string]any{
 		"lastHeartbeat": metav1.Now().UTC().Format(time.RFC3339),
 		"version":       cfg.Version,
-		"gameVersion":   cfg.Game,
+		// gameVersion: the agent has no source for the game's actual
+		// running version. cfg.Game is the template's game identifier
+		// (e.g. "minecraft-java", "palworld"), not a version string, and
+		// must not be reported as one (spec 018 F-105). Patch null so a
+		// merge patch clears any stale value from before this fix, same
+		// as the unknown-is-null contract used below for players/usage.
+		"gameVersion": nil,
 	}
 
 	// Prepare the metrics snapshot. Will be updated below as we gather data.

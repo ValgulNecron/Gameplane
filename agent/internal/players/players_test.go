@@ -40,9 +40,9 @@ func TestParseList(t *testing.T) {
 			Snapshot{Online: 3, Max: 30, Players: []string{"a", "b", "c"}},
 		},
 		{
-			"unrecognized line",
+			"unrecognized line is unknown, not zero (F-106)",
 			"nonsense",
-			Snapshot{Players: []string{}},
+			Snapshot{Online: -1, Max: -1, Players: []string{}},
 		},
 	}
 	for _, tc := range cases {

@@ -57,7 +57,7 @@ func TestSendOnce(t *testing.T) {
 		ServerName: "srv",
 		Namespace:  "ns",
 		Version:    "v1",
-		Game:       "minecraft-1.20",
+		Game:       "minecraft-java",
 		RCON:       fakeRcon{out: "There are 4 of a max"},
 	}
 	if err := sendOnce(context.Background(), dyn, cfg); err != nil {
@@ -72,8 +72,14 @@ func TestSendOnce(t *testing.T) {
 	if agent["playersOnline"].(float64) != 4 {
 		t.Fatalf("playersOnline=%v", agent["playersOnline"])
 	}
-	if agent["version"].(string) != "v1" || agent["gameVersion"].(string) != "minecraft-1.20" {
+	if agent["version"].(string) != "v1" {
 		t.Fatalf("agent payload=%+v", agent)
+	}
+	// F-105: gameVersion must never echo cfg.Game (a template id like
+	// "minecraft-java", not a version) — it patches null until the agent
+	// has a real version source.
+	if v, ok := agent["gameVersion"]; !ok || v != nil {
+		t.Fatalf("gameVersion=%v (%T), want explicit null", v, v)
 	}
 	if _, ok := agent["lastHeartbeat"].(string); !ok {
 		t.Fatalf("lastHeartbeat missing or wrong type: %+v", agent)
