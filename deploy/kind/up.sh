@@ -19,11 +19,16 @@ REG_NAME="kind-registry"
 REG_HOST_PORT="${GAMEPLANE_REG_HOST_PORT:-5001}"
 REG_INTERNAL_PORT=5000
 
-need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
-need kind
-need kubectl
-need helm
-need docker
+# F-232: a re-run of this script (cluster already exists) must not silently
+# act on whatever context `kubectl`/`helm` currently have selected — it has
+# to stay pinned to this cluster's own context, kind-${CLUSTER}, on every
+# call. `kind create cluster` sets the current-context as a side effect on
+# first create, which is exactly the behavior that hides this bug: it only
+# shows up on a second run against an already-existing cluster, once some
+# other context has since become current. Shadow `kubectl` for the rest of
+# this script instead of threading --context through every call site.
+KCTX="kind-${CLUSTER}"
+kubectl() { command kubectl --context "${KCTX}" "$@"; }
 
 # MetalLB manifest pin. Bumping it is a deliberate edit — never fetch a
 # floating ref, or a fresh cluster silently changes its load-balancer
@@ -144,12 +149,47 @@ EOF
 # Bring up a registry container if there isn't one. Same recipe as
 # https://kind.sigs.k8s.io/docs/user/local-registry/ — keeps the data
 # inside Docker so it survives kind cluster recreates.
-if [ "$(docker inspect -f '{{.State.Running}}' "${REG_NAME}" 2>/dev/null || true)" != "true" ]; then
-    echo "starting local registry ${REG_NAME} on localhost:${REG_HOST_PORT}"
-    docker run -d --restart=always \
-        -p "127.0.0.1:${REG_HOST_PORT}:${REG_INTERNAL_PORT}" \
-        --name "${REG_NAME}" registry:2 >/dev/null
+#
+# F-234: a container that exists but is stopped (e.g. after a host reboot,
+# or `docker stop kind-registry` by hand) is neither "running" nor absent.
+# `docker inspect` on it still succeeds, so the naive running-check above
+# would try `docker run --name kind-registry` again, which fails on the
+# name conflict and — under `set -e` — aborts the whole bootstrap. Restart
+# the existing container in that case instead of trying to create a new one.
+#
+# Pulled into its own function (rather than inline) so
+# hack/test-up-registry.sh can source this file and exercise all three
+# states (absent / stopped / running) against a stubbed `docker`.
+ensure_registry() {
+    local state
+    state="$(docker inspect -f '{{.State.Running}}' "${REG_NAME}" 2>/dev/null || true)"
+    if [ "${state}" = "true" ]; then
+        : # already running
+    elif [ -n "${state}" ]; then
+        echo "restarting stopped local registry ${REG_NAME}"
+        docker start "${REG_NAME}" >/dev/null
+    else
+        echo "starting local registry ${REG_NAME} on localhost:${REG_HOST_PORT}"
+        docker run -d --restart=always \
+            -p "127.0.0.1:${REG_HOST_PORT}:${REG_INTERNAL_PORT}" \
+            --name "${REG_NAME}" registry:2 >/dev/null
+    fi
+}
+
+# Allow hack/test-up-registry.sh to `source` this script (to reach
+# ensure_registry and the kubectl() wrapper above) without running the rest
+# of the bootstrap or requiring kind/kubectl/helm/docker to be installed.
+if [ -n "${GAMEPLANE_UP_SH_SOURCE_ONLY:-}" ]; then
+    return 0 2>/dev/null || exit 0
 fi
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
+need kind
+need kubectl
+need helm
+need docker
+
+ensure_registry
 
 if kind get clusters | grep -qx "${CLUSTER}"; then
     echo "cluster ${CLUSTER} already exists — skipping create"

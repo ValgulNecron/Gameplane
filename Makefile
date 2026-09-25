@@ -246,8 +246,16 @@ test-doc-versions: ## Run the fixture tests for hack/check-doc-versions.sh
 check-links: ## Verify internal documentation links and anchors resolve
 	hack/check-links.sh
 
+.PHONY: check-dev-load-images
+check-dev-load-images: ## Verify `dev-load` loads every image `images` builds
+	hack/check-dev-load-images.sh
+
+.PHONY: test-up-registry
+test-up-registry: ## Run the fixture tests for deploy/kind/up.sh's registry/context bootstrap
+	hack/test-up-registry.sh
+
 .PHONY: lint
-lint: check-doc-versions check-links check-specs lint-go lint-web ## Run all linters
+lint: check-doc-versions check-links check-specs check-dev-load-images test-up-registry lint-go lint-web ## Run all linters
 
 .PHONY: lint-go
 lint-go: ## Run golangci-lint across all modules
@@ -262,6 +270,16 @@ lint-web: ## Run web linters
 # -------- images --------
 # Standard-shaped images (Dockerfile path = <dir>/Dockerfile)
 IMAGES := operator api web agent telemetry-receiver sentinel mcp-server capture-sidecar
+
+# The full set of image names `make images` builds, by their docker tag
+# names (not their Makefile target names — audit-syslog-bridge and the three
+# tunnel-* images use non-standard target names but standard tags). Kept in
+# sync with `images`'s prerequisite list below; `dev-load` (F-255) loads
+# every name here so opt-in components (mcp-server, capture, quiesce/
+# sentinel, a tunnel relay, telemetry-receiver, the audit-syslog bridge)
+# work out of the box on a Kind dev cluster instead of silently failing to
+# pull their image.
+ALL_IMAGE_NAMES := $(IMAGES) audit-syslog-bridge tunnel-frp tunnel-tailscale tunnel-playit
 
 .PHONY: images
 images: $(addprefix image-,$(IMAGES)) image-audit-syslog image-tunnel-frp image-tunnel-tailscale image-tunnel-playit ## Build all container images
@@ -369,11 +387,10 @@ else
 	$(MAKE) dev-install
 endif
 
-dev-load: ## Load local images into kind cluster (kind only)
-	kind load docker-image $(REGISTRY)/operator:$(TAG) --name $(KIND_CLUSTER)
-	kind load docker-image $(REGISTRY)/api:$(TAG)      --name $(KIND_CLUSTER)
-	kind load docker-image $(REGISTRY)/web:$(TAG)      --name $(KIND_CLUSTER)
-	kind load docker-image $(REGISTRY)/agent:$(TAG)    --name $(KIND_CLUSTER)
+dev-load: ## Load every image `make images` builds into the kind cluster (kind only)
+	@for img in $(ALL_IMAGE_NAMES); do \
+		kind load docker-image $(REGISTRY)/$$img:$(TAG) --name $(KIND_CLUSTER) || exit $$?; \
+	done
 
 dev-push: ## Push operator/api/web/agent images to REGISTRY (remote clusters)
 	docker push $(REGISTRY)/operator:$(TAG)

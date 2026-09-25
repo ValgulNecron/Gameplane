@@ -255,7 +255,8 @@ The `make dev-up` target:
 1. creates a kind cluster from `deploy/kind/cluster.yaml` and a local
    OCI registry at `localhost:5001` (reachable from cluster pods as
    `kind-registry:5000`),
-2. loads locally-built operator/api/agent images,
+2. loads every locally-built image (operator, api, web, agent, and every
+   optional component's image),
 3. pushes every directory under `modules/` (16 games at last count — see
    `modules/` for the current list) to the local registry as an OCI module
    bundle,
