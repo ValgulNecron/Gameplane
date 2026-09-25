@@ -57,7 +57,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-049 | Restore does not delete post-snapshot files | operator | review:operator | S3 | open | | | |
 | F-050 | Deleted managed GameTemplate not recreated on next reconcile | operator | review:operator | S3 | open | | | |
 | F-051 | Capture expiration waits for unreachable sidecar | operator | review:operator | S4 | open | | | |
-| F-052 | UDP tunnel forwarding sends TCP | operator | review:operator | S3 | fixing | #428 | | |
+| F-052 | UDP tunnel forwarding sends TCP | operator | review:operator | S3 | fixed-unverified | #428 | | |
 | F-054 | Wipe always succeeds even if it failed | operator | review:operator | S3 | fixing | #436 | | |
 | F-055 | TunnelHostnameIgnored condition not removed | operator | review:operator | S4 | open | | | |
 | F-056 | Address not validated before sending to MetalLB/Cilium | operator | review:operator | S4 | open | | | |
@@ -139,8 +139,8 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-168 | Version mismatch warning not implemented | gp-module | review:gp-module | S4 | open | | | |
 | F-170 | Docs claim adoption that didn't happen | svcutil | review:svcutil | S4 | open | | | |
 | F-171 | Specs outdated: sections missing and test count wrong | svcutil | review:svcutil | S4 | open | | | |
-| F-172 | Exponential backoff overflows after 64 retries | tunnel | review:tunnel | S3 | fixing | #428 | | |
-| F-173 | Tailscale config drops backing service settings | tunnel | review:tunnel | S2 | fixing | #428 | | |
+| F-172 | Exponential backoff overflows after 64 retries | tunnel | review:tunnel | S3 | fixed-unverified | #428 | | |
+| F-173 | Tailscale config drops backing service settings | tunnel | review:tunnel | S2 | fixed-unverified | #428 | | |
 | F-174 | Playit endpoint not written to GameServer status | tunnel | review:tunnel | S3 | fixing | #447 | | |
 | F-175 | Troubleshooting docs use wrong label selector | tunnel | review:tunnel | S4 | open | | | |
 | F-176 | Specs file misses sections, lists stale dependency | tunnel | review:tunnel | S4 | open | | | |
