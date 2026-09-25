@@ -3,7 +3,7 @@
   "id": "Dpb9f",
   "x": 4920,
   "y": 18965,
-  "name": "Screen/Users & RBAC — Identity providers",
+  "name": "Screen/Users & RBAC \u2014 Identity providers",
   "theme": {
     "semantic": "dark"
   },
@@ -137,7 +137,7 @@
                   "fill": "$muted",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "OIDC identity providers configured in Helm values appear here. UI configuration is tracked for v1.1.",
+                  "content": "Identity providers are configured in Admin Settings \u2192 Authentication.",
                   "lineHeight": 1.5,
                   "fontFamily": "$typography/font-sans",
                   "fontSize": 14,

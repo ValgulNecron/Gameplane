@@ -1,9 +1,9 @@
 {
   "type": "frame",
-  "id": "XR0f9",
-  "x": 37000,
+  "id": "gWqMD",
+  "x": 43160,
   "y": 10375,
-  "name": "Screen/Server Detail \u2014 Settings \u00b7 Danger zone",
+  "name": "Screen/Server Detail \u2014 Settings \u00b7 Access (Read-only)",
   "theme": {
     "semantic": "dark"
   },
@@ -13,7 +13,7 @@
   "fill": "$background/background",
   "children": [
     {
-      "id": "BW0QU",
+      "id": "V1c3c",
       "type": "ref",
       "ref": "kKFX9",
       "height": "fill_container",
@@ -40,7 +40,7 @@
     },
     {
       "type": "frame",
-      "id": "xpoec",
+      "id": "FRlN3",
       "name": "Main",
       "width": "fill_container",
       "height": "fill_container",
@@ -48,7 +48,7 @@
       "layout": "vertical",
       "children": [
         {
-          "id": "V9Edp",
+          "id": "HfS6g",
           "type": "ref",
           "ref": "gu5WY",
           "width": "fill_container",
@@ -60,7 +60,7 @@
         },
         {
           "type": "frame",
-          "id": "ZPWSX",
+          "id": "Fvqzu",
           "name": "Body",
           "width": "fill_container",
           "height": "fill_container",
@@ -70,14 +70,14 @@
           "padding": 24,
           "children": [
             {
-              "id": "g7Xkt",
+              "id": "p0PAHj",
               "type": "ref",
               "ref": "S4k0x",
               "name": "Detail Header",
               "width": "fill_container"
             },
             {
-              "id": "mQyth",
+              "id": "a5hnM",
               "type": "ref",
               "ref": "I9kvlZ",
               "name": "Tabs Bar",
@@ -105,13 +105,13 @@
             },
             {
               "type": "frame",
-              "id": "X7JocH",
+              "id": "e0mPQU",
               "name": "Settings Content",
               "width": "fill_container",
               "height": "fill_container",
               "children": [
                 {
-                  "id": "XSkUr",
+                  "id": "j3VCM",
                   "type": "ref",
                   "ref": "EV8mp",
                   "name": "Settings Sub Nav",
@@ -124,14 +124,17 @@
                     "QrhqW": {
                       "fill": "#00000000"
                     },
-                    "WLobW": {
+                    "LktID": {
                       "fill": "$surface/secondary"
+                    },
+                    "paOZA": {
+                      "fill": "$foreground/foreground"
                     }
                   }
                 },
                 {
                   "type": "frame",
-                  "id": "B1Vt6",
+                  "id": "e8YT6",
                   "name": "Settings Panel Wrap",
                   "width": "fill_container",
                   "height": "fill_container",
@@ -139,7 +142,7 @@
                   "children": [
                     {
                       "type": "frame",
-                      "id": "i5DBo",
+                      "id": "C7oQBF",
                       "name": "Settings Form",
                       "width": "fill_container",
                       "height": "fill_container",
@@ -147,7 +150,7 @@
                       "children": [
                         {
                           "type": "frame",
-                          "id": "jsVZP",
+                          "id": "rRaO4",
                           "name": "Form Body",
                           "width": "fill_container",
                           "height": "fill_container",
@@ -157,8 +160,8 @@
                           "children": [
                             {
                               "type": "frame",
-                              "id": "yvjKT",
-                              "name": "Wipe World Card",
+                              "id": "Q4Iw3",
+                              "name": "Owner Card",
                               "width": "fill_container",
                               "fill": "$surface/surface",
                               "cornerRadius": "$radius/3xl",
@@ -181,40 +184,28 @@
                               "children": [
                                 {
                                   "type": "text",
-                                  "id": "LV390",
+                                  "id": "TGMl1",
                                   "fill": "$foreground/foreground",
-                                  "content": "Wipe world data",
+                                  "content": "Owner",
                                   "fontFamily": "$typography/font-sans",
                                   "fontSize": 16,
                                   "fontWeight": "500"
                                 },
                                 {
                                   "type": "text",
-                                  "id": "p3O1A",
+                                  "id": "OqQax",
                                   "fill": "$muted",
-                                  "textGrowth": "fixed-width",
-                                  "width": "fill_container",
-                                  "content": "Deletes everything on the data volume and restarts the server on a fresh world. Take a backup first.",
+                                  "content": "admin",
                                   "fontFamily": "$typography/font-sans",
                                   "fontSize": 14,
                                   "fontWeight": "normal"
-                                },
-                                {
-                                  "id": "vPgdl",
-                                  "type": "ref",
-                                  "ref": "J09iP",
-                                  "descendants": {
-                                    "eWkIT/r4VbAi": {
-                                      "content": "Wipe world\u2026"
-                                    }
-                                  }
                                 }
                               ]
                             },
                             {
                               "type": "frame",
-                              "id": "a11jT8",
-                              "name": "Transfer Ownership Card",
+                              "id": "YMPcT",
+                              "name": "Collaborators Card",
                               "width": "fill_container",
                               "fill": "$surface/surface",
                               "cornerRadius": "$radius/3xl",
@@ -232,89 +223,80 @@
                                 "blur": 4
                               },
                               "layout": "vertical",
-                              "gap": 8,
+                              "gap": 12,
                               "padding": 16,
                               "children": [
                                 {
                                   "type": "text",
-                                  "id": "FUN0C",
+                                  "id": "psMay",
                                   "fill": "$foreground/foreground",
-                                  "content": "Transfer ownership",
+                                  "content": "Collaborators",
                                   "fontFamily": "$typography/font-sans",
                                   "fontSize": 16,
                                   "fontWeight": "500"
                                 },
                                 {
                                   "type": "text",
-                                  "id": "P2j8t2",
+                                  "id": "m5ogJ",
                                   "fill": "$muted",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "Hand this server to another user. You keep access only if you stay a collaborator.",
+                                  "content": "Collaborators get full control of this server (console, files, settings). They can't transfer ownership or edit this list.",
                                   "fontFamily": "$typography/font-sans",
                                   "fontSize": 14,
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "id": "GytYJ",
-                                  "type": "ref",
-                                  "ref": "J09iP",
-                                  "descendants": {
-                                    "eWkIT/r4VbAi": {
-                                      "content": "Transfer\u2026"
+                                  "type": "text",
+                                  "id": "NVhf7",
+                                  "fill": "$muted",
+                                  "content": "None yet",
+                                  "fontFamily": "$typography/font-sans",
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "UnU40",
+                                  "x": 16,
+                                  "y": 109,
+                                  "name": "add row",
+                                  "enabled": false,
+                                  "width": "fill_container(828)",
+                                  "gap": 8,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "id": "dFoCq",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "Add collaborator by username\u2026",
+                                          "fill": "$field/placeholder"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": "Wzlnw",
+                                      "type": "ref",
+                                      "ref": "tpKRk"
                                     }
-                                  }
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "yCKdP",
-                              "name": "Delete Server Card",
-                              "width": "fill_container",
-                              "fill": "$surface/surface",
-                              "cornerRadius": "$radius/3xl",
-                              "stroke": "$danger/danger",
-                              "strokeWidth": 1,
-                              "strokeAlignment": "inner",
-                              "effect": {
-                                "type": "shadow",
-                                "shadowType": "outer",
-                                "color": "#0000000A",
-                                "offset": {
-                                  "x": 0,
-                                  "y": 2
-                                },
-                                "blur": 4
-                              },
-                              "layout": "vertical",
-                              "gap": 8,
-                              "padding": 16,
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "F8rD74",
-                                  "fill": "$foreground/foreground",
-                                  "content": "Delete server",
-                                  "fontFamily": "$typography/font-sans",
-                                  "fontSize": 16,
-                                  "fontWeight": "500"
+                                  ]
                                 },
                                 {
                                   "type": "text",
-                                  "id": "uFDjz",
+                                  "id": "koZz0",
+                                  "name": "Read-only Note",
                                   "fill": "$muted",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "Removes the GameServer and its persistent volume. This cannot be undone.",
+                                  "content": "Only the server owner or an admin can change collaborators.",
                                   "fontFamily": "$typography/font-sans",
                                   "fontSize": 14,
                                   "fontWeight": "normal"
-                                },
-                                {
-                                  "id": "Xctmb",
-                                  "type": "ref",
-                                  "ref": "XoX7L"
                                 }
                               ]
                             }
@@ -322,7 +304,7 @@
                         },
                         {
                           "type": "frame",
-                          "id": "vlNFQ",
+                          "id": "l0gad",
                           "name": "Form Footer",
                           "width": "fill_container",
                           "stroke": "$border/border",
@@ -340,7 +322,7 @@
                           "alignItems": "center",
                           "children": [
                             {
-                              "id": "dtH9p",
+                              "id": "jO6tY",
                               "type": "ref",
                               "ref": "J09iP",
                               "name": "Btn Discard",
@@ -351,7 +333,7 @@
                               }
                             },
                             {
-                              "id": "OJ4j5",
+                              "id": "Ea0QL",
                               "type": "ref",
                               "ref": "z9ShNE",
                               "name": "Btn Save Changes",
