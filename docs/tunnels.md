@@ -225,6 +225,19 @@ reports the assigned address, it appears in `status.endpoints`. The address
 changes if the pod restarts; playit does not guarantee address stability on free
 tier.
 
+How the address gets there: the tunnel pod polls `playitd`'s local control
+socket for the tunnels on your playit account and their assigned addresses. It
+patches them into the GameServer's `status.tunnelEndpoints`, and the operator
+validates them and copies them into `status.endpoints`. playit doesn't say which
+tunnel belongs to which game port, so the pod matches each playit tunnel to a
+game port by the **local port** the tunnel forwards to. Set each tunnel's local
+port in the playit dashboard to the game's container port (for example `25565`
+for Minecraft Java). If the template advertises a single port and the account
+has a single enabled tunnel, the pod pairs them even when the ports differ. If a
+playit address has no port (a `*.joinmc.link` name served through a DNS SRV
+record), it's shown with the game's port. The pod re-checks every 30 seconds, so
+a changed address shows up without a restart.
+
 > **Free tier limits.** By default, playit assigns 8 hours/day per secret. Upgrade
 > to a paid plan for 24/7 access.
 
