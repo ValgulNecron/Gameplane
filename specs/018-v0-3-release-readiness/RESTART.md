@@ -57,6 +57,7 @@ All of these still apply.
 - #433: group 2, F-102/F-108 (merged; findings `fixed-unverified`).
 - #440: group 21, F-125 (merged; findings `fixed-unverified`).
 - #441: group 23, F-159..F-162 (merged; findings `fixed-unverified`).
+- #443: group 9, F-213/F-214/F-218 (merged; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Green at the end of session 4; ready to merge
@@ -71,7 +72,6 @@ All of these still apply.
 | PR | Content | State |
 |---|---|---|
 | #430 | held H01 plus the 501 change | CI never ran on `94e79456` because of a CHANGELOG merge conflict. Master merged in as `258d8a27` (both CHANGELOG bullets kept); the PR body now says 501. Master merged again as `51e069a5` after #427 (CHANGELOG conflict); CI re-running. |
-| #443 | group 9: F-213, F-214, F-218 | **Green** (17/17) on `0bd5c776`. `eac8389a`: master merged in, and the `backupEgress` template falls back to defaults under `--reuse-values`. `0bd5c776`: the CRD hook applies with `--field-manager=helm`. Without that, a Helm 4 reinstall over leftover CRDs failed with a `.spec.versions` conflict (a real user bug). The upgrade e2e now builds realistic leftover CRDs, and `docs/install.md` documents `--force-conflicts` for leftovers from beta.8 or earlier. **Sign-off needed:** the expected F-218 hook events now depend on the Helm version (PR comment posted). |
 | #446 | group 24: F-179, F-180 (sentinel drain) | **Green** on `d23f2472`. Ask the maintainer whether the 4h drain ceiling is right. Nits: the parse error isn't wrapped with %w, and the 4h constant is duplicated. |
 | #449 | F-259 (new): capture download 409 right after a user stop | **Green** on `357cddbd`. Lint (SA4006) fixed in `357cddbd`. The api download waits up to 15s for `SidecarStopped` before proxying. An independent opus review approved option A (polling in the api); the operator-set-Completed alternative was rejected because it would break two existing test assertions and research.md's lifecycle decision. Also watch for a repeat of the separate amd64 `NetworkCaptureEphemeralContainer` "ready still false" failure (cause unknown). |
 | #447 | F-174 (playit address, OD-026 (a)) | Opened in session 5, originally stacked on #428; retargeted to master after #428 merged. **Green** on `639c765f` (after one re-run of an infra setup failure). `lint (tunnel)` is fixed in `639c765f` (gosec G304, noctx and an unused parameter, all fixed structurally with no suppressions). `TestBuildCommandPlayit` was edited for `--socket-path`, which needs sign-off. |

@@ -173,12 +173,12 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-209 | Chart comment references nonexistent file path | mcp-server | review:mcp-server | S4 | open | | | |
 | F-210 | README example fails on typical Linux host | mcp-server | review:mcp-server | S4 | open | | | |
 | F-212 | Namespace deleted on helm uninstall, losing GameServers and volumes | charts/gameplane/ | review:charts/gameplane | S1 | fixed-unverified | #425 | | |
-| F-213 | Pre-upgrade hook fails for non-default release name | charts/gameplane/ | review:charts/gameplane | S3 | fixing | #443 | | |
-| F-214 | helm upgrade --reuse-values fails with nil-pointer errors on new keys | charts/gameplane/ | review:charts/gameplane | S3 | fixing | #443 | | |
+| F-213 | Pre-upgrade hook fails for non-default release name | charts/gameplane/ | review:charts/gameplane | S3 | fixed-unverified | #443 | | |
+| F-214 | helm upgrade --reuse-values fails with nil-pointer errors on new keys | charts/gameplane/ | review:charts/gameplane | S3 | fixed-unverified | #443 | | |
 | F-215 | Backup and Restore Job pods can't reach restic repository | charts/gameplane/ | review:charts/gameplane | S2 | fixed-unverified | #432 | | |
 | F-216 | PodMonitor scrape for agent metrics always down (TLS mismatch) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-217 | Telemetry receiver /metrics endpoint unreachable (NetworkPolicy) | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
-| F-218 | CRD schema not updated on reinstall (pre-upgrade hook is upgrade-only) | charts/gameplane/ | review:charts/gameplane | S3 | fixing | #443 | | |
+| F-218 | CRD schema not updated on reinstall (pre-upgrade hook is upgrade-only) | charts/gameplane/ | review:charts/gameplane | S3 | fixed-unverified | #443 | | |
 | F-219 | Default module catalog omits 14 spec-015 modules | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-220 | CRD doc contradicts upgrade procedure | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
 | F-221 | Capture buffer default (5 GiB) too large for 1 GiB emptyDir | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
