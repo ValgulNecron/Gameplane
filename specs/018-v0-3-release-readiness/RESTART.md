@@ -32,7 +32,12 @@ All of these still apply.
 - **Session 4 records (applied in `3990fa18`):**
   - `audit/findings.md` Status/Fix PR updates.
   - OD-021 and OD-026 RESOLVED 2026-09-24. Their resolutions are in OPEN-DECISIONS.md, and the live rounds use them.
-  - **rc.1:** don't re-run or move the tag; `v0.3.0-rc.1` predates #435. Cut **rc.2** from master once the current fixes land (T057).
+  - **Session 5 maintainer decisions (2026-09-25):**
+  - Test edits **approved**: #441 (api fixtures), #443 (Helm-version-dependent hook events), #447 (`TestBuildCommandPlayit`), #448 (`players_test.go` -1/-1, `heartbeat_test.go` gameVersion check dropped).
+  - #446: keep the 4h drain ceiling.
+  - #449 / F-259: do the **operator-side fix**. The API only requests the stop (annotation), and the operator sets Completed after `SidecarStopped`. The edits to the `capture_envtest_test.go:151` and `capture_test.go:259` assertions and the research.md "Capture lifecycle" amendment are approved as part of it.
+  - Next work: the remaining non-design fix groups, plus the OD-021 follow-ups.
+- **rc.1:** don't re-run or move the tag; `v0.3.0-rc.1` predates #435. Cut **rc.2** from master once the current fixes land (T057).
 - **#430:** remote-cluster requests to home-cluster-only routes answer **501**, with the body `httperr.RemoteClusterNotImplemented`. The maintainer asked for this; the cross-cluster agent comes later.
 - **#434** (a design PR from session 3) is ignored for now.
 
