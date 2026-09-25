@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/operator/internal/agent"
 )
 
 // These tests cover the F-259 stop flow (maintainer decision 2026-09-25,
@@ -24,13 +25,16 @@ import (
 // stopRecordingSidecar is a SidecarCaptureClient that records StopCapture
 // calls and fails StartCapture/DeleteCaptureFile, so a test notices any
 // sidecar call it did not expect. GetCaptureStatus reports the capture as
-// unknown unless known is set, in which case it returns packets/bytes.
+// unknown (a 404 *agent.HTTPError, matching the real sidecar) unless known
+// is set, in which case it returns packets/bytes; statusErr overrides both,
+// for simulating a non-404 (transient) status error.
 type stopRecordingSidecar struct {
 	stopCalls []string
 	stopErr   error
 	known     bool
 	packets   int64
 	bytes     int64
+	statusErr error
 }
 
 func (s *stopRecordingSidecar) StartCapture(context.Context, string, string, string, *string, int64, int64) error {
@@ -43,8 +47,11 @@ func (s *stopRecordingSidecar) StopCapture(_ context.Context, _, serverName, cap
 }
 
 func (s *stopRecordingSidecar) GetCaptureStatus(context.Context, string, string, string) (string, int64, int64, string, error) {
+	if s.statusErr != nil {
+		return "", 0, 0, "", s.statusErr
+	}
 	if !s.known {
-		return "", 0, 0, "", errors.New("capture not found")
+		return "", 0, 0, "", &agent.HTTPError{Op: "get status", StatusCode: 404, Body: "capture not found"}
 	}
 	return "running", s.packets, s.bytes, "", nil
 }
@@ -238,6 +245,62 @@ func TestNetworkCaptureStopRequested_PendingKnownToSidecarStops(t *testing.T) {
 	}
 }
 
+// TestNetworkCaptureStopRequested_PendingStatusErrorRequeues: a
+// GetCaptureStatus error that is not a 404 (e.g. a transient network
+// failure) must not be read as "the sidecar never heard of this capture" -
+// only a genuine 404 means that. Any other error is returned so the
+// reconcile is requeued and retried.
+func TestNetworkCaptureStopRequested_PendingStatusErrorRequeues(t *testing.T) {
+	for _, phase := range []gameplanev1alpha1.CapturePhase{"", gameplanev1alpha1.CapturePhasePending} {
+		t.Run("phase="+string(phase), func(t *testing.T) {
+			sidecar := &stopRecordingSidecar{statusErr: errors.New("connection reset")}
+			nc := stopTestCapture("cap-transient", phase, true)
+			c := fake.NewClientBuilder().
+				WithScheme(testScheme(t)).
+				WithObjects(stopTestServer(""), nc).
+				WithStatusSubresource(&gameplanev1alpha1.GameServer{}, &gameplanev1alpha1.NetworkCapture{}).
+				Build()
+			r := &NetworkCaptureReconciler{Client: c, Scheme: c.Scheme(), SidecarClient: sidecar, CaptureEnabled: true}
+
+			_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: stopTestNS, Name: nc.Name}})
+			if err == nil {
+				t.Fatal("Reconcile: want an error to requeue on a non-404 status error, got nil")
+			}
+			if len(sidecar.stopCalls) != 0 {
+				t.Errorf("StopCapture calls = %v, want none while the status error is unresolved", sidecar.stopCalls)
+			}
+
+			var got gameplanev1alpha1.NetworkCapture
+			if err := c.Get(context.Background(), types.NamespacedName{Namespace: stopTestNS, Name: nc.Name}, &got); err != nil {
+				t.Fatalf("get capture: %v", err)
+			}
+			if got.Status.Phase == gameplanev1alpha1.CapturePhaseCompleted {
+				t.Error("capture must not be completed as never_started on a transient status error")
+			}
+		})
+	}
+}
+
+// TestNetworkCaptureStopRequested_AlreadyStoppedBySidecarIsSuccess: if the
+// stop request races the sidecar's own natural completion (duration/size
+// limit), StopCapture may report the capture as "not running". That is not
+// a failure - the capture ends up stopped either way - so it must not
+// record a spurious SidecarStopFailed.
+func TestNetworkCaptureStopRequested_AlreadyStoppedBySidecarIsSuccess(t *testing.T) {
+	sidecar := &stopRecordingSidecar{
+		known:   true,
+		packets: 3,
+		bytes:   1024,
+		stopErr: &agent.HTTPError{Op: "stop capture", StatusCode: 409, Body: "capture is not running"},
+	}
+	nc, _ := reconcileStopTest(t, sidecar, stopTestServer("cap-race2"), stopTestCapture("cap-race2", gameplanev1alpha1.CapturePhaseRunning, true))
+
+	assertUserStopCompleted(t, nc, "stopped")
+	if meta.FindStatusCondition(nc.Status.Conditions, "SidecarStopFailed") != nil {
+		t.Error("SidecarStopFailed must not be set when the sidecar reports the capture as already stopped")
+	}
+}
+
 // TestNetworkCaptureStopRequested_RunningRefreshesFinalCounts: after a
 // successful stop the final counts come from the sidecar.
 func TestNetworkCaptureStopRequested_RunningRefreshesFinalCounts(t *testing.T) {
@@ -313,5 +376,37 @@ func TestGameServerStopActiveCaptures_RequestsStopWithoutWritingPhase(t *testing
 	}
 	if _, ok := get("cap-other").Annotations[stopRequestedAnnotation]; ok {
 		t.Error("another server's capture must not be annotated")
+	}
+}
+
+// TestGameServerStopActiveCaptures_LastCaptureTimeOnlyOnNewAnnotation:
+// LastCaptureTime must only be set on the reconcile that actually adds the
+// stop-requested annotation. Otherwise a capture already stopped (annotated
+// on a prior reconcile, still non-terminal because the capture reconciler
+// has not caught up) would get LastCaptureTime bumped on every subsequent
+// reconcile of the GameServer, churning its status patch forever.
+func TestGameServerStopActiveCaptures_LastCaptureTimeOnlyOnNewAnnotation(t *testing.T) {
+	already := stopTestCapture("cap-already", gameplanev1alpha1.CapturePhaseRunning, true)
+	gs := stopTestServer("cap-already")
+	c := fake.NewClientBuilder().
+		WithScheme(testScheme(t)).
+		WithObjects(gs, already).
+		WithStatusSubresource(&gameplanev1alpha1.GameServer{}, &gameplanev1alpha1.NetworkCapture{}).
+		Build()
+	r := &GameServerReconciler{Client: c, Scheme: c.Scheme()}
+
+	if err := r.stopActiveCaptures(context.Background(), gs); err != nil {
+		t.Fatalf("stopActiveCaptures: %v", err)
+	}
+	if gs.Status.Capture.LastCaptureTime != nil {
+		t.Errorf("lastCaptureTime = %v, want left unset when the annotation already existed", gs.Status.Capture.LastCaptureTime)
+	}
+
+	var nc gameplanev1alpha1.NetworkCapture
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: stopTestNS, Name: "cap-already"}, &nc); err != nil {
+		t.Fatalf("get cap-already: %v", err)
+	}
+	if v := nc.Annotations[stopRequestedAnnotation]; v != "2026-09-25T10:00:00Z" {
+		t.Errorf("annotation = %q, want the original value kept", v)
 	}
 }

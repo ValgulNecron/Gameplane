@@ -1771,7 +1771,9 @@ func (r *GameServerReconciler) reconcileCapture(ctx context.Context, gs *gamepla
 // NetworkCaptureReconciler.completeRequestedStop stops the sidecar first
 // and only then marks the capture Completed. The annotation is only added
 // when absent, so repeated reconciles (and an earlier user stop) are
-// no-ops.
+// no-ops; LastCaptureTime is likewise only touched the reconcile that adds
+// the annotation, so replaying an already-stopped capture on every
+// reconcile can't keep bumping it and churning the status patch forever.
 func (r *GameServerReconciler) stopActiveCaptures(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
 	var captures gameplanev1alpha1.NetworkCaptureList
 	if err := r.List(ctx, &captures, client.InNamespace(gs.Namespace)); err != nil {
@@ -1793,8 +1795,8 @@ func (r *GameServerReconciler) stopActiveCaptures(ctx context.Context, gs *gamep
 			if err := r.Patch(ctx, nc, client.MergeFrom(base)); err != nil {
 				return fmt.Errorf("request stop of capture %s: %w", nc.Name, err)
 			}
+			gs.Status.Capture.LastCaptureTime = &now
 		}
-		gs.Status.Capture.LastCaptureTime = &now
 	}
 
 	gs.Status.Capture.ActiveCapture = nil

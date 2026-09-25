@@ -2,7 +2,9 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -555,14 +557,20 @@ func isTerminalCapturePhase(phase gameplanev1alpha1.CapturePhase) bool {
 // before its own status write, and a stop request landing in between makes
 // that write conflict, leaving the object Pending while the sidecar runs.
 // So a Pending capture is only treated as never started when the sidecar
-// has no record of it (GetCaptureStatus errors); if the sidecar knows it,
-// it is stopped exactly like a Running capture.
+// gives a 404 for it (GetCaptureStatus's *agent.HTTPError has
+// StatusCode == 404): that is the only response that actually means "no
+// record of this capture ID". Any other GetCaptureStatus error (a network
+// hiccup, a 5xx) is returned so the reconcile is requeued and retried,
+// rather than being misread as never-started.
 //
 // A failed sidecar stop (e.g. the pod is already gone) is recorded as
 // SidecarStopFailed but still completes the capture, matching the
 // upgrade-fallback branch in Reconcile, so a vanished sidecar can never
-// wedge a stop. After a successful stop the final packet/byte counts are
-// refreshed from the sidecar on a best-effort basis.
+// wedge a stop. A stop that races the sidecar's own natural completion and
+// gets back its "not running" response is not a failure either — the
+// capture is already stopped, which is exactly what was asked for — so
+// that response is treated as success. After a successful stop the final
+// packet/byte counts are refreshed from the sidecar on a best-effort basis.
 func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture) (ctrl.Result, error) {
 	now := metav1.Now()
 	stopped := metav1.Condition{
@@ -578,13 +586,19 @@ func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc
 	neverStarted := false
 	if nc.Status.Phase == "" || nc.Status.Phase == gameplanev1alpha1.CapturePhasePending {
 		_, _, _, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name)
-		neverStarted = statusErr != nil
+		if statusErr != nil {
+			var httpErr *agent.HTTPError
+			if !errors.As(statusErr, &httpErr) || httpErr.StatusCode != http.StatusNotFound {
+				return ctrl.Result{}, fmt.Errorf("get capture status for %s: %w", nc.Name, statusErr)
+			}
+			neverStarted = true
+		}
 	}
 
 	if neverStarted {
 		stopped.Reason = "never_started"
 		stopped.Message = "stop requested before the sidecar started capturing"
-	} else if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, serverName, nc.Name); err != nil {
+	} else if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, serverName, nc.Name); err != nil && !isCaptureAlreadyStoppedError(err) {
 		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
 			Type:               "SidecarStopFailed",
 			Status:             metav1.ConditionTrue,
@@ -612,6 +626,20 @@ func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc
 		return ctrl.Result{}, fmt.Errorf("complete user-stopped capture %s: %w", nc.Name, err)
 	}
 	return ctrl.Result{}, nil
+}
+
+// isCaptureAlreadyStoppedError reports whether err is the sidecar's response
+// to stopping a capture that is already stopped (its body/message reports
+// the capture as "not running"). Losing the race between a requested stop
+// and the sidecar's own natural completion (duration/size limit) is not a
+// failure — the capture ends up exactly where the stop wanted it — so
+// completeRequestedStop must not record a spurious SidecarStopFailed for it.
+func isCaptureAlreadyStoppedError(err error) bool {
+	var httpErr *agent.HTTPError
+	if !errors.As(err, &httpErr) {
+		return false
+	}
+	return strings.Contains(strings.ToLower(httpErr.Body), "not running")
 }
 
 // releaseActiveCaptureLock clears the owning GameServer's
