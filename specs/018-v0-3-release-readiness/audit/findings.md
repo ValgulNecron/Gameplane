@@ -100,7 +100,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-122 | Settings dirty state persists on tab switch | web | review:web | S3 | open | | | |
 | F-123 | Revoked share links show as active | web | review:web | S3 | open | | | |
 | F-124 | Node selector never applied to running server | web | review:web | S3 | open | | | |
-| F-125 | Safe mode exits on in-app navigation | web | review:web | S3 | fixing | #440 | | |
+| F-125 | Safe mode exits on in-app navigation | web | review:web | S3 | fixed-unverified | #440 | | |
 | F-126 | Six mutations have no error handlers | web | review:web | S3 | open | | | |
 | F-127 | Default namespace not used on server create | web | review:web | S3 | open | | | |
 | F-128 | Modules hash navigation fails | web | review:web | S4 | open | | | |

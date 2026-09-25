@@ -55,6 +55,7 @@ All of these still apply.
 - #437: group 15, F-103/F-104 (merged; findings `fixed-unverified`).
 - #439: group 26, F-204 (merged; findings `fixed-unverified`).
 - #433: group 2, F-102/F-108 (merged; findings `fixed-unverified`).
+- #440: group 21, F-125 (merged; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Green at the end of session 4; ready to merge
@@ -69,7 +70,6 @@ All of these still apply.
 | PR | Content | State |
 |---|---|---|
 | #430 | held H01 plus the 501 change | CI never ran on `94e79456` because of a CHANGELOG merge conflict. Master merged in as `258d8a27` (both CHANGELOG bullets kept); the PR body now says 501. Master merged again as `51e069a5` after #427 (CHANGELOG conflict); CI re-running. |
-| #440 | group 21: F-125 | Re-implemented and pushed as `a8ce6395` after an independent opus review approved it. A module-level flag keeps `?safe-mode=1` across client-side navigation only; a full reload clears it, per theme-ui.md §4. The e2e spec is unchanged, and only the test this PR added was modified. Master was merged in. **Green** on `a8ce6395`. |
 | #441 | group 23: F-159..F-162 | **Green** on `0360b22c` (the capture failure passed on its one re-run). `e2e operator / arm64` failed: `TestGameServer_NetworkCaptureStartStopDownload` got a 409 on the capture download after Completed. That is unrelated to the diff; a re-run is scheduled. It is the second sporadic capture failure (after #436), it was root-caused as F-259 and fixed in #449. The stricter validator rejected api module-builder fixtures that lack the CRD-required `spec.displayName`/`spec.version`. `86beb6c4` and `0360b22c` fixed them all (no production change was needed). **Test edits need maintainer sign-off** (PR comment posted). |
 | #443 | group 9: F-213, F-214, F-218 | **Green** (17/17) on `0bd5c776`. `eac8389a`: master merged in, and the `backupEgress` template falls back to defaults under `--reuse-values`. `0bd5c776`: the CRD hook applies with `--field-manager=helm`. Without that, a Helm 4 reinstall over leftover CRDs failed with a `.spec.versions` conflict (a real user bug). The upgrade e2e now builds realistic leftover CRDs, and `docs/install.md` documents `--force-conflicts` for leftovers from beta.8 or earlier. **Sign-off needed:** the expected F-218 hook events now depend on the Helm version (PR comment posted). |
 | #446 | group 24: F-179, F-180 (sentinel drain) | **Green** on `d23f2472`. Ask the maintainer whether the 4h drain ceiling is right. Nits: the parse error isn't wrapped with %w, and the 4h constant is duplicated. |
