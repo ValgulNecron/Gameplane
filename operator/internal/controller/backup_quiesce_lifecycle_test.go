@@ -115,13 +115,16 @@ func TestReconcile_AddsFinalizerForQuiescedBackup(t *testing.T) {
 // send the unquiesce before the finalizer (and therefore the object) clears,
 // and must keep the finalizer (and retry) while the agent is unreachable.
 func TestReconcile_DeleteReleasesQuiescedWorldBeforeFinalizerClears(t *testing.T) {
-	b := quiescedBackup()
-	b.Finalizers = []string{gameplanev1alpha1.BackupFinalizer}
-	now := metav1.Now()
-	b.DeletionTimestamp = &now
+	b := backupWithFinalizerBeingDeleted("gs1")
+	gs := &gameplanev1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "gs1", Namespace: b.Namespace},
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "gs1-0", Namespace: b.Namespace},
+	}
 
 	q := &scrapeQuiescer{unquiesceErr: errors.New("agent unreachable")}
-	r := newScrapeReconciler(t, b, nil, time.Hour, q)
+	r := newScrapeReconcilerWithObjects(t, b, q, gs, pod)
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: b.Namespace, Name: b.Name}}
 
 	res, err := r.Reconcile(context.Background(), req)
@@ -165,6 +168,32 @@ func TestReconcile_DeleteReleasesQuiescedWorldBeforeFinalizerClears(t *testing.T
 	// object around once its finalizer list is empty; either the object is
 	// gone (real apiserver behavior) or its finalizer list is empty is
 	// acceptable here.
+}
+
+// TestReconcile_DeleteReleasesFinalizerWhenServerRefEmpty covers the
+// target-gone branch for a Backup whose spec.serverRef.name was never set
+// (e.g. a manually crafted or malformed Backup): finalizeDelete must treat an
+// empty ServerRef.Name as "target gone" and release the finalizer straight
+// away instead of retrying an unquiesce it has no target for.
+func TestReconcile_DeleteReleasesFinalizerWhenServerRefEmpty(t *testing.T) {
+	b := quiescedBackup()
+	b.Finalizers = []string{gameplanev1alpha1.BackupFinalizer}
+	now := metav1.Now()
+	b.DeletionTimestamp = &now
+
+	q := &scrapeQuiescer{unquiesceErr: errors.New("agent unreachable")}
+	r := newScrapeReconciler(t, b, nil, time.Hour, q)
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: b.Namespace, Name: b.Name}}
+
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if backupFinalizerPresent(t, r, req.NamespacedName) {
+		t.Fatal("finalizer still present although spec.serverRef.name is empty")
+	}
+	if q.unquiesced != 0 {
+		t.Error("Unquiesce called for a Backup with no unquiesce target")
+	}
 }
 
 // TestReconcile_DeleteWithoutQuiesceClearsFinalizerImmediately covers the
