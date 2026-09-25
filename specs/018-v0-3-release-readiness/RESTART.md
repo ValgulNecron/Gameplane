@@ -44,12 +44,12 @@ All of these still apply.
 - #435: F-257. Confirm the operator, api and web images finished on `publish-edge` (run 36069312826).
 - #438: F-121.
 - #431: held H03. Update `held/findings.md` on the devbox.
+- #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Green at the end of session 4; ready to merge
 
 | PR | Content |
 |---|---|
-| #427 | held H02 hardening (green after one re-run of an infra failure) |
 | #428 | group 8: F-172, F-052, F-173 (merge before #447) |
 | #429 | group 4: F-116, F-130 |
 | #433 | group 2: F-102, F-108 |
