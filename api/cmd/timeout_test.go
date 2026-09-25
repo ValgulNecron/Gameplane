@@ -23,6 +23,17 @@ func TestIsStreamingRequest(t *testing.T) {
 		{"events wrong method", "POST", "/events", "", false},
 		{"unrelated path", "GET", "/servers/alpha", "", false},
 		{"unrelated upgrade value", "GET", "/servers/alpha", "h2c", false},
+		// F-074: large-transfer routes (isLargeTransferPath).
+		{"files download GET", "GET", "/servers/a/files/download", "", true},
+		{"logs download GET", "GET", "/servers/a/logs/download", "", true},
+		{"capture file GET", "GET", "/servers/a:capture-file", "", true},
+		{"audit export GET", "GET", "/admin/audit/export", "", true},
+		{"files upload POST", "POST", "/servers/a/files/upload", "", true},
+		{"files write POST", "POST", "/servers/a/files/write", "", true},
+		{"mods upload POST", "POST", "/servers/a/mods/upload", "", true},
+		{"files download wrong method", "POST", "/servers/a/files/download", "", false},
+		{"files write wrong method", "GET", "/servers/a/files/write", "", false},
+		{"files download outside /servers/", "GET", "/other/files/download", "", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -33,6 +44,33 @@ func TestIsStreamingRequest(t *testing.T) {
 			if got := isStreamingRequest(req); got != tc.want {
 				t.Errorf("isStreamingRequest(%s %s, Upgrade=%q) = %v, want %v",
 					tc.method, tc.path, tc.header, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestIsUploadPath pins the bodyLimit exemption set (F-075): only the
+// large-body upload routes under /servers/ skip the 1 MiB cap.
+func TestIsUploadPath(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{"/servers/a/files/upload", true},
+		{"/servers/a/files/write", true},
+		{"/servers/a/mods/upload", true},
+		{"/other/files/upload", false},
+		{"/other/files/write", false},
+		{"/other/mods/upload", false},
+		{"/servers/a/files/delete", false},
+		{"/servers/a/mods", false},
+		{"/servers/a/files/download", false},
+		{"/servers/a", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			if got := isUploadPath(tc.path); got != tc.want {
+				t.Errorf("isUploadPath(%q) = %v, want %v", tc.path, got, tc.want)
 			}
 		})
 	}

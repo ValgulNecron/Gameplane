@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -167,6 +168,133 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		t.Errorf("/files/read body=%q want %q", got, payload)
 	}
 
+	// F-074 regression: a download that takes longer than the API's 60s
+	// app-wide request-timeout must not be cut off. Seed a 200 MiB file
+	// directly on the PVC (the same method as the finding's own repro —
+	// evidence/review-api/verification.md#c-api-01 step 4 — since this
+	// needs to exceed kernel TCP buffer sizes to force real backpressure,
+	// well past what /files/write's 64 MiB cap would allow), then
+	// download it while pacing our reads well below the file's size, so
+	// the transfer is still in flight past 60s. Before the fix, chi's
+	// middleware.Timeout cancels req.Context() at 60s, the agent-proxy
+	// io.Copy in ws/dialer.go aborts, and the paced read below sees an
+	// error long before slowReadFloor elapses.
+	const bigFileName = "large-from-e2e.bin"
+	const bigFileSizeMB = 200
+	if out, err := envInstance.KubectlExec(t, ns, "pod/"+gs+"-0",
+		"dd", "if=/dev/zero", "of=/data/"+bigFileName,
+		"bs=1M", fmt.Sprintf("count=%d", bigFileSizeMB)); err != nil {
+		t.Fatalf("seed large file via dd: %v output=%s", err, out)
+	}
+
+	dlReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+		cli.BaseURL+"/servers/"+gs+"/files/download?path="+url.QueryEscape("/"+bigFileName), nil)
+	if err != nil {
+		t.Fatalf("build large download req: %v", err)
+	}
+	dlReq.Header.Set("X-Gameplane-CSRF", cli.CSRF)
+	// cli.HTTP carries a 90s Timeout that also covers reading the body, so
+	// the deliberately-slow transfers below go through a client with a
+	// longer ceiling (same cookie jar and transport).
+	slowCli := longTransferClient(cli)
+	dlResp, err := slowCli.Do(dlReq)
+	if err != nil {
+		t.Fatalf("GET /files/download (large): %v", err)
+	}
+	defer func() { _ = dlResp.Body.Close() }()
+	if dlResp.StatusCode != http.StatusOK {
+		t.Fatalf("/files/download (large) expected 200, got %d", dlResp.StatusCode)
+	}
+
+	// Pace by elapsed time rather than per Read call: Read may return far
+	// fewer bytes than len(buf), so a fixed per-call pause would make the
+	// total duration depend on how the transport fragments the stream.
+	// After each read, sleep until total/size of slowReadTarget has passed.
+	const slowReadFloor = 65 * time.Second
+	const slowReadTarget = 72 * time.Second
+	const chunkSize = 256 * 1024
+	const bigFileSize = int64(bigFileSizeMB) << 20
+	start := time.Now()
+	buf := make([]byte, chunkSize)
+	var total int64
+	for {
+		n, rerr := dlResp.Body.Read(buf)
+		total += int64(n)
+		if rerr != nil {
+			if rerr == io.EOF {
+				break
+			}
+			t.Fatalf("large download read at %s elapsed, %d/%d bytes (cut short by requestTimeout?): %v",
+				time.Since(start), total, bigFileSize, rerr)
+		}
+		time.Sleep(time.Until(start.Add(time.Duration(float64(slowReadTarget) * float64(total) / float64(bigFileSize)))))
+	}
+	elapsed := time.Since(start)
+	if total != bigFileSize {
+		t.Fatalf("large download got %d bytes, want %d", total, bigFileSize)
+	}
+	if elapsed < slowReadFloor {
+		t.Fatalf("large download finished in %s, want it paced past %s to exercise the 60s request timeout", elapsed, slowReadFloor)
+	}
+
+	// F-074 regression, upload side: POST /files/write streams its body to
+	// the agent on req.Context() just like the download above, so a write
+	// whose body trickles in past the 60s request-timeout must still land.
+	// Pace a 2 MiB body (also over the old 1 MiB bodyLimit, F-075) so the
+	// upload is still in flight past slowWriteFloor.
+	const slowFileName = "slow-write-from-e2e.bin"
+	const slowWriteSize = 2 << 20
+	const slowWriteFloor = 65 * time.Second
+	slowBody := bytes.Repeat([]byte("s"), slowWriteSize)
+	slowWriteURL := cli.BaseURL + "/servers/" + gs + "/files/write?path=" + url.QueryEscape("/"+slowFileName)
+	slowReq, err := http.NewRequestWithContext(t.Context(), http.MethodPost, slowWriteURL,
+		newPacedReader(slowBody, 64*1024, 72*time.Second))
+	if err != nil {
+		t.Fatalf("build slow write req: %v", err)
+	}
+	slowReq.ContentLength = int64(len(slowBody))
+	slowReq.Header.Set("Content-Type", "application/octet-stream")
+	slowReq.Header.Set("X-Gameplane-CSRF", cli.CSRF)
+	slowStart := time.Now()
+	slowResp, err := slowCli.Do(slowReq)
+	if err != nil {
+		t.Fatalf("POST /files/write (slow) after %s: %v", time.Since(slowStart), err)
+	}
+	slowRespBody, _ := io.ReadAll(slowResp.Body)
+	_ = slowResp.Body.Close()
+	slowElapsed := time.Since(slowStart)
+	if slowResp.StatusCode/100 != 2 {
+		t.Fatalf("/files/write (slow) expected 2xx after %s (cut short by requestTimeout?), got %d body=%q",
+			slowElapsed, slowResp.StatusCode, string(slowRespBody))
+	}
+	if slowElapsed < slowWriteFloor {
+		t.Fatalf("slow /files/write finished in %s, want it paced past %s to exercise the 60s request timeout", slowElapsed, slowWriteFloor)
+	}
+	listResp, listBody, err := cli.Get("/servers/" + gs + "/files/list?path=" + url.QueryEscape("/"))
+	if err != nil {
+		t.Fatalf("list after slow write: %v", err)
+	}
+	_ = listResp.Body.Close()
+	var slowEntries []struct {
+		Name string `json:"name"`
+		Size int64  `json:"size"`
+	}
+	if err := json.Unmarshal(listBody, &slowEntries); err != nil {
+		t.Fatalf("decode list after slow write: %v body=%q", err, string(listBody))
+	}
+	foundSlow := false
+	for _, e := range slowEntries {
+		if e.Name == slowFileName {
+			foundSlow = true
+			if e.Size != slowWriteSize {
+				t.Fatalf("slow-written file size=%d want %d", e.Size, slowWriteSize)
+			}
+		}
+	}
+	if !foundSlow {
+		t.Fatalf("slow-written file %q not in listing: %s", slowFileName, string(listBody))
+	}
+
 	// Delete and verify the file is gone from a subsequent list.
 	delResp, delBody, err := cli.Delete("/servers/" + gs + "/files/delete?path=" + url.QueryEscape(filePath))
 	if err != nil {
@@ -306,4 +434,52 @@ func TestAPI_AgentUnreachable(t *testing.T) {
 			return false, "unexpected status " + http.StatusText(resp.StatusCode) + " body=" + s
 		}
 	})
+}
+
+// longTransferClient returns an http.Client sharing cli's cookie jar and
+// transport but with a 5-minute Timeout instead of APIClient's 90s. The
+// F-074 regressions deliberately stretch a transfer past the API's 60s
+// request-timeout, and http.Client.Timeout covers the whole exchange
+// (sending the request body and reading the response body), so 90s would
+// race those ~72s transfers plus cluster latency.
+func longTransferClient(cli *APIClient) *http.Client {
+	return &http.Client{
+		Jar:       cli.HTTP.Jar,
+		Transport: cli.HTTP.Transport,
+		Timeout:   5 * time.Minute,
+	}
+}
+
+// pacedReader yields data in chunks of at most chunk bytes, pacing by
+// elapsed time: before handing out the bytes at offset off it sleeps until
+// off/len(data) of total has passed since the first Read. The body thus
+// trickles in over roughly total regardless of the caller's buffer size
+// (net/http reads request bodies 32 KiB at a time). Used to prove
+// large-transfer routes survive the API's 60s request-timeout (F-074).
+type pacedReader struct {
+	data  []byte
+	chunk int
+	total time.Duration
+	off   int
+	start time.Time
+}
+
+func newPacedReader(data []byte, chunk int, total time.Duration) *pacedReader {
+	return &pacedReader{data: data, chunk: chunk, total: total}
+}
+
+func (p *pacedReader) Read(b []byte) (int, error) {
+	if p.off >= len(p.data) {
+		return 0, io.EOF
+	}
+	if p.start.IsZero() {
+		p.start = time.Now()
+	} else {
+		due := p.start.Add(time.Duration(float64(p.total) * float64(p.off) / float64(len(p.data))))
+		time.Sleep(time.Until(due))
+	}
+	n := min(len(b), p.chunk, len(p.data)-p.off)
+	copy(b, p.data[p.off:p.off+n])
+	p.off += n
+	return n, nil
 }
