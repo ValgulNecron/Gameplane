@@ -29,10 +29,11 @@ import { cn } from "@/lib/utils";
 interface Props {
   backup: Backup | null;
   defaultServer?: string;
+  ns?: string;
   onClose: () => void;
 }
 
-export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
+export function RestoreDialog({ backup, defaultServer, ns, onClose }: Props) {
   const qc = useQueryClient();
   const open = backup !== null;
   // Volume-snapshot backups can't be restored in place — they provision a
@@ -68,12 +69,15 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
 
   const create = useMutation({
     mutationFn: () =>
-      Restores.create({
-        backupRef: { name: backup!.metadata.name },
-        serverRef: { name: target },
-      }),
+      Restores.create(
+        {
+          backupRef: { name: backup!.metadata.name },
+          serverRef: { name: target },
+        },
+        ns,
+      ),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["restores"] });
+      void qc.invalidateQueries({ queryKey: ["restores", ns] });
       onClose();
     },
   });

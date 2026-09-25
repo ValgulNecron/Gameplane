@@ -153,7 +153,7 @@ export function ServerActionsCard({
     unknown,
     { action: ServerActionDecl; params?: Record<string, string> }
   >({
-    mutationFn: (vars) => Servers.runAction(name, { id: vars.action.id, params: vars.params }),
+    mutationFn: (vars) => Servers.runAction(name, { id: vars.action.id, params: vars.params }, ns),
     onSuccess: (resp, vars) => {
       setActive(null);
       // Base sent-vs-output on the action's TRANSPORT, not on whether the

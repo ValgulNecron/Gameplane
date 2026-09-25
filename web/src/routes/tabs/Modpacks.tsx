@@ -105,6 +105,7 @@ export function ModpacksTab({
       <div className="min-h-0 flex-1">
         <RegistryBrowser
           name={name}
+          ns={ns}
           type="modpack"
           categories={MODPACK_CATEGORIES}
           pillButtons={true}

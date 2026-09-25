@@ -67,12 +67,14 @@ const CATEGORY_FILTERABLE_PROVIDERS = new Set(["modrinth", "hangar"]);
 // active provider, so the caller's install action targets the right engine.
 export function RegistryBrowser({
   name,
+  ns,
   type,
   categories,
   renderItem,
   pillButtons,
 }: {
   name: string;
+  ns?: string;
   type?: "mod" | "modpack";
   categories?: { value: string; label: string }[];
   renderItem: (project: RegistryProject, provider: string) => ReactNode;
@@ -92,8 +94,8 @@ export function RegistryBrowser({
   // Which registries this game offers (and which are usable). For the
   // modpacks browser, only providers that declare modpacks.
   const providersQ = useQuery({
-    queryKey: ["registry-providers", name],
-    queryFn: () => Servers.registryProviders(name),
+    queryKey: ["registry-providers", name, ns],
+    queryFn: () => Servers.registryProviders(name, ns),
   });
   const available = (providersQ.data ?? []).filter(
     (p) => p.available && (type !== "modpack" || p.modpacks),
@@ -103,7 +105,7 @@ export function RegistryBrowser({
   const provider = picked && available.some((p) => p.provider === picked) ? picked : available[0]?.provider;
 
   const q = useInfiniteQuery({
-    queryKey: ["registry", name, type ?? "mod", provider, debounced, sort, category],
+    queryKey: ["registry", name, type ?? "mod", provider, debounced, sort, category, ns],
     initialPageParam: 0,
     enabled: !!provider,
     // Keep the previous results on screen while a new search/sort/category
@@ -112,16 +114,20 @@ export function RegistryBrowser({
     // collapses any the user had expanded mid-browse.
     placeholderData: keepPreviousData,
     queryFn: ({ pageParam }) =>
-      Servers.searchRegistry(name, {
-        q: debounced,
-        provider,
-        type,
-        // A search term ranks by relevance; an empty browse uses the chosen sort.
-        sort: debounced ? undefined : sort,
-        category,
-        limit: PAGE,
-        offset: pageParam,
-      }),
+      Servers.searchRegistry(
+        name,
+        {
+          q: debounced,
+          provider,
+          type,
+          // A search term ranks by relevance; an empty browse uses the chosen sort.
+          sort: debounced ? undefined : sort,
+          category,
+          limit: PAGE,
+          offset: pageParam,
+        },
+        ns,
+      ),
     getNextPageParam: (last, pages) => (last.length === PAGE ? pages.length * PAGE : undefined),
   });
 

@@ -278,7 +278,7 @@ export function OverviewTab({
 
           <PlayersCard roster={roster} fallbackOnline={players} />
 
-          <ServerStatusCard name={name} tmpl={tmpl} running={running} gs={gs} />
+          <ServerStatusCard name={name} ns={ns} tmpl={tmpl} running={running} gs={gs} />
 
           <ServerSleepCard gs={gs} />
 
