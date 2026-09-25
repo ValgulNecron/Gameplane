@@ -62,7 +62,7 @@ func TestModule_PinnedVersionConvergesDespiteLatestOnlyDigest(t *testing.T) {
 		return true, ""
 	})
 
-	pullsAtReady := fake.pulls
+	pullsAtReady := fake.pullCount()
 
 	// Give the watch/requeue machinery a couple of seconds to prove the
 	// bug is gone: no further pulls, and the phase never leaves Ready.
@@ -71,8 +71,8 @@ func TestModule_PinnedVersionConvergesDespiteLatestOnlyDigest(t *testing.T) {
 		if got.Status.Phase != gameplanev1alpha1.ModulePhaseReady {
 			return false, "phase flapped to " + got.Status.Phase
 		}
-		if fake.pulls != pullsAtReady {
-			return false, fmt.Sprintf("kept pulling: %d -> %d", pullsAtReady, fake.pulls)
+		if pulls := fake.pullCount(); pulls != pullsAtReady {
+			return false, fmt.Sprintf("kept pulling: %d -> %d", pullsAtReady, pulls)
 		}
 		return true, ""
 	})
