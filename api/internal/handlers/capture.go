@@ -1048,6 +1048,10 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 		nc, err = h.waitFileFinalized(req.Context(), k, ns, name, captureID)
 		if err != nil {
 			switch {
+			case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
+				// The client is gone, or chi's timeout middleware already
+				// wrote a 504 — nothing left to write or audit here.
+				return
 			case errors.Is(err, errCaptureNotFound):
 				if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "not_found", http.StatusNotFound) {
 					return
@@ -1281,10 +1285,6 @@ func (h *captureHandler) hasActiveCapture(ctx context.Context, k *kube.Client, g
 	return false, nil
 }
 
-// resolveCapture fetches a NetworkCapture by ID and verifies it belongs to
-// the named server, returning errCaptureNotFound (wrapped, via errors.Is)
-// for either "no such capture" or "belongs to a different server" — the
-// contract requires both to 404 identically.
 // errCaptureNotFinalized reports that a user-stopped capture's sidecar had
 // still not been stopped when waitFileFinalized gave up.
 var errCaptureNotFinalized = errors.New("capture file not finalized")
@@ -1331,6 +1331,10 @@ func (h *captureHandler) waitFileFinalized(ctx context.Context, k *kube.Client, 
 	}
 }
 
+// resolveCapture fetches a NetworkCapture by ID and verifies it belongs to
+// the named server, returning errCaptureNotFound (wrapped, via errors.Is)
+// for either "no such capture" or "belongs to a different server" — the
+// contract requires both to 404 identically.
 func (h *captureHandler) resolveCapture(ctx context.Context, k *kube.Client, ns, name, captureID string) (*kube.NetworkCapture, error) {
 	nc, err := k.GetNetworkCapture(ctx, ns, captureID)
 	if err != nil {
