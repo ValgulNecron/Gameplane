@@ -79,6 +79,12 @@ type captureHandler struct {
 	auditor   *audit.Auditor
 	cfg       CaptureConfig
 	tlsClient *http.Client
+
+	// finalizeWait and finalizePoll bound waitFileFinalized; zero selects
+	// defaultCaptureFinalizeWait/defaultCaptureFinalizePoll. Tests shorten
+	// them.
+	finalizeWait time.Duration
+	finalizePoll time.Duration
 }
 
 // errCaptureNotFound is a sentinel distinguishing "no such capture, or it
@@ -1029,6 +1035,43 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
+	// A user-stopped capture reads phase=Completed the instant the stop
+	// request returns, but the operator tells the sidecar to stop (closing
+	// and flushing the PCAPNG) asynchronously afterwards. Proxying in that
+	// window reaches a sidecar that still holds the capture as running and
+	// answers 409, so a client that saw Completed and downloaded right away
+	// got a spurious conflict. Wait (bounded) for the operator to record
+	// that the sidecar has stopped, so Completed means downloadable. Skipped
+	// when no mTLS client is configured: no sidecar can be reached then, and
+	// proxyFileDownload reports that on its own.
+	if h.tlsClient != nil && !nc.FileFinalized() {
+		_, err = h.waitFileFinalized(req.Context(), k, ns, name, captureID)
+		if err != nil {
+			switch {
+			case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
+				// The client is gone, or chi's timeout middleware already
+				// wrote a 504 — nothing left to write or audit here.
+				return
+			case errors.Is(err, errCaptureNotFound):
+				if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "not_found", http.StatusNotFound) {
+					return
+				}
+				httperr.WriteCode(w, req, http.StatusNotFound, fmt.Errorf("capture '%s' not found or has expired", captureID))
+			case errors.Is(err, errCaptureNotFinalized):
+				if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "not_finalized", http.StatusConflict) {
+					return
+				}
+				httperr.WriteCode(w, req, http.StatusConflict, errors.New("capture is still being finalized; retry shortly"))
+			default:
+				if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "error", http.StatusInternalServerError) {
+					return
+				}
+				httperr.Write(w, req, err)
+			}
+			return
+		}
+	}
+
 	// FR-006: the audit write happens BEFORE any response byte (including
 	// WriteHeader) reaches the client — a failed audit write aborts the
 	// download outright rather than letting an unaudited file stream
@@ -1240,6 +1283,52 @@ func (h *captureHandler) hasActiveCapture(ctx context.Context, k *kube.Client, g
 		}
 	}
 	return false, nil
+}
+
+// errCaptureNotFinalized reports that a user-stopped capture's sidecar had
+// still not been stopped when waitFileFinalized gave up.
+var errCaptureNotFinalized = errors.New("capture file not finalized")
+
+// Defaults for waitFileFinalized. The operator normally records
+// SidecarStopped well under a second after the stop; the ceiling only bounds
+// a request against a stalled or absent operator.
+const (
+	defaultCaptureFinalizeWait = 15 * time.Second
+	defaultCaptureFinalizePoll = 250 * time.Millisecond
+)
+
+// waitFileFinalized re-reads the NetworkCapture until FileFinalized reports
+// true, returning the fresh object. It gives up with errCaptureNotFinalized
+// after the handler's finalize wait, errCaptureNotFound if the capture
+// disappears, or the context's error if the caller goes away.
+func (h *captureHandler) waitFileFinalized(ctx context.Context, k *kube.Client, ns, name, captureID string) (*kube.NetworkCapture, error) {
+	wait, poll := h.finalizeWait, h.finalizePoll
+	if wait <= 0 {
+		wait = defaultCaptureFinalizeWait
+	}
+	if poll <= 0 {
+		poll = defaultCaptureFinalizePoll
+	}
+	deadline := time.NewTimer(wait)
+	defer deadline.Stop()
+	ticker := time.NewTicker(poll)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("wait for capture %s to finalize: %w", captureID, ctx.Err())
+		case <-deadline.C:
+			return nil, errCaptureNotFinalized
+		case <-ticker.C:
+		}
+		nc, err := h.resolveCapture(ctx, k, ns, name, captureID)
+		if err != nil {
+			return nil, err
+		}
+		if nc.FileFinalized() {
+			return nc, nil
+		}
+	}
 }
 
 // resolveCapture fetches a NetworkCapture by ID and verifies it belongs to
