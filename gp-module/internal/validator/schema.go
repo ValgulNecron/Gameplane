@@ -348,6 +348,30 @@ func validateTemplateSchema(node *yaml.Node) []Finding {
 				Remediation: "Specify the base container image under spec.image.",
 			})
 		}
+		dispNode := common.FindNode(node, "spec.displayName")
+		if dispNode == nil || dispNode.Value == "" {
+			findings = append(findings, Finding{
+				Level:       SeverityError,
+				RuleID:      RuleTemplateSchemaViolation,
+				File:        "template.yaml",
+				Line:        specNode.Line,
+				Field:       "spec.displayName",
+				Message:     "spec.displayName is required in template.yaml",
+				Remediation: "Specify a human-friendly label under spec.displayName.",
+			})
+		}
+		specVerNode := common.FindNode(node, "spec.version")
+		if specVerNode == nil || specVerNode.Value == "" {
+			findings = append(findings, Finding{
+				Level:       SeverityError,
+				RuleID:      RuleTemplateSchemaViolation,
+				File:        "template.yaml",
+				Line:        specNode.Line,
+				Field:       "spec.version",
+				Message:     "spec.version is required in template.yaml",
+				Remediation: "Specify the template revision under spec.version.",
+			})
+		}
 	}
 
 	return findings
