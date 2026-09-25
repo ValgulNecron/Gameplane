@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -556,12 +557,9 @@ func isTerminalCapturePhase(phase gameplanev1alpha1.CapturePhase) bool {
 // already be capturing: the Pending branch of Reconcile starts the sidecar
 // before its own status write, and a stop request landing in between makes
 // that write conflict, leaving the object Pending while the sidecar runs.
-// So a Pending capture is only treated as never started when the sidecar
-// gives a 404 for it (GetCaptureStatus's *agent.HTTPError has
-// StatusCode == 404): that is the only response that actually means "no
-// record of this capture ID". Any other GetCaptureStatus error (a network
-// hiccup, a 5xx) is returned so the reconcile is requeued and retried,
-// rather than being misread as never-started.
+// pendingCaptureNeverStarted decides whether such a capture can be
+// completed as never_started without a sidecar stop, must be stopped like
+// a Running one, or must be retried later; see its doc comment.
 //
 // A failed sidecar stop (e.g. the pod is already gone) is recorded as
 // SidecarStopFailed but still completes the capture, matching the
@@ -585,13 +583,10 @@ func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc
 	serverName := nc.Spec.ServerRef.Name
 	neverStarted := false
 	if nc.Status.Phase == "" || nc.Status.Phase == gameplanev1alpha1.CapturePhasePending {
-		_, _, _, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name)
-		if statusErr != nil {
-			var httpErr *agent.HTTPError
-			if !errors.As(statusErr, &httpErr) || httpErr.StatusCode != http.StatusNotFound {
-				return ctrl.Result{}, fmt.Errorf("get capture status for %s: %w", nc.Name, statusErr)
-			}
-			neverStarted = true
+		var err error
+		neverStarted, err = r.pendingCaptureNeverStarted(ctx, nc, now.Time)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -626,6 +621,91 @@ func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc
 		return ctrl.Result{}, fmt.Errorf("complete user-stopped capture %s: %w", nc.Name, err)
 	}
 	return ctrl.Result{}, nil
+}
+
+// pendingStopUnreachableTimeout bounds how long completeRequestedStop keeps
+// retrying an ambiguous sidecar status error for a stop-requested Pending
+// capture, measured from the stop-request time recorded in
+// stopRequestedAnnotation. Past it the capture is completed anyway (after a
+// best-effort StopCapture, recording SidecarStopFailed if that fails too),
+// so an unreachable sidecar can never hold the GameServer's capture lock
+// forever.
+const pendingStopUnreachableTimeout = 2 * time.Minute
+
+// pendingCaptureNeverStarted reports whether a stop-requested capture that
+// is still Pending (or unreconciled) provably never reached a sidecar, so
+// completeRequestedStop can complete it as never_started without a stop
+// call. It returns (false, nil) when the capture must be stopped like a
+// Running one, and a non-nil error when the answer is not yet known and the
+// reconcile should be retried with backoff.
+//
+// Positive local evidence that nothing is capturing, checked before the
+// sidecar is asked at all:
+//   - capturePodUIDAnnotation is absent: the Pending branch records it
+//     (and persists it) before it ever calls StartCapture;
+//   - the game pod "<gs>-0" is NotFound, has a different UID from the one
+//     recorded (the ephemeral sidecar died with the old pod), or is not in
+//     phase Running (no container of it is running).
+//
+// Otherwise the sidecar is asked. Success means it knows the capture, so it
+// must be stopped. A 404 (no record of this capture ID) or
+// agent.ErrCaptureClientDisabled (no mTLS; nothing can have been started
+// through this client) means never started. Any other error is ambiguous
+// (a timeout, a 5xx, a pod briefly unreachable) and is returned for a
+// retry, until pendingStopUnreachableTimeout has passed since the stop
+// request; after that it gives up and returns (false, nil), so the normal
+// stop path runs and records SidecarStopFailed if the sidecar is still
+// unreachable.
+func (r *NetworkCaptureReconciler) pendingCaptureNeverStarted(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture, now time.Time) (bool, error) {
+	recordedUID := nc.Annotations[capturePodUIDAnnotation]
+	if recordedUID == "" {
+		return true, nil
+	}
+
+	serverName := nc.Spec.ServerRef.Name
+	var pod corev1.Pod
+	err := r.Get(ctx, types.NamespacedName{Namespace: nc.Namespace, Name: fmt.Sprintf("%s-0", serverName)}, &pod)
+	if apierrors.IsNotFound(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("get game pod for stop-requested capture %s: %w", nc.Name, err)
+	}
+	if string(pod.UID) != recordedUID || pod.Status.Phase != corev1.PodRunning {
+		return true, nil
+	}
+
+	_, _, _, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name)
+	if statusErr == nil {
+		return false, nil
+	}
+	var httpErr *agent.HTTPError
+	if errors.Is(statusErr, agent.ErrCaptureClientDisabled) ||
+		(errors.As(statusErr, &httpErr) && httpErr.StatusCode == http.StatusNotFound) {
+		return true, nil
+	}
+
+	if stopRequestAge(nc, now) >= pendingStopUnreachableTimeout {
+		log.FromContext(ctx).Info("capture sidecar still unreachable after stop request; completing anyway",
+			"capture", nc.Name, "gameserver", serverName, "error", statusErr)
+		return false, nil
+	}
+	return false, fmt.Errorf("get capture status for %s: %w", nc.Name, statusErr)
+}
+
+// stopRequestAge is how long ago the stop was requested, read from the
+// RFC3339 value of stopRequestedAnnotation. An unparsable value falls back
+// to the capture's creation time; with neither available the age is
+// reported as unbounded, so the retry bound is treated as already reached
+// rather than letting the capture wait forever.
+func stopRequestAge(nc *gameplanev1alpha1.NetworkCapture, now time.Time) time.Duration {
+	if requestedAt, err := time.Parse(time.RFC3339, nc.Annotations[stopRequestedAnnotation]); err == nil {
+		return now.Sub(requestedAt)
+	}
+	if !nc.CreationTimestamp.IsZero() {
+		return now.Sub(nc.CreationTimestamp.Time)
+	}
+	return time.Duration(math.MaxInt64)
 }
 
 // isCaptureAlreadyStoppedError reports whether err is the sidecar's response

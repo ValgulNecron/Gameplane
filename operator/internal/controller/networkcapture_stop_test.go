@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
@@ -29,12 +31,13 @@ import (
 // is set, in which case it returns packets/bytes; statusErr overrides both,
 // for simulating a non-404 (transient) status error.
 type stopRecordingSidecar struct {
-	stopCalls []string
-	stopErr   error
-	known     bool
-	packets   int64
-	bytes     int64
-	statusErr error
+	stopCalls   []string
+	stopErr     error
+	known       bool
+	packets     int64
+	bytes       int64
+	statusErr   error
+	statusCalls int
 }
 
 func (s *stopRecordingSidecar) StartCapture(context.Context, string, string, string, *string, int64, int64) error {
@@ -47,6 +50,7 @@ func (s *stopRecordingSidecar) StopCapture(_ context.Context, _, serverName, cap
 }
 
 func (s *stopRecordingSidecar) GetCaptureStatus(context.Context, string, string, string) (string, int64, int64, string, error) {
+	s.statusCalls++
 	if s.statusErr != nil {
 		return "", 0, 0, "", s.statusErr
 	}
@@ -84,16 +88,53 @@ func stopTestServer(activeCapture string) *gameplanev1alpha1.GameServer {
 	return gs
 }
 
-func reconcileStopTest(t *testing.T, sidecar *stopRecordingSidecar, gs *gameplanev1alpha1.GameServer, nc *gameplanev1alpha1.NetworkCapture) (*gameplanev1alpha1.NetworkCapture, *gameplanev1alpha1.GameServer) {
+// stopTestPod is the game pod "srv-0" in phase, with the given UID.
+func stopTestPod(uid types.UID, phase corev1.PodPhase) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "srv-0", Namespace: stopTestNS, UID: uid},
+		Status:     corev1.PodStatus{Phase: phase},
+	}
+}
+
+// withCapturePodUID records uid as the pod the Pending branch observed
+// before it called StartCapture, as Reconcile does.
+func withCapturePodUID(nc *gameplanev1alpha1.NetworkCapture, uid types.UID) *gameplanev1alpha1.NetworkCapture {
+	if nc.Annotations == nil {
+		nc.Annotations = map[string]string{}
+	}
+	nc.Annotations[capturePodUIDAnnotation] = string(uid)
+	return nc
+}
+
+// withStopRequestedAt overrides the stop-request time recorded in the
+// annotation.
+func withStopRequestedAt(nc *gameplanev1alpha1.NetworkCapture, at time.Time) *gameplanev1alpha1.NetworkCapture {
+	if nc.Annotations == nil {
+		nc.Annotations = map[string]string{}
+	}
+	nc.Annotations[stopRequestedAnnotation] = at.UTC().Format(time.RFC3339)
+	return nc
+}
+
+// runStopReconcile reconciles nc once against a fake client holding gs, nc
+// and extra, returning the client and the Reconcile error.
+func runStopReconcile(t *testing.T, sidecar *stopRecordingSidecar, gs *gameplanev1alpha1.GameServer, nc *gameplanev1alpha1.NetworkCapture, extra ...client.Object) (client.Client, error) {
 	t.Helper()
 	c := fake.NewClientBuilder().
 		WithScheme(testScheme(t)).
-		WithObjects(gs, nc).
+		WithObjects(append([]client.Object{gs, nc}, extra...)...).
 		WithStatusSubresource(&gameplanev1alpha1.GameServer{}, &gameplanev1alpha1.NetworkCapture{}).
 		Build()
 	r := &NetworkCaptureReconciler{Client: c, Scheme: c.Scheme(), SidecarClient: sidecar, CaptureEnabled: true}
 
-	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: stopTestNS, Name: nc.Name}}); err != nil {
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: stopTestNS, Name: nc.Name}})
+	return c, err
+}
+
+func reconcileStopTest(t *testing.T, sidecar *stopRecordingSidecar, gs *gameplanev1alpha1.GameServer, nc *gameplanev1alpha1.NetworkCapture, extra ...client.Object) (*gameplanev1alpha1.NetworkCapture, *gameplanev1alpha1.GameServer) {
+	t.Helper()
+	c, err := runStopReconcile(t, sidecar, gs, nc, extra...)
+	if err != nil {
 		t.Fatalf("Reconcile: %v", err)
 	}
 
@@ -173,6 +214,9 @@ func TestNetworkCaptureStopRequested_PendingCompletesWithoutSidecar(t *testing.T
 			if len(sidecar.stopCalls) != 0 {
 				t.Errorf("StopCapture calls = %v, want none for a capture that never started", sidecar.stopCalls)
 			}
+			if sidecar.statusCalls != 0 {
+				t.Errorf("GetCaptureStatus calls = %d, want none without a recorded capture pod", sidecar.statusCalls)
+			}
 			assertUserStopCompleted(t, nc, "never_started")
 		})
 	}
@@ -232,7 +276,9 @@ func TestNetworkCaptureStopRequested_PendingKnownToSidecarStops(t *testing.T) {
 	for _, phase := range []gameplanev1alpha1.CapturePhase{"", gameplanev1alpha1.CapturePhasePending} {
 		t.Run("phase="+string(phase), func(t *testing.T) {
 			sidecar := &stopRecordingSidecar{known: true, packets: 7, bytes: 4096}
-			nc, _ := reconcileStopTest(t, sidecar, stopTestServer("cap-race"), stopTestCapture("cap-race", phase, true))
+			nc, _ := reconcileStopTest(t, sidecar, stopTestServer("cap-race"),
+				withCapturePodUID(stopTestCapture("cap-race", phase, true), "pod-1"),
+				stopTestPod("pod-1", corev1.PodRunning))
 
 			if len(sidecar.stopCalls) != 1 || sidecar.stopCalls[0] != "srv/cap-race" {
 				t.Errorf("StopCapture calls = %v, want exactly [srv/cap-race]", sidecar.stopCalls)
@@ -245,24 +291,18 @@ func TestNetworkCaptureStopRequested_PendingKnownToSidecarStops(t *testing.T) {
 	}
 }
 
-// TestNetworkCaptureStopRequested_PendingStatusErrorRequeues: a
-// GetCaptureStatus error that is not a 404 (e.g. a transient network
-// failure) must not be read as "the sidecar never heard of this capture" -
-// only a genuine 404 means that. Any other error is returned so the
+// TestNetworkCaptureStopRequested_PendingStatusErrorRequeues: while the
+// recorded capture pod is still up and Running, a GetCaptureStatus error
+// that is not a 404 (e.g. a transient network failure) must not be read as
+// "the sidecar never heard of this capture" - only a genuine 404 means
+// that. Within pendingStopUnreachableTimeout the error is returned so the
 // reconcile is requeued and retried.
 func TestNetworkCaptureStopRequested_PendingStatusErrorRequeues(t *testing.T) {
 	for _, phase := range []gameplanev1alpha1.CapturePhase{"", gameplanev1alpha1.CapturePhasePending} {
 		t.Run("phase="+string(phase), func(t *testing.T) {
 			sidecar := &stopRecordingSidecar{statusErr: errors.New("connection reset")}
-			nc := stopTestCapture("cap-transient", phase, true)
-			c := fake.NewClientBuilder().
-				WithScheme(testScheme(t)).
-				WithObjects(stopTestServer(""), nc).
-				WithStatusSubresource(&gameplanev1alpha1.GameServer{}, &gameplanev1alpha1.NetworkCapture{}).
-				Build()
-			r := &NetworkCaptureReconciler{Client: c, Scheme: c.Scheme(), SidecarClient: sidecar, CaptureEnabled: true}
-
-			_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: stopTestNS, Name: nc.Name}})
+			nc := withStopRequestedAt(withCapturePodUID(stopTestCapture("cap-transient", phase, true), "pod-1"), time.Now())
+			c, err := runStopReconcile(t, sidecar, stopTestServer(""), nc, stopTestPod("pod-1", corev1.PodRunning))
 			if err == nil {
 				t.Fatal("Reconcile: want an error to requeue on a non-404 status error, got nil")
 			}
@@ -278,6 +318,102 @@ func TestNetworkCaptureStopRequested_PendingStatusErrorRequeues(t *testing.T) {
 				t.Error("capture must not be completed as never_started on a transient status error")
 			}
 		})
+	}
+}
+
+// TestNetworkCaptureStopRequested_PendingNeverReachedSidecar: with positive
+// local evidence that the capture never reached a running sidecar, a
+// stop-requested Pending capture completes as never_started even when the
+// sidecar status call fails transiently (the GameServer is stopped or
+// asleep, so its pod and <gs>-agent Service are down). Requeueing instead
+// would hold the GameServer's capture lock until the pod came back.
+func TestNetworkCaptureStopRequested_PendingNeverReachedSidecar(t *testing.T) {
+	transient := errors.New("dial tcp: connection refused")
+	cases := []struct {
+		name            string
+		recordedPodUID  types.UID
+		pod             *corev1.Pod
+		statusErr       error
+		wantStatusCalls bool
+	}{
+		{name: "no recorded pod UID", pod: stopTestPod("pod-1", corev1.PodRunning), statusErr: transient},
+		{name: "pod missing", recordedPodUID: "pod-1", statusErr: transient},
+		{name: "pod recreated", recordedPodUID: "pod-1", pod: stopTestPod("pod-2", corev1.PodRunning), statusErr: transient},
+		{name: "pod not running", recordedPodUID: "pod-1", pod: stopTestPod("pod-1", corev1.PodPending), statusErr: transient},
+		{name: "sidecar client disabled", recordedPodUID: "pod-1", pod: stopTestPod("pod-1", corev1.PodRunning),
+			statusErr: fmt.Errorf("wrapped: %w", agent.ErrCaptureClientDisabled), wantStatusCalls: true},
+		{name: "sidecar 404", recordedPodUID: "pod-1", pod: stopTestPod("pod-1", corev1.PodRunning),
+			statusErr: &agent.HTTPError{Op: "get status", StatusCode: 404}, wantStatusCalls: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sidecar := &stopRecordingSidecar{statusErr: tc.statusErr}
+			nc := withStopRequestedAt(stopTestCapture("cap-nostart", gameplanev1alpha1.CapturePhasePending, true), time.Now())
+			if tc.recordedPodUID != "" {
+				withCapturePodUID(nc, tc.recordedPodUID)
+			}
+			var extra []client.Object
+			if tc.pod != nil {
+				extra = append(extra, tc.pod)
+			}
+			got, gs := reconcileStopTest(t, sidecar, stopTestServer("cap-nostart"), nc, extra...)
+
+			if len(sidecar.stopCalls) != 0 {
+				t.Errorf("StopCapture calls = %v, want none for a capture that never started", sidecar.stopCalls)
+			}
+			if (sidecar.statusCalls > 0) != tc.wantStatusCalls {
+				t.Errorf("GetCaptureStatus calls = %d, want sidecar asked = %v", sidecar.statusCalls, tc.wantStatusCalls)
+			}
+			assertUserStopCompleted(t, got, "never_started")
+			if meta.FindStatusCondition(got.Status.Conditions, "SidecarStopFailed") != nil {
+				t.Error("SidecarStopFailed must not be set for a capture that never started")
+			}
+			if gs.Status.Capture == nil || gs.Status.Capture.ActiveCapture != nil {
+				t.Errorf("gameserver activeCapture = %+v, want released (nil)", gs.Status.Capture)
+			}
+		})
+	}
+}
+
+// TestNetworkCaptureStopRequested_PendingStatusErrorBounded: once
+// pendingStopUnreachableTimeout has passed since the stop request, an
+// ambiguous status error no longer blocks completion: a best-effort stop is
+// sent, its failure is recorded as SidecarStopFailed, and the capture
+// completes and releases the lock.
+func TestNetworkCaptureStopRequested_PendingStatusErrorBounded(t *testing.T) {
+	sidecar := &stopRecordingSidecar{statusErr: errors.New("i/o timeout"), stopErr: errors.New("i/o timeout")}
+	nc := withStopRequestedAt(withCapturePodUID(stopTestCapture("cap-slow", gameplanev1alpha1.CapturePhasePending, true), "pod-1"),
+		time.Now().Add(-pendingStopUnreachableTimeout-time.Minute))
+	got, gs := reconcileStopTest(t, sidecar, stopTestServer("cap-slow"), nc, stopTestPod("pod-1", corev1.PodRunning))
+
+	if len(sidecar.stopCalls) != 1 || sidecar.stopCalls[0] != "srv/cap-slow" {
+		t.Errorf("StopCapture calls = %v, want exactly [srv/cap-slow]", sidecar.stopCalls)
+	}
+	assertUserStopCompleted(t, got, "stopped")
+	failed := meta.FindStatusCondition(got.Status.Conditions, "SidecarStopFailed")
+	if failed == nil || failed.Status != metav1.ConditionTrue {
+		t.Errorf("SidecarStopFailed condition = %+v, want True", failed)
+	}
+	if gs.Status.Capture == nil || gs.Status.Capture.ActiveCapture != nil {
+		t.Errorf("gameserver activeCapture = %+v, want released (nil)", gs.Status.Capture)
+	}
+}
+
+// TestStopRequestAge covers the annotation parse and its fallbacks.
+func TestStopRequestAge(t *testing.T) {
+	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
+	nc := stopTestCapture("cap-age", gameplanev1alpha1.CapturePhasePending, true)
+	if got := stopRequestAge(nc, now); got != 2*time.Hour {
+		t.Errorf("age from annotation = %v, want 2h", got)
+	}
+	nc.Annotations[stopRequestedAnnotation] = "not-a-time"
+	nc.CreationTimestamp = metav1.NewTime(now.Add(-time.Minute))
+	if got := stopRequestAge(nc, now); got != time.Minute {
+		t.Errorf("age from creation time = %v, want 1m", got)
+	}
+	nc.CreationTimestamp = metav1.Time{}
+	if got := stopRequestAge(nc, now); got < pendingStopUnreachableTimeout {
+		t.Errorf("age with no usable time = %v, want at least the retry bound", got)
 	}
 }
 
