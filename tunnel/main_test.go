@@ -682,10 +682,12 @@ func TestBuildCommandPlayit(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("buildCommand() returned nil")
 	}
-	// playitd (not playit-cli) takes --secret-path and --platform-docker,
-	// confirmed against playit-cloud/playit-agent's playitd.rs and its
-	// official Dockerfile/entrypoint.sh.
-	wantArgs := []string{"/usr/local/bin/playitd", "--secret-path", playitAuthPath, "--platform-docker"}
+	// playitd (not playit-cli) takes --secret-path, --socket-path and
+	// --platform-docker, confirmed against playit-cloud/playit-agent's
+	// playitd.rs (v1.0.10) and its official Dockerfile/entrypoint.sh.
+	// --socket-path points the IPC socket the address reporter polls at a
+	// path the non-root image can create (F-174).
+	wantArgs := []string{"/usr/local/bin/playitd", "--secret-path", playitAuthPath, "--socket-path", playitSocketPath, "--platform-docker"}
 	if !equalArgs(cmd.Args, wantArgs) {
 		t.Errorf("Args = %v, want %v", cmd.Args, wantArgs)
 	}

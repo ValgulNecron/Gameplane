@@ -35,6 +35,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -72,6 +73,13 @@ const (
 	// defaultPollInterval is how often waitForUpstream retries dialing the
 	// game-direct Service while holding a connection open.
 	defaultPollInterval = 250 * time.Millisecond
+
+	// defaultShutdownDrainTimeout bounds how long the sentinel keeps
+	// in-flight sessions alive after it is told to shut down (see
+	// Config.ShutdownDrainTimeout). It must match the operator's
+	// sentinelShutdownDrainTimeout in gameserver_sentinel.go, which also
+	// sizes the pod's terminationGracePeriodSeconds to cover it.
+	defaultShutdownDrainTimeout = 4 * time.Hour
 )
 
 // gameServerGVR identifies GameServer custom resources. A dynamic client
@@ -107,11 +115,15 @@ func main() {
 		cancel()
 	}()
 
-	if err := run(ctx, cfg, w); err != nil {
-		log.Printf("sentinel exiting: %v", err)
-	}
+	err = run(ctx, cfg, w)
 	cancel()
 	signal.Stop(sigCh)
+	if err != nil {
+		// Exit non-zero so the container restarts (and the restart count
+		// makes the failure visible) instead of the pod staying Ready
+		// with a dead port.
+		log.Fatalf("sentinel exiting: %v", err)
+	}
 }
 
 // Config holds the sentinel's parsed configuration.
@@ -145,6 +157,19 @@ type Config struct {
 	// patches, coalescing a burst of connecting clients into one apiserver
 	// call.
 	WakePatchInterval time.Duration
+
+	// ShutdownDrainTimeout bounds how long in-flight sessions (a held or
+	// handed-through player connection) are kept alive once the sentinel
+	// is told to shut down. Listeners stop accepting immediately; sessions
+	// already established get up to this long to finish on their own
+	// before they are force-closed. Zero means close them immediately.
+	ShutdownDrainTimeout time.Duration
+
+	// upstreamAddrOverride, when non-empty, replaces the game-direct
+	// Service address for every port. It is never set from the
+	// environment: it exists only so tests can point run() at a loopback
+	// listener standing in for the game pod.
+	upstreamAddrOverride string
 }
 
 // loadConfig reads and validates the sentinel's configuration via getenv
@@ -157,6 +182,8 @@ func loadConfig(getenv func(string) string) (Config, error) {
 		UDPMaxSources:     4096,
 		MaxConnections:    256,
 		WakePatchInterval: 2 * time.Second,
+
+		ShutdownDrainTimeout: defaultShutdownDrainTimeout,
 	}
 
 	cfg.GameServerName = getenv("GAMESERVER_NAME")
@@ -212,6 +239,13 @@ func loadConfig(getenv func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("invalid WAKE_PATCH_INTERVAL: %w", err)
 		}
 		cfg.WakePatchInterval = d
+	}
+	if v := getenv("SHUTDOWN_DRAIN_TIMEOUT"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d < 0 {
+			return Config{}, fmt.Errorf("invalid SHUTDOWN_DRAIN_TIMEOUT: %q", v)
+		}
+		cfg.ShutdownDrainTimeout = d
 	}
 
 	return cfg, nil
@@ -286,6 +320,9 @@ func wantsListener(p PortConfig) bool {
 
 // gameDirectAddr is the dial target for the real game pod once it's up.
 func gameDirectAddr(cfg Config, port PortConfig) string {
+	if cfg.upstreamAddrOverride != "" {
+		return cfg.upstreamAddrOverride
+	}
 	return fmt.Sprintf("%s-game-direct.%s.svc.cluster.local:%d", cfg.GameServerName, cfg.GameServerNamespace, port.ContainerPort)
 }
 
@@ -380,14 +417,81 @@ func wakeToken() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
+// sessionGroup tracks the per-connection handler goroutines ("sessions")
+// separately from the listeners that spawn them, so shutdown can stop
+// accepting new connections without cutting the ones already in flight.
+//
+// ctx is the sessions' own context: it is NOT the listener context, and is
+// only cancelled once the shutdown drain is over (or on a fatal listener
+// error). A handed-through connection's proxyBidirectional therefore keeps
+// copying after SIGTERM until both directions finish on their own.
+type sessionGroup struct {
+	ctx    context.Context
+	wg     sync.WaitGroup
+	active atomic.Int64
+}
+
+// start registers one session and runs fn in its own goroutine.
+func (g *sessionGroup) start(fn func(ctx context.Context)) {
+	g.wg.Add(1)
+	g.active.Add(1)
+	go func() {
+		defer g.wg.Done()
+		defer g.active.Add(-1)
+		fn(g.ctx)
+	}()
+}
+
+// drain waits up to timeout for every session to finish on its own, then
+// calls cancel (force-closing whatever is left) and waits for the
+// stragglers to exit. timeout <= 0 cancels immediately.
+func (g *sessionGroup) drain(timeout time.Duration, cancel context.CancelFunc) {
+	done := make(chan struct{})
+	go func() {
+		g.wg.Wait()
+		close(done)
+	}()
+
+	if n := g.active.Load(); n > 0 && timeout > 0 {
+		log.Printf("listeners closed; waiting up to %v for %d in-flight session(s) to finish", timeout, n)
+		timer := time.NewTimer(timeout)
+		select {
+		case <-done:
+			timer.Stop()
+		case <-timer.C:
+			log.Printf("shutdown drain of %v elapsed with %d session(s) still open; closing them", timeout, g.active.Load())
+		}
+	}
+	cancel()
+	<-done
+}
+
 // run starts a listener (TCP) or reader (UDP) for every configured,
 // non-"none" port and blocks until ctx is cancelled or a listener reports a
-// fatal error. It returns once every listener goroutine has exited.
+// fatal error.
+//
+// On ctx cancellation (SIGTERM) every listener stops immediately, so no new
+// connection is accepted, but sessions already in flight — notably a
+// connection already handed through to the game pod — are left to finish
+// on their own for up to cfg.ShutdownDrainTimeout (see sessionGroup). run
+// returns nil once they have.
+//
+// A fatal listener error (a UDP bind failure, an Accept or ReadFrom error)
+// is logged and returned as soon as it happens: the other listeners are
+// stopped and every session is closed without a drain, because a sentinel
+// with a dead port must restart rather than keep looking healthy.
 func run(ctx context.Context, cfg Config, w wakeRequester) error {
+	listenCtx, stopListening := context.WithCancel(ctx)
+	defer stopListening()
+	sessCtx, cancelSessions := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancelSessions()
+	sessions := &sessionGroup{ctx: sessCtx}
+
 	sem := make(chan struct{}, cfg.MaxConnections)
 	errCh := make(chan error, len(cfg.Ports)+1)
-	var wg sync.WaitGroup
+	var listeners sync.WaitGroup
 
+	var fatal error
 	for _, port := range cfg.Ports {
 		if !wantsListener(port) {
 			continue
@@ -395,44 +499,58 @@ func run(ctx context.Context, cfg Config, w wakeRequester) error {
 		port := port
 
 		if port.Protocol == "UDP" {
-			wg.Add(1)
+			listeners.Add(1)
 			go func() {
-				defer wg.Done()
-				serveUDP(ctx, port, w, cfg, errCh)
+				defer listeners.Done()
+				serveUDP(listenCtx, port, w, cfg, errCh)
 			}()
 			continue
 		}
 
 		lc := &net.ListenConfig{}
-		l, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", port.ContainerPort))
+		l, err := lc.Listen(listenCtx, "tcp", fmt.Sprintf(":%d", port.ContainerPort))
 		if err != nil {
-			return fmt.Errorf("listen tcp :%d: %w", port.ContainerPort, err)
+			fatal = fmt.Errorf("listen tcp :%d: %w", port.ContainerPort, err)
+			break
 		}
-		wg.Add(1)
+		listeners.Add(1)
 		go func() {
-			defer wg.Done()
-			serveTCP(ctx, l, port, w, cfg, sem, errCh)
+			defer listeners.Done()
+			serveTCP(listenCtx, l, port, w, cfg, sem, sessions, errCh)
 		}()
 	}
 
-	select {
-	case err := <-errCh:
-		wg.Wait()
-		return err
-	case <-ctx.Done():
+	if fatal == nil {
+		select {
+		case fatal = <-errCh:
+		case <-ctx.Done():
+		}
 	}
-	wg.Wait()
+
+	stopListening()
+	listeners.Wait()
+
+	if fatal != nil {
+		log.Printf("listener failed, shutting down: %v", fatal)
+		sessions.drain(0, cancelSessions)
+		return fatal
+	}
+	sessions.drain(cfg.ShutdownDrainTimeout, cancelSessions)
 	return nil
 }
 
 // serveTCP accepts connections on l until ctx is cancelled or Accept fails.
+// ctx is the listener's context only: each accepted connection is handled
+// as a session in sessions, under the sessions' own context, so closing
+// the listener on shutdown does not cut connections already accepted.
+//
 // Each accepted connection is handled in its own goroutine, but only after
 // acquiring a slot in sem — bounding the number of concurrent handler
 // goroutines so an unauthenticated port scan can't spawn an unbounded
 // number of them. When sem is full, Accept simply isn't called again until
 // a slot frees, so excess connections queue in the OS accept backlog
 // instead of piling up as goroutines.
-func serveTCP(ctx context.Context, l net.Listener, port PortConfig, w wakeRequester, cfg Config, sem chan struct{}, errCh chan<- error) {
+func serveTCP(ctx context.Context, l net.Listener, port PortConfig, w wakeRequester, cfg Config, sem chan struct{}, sessions *sessionGroup, errCh chan<- error) {
 	go func() {
 		<-ctx.Done()
 		_ = l.Close()
@@ -450,6 +568,12 @@ func serveTCP(ctx context.Context, l net.Listener, port PortConfig, w wakeReques
 			}
 			return
 		}
+		if ctx.Err() != nil {
+			// Accepted concurrently with shutdown: don't start a new
+			// session for it.
+			_ = conn.Close()
+			return
+		}
 
 		select {
 		case sem <- struct{}{}:
@@ -458,10 +582,10 @@ func serveTCP(ctx context.Context, l net.Listener, port PortConfig, w wakeReques
 			return
 		}
 
-		go func() {
+		sessions.start(func(sessCtx context.Context) {
 			defer func() { <-sem }()
-			handleTCPConnection(ctx, conn, port, w, cfg)
-		}()
+			handleTCPConnection(sessCtx, conn, port, w, cfg)
+		})
 	}
 }
 
@@ -658,6 +782,11 @@ type closeWriter interface {
 // connection (if supported) so that side can still drain any remaining
 // data already in flight, rather than being killed mid-copy. Only once
 // both io.Copy calls have returned are both connections fully closed.
+//
+// ctx is the session context from run's sessionGroup, not the listener
+// context: SIGTERM alone does not cancel it. It is cancelled only when the
+// shutdown drain times out or a listener fails fatally, and only then are
+// both copies cut short.
 func proxyBidirectional(ctx context.Context, upstream, downstream net.Conn, downstreamReader io.Reader) {
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -682,8 +811,9 @@ func proxyBidirectional(ctx context.Context, upstream, downstream net.Conn, down
 	select {
 	case <-done:
 	case <-ctx.Done():
-		// Shutting down: force both copies to unblock immediately rather
-		// than waiting for them to notice on their own.
+		// The shutdown drain ran out (or a listener failed fatally): force
+		// both copies to unblock immediately rather than waiting for them
+		// to notice on their own.
 	}
 	_ = upstream.Close()
 	_ = downstream.Close()

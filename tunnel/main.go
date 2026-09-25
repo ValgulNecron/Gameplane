@@ -10,10 +10,11 @@
 //   - frp: FRP_SERVER_ADDR, FRP_SERVER_PORT, BACKING_SERVICE_DNS, BACKING_SERVICE_PORT.
 //   - tailscale: TAILSCALE_HOSTNAME, TAILSCALE_TAGS, BACKING_SERVICE_DNS, BACKING_SERVICE_PORTS.
 //   - playit: PLAYIT_TUNNEL_NAME, BACKING_SERVICE_DNS, BACKING_SERVICE_PORTS. Validated for the
-//     operator contract (and as a label for the future playit address-discovery reporter, see the
-//     TODO on renderConfig below), but NOT passed to playitd: playitd has no local config file for
-//     port forwards -- those are managed against the account tied to the secret key via the
-//     playit.gg dashboard/API, not by this supervisor.
+//     operator contract but NOT passed to playitd: playitd has no local config file for port
+//     forwards -- those are managed against the account tied to the secret key via the playit.gg
+//     dashboard/API, not by this supervisor. BACKING_SERVICE_PORTS also names the ports the
+//     address reporter (playit_reporter.go) maps playitd's assigned addresses onto before
+//     patching them into the GameServer's status.tunnelEndpoints.
 //   - Credentials Secret is mounted read-only at /etc/gameplane/tunnel-auth.
 //   - Credential key names: frp uses "token", tailscale uses "authKey", playit uses "secretKey".
 package main
@@ -211,6 +212,18 @@ func run(ctx context.Context, cfg Config) error {
 		}
 	}()
 
+	// playit assigns the public address server-side; poll playitd for it
+	// and report it into status.tunnelEndpoints for the lifetime of run.
+	// frp and tailscale addresses are computed by the operator from spec.
+	if cfg.TunnelType == "playit" {
+		reporterCtx, stopReporter := context.WithCancel(ctx)
+		waitReporter := startPlayitReporter(reporterCtx, cfg)
+		defer func() {
+			stopReporter()
+			waitReporter()
+		}()
+	}
+
 	// Supervise the relay process with exponential backoff on exit.
 	backoff := &exponentialBackoff{}
 	for {
@@ -278,11 +291,6 @@ func readCredentials(cfg Config) (string, error) {
 
 // renderConfig generates the provider-specific config file and returns its path.
 // The caller is responsible for cleaning it up.
-//
-// TODO: addAddressReporter is the extension point for playit address discovery.
-// Once playit reports a discovered address (via gameservers/status or similar),
-// a provider-specific reporter should be invoked here. The exact mechanism
-// (interface, callback, status update) is TBD.
 func renderConfig(cfg Config, credential string) (string, error) {
 	switch cfg.TunnelType {
 	case "frp":
@@ -502,7 +510,16 @@ func buildCommand(ctx context.Context, cfg Config) *exec.Cmd {
 		// "playit") is a separate *service manager* around playitd with no flag
 		// to run a tunnel in the foreground under this file's exec+Wait
 		// supervision model, so playitd -- not playit-cli -- is the binary here.
-		return exec.CommandContext(ctx, "/usr/local/bin/playitd", "--secret-path", playitAuthPath, "--platform-docker")
+		//
+		// --socket-path moves playitd's IPC control socket from its Linux
+		// default (/run/playit/playitd.sock, which this non-root distroless
+		// image can't create) to a fixed /tmp path; the address reporter in
+		// playit_reporter.go polls it for the assigned public address (F-174).
+		return exec.CommandContext(ctx, "/usr/local/bin/playitd",
+			"--secret-path", playitAuthPath,
+			"--socket-path", playitSocketPath,
+			"--platform-docker",
+		)
 	default:
 		return nil
 	}

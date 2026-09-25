@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
@@ -67,6 +67,23 @@ describe("PlayersTab", () => {
     expect(await screen.findByText(/5 online/)).toBeInTheDocument();
     expect(screen.queryByText("-1")).not.toBeInTheDocument();
     expect(screen.queryByText(/5 \/ -1/)).not.toBeInTheDocument();
+  });
+
+  it("renders an unknown player count (-1) as — and 'Player count unknown'", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(makePlayers({ online: -1, max: -1, players: [] })),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    expect(await screen.findByText("Player count unknown")).toBeInTheDocument();
+    // The Whitelisted/Banned stat tiles also render "—" while their own
+    // queries are pending, so scope to the Online tile specifically instead
+    // of asserting on the page as a whole.
+    const onlineCard = screen.getByText("Online").closest('[data-slot="card"]') as HTMLElement;
+    expect(within(onlineCard).getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("-1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/-1 online/)).not.toBeInTheDocument();
   });
 
   it("lists the whitelist and adds an entry", async () => {

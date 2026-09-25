@@ -238,6 +238,7 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - Create GameTemplate CR with owner reference to Module (delete Module → delete template).
   - Validate operator version against bundle's gameplaneMinVersion.
   - Report InstallFailed condition with root cause (signature mismatch, version too old, fetch failed, etc.).
+  - Retry a Failed Module every `minRefreshInterval` (1 minute) via `RequeueAfter`. A spec change (new generation) or a change to its ModuleSource reconciles it at once. A same-generation retry keeps Phase=Failed while it re-pulls (no Pulling flip), and status is written only when something other than condition timestamps changes, so a Module stuck on the same failure does not rewrite its status or re-queue itself (F-258).
 
 ### ClusterStatusReconciler
 - **Responsibility:** Periodic health checks on remote clusters.

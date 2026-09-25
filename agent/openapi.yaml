@@ -44,8 +44,15 @@ components:
       type: object
       required: [online, max, players, asOf, capabilities]
       properties:
-        online:  { type: integer }
-        max:     { type: integer }
+        online:
+          type: integer
+          description: >-
+            Current online player count, or -1 when unknown (RCON disabled,
+            or no recognized player-list format for this game). -1 is the
+            sole "unknown" sentinel; it is never combined with real counts.
+        max:
+          type: integer
+          description: -1 when unknown, for the same reasons as `online`.
         players: { type: array, items: { type: string } }
         asOf:    { type: string, format: date-time }
         capabilities: { $ref: "#/components/schemas/Capabilities" }
