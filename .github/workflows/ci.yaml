@@ -127,6 +127,10 @@ jobs:
               # The chart embeds a copy of the root signing key; the drift
               # check in `chart render` has to run when either side moves.
               - 'cosign.pub'
+              # The CRD bundle-hash stamp check regenerates the chart CRDs
+              # from these; an edit to either must re-run it.
+              - 'operator/config/crd/**'
+              - 'hack/sync-chart-crds.sh'
             e2etree:
               - 'test/e2e/**'
               - 'deploy/kind/**'
@@ -705,11 +709,61 @@ jobs:
                   "helm.sh/resource-policy: keep (F-212)")
           print("games Namespace carries helm.sh/resource-policy: keep")
           PY
+      - name: pre-upgrade hook targets the rendered API Deployment name (F-213)
+        # A release installed under a non-default name used to render a hook
+        # Role whose resourceNames named a Deployment
+        # ({{ .Release.Name }}-api) the chart never actually creates — the
+        # API Deployment is always named "gameplane-api" literally
+        # (api.yaml), unlike the surrounding Role/RoleBinding names. Any such
+        # release could install but never upgrade.
+        run: |
+          helm template gp charts/gameplane --namespace gpns --is-upgrade > /tmp/rendered-gp.yaml
+          python3 - <<'PY'
+          import sys, yaml
+          docs = list(yaml.safe_load_all(open('/tmp/rendered-gp.yaml')))
+          deploy_names = {d['metadata']['name'] for d in docs
+                           if d and d.get('kind') == 'Deployment'}
+          roles = [d for d in docs if d and d.get('kind') == 'Role'
+                   and d.get('metadata', {}).get('name', '').endswith('-strategy-migrate')]
+          if not roles:
+              sys.exit("::error::no strategy-migrate Role rendered with --is-upgrade "
+                        "(api.db.driver=sqlite is the chart default)")
+          resource_names = {n for rule in roles[0].get('rules', [])
+                             for n in rule.get('resourceNames', [])}
+          if not resource_names & deploy_names:
+              sys.exit(f"::error::pre-upgrade hook Role resourceNames {resource_names} "
+                        f"does not match any rendered Deployment name {deploy_names} (F-213)")
+          print(f"hook Role resourceNames {resource_names} matches a rendered Deployment")
+          PY
+      - name: chart renders after helm upgrade --reuse-values from v0.2.0-beta.8 (F-214)
+        # `helm upgrade --reuse-values` swaps the new chart's own default
+        # values.yaml for the old release's fully-resolved values before
+        # rendering (helm pkg/action/upgrade.go reuseValues: chart.Values =
+        # oldVals), so any value key introduced since the user's last upgrade
+        # is completely absent, not just unset. Simulate that exactly: stand
+        # beta.8's values.yaml in for the chart's OWN values.yaml (a plain -f
+        # merge would NOT reproduce this, since -f still merges onto the new
+        # chart's own defaults).
+        run: |
+          trap 'cp /tmp/values.yaml.orig charts/gameplane/values.yaml' EXIT
+          cp charts/gameplane/values.yaml /tmp/values.yaml.orig
+          cp charts/gameplane/testdata/upgrade-from-v0.2.0-beta.8-values.yaml charts/gameplane/values.yaml
+          helm template gameplane charts/gameplane > /tmp/rendered-reuse-values.yaml
       - name: crd-manifests in sync with crds
         # The CRD-apply hook serves CRDs from crd-manifests/ (crds/ isn't
         # readable by Helm .Files). make manifests keeps both in sync; guard
         # against a drift that would apply stale CRDs on upgrade.
         run: diff -r charts/gameplane/crds charts/gameplane/crd-manifests
+      - name: chart CRDs carry the current bundle-hash stamp (F-218)
+        # crd-apply-hook.yaml fires on pre-install only when the live CRDs'
+        # gameplane.local/crd-bundle-sha256 differs from the chart's. A stale
+        # stamp (CRDs hand-copied without `make manifests`) would make a fresh
+        # install skip the hook over CRDs that are actually out of date, so
+        # regenerate the chart copies from operator/config/crd and fail on any
+        # difference.
+        run: |
+          hack/sync-chart-crds.sh
+          git diff --exit-code -- charts/gameplane/crds charts/gameplane/crd-manifests
       - name: chart cosign key matches root cosign.pub
         # values.yaml embeds a copy of the signing public key so the operator
         # can verify official module bundles. Nothing regenerates it, so a key
