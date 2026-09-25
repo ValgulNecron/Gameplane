@@ -693,6 +693,43 @@ func TestGameServer_BackupPolicyMaterializesSchedule(t *testing.T) {
 	})
 }
 
+// TestGameServer_BackupPolicyMaterializesQuiescedSchedule covers F-045:
+// InlineBackupPolicy exposes no quiesce field, so the materialized
+// BackupSchedule must still get the CRD's documented default (true) rather
+// than the Go zero value the typed client would otherwise send explicitly on
+// the wire (defeating the apiserver's own `default: true`).
+func TestGameServer_BackupPolicyMaterializesQuiescedSchedule(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	gs.Spec.BackupPolicy = &gameplanev1alpha1.InlineBackupPolicy{
+		Schedule: "0 */6 * * *",
+		RepoRef:  gameplanev1alpha1.SecretKeySelector{Name: "repo", Key: "url"},
+	}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var bs gameplanev1alpha1.BackupSchedule
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-auto"}, &bs); err != nil {
+			return false, "get schedule: " + err.Error()
+		}
+		if !bs.Spec.Quiesce {
+			return false, "schedule.spec.quiesce = false, want true (CRD default)"
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_BackupPolicyRemovedDeletesSchedule — clearing
 // Spec.BackupPolicy deletes the managed schedule.
 func TestGameServer_BackupPolicyRemovedDeletesSchedule(t *testing.T) {

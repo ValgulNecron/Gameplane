@@ -174,6 +174,7 @@ func resticImageOrDefault(image string) string {
 
 // +kubebuilder:rbac:groups=gameplane.local,resources=backups,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=gameplane.local,resources=backups/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=backups/finalizers,verbs=update
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods/log,verbs=get
@@ -186,6 +187,20 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, &b); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	if !b.DeletionTimestamp.IsZero() {
+		return r.finalizeDelete(ctx, &b)
+	}
+	// Only Backups that might quiesce the world need to block on releasing
+	// it before deletion; everything else deletes immediately.
+	if b.Spec.Quiesce && !controllerutil.ContainsFinalizer(&b, gameplanev1alpha1.BackupFinalizer) {
+		controllerutil.AddFinalizer(&b, gameplanev1alpha1.BackupFinalizer)
+		if err := r.Update(ctx, &b); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
 	// A Succeeded Backup whose restic snapshot id we never managed to read isn't
 	// restorable yet, so keep working on it — but retry only the log scrape.
 	// Re-entering the full pipeline would re-validate the GameServer and repo
@@ -194,10 +209,15 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
 		return r.retrySnapshotScrape(ctx, &b)
 	}
-	// Terminal Backups need no further reconciliation.
+	// Terminal Backups need no further reconciliation of the restic Job — but
+	// a terminal phase can be persisted (mirrorJobStatus writes status.phase
+	// before the matching unquiesce is confirmed) while a prior unquiesce
+	// attempt is still failing (F-044). Retrying that is the only work a
+	// terminal Backup still owes; runUnquiesce is a fast no-op once nothing
+	// is outstanding, so this stays cheap on the common path.
 	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded ||
 		b.Status.Phase == gameplanev1alpha1.BackupPhaseFailed {
-		return ctrl.Result{}, nil
+		return r.runUnquiesce(ctx, &b)
 	}
 
 	// Resolve the target before building the Job: a Backup against a
@@ -528,6 +548,27 @@ func (r *BackupReconciler) setUnquiescedCondition(
 	}
 	b.Status.Conditions = newConds
 	return r.Status().Update(ctx, b)
+}
+
+// finalizeDelete runs on a Backup marked for deletion. It releases a
+// quiesced world (F-048) before letting the finalizer clear and the
+// apiserver garbage-collect the object — without it, deleting a Backup
+// while quiesce-attempted=true drops the unquiesce entirely and the game
+// stays with auto-save off. Retries (via requeue) until the agent is
+// reachable, mirroring runUnquiesce's terminal-phase behavior.
+func (r *BackupReconciler) finalizeDelete(ctx context.Context, b *gameplanev1alpha1.Backup) (ctrl.Result, error) {
+	if !controllerutil.ContainsFinalizer(b, gameplanev1alpha1.BackupFinalizer) {
+		return ctrl.Result{}, nil
+	}
+	if err := r.maybeUnquiesce(ctx, b); err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "unquiesce failed during backup delete; will retry", "backup", b.Name)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	controllerutil.RemoveFinalizer(b, gameplanev1alpha1.BackupFinalizer)
+	if err := r.Update(ctx, b); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 // missingRepoSecretKeys returns the restic Secret keys the backup/restore

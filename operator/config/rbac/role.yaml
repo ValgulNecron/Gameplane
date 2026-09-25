@@ -87,6 +87,14 @@ rules:
 - apiGroups:
   - gameplane.local
   resources:
+  - backups/finalizers
+  - gameservers/finalizers
+  - modules/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - gameplane.local
+  resources:
   - backups/status
   - backupschedules/status
   - clusters/status
@@ -123,13 +131,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - gameplane.local
-  resources:
-  - gameservers/finalizers
-  - modules/finalizers
-  verbs:
-  - update
 - apiGroups:
   - gameplane.local
   resources:

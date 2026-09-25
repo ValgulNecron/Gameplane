@@ -151,11 +151,15 @@ scrape, and if the id still can't be read a grace period after the Job
 finished (the pod logs were rotated or garbage-collected, or the Job itself
 is gone) it transitions the Backup to `Failed`.
 
-Before going terminal it always releases the game world: a Backup with
-`spec.quiesce` left the game with auto-save off waiting for the post-backup
-unquiesce, and a `Failed` Backup is never reconciled again — so the unquiesce
-runs first, and while the agent is unreachable the operator requeues rather
-than failing.
+It always releases the game world: a Backup with `spec.quiesce` left the game
+with auto-save off waiting for the post-backup unquiesce, so the unquiesce is
+attempted before — and, if it fails, retried after — the Backup goes
+terminal, rather than one failed attempt being final. A terminal Backup
+(`Succeeded` or `Failed`) is otherwise not reconciled further, but keeps
+being requeued (every 30s) until its unquiesce lands or it never quiesced in
+the first place. Deleting a quiesced Backup goes through the same release: a
+finalizer holds the object until the unquiesce is sent, so `kubectl delete
+backup` can't drop it silently.
 
 ### Restore from backup
 
@@ -164,7 +168,9 @@ than failing.
 3. Operator waits for source Backup.status.snapshotID to exist, then pins
    it into Restore.status
 4. For restic-snapshot backups: Operator suspends the target GameServer,
-   creates a restic-restore Job, and resumes on completion
+   creates a restic-restore Job (`restic restore <id> --target / --delete`,
+   so files created after the snapshot are removed rather than left
+   alongside the restored data), and resumes on completion
 5. For volume-snapshot backups: Operator provisions a new GameServer seeded
    from the CSI snapshot (no suspend/resume needed)
 
