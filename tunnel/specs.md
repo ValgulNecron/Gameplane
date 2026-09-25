@@ -58,7 +58,7 @@ Single executable module; no subdirectories or packages.
 | `BACKING_SERVICE_DNS` | string | yes | DNS name of the game pod Service, format `<gs-name>.<namespace>.svc` |
 | `FRP_SERVER_ADDR` | string | if frp | Hostname or IP of the frp server |
 | `FRP_SERVER_PORT` | int | no (default 7000) | frp server port; validated 1–65535 |
-| `BACKING_SERVICE_PORT` | string | if frp | Port mappings for frp, format `name:port,name:port` (e.g., `java:25565,bedrock:19133`) |
+| `BACKING_SERVICE_PORT` | string | if frp | Port mappings for frp, format `name:localPort:remotePort:protocol,...` (e.g., `game:34197:30000:udp`); localPort and protocol come from the GameTemplate port, remotePort from `spec.networking.tunnel.frp.remotePorts` (F-052) |
 | `TAILSCALE_HOSTNAME` | string | if tailscale | MagicDNS hostname in the tailnet; fatal if unset for tailscale provider |
 | `TAILSCALE_TAGS` | string | no | Comma-separated ACL tags for Tailscale device registration; parsed by loadConfig but NOT currently applied to rendered tailscaled config or command (known gap; operator sets it from spec.networking.tunnel.tailscale.tags) |
 | `BACKING_SERVICE_PORTS` | string | if tailscale or playit | Container ports for non-frp providers, format `name:port,name:port` |
@@ -117,6 +117,8 @@ All binary paths are fixed constants, not configurable. Secrets are never passed
 ## Known Gaps
 
 - **TAILSCALE_TAGS not applied:** The `TAILSCALE_TAGS` environment variable is parsed by `loadConfig` but is not currently rendered into the tailscaled declarative config or command-line arguments. The operator accepts and stores `spec.networking.tunnel.tailscale.tags[]` from the CRD, but this field does not flow through the tunnel pod yet.
+
+- **Tailscale doesn't forward tailnet traffic to the game (F-173):** `BACKING_SERVICE_DNS` and `BACKING_SERVICE_PORTS` are read and validated for presence when `TUNNEL_TYPE=tailscale`, but neither reaches `renderTailscaleConfig` or the `tailscaled` process. The rendered config carries only `version`/`authKey`/`hostname`. The tunnel pod registers as a tailnet device, but nothing bridges an inbound tailnet connection to the backing Service — tailscaled's declarative `--config` file has no serve/forward field, and `tailscale serve` (the real mechanism) only proxies TCP/HTTP(S) to a local `127.0.0.1` target, never a remote host, and has no UDP support. Fixing this is an architecture decision (a local proxy + headless `tailscale serve`, TCP-only; a subnet route via `advertiseRoutes`, which needs tailnet ACL auto-approval and widens reachability into cluster-internal networking; or replacing subprocess `tailscaled` with an embedded `tsnet` listener, which would end this module's stdlib-only dependency policy), tracked pending a decision in `specs/018-v0-3-release-readiness/OPEN-DECISIONS.md`.
 
 ## CRD Integration
 

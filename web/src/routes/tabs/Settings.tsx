@@ -162,14 +162,14 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
   };
 
   const reload = async () => {
-    const fresh = await Servers.get(name);
+    const fresh = await Servers.get(name, ns);
     const clone = structuredClone(fresh);
     baselineRef.current = clone;
     setDraft(clone);
     setDirty(false);
     setConflict(false);
     setError(null);
-    qc.setQueryData(["server", name], fresh);
+    qc.setQueryData(["server", name, ns], fresh);
   };
 
   const onChangeDraft = (next: GameServer) => {

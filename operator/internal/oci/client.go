@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/mod/semver"
+	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/retry"
@@ -91,6 +91,11 @@ func (c *Client) ListTags(ctx context.Context, ref string) ([]string, error) {
 // digest) and returns its manifest digest plus the layer blobs keyed
 // by their title annotation. Untitled layers are skipped. Parsing the
 // layers into a module bundle is the caller's job (modsrc.FromFiles).
+//
+// Every byte Pull returns is checked against a digest: the manifest
+// body against the returned manifest digest, and each layer body
+// against the digest the manifest lists for it. A signature check on
+// the returned digest therefore covers all of the returned content.
 func (c *Client) Pull(ctx context.Context, ref, reference string) (string, map[string][]byte, error) {
 	r, err := c.repo(ref)
 	if err != nil {
@@ -102,7 +107,9 @@ func (c *Client) Pull(ctx context.Context, ref, reference string) (string, map[s
 	}
 	defer func() { _ = manifestRC.Close() }()
 
-	manifestBytes, err := io.ReadAll(manifestRC)
+	// content.ReadAll checks the body's size and digest against
+	// manifestDesc, the descriptor whose digest Pull returns.
+	manifestBytes, err := content.ReadAll(manifestRC, manifestDesc)
 	if err != nil {
 		return "", nil, fmt.Errorf("read manifest %s@%s: %w", ref, reference, err)
 	}
@@ -131,11 +138,17 @@ func (c *Client) Pull(ctx context.Context, ref, reference string) (string, map[s
 	return manifestDesc.Digest.String(), files, nil
 }
 
+// readBlob fetches the blob desc names and returns its bytes only when
+// they match desc's size and digest.
 func readBlob(ctx context.Context, r *remote.Repository, desc ocispec.Descriptor) ([]byte, error) {
 	rc, err := r.Blobs().Fetch(ctx, desc)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rc.Close() }()
-	return io.ReadAll(rc)
+	data, err := content.ReadAll(rc, desc)
+	if err != nil {
+		return nil, fmt.Errorf("check blob %s: %w", desc.Digest, err)
+	}
+	return data, nil
 }

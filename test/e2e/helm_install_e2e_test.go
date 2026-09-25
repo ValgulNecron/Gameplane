@@ -86,6 +86,33 @@ func TestHelmInstall_AllCRDsPresent(t *testing.T) {
 	}
 }
 
+// TestHelmInstall_CRDApplyHookSkippedOnFreshInstall — the other half of
+// F-218. deploy/kind/e2e.sh installs the chart onto a brand-new kind cluster,
+// so Helm's native crds/ step creates every CRD (carrying this chart's
+// bundle-hash stamp) before templates are rendered. The crds.autoApply hook
+// must recognise those as current and stay pre-upgrade only: firing on
+// every install would make air-gapped first installs pull the kubectl image
+// and add a Job to every install. A bare "does the CRD exist" check fired on
+// every install for exactly that reason, and the upgrade bucket's
+// install-over-leftover-CRDs phase cannot catch it, since the hook is
+// supposed to fire there.
+func TestHelmInstall_CRDApplyHookSkippedOnFreshInstall(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	if got := crdApplyHookEvents(ctx, t, "gameplane", "gameplane-system"); got != "pre-upgrade" {
+		t.Errorf("fresh install rendered the crd-apply hook for %q, want \"pre-upgrade\" only "+
+			"(the hook must not run on an install whose CRDs crds/ just created)", got)
+	}
+	// The stamps matching is WHY it stayed pre-upgrade; a mismatch here means
+	// crds/ and crd-manifests/ disagree, which CI's chart render job guards.
+	want := manifestCRDStamp(t, "gameplane.local_gameservers.yaml")
+	if got := liveCRDStamp(ctx, t, "gameservers.gameplane.local"); got != want {
+		t.Errorf("live gameservers CRD %s = %q on a fresh install, want the chart's %q",
+			crdBundleStampAnnotation, got, want)
+	}
+}
+
 // TestHelmInstall_OperatorLogsClean — operator container has no
 // recent ERROR-level logs. A startup panic or repeated reconcile
 // failure would surface here. We tolerate WARN since a few are

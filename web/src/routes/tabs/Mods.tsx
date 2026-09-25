@@ -111,7 +111,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
   // Install stays on the browse page (so you can add several); the banner
   // reports each result and the installed list refreshes underneath.
   const install = useMutation({
-    mutationFn: (body: InstallBody) => Servers.installMod(name, body),
+    mutationFn: (body: InstallBody) => Servers.installMod(name, body, ns),
     onSuccess: (mod, body) => {
       setBanner({ kind: "ok", text: body.replaces ? `Updated to ${mod.name}` : `Installed ${mod.name}` });
       if (body.replaces && updates.data) void updates.refetch();
@@ -137,7 +137,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
   });
 
   const upload = useMutation({
-    mutationFn: (file: File) => Servers.uploadMod(name, file),
+    mutationFn: (file: File) => Servers.uploadMod(name, file, ns),
     onSuccess: (mod) => {
       setBanner({ kind: "ok", text: `Uploaded ${mod.name}` });
       return qc.invalidateQueries({ queryKey: ["mods", name] });
@@ -150,7 +150,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
       // Sequential on purpose: each install is a download on the agent;
       // parallel requests would just contend on the same volume.
       for (const u of updates.data?.updates ?? []) {
-        await Servers.installMod(name, upgradeBody(u));
+        await Servers.installMod(name, upgradeBody(u), ns);
       }
       return updates.data?.updates.length ?? 0;
     },
@@ -167,7 +167,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
   });
 
   const remove = useMutation({
-    mutationFn: (mod: string) => Servers.removeMod(name, mod),
+    mutationFn: (mod: string) => Servers.removeMod(name, mod, ns),
     onSuccess: (_void, mod) => {
       setConfirmRemove(null);
       setBanner({ kind: "ok", text: `Removed ${mod}` });
@@ -190,6 +190,7 @@ function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate
     return (
       <InstallPage
         name={name}
+        ns={ns}
         canInstall={canInstall}
         canBrowse={canBrowse}
         allowedHosts={caps?.install?.allowedHosts ?? []}
@@ -556,6 +557,7 @@ function ModsByIdTab({
         <div className="min-h-0 flex-1">
           <RegistryBrowser
             name={name}
+            ns={ns}
             type="mod"
             categories={MOD_CATEGORIES}
             renderItem={(p) => (
@@ -799,6 +801,7 @@ type InstallMode = "search" | "url" | "upload";
 // paths converge on agent endpoints that enforce the same checks.
 function InstallPage({
   name,
+  ns,
   canInstall,
   canBrowse,
   allowedHosts,
@@ -812,6 +815,7 @@ function InstallPage({
   onUpload,
 }: {
   name: string;
+  ns?: string;
   canInstall: boolean;
   canBrowse: boolean;
   allowedHosts: string[];
@@ -911,7 +915,7 @@ function InstallPage({
 
       {browsing ? (
         <div className="min-h-0 flex-1">
-          <BrowseForm name={name} pending={pending} onInstall={onInstall} onUseUrl={useUrlForm} />
+          <BrowseForm name={name} ns={ns} pending={pending} onInstall={onInstall} onUseUrl={useUrlForm} />
         </div>
       ) : mode === "upload" ? (
         <UploadForm
@@ -1094,11 +1098,13 @@ const MOD_CATEGORIES: { value: string; label: string }[] = [
 // load-more) with each result expandable to a version picker + Install.
 function BrowseForm({
   name,
+  ns,
   pending,
   onInstall,
   onUseUrl,
 }: {
   name: string;
+  ns?: string;
   pending: boolean;
   onInstall: (body: InstallBody) => void;
   onUseUrl: (url: string) => void;
@@ -1107,11 +1113,13 @@ function BrowseForm({
     <div className="flex min-h-0 flex-1 flex-col pt-3">
       <RegistryBrowser
         name={name}
+        ns={ns}
         type="mod"
         categories={MOD_CATEGORIES}
         renderItem={(p, provider) => (
           <ModCard
             name={name}
+            ns={ns}
             project={p}
             provider={provider}
             pending={pending}
@@ -1128,6 +1136,7 @@ function BrowseForm({
 // (from the active provider) and offers a version/file picker + Install.
 function ModCard({
   name,
+  ns,
   project,
   provider,
   pending,
@@ -1135,6 +1144,7 @@ function ModCard({
   onUseUrl,
 }: {
   name: string;
+  ns?: string;
   project: RegistryProject;
   provider: string;
   pending: boolean;
@@ -1144,8 +1154,8 @@ function ModCard({
   const [open, setOpen] = useState(false);
   const [selId, setSelId] = useState("");
   const versions = useQuery({
-    queryKey: ["mod-versions", name, provider, project.id],
-    queryFn: () => Servers.modVersions(name, project.id, provider),
+    queryKey: ["mod-versions", name, provider, project.id, ns],
+    queryFn: () => Servers.modVersions(name, project.id, provider, ns),
     enabled: open,
   });
   const list = versions.data ?? [];

@@ -52,27 +52,45 @@ func TestAPI_ModUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("form file: %v", err)
 	}
-	if _, err := fw.Write([]byte("uploaded by gameplane e2e")); err != nil {
+	// F-075 regression: the payload must exceed the old global 1 MiB
+	// bodyLimit so this test only passes once /mods/upload is correctly
+	// exempted and can use its declared 512 MiB ceiling.
+	modPayload := bytes.Repeat([]byte("gameplane-e2e-mod-upload-chunk-"), 100000) // ~3.1 MiB
+	if _, err := fw.Write(modPayload); err != nil {
 		t.Fatalf("write part: %v", err)
 	}
 	if err := mw.Close(); err != nil {
 		t.Fatalf("close multipart: %v", err)
 	}
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload", &buf)
+	// F-074 regression: pace the upload so it is still in flight past the
+	// API's 60s request-timeout — /mods/upload streams the body to the
+	// agent on req.Context(), so the timeout must not apply to it.
+	const slowUploadFloor = 65 * time.Second
+	uploadLen := buf.Len()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload",
+		newPacedReader(buf.Bytes(), 64*1024, 72*time.Second))
 	if err != nil {
 		t.Fatalf("build upload req: %v", err)
 	}
+	req.ContentLength = int64(uploadLen)
+	uploadStart := time.Now()
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req.Header.Set("X-Gameplane-CSRF", cli.CSRF)
-	resp, err := cli.HTTP.Do(req)
+	// cli.HTTP's 90s Timeout would race the ~72s paced body plus the agent
+	// round-trip; use the long-transfer client (same jar and transport).
+	resp, err := longTransferClient(cli).Do(req)
 	if err != nil {
 		t.Fatalf("POST /mods/upload: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
+	uploadElapsed := time.Since(uploadStart)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("upload expected 200, got %d body=%q", resp.StatusCode, string(body))
+		t.Fatalf("upload expected 200 after %s (cut short by requestTimeout?), got %d body=%q", uploadElapsed, resp.StatusCode, string(body))
+	}
+	if uploadElapsed < slowUploadFloor {
+		t.Fatalf("mod upload finished in %s, want it paced past %s to exercise the 60s request timeout", uploadElapsed, slowUploadFloor)
 	}
 	var uploaded modEntry
 	if err := json.Unmarshal(body, &uploaded); err != nil {

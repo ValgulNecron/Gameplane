@@ -231,8 +231,9 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
 - **Responsibility:** Materialize Module → GameTemplate.
 - **Key functions:**
   - Resolve module name/version via ModuleSource status.modules catalog.
-  - Fetch OCI bundle (oras pull).
+  - Fetch OCI bundle (oras pull). The manifest body must hash to the manifest digest, and each layer body to the digest the manifest lists for it; a mismatch fails the pull (`PullFailed`). The signature check therefore covers every byte the bundle contributes.
   - Verify cosign signature if ModuleSource.spec.verify declared.
+  - Enforce `spec.digest`: a resolved bundle with a different digest fails with `DigestMismatch`. A Ready Module counts as converged only while a set `spec.digest` equals `status.appliedDigest`, so a pin added or changed after install is checked on the next reconcile.
   - Extract module.yaml + template.yaml from bundle.
   - Create GameTemplate CR with owner reference to Module (delete Module → delete template).
   - Validate operator version against bundle's gameplaneMinVersion.
@@ -388,7 +389,7 @@ Forgetting codegen leaves the YAML out of sync with types — CI's `make manifes
 
 3. **Codegen is mandatory after CRD type edits.** Generated deepcopy + YAML must ship in the same commit as type changes.
 
-4. **CRDs are owned by the control plane, not Helm.** Helm's `crds/` is applied only on first install; updates come from a pre-upgrade hook running `kubectl apply --server-side --server-side-apply-manager=gameplane` on every `helm upgrade`. CRDs are never owned or deleted by Helm.
+4. **CRDs are owned by the control plane, not Helm.** Helm's `crds/` is applied only on first install; updates come from a pre-upgrade hook running `kubectl apply --server-side --server-side-apply-manager=gameplane` on every `helm upgrade`, which also fires on a `helm install` over leftover CRDs whose `gameplane.local/crd-bundle-sha256` stamp (written by `make manifests` via `hack/sync-chart-crds.sh`) differs from the chart's (F-218). CRDs are never owned or deleted by Helm.
 
 5. **Agent mTLS is optional but recommended.** Operator boots without `--agent-ca-bundle`/`--agent-client-cert`/`--agent-client-key` (client.Disabled=true); Agent methods silently no-op. Production installs should supply all three.
 
@@ -451,7 +452,7 @@ Forgetting codegen leaves the YAML out of sync with types — CI's `make manifes
 
 ## Security considerations
 
-1. **cosign signature verification:** ModuleSource.spec.verify declares keyed (public key Secret) or keyless (Rekor + transparency log) verification. Operator refuses to install bundles with invalid/missing signatures if verify is declared.
+1. **cosign signature verification:** ModuleSource.spec.verify declares keyed (public key Secret) or keyless (Rekor + transparency log) verification. Operator refuses to install bundles with invalid/missing signatures if verify is declared. The OCI client checks the pulled manifest and every layer against their digests before use, so the verified digest covers the installed content.
 
 2. **SSRF dial guard (netguard):** ModuleSource fetch (git clone, HTTP download) uses netguard's permissive IsAllowed policy — allows self-hosted registries on private addresses (10.0.0.0/8, etc.), but blocks obvious metadata-service endpoints (169.254.169.254). Agent module install (`capabilities.mods.install`) uses strict IsPublic policy, rejecting private IPs.
 

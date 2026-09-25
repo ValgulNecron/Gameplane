@@ -280,7 +280,7 @@ spec:
             - --agent-ca-secret-name={{ .Values.api.agentMTLS.caSecretRef.name }}
             - --agent-ca-secret-namespace={{ .Release.Namespace }}
             - --module-namespace={{ .Release.Namespace }}
-            {{- if .Values.capture.enabled }}
+            {{- if and .Values.capture .Values.capture.enabled }}
             - --capture-enabled=true
             - --capture-sidecar-image={{ include "gameplane.captureImage" . }}
             - --capture-default-retention-seconds={{ .Values.capture.defaultRetentionSeconds | int64 }}
@@ -302,7 +302,7 @@ spec:
             {{- if .Values.operator.agentLogLevel }}
             - --agent-log-level={{ .Values.operator.agentLogLevel }}
             {{- end }}
-            {{- if .Values.operator.gameDataStorage.storageClassName }}
+            {{- if and .Values.operator.gameDataStorage .Values.operator.gameDataStorage.storageClassName }}
             - --game-data-storage-class={{ .Values.operator.gameDataStorage.storageClassName }}
             {{- end }}
             {{- if and .Values.networkPolicies.enabled .Values.networkPolicies.gameIngress.enabled }}

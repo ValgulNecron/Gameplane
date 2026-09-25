@@ -16,6 +16,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"k8s.io/client-go/util/retry"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -770,18 +772,22 @@ func TestGameServerCapture_DisableStopsActiveCaptureAndLeavesEphemeralContainer(
 
 	// Seed status.capture.activeCapture the way NetworkCaptureReconciler
 	// would have, so disabling has an active pointer to actually clear.
-	{
+	// The GameServer's status is also being written by the pod-injection
+	// reconciler loop running concurrently in this test, so a plain
+	// Get-then-Update races it; retry on conflict, re-fetching each
+	// attempt, the way other envtest suites in this package do.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var current gameplanev1alpha1.GameServer
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName}, &current); err != nil {
-			t.Fatalf("get gameserver: %v", err)
+			return err
 		}
 		if current.Status.Capture == nil {
 			current.Status.Capture = &gameplanev1alpha1.CaptureStatus{}
 		}
 		current.Status.Capture.ActiveCapture = ptrTo(nc.Name)
-		if err := k8sClient.Status().Update(context.Background(), &current); err != nil {
-			t.Fatalf("seed active capture: %v", err)
-		}
+		return k8sClient.Status().Update(context.Background(), &current)
+	}); err != nil {
+		t.Fatalf("seed active capture: %v", err)
 	}
 
 	// Disable capture using Patch to avoid stale-write conflicts with concurrent

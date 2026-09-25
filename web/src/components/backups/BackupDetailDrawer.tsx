@@ -10,23 +10,24 @@ import { ErrorBanner } from "./ErrorBanner";
 
 interface Props {
   name: string | null;
+  ns?: string;
   onClose: () => void;
   onRestore: (backup: Backup) => void;
 }
 
-export function BackupDetailDrawer({ name, onClose, onRestore }: Props) {
+export function BackupDetailDrawer({ name, ns, onClose, onRestore }: Props) {
   const qc = useQueryClient();
   const open = name !== null;
   const { data: backup, error } = useQuery({
-    queryKey: ["backup", name],
-    queryFn: () => Backups.get(name!),
+    queryKey: ["backup", name, ns],
+    queryFn: () => Backups.get(name!, ns),
     enabled: open,
     refetchInterval: 5000,
   });
   const remove = useMutation({
-    mutationFn: () => Backups.remove(name!),
+    mutationFn: () => Backups.remove(name!, ns),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["backups"] });
+      void qc.invalidateQueries({ queryKey: ["backups", ns] });
       onClose();
     },
   });

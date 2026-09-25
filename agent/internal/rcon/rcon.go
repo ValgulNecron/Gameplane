@@ -36,6 +36,16 @@ const (
 	typeExecCmd      = 2
 	typeAuthResponse = 2
 	typeRespValue    = 0
+
+	// minPacketSize / maxPacketSize bound the wire size field of an
+	// incoming reply packet (id + type + body + 2 trailing nulls).
+	// Minecraft chunks a long reply at up to 4096 *characters* (size up
+	// to 4106); multi-byte UTF-8 text (accents, CJK, emoji in player or
+	// ban-reason strings) can inflate a chunk to up to 4 bytes/character,
+	// so the bound allows a full 4096-character chunk at its worst-case
+	// byte length (F-104).
+	minPacketSize = 10
+	maxPacketSize = 4*4096 + 10 // 16394
 )
 
 // PassFn resolves the RCON password on demand (allowing rotation without restart).
@@ -297,7 +307,7 @@ func (c *Client) readPacket() (id, kind uint32, body string, err error) {
 		return
 	}
 	size := binary.LittleEndian.Uint32(hdr[:])
-	if size < 10 || size > 4096 {
+	if size < minPacketSize || size > maxPacketSize {
 		err = fmt.Errorf("rcon: malformed packet size %d", size)
 		return
 	}

@@ -18,7 +18,6 @@ var allowedConfigTypes = map[string]bool{
 	"string":   true,
 	"int":      true,
 	"bool":     true,
-	"boolean":  true,
 	"enum":     true,
 	"password": true,
 }
@@ -162,6 +161,26 @@ func validatePorts(node *yaml.Node) []Finding {
 
 		portField := common.FindNode(pNode, "containerPort")
 		protoField := common.FindNode(pNode, "protocol")
+		nameField := common.FindNode(pNode, "name")
+
+		if nameField == nil || nameField.Value == "" {
+			col := 0
+			line := pNode.Line
+			if nameField != nil {
+				col = nameField.Column
+				line = nameField.Line
+			}
+			findings = append(findings, Finding{
+				Level:       SeverityError,
+				RuleID:      RuleTemplateSchemaViolation,
+				File:        "template.yaml",
+				Line:        line,
+				Column:      col,
+				Field:       fmt.Sprintf("spec.ports[%d].name", i),
+				Message:     "name is required for each port entry",
+				Remediation: "Add a DNS-label 'name' (e.g. \"game\") to this port entry.",
+			})
+		}
 
 		proto := "TCP"
 		protoLine := pNode.Line
@@ -277,7 +296,7 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 				Line:        typeLine,
 				Column:      col,
 				Field:       fmt.Sprintf("spec.configSchema[%d].type", i),
-				Message:     fmt.Sprintf("configSchema type %q is invalid (allowed: string, int, enum, boolean, password)", fieldType),
+				Message:     fmt.Sprintf("configSchema type %q is invalid (allowed: string, int, bool, enum, password)", fieldType),
 				Remediation: "Change field type to one of the supported Gameplane types.",
 			})
 		}
@@ -305,7 +324,7 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 					})
 				}
 			}
-		case "bool", "boolean":
+		case "bool":
 			if defaultNode != nil && defaultVal != "" {
 				lower := strings.ToLower(defaultVal)
 				if lower != "true" && lower != "false" {
@@ -322,7 +341,7 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 				}
 			}
 		case "enum":
-			optsNode := common.FindNode(item, "options")
+			optsNode := common.FindNode(item, "enum")
 			if optsNode == nil || optsNode.Kind != yaml.SequenceNode || len(optsNode.Content) == 0 {
 				col := item.Column
 				if optsNode != nil {
@@ -334,9 +353,9 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 					File:        "template.yaml",
 					Line:        item.Line,
 					Column:      col,
-					Field:       fmt.Sprintf("spec.configSchema[%d].options", i),
-					Message:     fmt.Sprintf("configSchema enum field %q must specify a non-empty options list", fieldName),
-					Remediation: "Provide an options array with at least one allowed value.",
+					Field:       fmt.Sprintf("spec.configSchema[%d].enum", i),
+					Message:     fmt.Sprintf("configSchema enum field %q must specify a non-empty enum list", fieldName),
+					Remediation: "Provide an 'enum' array with at least one allowed value.",
 				})
 			} else if defaultNode != nil && defaultVal != "" {
 				found := false
@@ -354,8 +373,8 @@ func validateConfigSchemaRules(node *yaml.Node) []Finding {
 						Line:        defaultNode.Line,
 						Column:      defaultNode.Column,
 						Field:       fmt.Sprintf("spec.configSchema[%d].default", i),
-						Message:     fmt.Sprintf("configSchema enum field %q default %q is not in options list", fieldName, defaultVal),
-						Remediation: "Set default to one of the declared options values.",
+						Message:     fmt.Sprintf("configSchema enum field %q default %q is not in enum list", fieldName, defaultVal),
+						Remediation: "Set default to one of the declared enum values.",
 					})
 				}
 			}

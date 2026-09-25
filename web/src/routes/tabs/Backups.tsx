@@ -13,24 +13,24 @@ import { RestoreDialog } from "@/components/backups/RestoreDialog";
 import { BackupDetailDrawer } from "@/components/backups/BackupDetailDrawer";
 import type { Backup } from "@/types";
 
-export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
+export function BackupsTab({ name, ns }: { name: string; ns?: string }) {
   const qc = useQueryClient();
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState<Backup | null>(null);
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
 
   const { data: backups } = useQuery({
-    queryKey: ["backups"],
-    queryFn: () => Backups.list(),
+    queryKey: ["backups", ns],
+    queryFn: () => Backups.list(ns),
     refetchInterval: 5000,
   });
   const { data: schedules } = useQuery({
-    queryKey: ["schedules"],
-    queryFn: () => Schedules.list(),
+    queryKey: ["schedules", ns],
+    queryFn: () => Schedules.list(ns),
   });
   const { data: restores } = useQuery({
-    queryKey: ["restores"],
-    queryFn: () => Restores.list(),
+    queryKey: ["restores", ns],
+    queryFn: () => Restores.list(ns),
     refetchInterval: 5000,
   });
   const { data: destinations = [] } = useBackupDestinations();
@@ -41,11 +41,14 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
 
   const createNow = useMutation({
     mutationFn: () =>
-      Backups.create({
-        serverRef: { name },
-        repoRef: { name: lone!.name, key: "url" },
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["backups"] }),
+      Backups.create(
+        {
+          serverRef: { name },
+          repoRef: { name: lone!.name, key: "url" },
+        },
+        ns,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["backups", ns] }),
   });
 
   const backupNowDisabled = !lone || createNow.isPending;
@@ -117,7 +120,7 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
           </Button>
         </div>
         {creatingSchedule && (
-          <ScheduleForm serverName={name} onClose={() => setCreatingSchedule(false)} />
+          <ScheduleForm serverName={name} ns={ns} onClose={() => setCreatingSchedule(false)} />
         )}
         {serverSchedules.length > 1 && (
           <div className="mb-3 rounded border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-foreground/60">
@@ -242,10 +245,12 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
       <RestoreDialog
         backup={restoringBackup}
         defaultServer={name}
+        ns={ns}
         onClose={() => setRestoringBackup(null)}
       />
       <BackupDetailDrawer
         name={selectedBackup}
+        ns={ns}
         onClose={() => setSelectedBackup(null)}
         onRestore={(b) => {
           setSelectedBackup(null);

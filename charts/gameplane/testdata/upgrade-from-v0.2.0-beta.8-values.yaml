@@ -26,19 +26,15 @@ image:
 # hook closes that gap: a pre-UPGRADE Job runs `kubectl apply --server-side`
 # over the CRDs, so a plain `helm upgrade` always brings the CRD schema up to
 # date. First installs get the CRDs from Helm's native crds/ (no pod), so the
-# hook normally runs only on upgrades — air-gapped first installs need no
-# extra image. The exception: a `helm install` onto CRDs an earlier,
-# uninstalled release left behind (crds/ skips existing CRDs), detected by the
-# bundle-hash annotation `make manifests` stamps on every CRD; the hook then
-# also runs on that install (F-218). It never deletes CRDs, so
-# `helm uninstall` still leaves your GameServers intact.
+# hook only runs on upgrades — air-gapped first installs need no extra image.
+# It never deletes CRDs, so `helm uninstall` still leaves your GameServers
+# intact.
 crds:
   autoApply:
     enabled: true
     # kubectl image the apply Job runs. Any image with kubectl on PATH works;
-    # retag to a private mirror for air-gapped installs (needed at upgrade
-    # time, and also on an install over CRDs an earlier, uninstalled release
-    # left behind — a genuinely fresh first install doesn't run the hook).
+    # retag to a private mirror for air-gapped installs (only needed at upgrade
+    # time — first installs don't run the hook).
     image: registry.k8s.io/kubectl:v1.36.3
     # Pull policy for the kubectl image above. Kept separate from image.pullPolicy
     # so tracking :edge components (image.pullPolicy=Always) doesn't force a
@@ -102,15 +98,6 @@ operator:
     existingClaim: ""
     hostPath: ""
     mountPath: /var/lib/gameplane/modules
-  # Install-time default for game server data volume storage class.
-  # Applies to all GameServer.spec.storage when neither GameServer nor
-  # GameTemplate explicitly override it.
-  gameDataStorage:
-    # empty string (default) = use cluster's default StorageClass
-    # "fast-nvme", "gpu-attached", etc. = use named StorageClass
-    # If the named class doesn't exist, PVC provisioning fails and GameServer
-    # status.conditions surfaces "StorageClassNotFound" reason.
-    storageClassName: ""
 
 api:
   replicas: 1        # SQLite driver is single-writer on a RWO volume; only values >1 are safe with db.driver=postgres
@@ -139,11 +126,6 @@ api:
   storage:
     size: 2Gi
     storageClassName: ""
-    # Pre-existing PersistentVolumeClaim to mount for the SQLite database.
-    # When set, PVC creation is skipped and this claim is mounted instead.
-    # Note: When migrating an existing install, ensure gameplane-api-data has
-    # the 'helm.sh/resource-policy: keep' annotation so Helm does not prune it.
-    existingClaim: ""
 
   # Audit-event retention. 0 keeps audit rows forever (default); set a
   # positive number of days to have the API prune older events daily so the
@@ -248,34 +230,6 @@ api:
       name: gameplane-oidc
       key:  clientSecret
     redirectURL: ""
-    # OIDC claim name containing group/role memberships. Default: "groups"
-    # if empty or omitted. Examples: "groups", "roles", "membership",
-    # "department".
-    groupsClaim: ""
-    # Default role when no group matches. Helm-only, no dashboard override
-    # path exists for this field. Accepted values: "" (default to "viewer"),
-    # "viewer", "operator", "admin", "deny". "deny" = reject login (no user
-    # created/updated). Only meaningful if roleMappings is set.
-    defaultRole: ""
-    # Group-to-role mapping, seeded at install/upgrade time. Defines which
-    # IdP groups map to which dashboard roles for the synthetic "helm"
-    # provider. If omitted/empty, role mapping is disabled (new OIDC users
-    # get "viewer", existing roles never re-evaluated) unless an admin has
-    # set a DB override for a role via the dashboard, which takes precedence.
-    roleMappings:
-      # Array of IdP groups that seed the "admin" dashboard role. A DB
-      # override (dashboard-managed) takes precedence over this value once
-      # set, and survives future helm upgrades that change this array.
-      # Example: ["gameplane-admins", "ops-team"]
-      admin: []
-      # Array of IdP groups that seed the "operator" dashboard role. Same
-      # DB-override precedence as "admin" above.
-      # Example: ["gameplane-operators"]
-      operator: []
-      # Array of IdP groups that seed the "viewer" dashboard role. Same
-      # DB-override precedence as "admin" above.
-      # Example: ["gameplane-viewers", "readonly-users"]
-      viewer: []
 
   # mTLS material the API presents to in-pod agents. When unset, the
   # chart provisions a self-signed CA + cert via a post-install hook.
@@ -357,23 +311,6 @@ networkPolicies:
       - 172.16.0.0/12
       - 192.168.0.0/16
       - 169.254.0.0/16
-  # Egress allowance for Backup/Restore restic Job pods to reach their
-  # configured repository (F-215). Without this the default-deny egress
-  # policy blocks the connection and the backup/restore Job fails after
-  # its backoffLimit. Unlike gameEgress there is no privateCIDRs
-  # exception: the destination comes from an admin-created repo
-  # Destination Secret, not an attacker-influenced game download URL,
-  # and restic repositories are commonly private (an in-cluster or LAN
-  # store) as well as public.
-  backupEgress:
-    enabled: true
-    # Ports opened for restic repository connections. Defaults cover
-    # HTTPS-based backends (S3, B2, REST-over-TLS, Swift, Azure, GCS)
-    # and SFTP. Add your repository's port if it uses neither, e.g. a
-    # plain-HTTP REST server on a non-standard port.
-    ports:
-      - { protocol: TCP, port: 443 }
-      - { protocol: TCP, port: 22 }
   # Ingress allowance for the game port(s) themselves. The operator
   # reconciles one NetworkPolicy per GameServer, opening only that game's
   # `Advertise: true` container ports (read from its GameTemplate) — this
@@ -539,31 +476,3 @@ uploadModuleSource:
   enabled: true
   name: uploads
   refreshInterval: 1h
-
-# Optional network packet capture sidecar for GameServers. When enabled cluster-wide,
-# admins can opt individual GameServers into live capture and download PCAPNG files
-# of filtered traffic. Capture is always opt-in per server; a server that does not
-# opt in has no capture sidecar attached. Off by default.
-capture:
-  enabled: false
-  # Default retention window for completed captures (seconds). Per-server overrides
-  # are clamped to the cluster maximum below; this is the default when a server does
-  # not specify a retention policy.
-  defaultRetentionSeconds: 86400   # 24 hours
-  # Cluster-wide maximum retention window (seconds). Any per-server retention request
-  # exceeding this value is rejected at API tier with HTTP 400 Bad Request. A
-  # storage-limitation-informed engineering default (7 days), not a legal requirement.
-  maxRetentionSeconds: 604800      # 7 days
-  # Default maximum duration for a single capture (seconds). A capture requested
-  # without an explicit maxDuration uses this limit; the sidecar stops the capture
-  # automatically when the duration is reached.
-  defaultMaxDurationSeconds: 300   # 5 minutes
-  # Default maximum size for a single capture file (bytes). A capture requested
-  # without an explicit maxSize uses this limit; the sidecar stops the capture
-  # automatically when the file reaches this size. This default is clamped below the
-  # capture emptyDir sizeLimit (1 GiB, hardcoded in the operator) to prevent pod
-  # eviction; raising this requires operator code changes to increase the volume limit.
-  defaultMaxSizeBytes: 943718400   # 900 MiB (safely under the 1 GiB emptyDir limit)
-  # Capture sidecar container image. Defaults to {image.registry}/capture-sidecar:{image.tag}
-  # if unset (the pattern matched by other component images like sentinel).
-  image: ""

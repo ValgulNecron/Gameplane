@@ -80,6 +80,39 @@ func TestReadPacket_MalformedSize(t *testing.T) {
 	}
 }
 
+func TestReadPacket_AcceptsLongMinecraftReply(t *testing.T) {
+	// A Minecraft reply chunk can carry up to 4096 body bytes; wire size =
+	// id(4) + type(4) + body + 2 trailing nulls = 4106. Before the F-104 fix
+	// this was rejected as "malformed" (the cap was 4096).
+	srv, cli := net.Pipe()
+	defer srv.Close()
+	defer cli.Close()
+	c := &Client{conn: cli}
+	body := strings.Repeat("x", 4096)
+	payload := make([]byte, 0, 8+len(body)+2)
+	payload = binary.LittleEndian.AppendUint32(payload, 7)
+	payload = binary.LittleEndian.AppendUint32(payload, typeRespValue)
+	payload = append(payload, body...)
+	payload = append(payload, 0, 0)
+	go func() {
+		hdr := make([]byte, 4)
+		binary.LittleEndian.PutUint32(hdr, uint32(len(payload)))
+		_, _ = srv.Write(hdr)
+		_, _ = srv.Write(payload)
+	}()
+	_ = cli.SetReadDeadline(time.Now().Add(time.Second))
+	id, _, got, err := c.readPacket()
+	if err != nil {
+		t.Fatalf("readPacket: %v", err)
+	}
+	if id != 7 {
+		t.Fatalf("id = %d, want 7", id)
+	}
+	if got != body {
+		t.Fatalf("body length = %d, want %d", len(got), len(body))
+	}
+}
+
 func TestEnsureLocked_PasswordResolverError(t *testing.T) {
 	c := New("127.0.0.1", 1, func() (string, error) {
 		return "", errors.New("vault locked")
