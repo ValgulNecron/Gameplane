@@ -1248,17 +1248,14 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 
 	// Wait for the first capture to complete.
 	//
-	// NOTE: the API's StopNetworkCapture patches status.phase=Completed
-	// directly and synchronously (api/internal/kube/capture.go) — there is
-	// no reconciler step in between that write and this Get. So phase ==
-	// "Completed" is observable here well before NetworkCaptureReconciler
-	// has told the sidecar to stop and released the GameServer's
-	// status.capture.activeCapture lock (see the "userStoppedMessage"
-	// branch at the top of Reconcile in
-	// operator/internal/controller/networkcapture_controller.go). Waiting
-	// on phase alone races the API's hasActiveCapture fast-path check,
-	// which also consults that lock field — so wait for the lock itself to
-	// clear, not just for the terminal phase.
+	// NOTE: the API's StopNetworkCapture only sets the
+	// gameplane.local/stop-requested annotation (F-259);
+	// NetworkCaptureReconciler.completeRequestedStop then stops the
+	// sidecar, releases the GameServer's status.capture.activeCapture lock
+	// and only then writes phase=Completed. The lock lives on a different
+	// object, though, and the API's hasActiveCapture fast-path check
+	// consults it through its own read, so wait for the lock itself to
+	// clear as well, not just for the terminal phase.
 	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
 		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
 			Get(ctx, captureID, metav1.GetOptions{})

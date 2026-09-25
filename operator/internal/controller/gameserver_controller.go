@@ -1756,18 +1756,24 @@ func (r *GameServerReconciler) reconcileCapture(ctx context.Context, gs *gamepla
 	return r.patchCaptureStatus(ctx, gs, base)
 }
 
-// stopActiveCaptures transitions every NetworkCapture owned by gs that is
-// still Pending or Running to a terminal phase, and clears
-// gs.Status.Capture.ActiveCapture in memory (folded into the caller's single
-// status patch) — used when spec.capture.enabled transitions to false, per
-// US2 acceptance scenario 4: "any active capture is stopped immediately."
+// stopActiveCaptures asks every NetworkCapture owned by gs that is still
+// Pending or Running to stop, and clears gs.Status.Capture.ActiveCapture in
+// memory (folded into the caller's single status patch) — used when
+// spec.capture.enabled transitions to false, per US2 acceptance scenario 4:
+// "any active capture is stopped immediately."
 //
-// A Running capture is set to Completed with the exact userStoppedMessage
-// networkcapture_controller.go's Reconcile already watches for: that guard
-// then tells the sidecar to actually stop capturing over its :9091 control
-// endpoint, the same path a user-initiated POST :capture-stop takes. A
-// Pending capture (never reached the sidecar) is failed directly — there is
-// nothing running on the sidecar to stop.
+// It never writes a capture's phase itself (F-259). Writing Completed or
+// Failed here, before the sidecar was stopped, raced the
+// NetworkCaptureReconciler: a capture it was just starting would conflict
+// on its status write, then be seen as terminal, and the sidecar kept
+// capturing. Instead each non-terminal capture gets the same
+// stopRequestedAnnotation the API's :capture-stop sets, and
+// NetworkCaptureReconciler.completeRequestedStop stops the sidecar first
+// and only then marks the capture Completed. The annotation is only added
+// when absent, so repeated reconciles (and an earlier user stop) are
+// no-ops; LastCaptureTime is likewise only touched the reconcile that adds
+// the annotation, so replaying an already-stopped capture on every
+// reconcile can't keep bumping it and churning the status patch forever.
 func (r *GameServerReconciler) stopActiveCaptures(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
 	var captures gameplanev1alpha1.NetworkCaptureList
 	if err := r.List(ctx, &captures, client.InNamespace(gs.Namespace)); err != nil {
@@ -1777,36 +1783,20 @@ func (r *GameServerReconciler) stopActiveCaptures(ctx context.Context, gs *gamep
 	now := metav1.Now()
 	for i := range captures.Items {
 		nc := &captures.Items[i]
-		if nc.Spec.ServerRef.Name != gs.Name {
+		if nc.Spec.ServerRef.Name != gs.Name || isTerminalCapturePhase(nc.Status.Phase) {
 			continue
 		}
-
-		switch nc.Status.Phase {
-		case gameplanev1alpha1.CapturePhaseRunning:
-			nc.Status.Phase = gameplanev1alpha1.CapturePhaseCompleted
-			nc.Status.CompletionTime = &now
-			nc.Status.Message = userStoppedMessage
-		case gameplanev1alpha1.CapturePhasePending:
-			nc.Status.Phase = gameplanev1alpha1.CapturePhaseFailed
-			nc.Status.CompletionTime = &now
-			nc.Status.Message = "capture disabled on gameserver before it started"
-			meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
-				Type:               "Failed",
-				Status:             metav1.ConditionTrue,
-				ObservedGeneration: nc.Generation,
-				Reason:             "capture_disabled",
-				Message:            nc.Status.Message,
-				LastTransitionTime: now,
-			})
-		default:
-			// Already terminal (Completed/Failed/Expired); nothing to do.
-			continue
+		if _, requested := nc.Annotations[stopRequestedAnnotation]; !requested {
+			base := nc.DeepCopy()
+			if nc.Annotations == nil {
+				nc.Annotations = map[string]string{}
+			}
+			nc.Annotations[stopRequestedAnnotation] = now.UTC().Format(time.RFC3339)
+			if err := r.Patch(ctx, nc, client.MergeFrom(base)); err != nil {
+				return fmt.Errorf("request stop of capture %s: %w", nc.Name, err)
+			}
+			gs.Status.Capture.LastCaptureTime = &now
 		}
-
-		if err := r.Status().Update(ctx, nc); err != nil {
-			return fmt.Errorf("stop active capture %s: %w", nc.Name, err)
-		}
-		gs.Status.Capture.LastCaptureTime = &now
 	}
 
 	gs.Status.Capture.ActiveCapture = nil

@@ -109,7 +109,7 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
 - `/servers/{name}/files/*` — file browser, upload, download (proxied to agent); cluster-dispatch
 - **[PLANNED, Phase 8 Dashboard]** `/servers/{name}:capture-enable`, `:capture-disable` — sidecar lifecycle actions (endpoints stubbed; handlers not yet implemented; RBAC rules already in place for when implemented)
 - `/servers/{name}:capture-start` — POST: start a network packet capture (creates NetworkCapture CR, transitions to Pending)
-- `/servers/{name}:capture-stop` — POST: stop an active capture (updates NetworkCapture status to Completed)
+- `/servers/{name}:capture-stop` — POST: request a stop of an active capture (sets the `gameplane.local/stop-requested` annotation; the operator completes the capture, see "Network capture stop flow")
 - `/servers/{name}:captures` — GET: list all NetworkCaptures (active and historical) for a server, excluding Expired captures
 - `/servers/{name}:capture` — GET: fetch a single capture's metadata and status; query param `id={captureId}`; 404 if not found or Expired
 - `/servers/{name}:capture-file` — GET: download completed PCAPNG file from the capture sidecar; query param `id={captureId}` (proxied to sidecar over mTLS; 409 if still running)
@@ -178,11 +178,14 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
   - Creates NetworkCapture CR with ownerReference to GameServer (cascade delete on server deletion)
   - Audit: `WriteSync()` before response body is sent (FR-006); reason field records "server_not_found", "capture_not_enabled", "invalid_filter", "invalid_duration", "invalid_size", "capture_in_progress", "ttl_exceeded", "create_failed", or "" on success
 
-- **POST `/servers/{name}:capture-stop`** — Transition a NetworkCapture from Pending/Running to Completed; request body: `{captureId: string}`; response: `{captureId, phase, serverName, filter, createdAt, startedAt?, completedAt?, stoppingReason, bytesWritten, packetsWritten}` (HTTP 200 OK)
+- **POST `/servers/{name}:capture-stop`** — Request that a Pending/Running NetworkCapture be stopped; request body: `{captureId: string}`; response: `{captureId, phase, serverName, filter, createdAt, startedAt?, completedAt?, stoppingReason, bytesWritten, packetsWritten}` (HTTP 200 OK)
   - Returns 400 if `captureId` is missing or empty in request body
   - Returns 404 if capture not found or doesn't belong to this server
   - Returns 409 if capture is not in Pending or Running phase (already Completed/Failed/Expired)
-  - Sets capture status to Completed, records `completionTime`, and sets `message="stopped by user request"` so operator's reconciler tells the sidecar to stop (once per request, guarded by reconciler-side condition)
+  - **Network capture stop flow (F-259; maintainer decision 2026-09-25):** sets only the `gameplane.local/stop-requested` annotation (RFC3339 UTC time of the first request) via `kube.StopNetworkCapture`; it never writes status. The operator's NetworkCapture reconciler stops the sidecar (closing the PCAPNG) and only then sets `phase=Completed`, `completionTime`, `message="stopped by user request"` and `SidecarStopped=True` (see `operator/specs.md`, "Network capture stop flow"). The response therefore normally reports the pre-stop phase (Pending/Running); clients poll `:captures`/`:capture` until Completed before downloading.
+  - Idempotent: a repeat stop while the capture is still Pending/Running (operator not yet caught up) is a 200 no-op that keeps the original annotation value; once Completed it is a 409 as above.
+  - `:capture-disable` requests the stop of every Pending/Running capture the same way before clearing `spec.capture.enabled`.
+  - `:capture-file` gates on `phase=Completed` only; since the API no longer writes Completed, Completed means the sidecar has stopped and the file is closed. (PR #449's interim download-side polling for `SidecarStopped` was removed in favour of this.)
   - Audit: `WriteSync()` before response; reason field records "missing_id", "not_found", "not_running", "stop_failed", or "" on success
 
 - **GET `/servers/{name}:captures`** — List all NetworkCaptures for a server (active and historical); response: `{captures: [...], total: int, limit: 100, offset: 0}`
@@ -221,7 +224,7 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
   - Audit: synchronous write before response with reason "feature_disabled", "server_not_found", "terminating", "patch_failed", or "" on success
 
 - **POST `/servers/{name}:capture-disable`** — Disable capture on a GameServer (sets `spec.capture.enabled = false`)
-  - Patches GameServer spec directly; operator stops any running capture and rejects new ones, but the ephemeral container remains in place until the next pod recreation (Kubernetes design constraint: ephemeral containers cannot be removed without pod recreation)
+  - First requests a stop of every Pending/Running capture (the `gameplane.local/stop-requested` annotation, see "Network capture stop flow" under `:capture-stop`), then patches GameServer spec directly; operator stops any running capture and rejects new ones, but the ephemeral container remains in place until the next pod recreation (Kubernetes design constraint: ephemeral containers cannot be removed without pod recreation)
   - **ASYMMETRY (US2 central design point):** Disabling stops accepting new capture-start requests and stops any running capture but the container lingers until the pod is next recreated (e.g., on node drain, replica restart, or manual delete)
   - Gated by `captures:manage` permission
   - Audit: synchronous write before response with reason "feature_disabled", "server_not_found", "terminating", "patch_failed", or "" on success
