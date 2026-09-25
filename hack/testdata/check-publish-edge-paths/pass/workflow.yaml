@@ -1,0 +1,16 @@
+on:
+  push:
+    branches: [master]
+    paths:
+      - "foo/**"
+      - "bar/**"
+  workflow_dispatch: {}
+
+jobs:
+  images:
+    strategy:
+      matrix:
+        include:
+          - component: foo
+    steps:
+      - uses: actions/checkout@0
