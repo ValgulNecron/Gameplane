@@ -6,12 +6,35 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
+
+// newScrapeReconcilerWithObjects is like newScrapeReconciler but seeds the
+// fake client with extra objects (a GameServer, its pod, ...) alongside the
+// Backup, for the finalizeDelete unquiesce-target tests below.
+func newScrapeReconcilerWithObjects(
+	t *testing.T, b *gameplanev1alpha1.Backup, agent AgentQuiescer, extra ...client.Object,
+) *BackupReconciler {
+	t.Helper()
+	s := scrapeScheme(t)
+	objs := append([]client.Object{b}, extra...)
+	cl := fake.NewClientBuilder().WithScheme(s).
+		WithObjects(objs...).
+		WithStatusSubresource(&gameplanev1alpha1.Backup{}).
+		Build()
+	r := &BackupReconciler{Client: cl, Scheme: s}
+	if agent != nil {
+		r.AgentClient = agent
+	}
+	return r
+}
 
 // TestReconcile_RetriesUnquiesceOnTerminalBackup covers F-044: a Backup that
 // has already gone terminal (phase persisted, snapshot id present) must keep
@@ -162,5 +185,180 @@ func TestReconcile_DeleteWithoutQuiesceClearsFinalizerImmediately(t *testing.T) 
 	}
 	if q.unquiesced != 0 {
 		t.Error("Unquiesce called for a Backup that never quiesced")
+	}
+}
+
+// backupWithFinalizerBeingDeleted returns a quiesced, finalizer-carrying
+// Backup with a DeletionTimestamp set and ServerRef pointing at server,
+// ready to run through finalizeDelete.
+func backupWithFinalizerBeingDeleted(server string) *gameplanev1alpha1.Backup {
+	b := quiescedBackup()
+	b.Finalizers = []string{gameplanev1alpha1.BackupFinalizer}
+	b.Spec.ServerRef.Name = server
+	now := metav1.Now()
+	b.DeletionTimestamp = &now
+	return b
+}
+
+func backupFinalizerPresent(t *testing.T, r *BackupReconciler, name types.NamespacedName) bool {
+	t.Helper()
+	var got gameplanev1alpha1.Backup
+	if err := r.Get(context.Background(), name, &got); err != nil {
+		return false
+	}
+	for _, f := range got.Finalizers {
+		if f == gameplanev1alpha1.BackupFinalizer {
+			return true
+		}
+	}
+	return false
+}
+
+// TestReconcile_DeleteReleasesFinalizerWhenGameServerGone covers F-048's
+// GameServer-gone branch: an auto BackupSchedule's owner chain
+// (GameServer -> BackupSchedule -> Backup) can garbage-collect the Backup
+// alongside its GameServer, so by the time finalizeDelete runs the agent
+// will never answer. It must release the finalizer instead of requeuing
+// forever.
+func TestReconcile_DeleteReleasesFinalizerWhenGameServerGone(t *testing.T) {
+	b := backupWithFinalizerBeingDeleted("gs1")
+	// No GameServer object seeded: it is already gone.
+	q := &scrapeQuiescer{unquiesceErr: errors.New("agent unreachable")}
+	r := newScrapeReconcilerWithObjects(t, b, q)
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: b.Namespace, Name: b.Name}}
+
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if backupFinalizerPresent(t, r, req.NamespacedName) {
+		t.Fatal("finalizer still present although the target GameServer is gone")
+	}
+}
+
+// TestReconcile_DeleteReleasesFinalizerWhenGameServerBeingDeleted covers the
+// same case but for a GameServer that still exists as an object yet is
+// itself mid-deletion — its pod is on the way out too, so retrying is just
+// as futile.
+func TestReconcile_DeleteReleasesFinalizerWhenGameServerBeingDeleted(t *testing.T) {
+	b := backupWithFinalizerBeingDeleted("gs1")
+	now := metav1.Now()
+	gs := &gameplanev1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gs1", Namespace: b.Namespace,
+			Finalizers:        []string{"keep-around-for-test"},
+			DeletionTimestamp: &now,
+		},
+	}
+	q := &scrapeQuiescer{unquiesceErr: errors.New("agent unreachable")}
+	r := newScrapeReconcilerWithObjects(t, b, q, gs)
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: b.Namespace, Name: b.Name}}
+
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if backupFinalizerPresent(t, r, req.NamespacedName) {
+		t.Fatal("finalizer still present although the target GameServer is being deleted")
+	}
+}
+
+// TestReconcile_DeleteReleasesFinalizerWhenPodGone covers the pod-gone
+// branch: the GameServer is alive but its pod no longer exists (e.g.
+// deleted independently, or not yet (re)scheduled) — a fresh pod starts
+// with auto-save on, so there is nothing left to unquiesce.
+func TestReconcile_DeleteReleasesFinalizerWhenPodGone(t *testing.T) {
+	b := backupWithFinalizerBeingDeleted("gs1")
+	gs := &gameplanev1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "gs1", Namespace: b.Namespace},
+	}
+	q := &scrapeQuiescer{unquiesceErr: errors.New("agent unreachable")}
+	r := newScrapeReconcilerWithObjects(t, b, q, gs)
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: b.Namespace, Name: b.Name}}
+
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if backupFinalizerPresent(t, r, req.NamespacedName) {
+		t.Fatal("finalizer still present although the target pod is gone")
+	}
+}
+
+// TestReconcile_DeleteRetriesWhileTargetStillExists covers the still-alive
+// case: with both the GameServer and its pod present, a failing unquiesce
+// must keep retrying rather than immediately giving up.
+func TestReconcile_DeleteRetriesWhileTargetStillExists(t *testing.T) {
+	b := backupWithFinalizerBeingDeleted("gs1")
+	gs := &gameplanev1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "gs1", Namespace: b.Namespace},
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "gs1-0", Namespace: b.Namespace},
+	}
+	q := &scrapeQuiescer{unquiesceErr: errors.New("agent unreachable")}
+	r := newScrapeReconcilerWithObjects(t, b, q, gs, pod)
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: b.Namespace, Name: b.Name}}
+
+	res, err := r.Reconcile(context.Background(), req)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if res.RequeueAfter == 0 {
+		t.Fatalf("expected a requeue while the target still exists, got %+v", res)
+	}
+	if !backupFinalizerPresent(t, r, req.NamespacedName) {
+		t.Fatal("finalizer removed although the unquiesce target still exists")
+	}
+
+	// Recovering the agent should let the next reconcile finish normally.
+	q.unquiesceErr = nil
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if backupFinalizerPresent(t, r, req.NamespacedName) {
+		t.Fatal("finalizer still present after a successful unquiesce")
+	}
+}
+
+// TestReconcile_DeleteBoundedRetryReleasesFinalizerAfterMaxAge covers the
+// bounded-retry path: even with the target still present, an unquiesce that
+// keeps failing must eventually release the finalizer rather than retrying
+// forever, once maxUnquiesceFinalizeRetry has elapsed since the first
+// failure.
+func TestReconcile_DeleteBoundedRetryReleasesFinalizerAfterMaxAge(t *testing.T) {
+	b := backupWithFinalizerBeingDeleted("gs1")
+	gs := &gameplanev1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "gs1", Namespace: b.Namespace},
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "gs1-0", Namespace: b.Namespace},
+	}
+	q := &scrapeQuiescer{unquiesceErr: errors.New("agent unreachable")}
+	r := newScrapeReconcilerWithObjects(t, b, q, gs, pod)
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Namespace: b.Namespace, Name: b.Name}}
+
+	// First failure records the retry-start annotation and requeues.
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if !backupFinalizerPresent(t, r, req.NamespacedName) {
+		t.Fatal("finalizer removed on the very first failed attempt")
+	}
+
+	// Backdate the recorded first-failure time past the retry window,
+	// simulating that maxUnquiesceFinalizeRetry has elapsed.
+	var got gameplanev1alpha1.Backup
+	if err := r.Get(context.Background(), req.NamespacedName, &got); err != nil {
+		t.Fatalf("get backup: %v", err)
+	}
+	got.Annotations[annoUnquiesceRetryFirstFailedAt] =
+		time.Now().Add(-maxUnquiesceFinalizeRetry - time.Minute).UTC().Format(time.RFC3339)
+	if err := r.Update(context.Background(), &got); err != nil {
+		t.Fatalf("backdate retry annotation: %v", err)
+	}
+
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if backupFinalizerPresent(t, r, req.NamespacedName) {
+		t.Fatal("finalizer still present after the bounded retry window elapsed")
 	}
 }
