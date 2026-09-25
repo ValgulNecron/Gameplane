@@ -127,10 +127,10 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-156 | Example code in package doc doesn't compile | gameproto/ | review:gameproto | S4 | open | | | |
 | F-157 | gameproto specs.md layout, tests, deps, versions stale | gameproto/ | review:gameproto | S4 | open | | | |
 | F-158 | Adding WakeProtocol needs CRD enum change not documented | gameproto/ | review:gameproto | S4 | open | | | |
-| F-159 | Config enum field validation uses wrong field name | gp-module | review:gp-module | S3 | fixing | #441 | | |
-| F-160 | CRD type enum missing boolean value | gp-module | review:gp-module | S3 | fixing | #441 | | |
-| F-161 | Schema validation skips required CRD fields | gp-module | review:gp-module | S3 | fixing | #441 | | |
-| F-162 | Preview lacks version-specific environment layer | gp-module | review:gp-module | S3 | fixing | #441 | | |
+| F-159 | Config enum field validation uses wrong field name | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
+| F-160 | CRD type enum missing boolean value | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
+| F-161 | Schema validation skips required CRD fields | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
+| F-162 | Preview lacks version-specific environment layer | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
 | F-163 | Module archetype docs contradict validation requirement | gp-module | review:gp-module | S4 | open | | | |
 | F-164 | Documented CLI and make commands fail | gp-module | review:gp-module | S4 | open | | | |
 | F-165 | Image pin command doesn't exist | gp-module | review:gp-module | S4 | open | | | |
