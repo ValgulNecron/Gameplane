@@ -165,7 +165,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-198 | RFC 5424 APP-NAME validation missing | audit-syslog-bridge | review:audit-syslog-bridge | S4 | open | | | |
 | F-200 | specs.md says Go 1.25 but go.mod is 1.26 | telemetry-receiver | review:telemetry-receiver | S4 | open | | | |
 | F-201 | specs.md claims untested HTTP method guards | telemetry-receiver | review:telemetry-receiver | S4 | open | | | |
-| F-204 | Pod logs truncation keeps old end instead of newest | mcp-server | review:mcp-server | S3 | fixing | #439 | | |
+| F-204 | Pod logs truncation keeps old end instead of newest | mcp-server | review:mcp-server | S3 | fixed-unverified | #439 | | |
 | F-205 | Examples use nonexistent label keys | mcp-server | review:mcp-server | S4 | open | | | |
 | F-206 | Malformed labelSelector returns full list silently | mcp-server | review:mcp-server | S4 | open | | | |
 | F-207 | Docs claim 7 CRDs but 9 exist | mcp-server | review:mcp-server | S4 | open | | | |
