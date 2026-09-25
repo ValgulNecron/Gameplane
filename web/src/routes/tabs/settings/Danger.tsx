@@ -57,7 +57,11 @@ export function DangerSection({ name, ns }: Props) {
         ns={ns}
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        onDeleted={() => void navigate({ to: "/servers" })}
+        onDeleted={() =>
+          void navigate({ to: "/servers" }).catch(() => {
+            /* navigation cancelled or failed; nothing to show here */
+          })
+        }
       />
     </div>
   );

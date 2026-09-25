@@ -450,6 +450,10 @@ describe("SettingsTab", () => {
     renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
     await waitFor(() => screen.getByPlaceholderText(/Long-standing/));
 
+    // The save mutation's own GET (fetch latest to merge onto, before the
+    // PUT) must succeed here so the conflict banner actually appears — the
+    // 502 below is installed only for the *next* GET, which is the one the
+    // "Reload" button issues.
     fetchMock.mockImplementation(async (url: string, init?: FetchInit) => {
       if (url.startsWith("/templates/")) {
         return jsonRes({
@@ -461,7 +465,7 @@ describe("SettingsTab", () => {
         return jsonRes({ error: "conflict" }, 409);
       }
       if (url === "/servers/mc-survival" && (!init || init.method === "GET")) {
-        return jsonRes({ error: "server unreachable" }, 502);
+        return jsonRes(gs({ metadata: { name: "mc-survival", annotations: { "gameplane.local/description": "reloaded" } } }));
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
@@ -473,6 +477,15 @@ describe("SettingsTab", () => {
     await waitFor(() =>
       expect(screen.getByText(/changed since you opened this page/i)).toBeInTheDocument(),
     );
+
+    // Only the Reload button's own GET should fail — install the 502 for
+    // just that one upcoming call.
+    fetchMock.mockImplementationOnce(async (url: string, init?: FetchInit) => {
+      if (url === "/servers/mc-survival" && (!init || init.method === "GET")) {
+        return jsonRes({ error: "server unreachable" }, 502);
+      }
+      throw new Error(`unexpected fetch during reload: ${url}`);
+    });
 
     fireEvent.click(screen.getByRole("button", { name: /Reload/i }));
 

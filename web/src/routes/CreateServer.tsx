@@ -324,6 +324,13 @@ export function CreateServerWizard() {
   const [state, setState] = useState<WizardState>(initial);
   const nav = useNavigate();
   const qc = useQueryClient();
+  // Cancel/Close just leave the wizard; a rejected navigation (e.g. the
+  // route change was interrupted) has nothing useful to show, but must not
+  // become an unhandled promise rejection.
+  const closeWizard = () =>
+    void nav({ to: "/servers" }).catch(() => {
+      /* navigation cancelled or failed; nothing to show here */
+    });
 
   // When arriving from the Modules catalog "Deploy" action
   // (/servers/new?template=<name>), pre-select that template once the list
@@ -415,7 +422,7 @@ export function CreateServerWizard() {
           <Button
             isIconOnly
             variant="ghost"
-            onPress={() => void nav({ to: "/servers" })}
+            onPress={closeWizard}
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -458,7 +465,7 @@ export function CreateServerWizard() {
               </span>
             )}
             {stepIndex === 0 ? (
-              <Button variant="ghost" onPress={() => void nav({ to: "/servers" })}>
+              <Button variant="ghost" onPress={closeWizard}>
                 Cancel
               </Button>
             ) : (
