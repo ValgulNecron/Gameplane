@@ -3,15 +3,18 @@ package kube
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 // gvrToListKindMap gives the fake dynamic client an explicit GVR->ListKind
@@ -167,6 +170,51 @@ func TestPodLogs(t *testing.T) {
 	}
 	if !strings.Contains(logs, "fake logs") {
 		t.Errorf("want fake clientset's canned log text, got %q", logs)
+	}
+}
+
+// TestPodLogs_TruncatesToNewestBytesWithNotice covers F-204: a tail whose
+// bytes exceed maxLogBytes must be trimmed to its newest bytes (not its
+// oldest) and the result must say it was truncated.
+func TestPodLogs_TruncatesToNewestBytesWithNotice(t *testing.T) {
+	ctx := context.Background()
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "soak-pool-west-0", Namespace: "games"}}
+	fakeClientset := k8sfake.NewSimpleClientset(pod)
+	c := &Client{typed: fakeClientset, Scheme: NewScheme()}
+
+	// A log-heavy fixture: enough numbered lines to exceed maxLogBytes
+	// several times over, so PodLogs must trim rather than return it all.
+	const numLines = 20000
+	var buf []byte
+	for i := 0; i < numLines; i++ {
+		buf = append(buf, []byte(fmt.Sprintf("line-%05d-of-the-tail-with-some-padding-to-be-realistic\n", i))...)
+	}
+	lastLine := fmt.Sprintf("line-%05d-of-the-tail-with-some-padding-to-be-realistic", numLines-1)
+
+	fakeClientset.PrependReactor("get", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if action.GetSubresource() != "log" {
+			return false, nil, nil
+		}
+		return true, &runtime.Unknown{Raw: buf}, nil
+	})
+
+	got, err := c.PodLogs(ctx, "games", "soak-pool-west-0", "", 5000, false)
+	if err != nil {
+		t.Fatalf("PodLogs: %v", err)
+	}
+	if !strings.Contains(got, "truncated") {
+		n := len(got)
+		if n > 80 {
+			n = 80
+		}
+		t.Errorf("expected a truncation notice, got prefix %q", got[:n])
+	}
+	if !strings.HasSuffix(strings.TrimRight(got, "\n"), lastLine) {
+		tail := got
+		if len(tail) > 80 {
+			tail = tail[len(tail)-80:]
+		}
+		t.Errorf("expected the returned text to end at the newest line %q, got tail %q", lastLine, tail)
 	}
 }
 
