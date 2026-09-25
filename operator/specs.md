@@ -231,8 +231,9 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
 - **Responsibility:** Materialize Module → GameTemplate.
 - **Key functions:**
   - Resolve module name/version via ModuleSource status.modules catalog.
-  - Fetch OCI bundle (oras pull).
+  - Fetch OCI bundle (oras pull). The manifest body must hash to the manifest digest, and each layer body to the digest the manifest lists for it; a mismatch fails the pull (`PullFailed`). The signature check therefore covers every byte the bundle contributes.
   - Verify cosign signature if ModuleSource.spec.verify declared.
+  - Enforce `spec.digest`: a resolved bundle with a different digest fails with `DigestMismatch`. A Ready Module counts as converged only while a set `spec.digest` equals `status.appliedDigest`, so a pin added or changed after install is checked on the next reconcile.
   - Extract module.yaml + template.yaml from bundle.
   - Create GameTemplate CR with owner reference to Module (delete Module → delete template).
   - Validate operator version against bundle's gameplaneMinVersion.
@@ -451,7 +452,7 @@ Forgetting codegen leaves the YAML out of sync with types — CI's `make manifes
 
 ## Security considerations
 
-1. **cosign signature verification:** ModuleSource.spec.verify declares keyed (public key Secret) or keyless (Rekor + transparency log) verification. Operator refuses to install bundles with invalid/missing signatures if verify is declared.
+1. **cosign signature verification:** ModuleSource.spec.verify declares keyed (public key Secret) or keyless (Rekor + transparency log) verification. Operator refuses to install bundles with invalid/missing signatures if verify is declared. The OCI client checks the pulled manifest and every layer against their digests before use, so the verified digest covers the installed content.
 
 2. **SSRF dial guard (netguard):** ModuleSource fetch (git clone, HTTP download) uses netguard's permissive IsAllowed policy — allows self-hosted registries on private addresses (10.0.0.0/8, etc.), but blocks obvious metadata-service endpoints (169.254.169.254). Agent module install (`capabilities.mods.install`) uses strict IsPublic policy, rejecting private IPs.
 
