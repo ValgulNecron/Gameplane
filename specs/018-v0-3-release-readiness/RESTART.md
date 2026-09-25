@@ -59,13 +59,13 @@ All of these still apply.
 - #441: group 23, F-159..F-162 (merged; findings `fixed-unverified`).
 - #443: group 9, F-213/F-214/F-218 (merged; findings `fixed-unverified`).
 - #444: group 16, F-074/F-075 (merged; findings `fixed-unverified`).
+- #445: F-258 (merged; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Green at the end of session 4; ready to merge
 
 | PR | Content |
 |---|---|
-| #445 | F-258 (green in session 5; follow-up: registry errors whose message differs on every try can still cause churn) |
 
 ### Opened or fixed in session 5 (all green as of 2026-09-25 01:12 UTC)
 
