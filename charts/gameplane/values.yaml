@@ -580,6 +580,18 @@ capture:
   # automatically when the file reaches this size. This default is clamped below the
   # capture emptyDir sizeLimit (1 GiB, hardcoded in the operator) to prevent pod
   # eviction; raising this requires operator code changes to increase the volume limit.
+  # As of F-187, this alone is not sufficient: the sidecar also refuses to *start*
+  # a capture whose maxSizeBytes plus already-retained (not-yet-expired) capture
+  # files would exceed a volume budget the operator derives from that same 1 GiB
+  # emptyDir sizeLimit (captureVolumeBudgetBytes in gameserver_controller.go, passed
+  # to the sidecar via the CAPTURE_VOLUME_BUDGET_BYTES env var), so retained files
+  # can never accumulate past the emptyDir's real limit and trigger a pod eviction.
+  # Practical effect of the default values below: a 900 MiB capture plus any other
+  # retained capture over ~21.6 MiB already exceeds the ~921.6 MiB budget (1 GiB
+  # minus the operator's 10% safety margin), so in practice only one default-size
+  # capture is admitted per capture's retention window (spec.ttlSecondsAfterFinished,
+  # commonly 24h) on a given pod; a second capture must wait for the first to expire
+  # (or use a smaller maxSizeBytes).
   defaultMaxSizeBytes: 943718400   # 900 MiB (safely under the 1 GiB emptyDir limit)
   # Capture sidecar container image. Defaults to {image.registry}/capture-sidecar:{image.tag}
   # if unset (the pattern matched by other component images like sentinel).

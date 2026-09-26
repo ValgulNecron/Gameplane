@@ -66,6 +66,15 @@ func TestIsTransientError(t *testing.T) {
 	if IsTransientError(err404) {
 		t.Error("expected 404 to NOT be transient")
 	}
+
+	// 507 Insufficient Storage (F-187 volume budget refusal) is a 5xx status
+	// but must be treated as permanent: retrying does not free volume space
+	// within a reconcile's retry window, so retrying just repeats a directory
+	// scan for no benefit.
+	err507 := &HTTPError{Op: "start capture", StatusCode: 507, Body: "capture volume budget exceeded"}
+	if IsTransientError(err507) {
+		t.Error("expected 507 to NOT be transient")
+	}
 }
 
 // TestCaptureClient_DisabledNoOp verifies that a disabled CaptureClient no-ops without dialing.

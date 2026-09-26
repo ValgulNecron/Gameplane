@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -900,5 +901,72 @@ func TestFindAddressConflict_SkipsTerminatingCandidate(t *testing.T) {
 	}
 	if conflict != "" {
 		t.Errorf("want no conflict (terminating candidate must be skipped), got %q", conflict)
+	}
+}
+
+// TestBuildCaptureEphemeralContainer_VolumeBudgetMatchesSizeLimit guards
+// against F-187 regressing: the CAPTURE_VOLUME_BUDGET_BYTES env var the
+// operator hands the capture sidecar must always be derived from (and stay
+// under) the "captures" emptyDir's own SizeLimit, so the sidecar's own
+// admission check can never allow more than the kubelet itself will.
+func TestBuildCaptureEphemeralContainer_VolumeBudgetMatchesSizeLimit(t *testing.T) {
+	// The "captures" Volume's SizeLimit, reconcileStatefulSet, and this
+	// env var must all trace back to the same constant - see
+	// captureVolumeSizeLimitBytes' doc comment.
+	if captureVolumeSizeLimitBytes != 1*1024*1024*1024 {
+		t.Fatalf("captureVolumeSizeLimitBytes = %d, want 1Gi (1073741824)", captureVolumeSizeLimitBytes)
+	}
+
+	ec := buildCaptureEphemeralContainer("")
+
+	var budgetValue string
+	found := false
+	for _, env := range ec.Env {
+		if env.Name == "CAPTURE_VOLUME_BUDGET_BYTES" {
+			budgetValue = env.Value
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("buildCaptureEphemeralContainer: no CAPTURE_VOLUME_BUDGET_BYTES env var")
+	}
+
+	gotBudget, err := strconv.ParseInt(budgetValue, 10, 64)
+	if err != nil {
+		t.Fatalf("CAPTURE_VOLUME_BUDGET_BYTES = %q is not an int64: %v", budgetValue, err)
+	}
+	if gotBudget != captureVolumeBudgetBytes {
+		t.Errorf("CAPTURE_VOLUME_BUDGET_BYTES = %d, want captureVolumeBudgetBytes (%d)", gotBudget, captureVolumeBudgetBytes)
+	}
+	// The budget must always leave a margin under the real volume limit:
+	// equal to or above it would let an admitted capture push the volume to
+	// (or past) the size the kubelet itself enforces.
+	if gotBudget >= captureVolumeSizeLimitBytes {
+		t.Errorf("CAPTURE_VOLUME_BUDGET_BYTES (%d) must be strictly under the captures emptyDir SizeLimit (%d)", gotBudget, captureVolumeSizeLimitBytes)
+	}
+}
+
+// TestCaptureVolume_SizeLimitMatchesConstant guards against the "captures"
+// emptyDir Volume that reconcileStatefulSet actually provisions drifting
+// from captureVolumeSizeLimitBytes, the constant CAPTURE_VOLUME_BUDGET_BYTES
+// (above) and the chart/docs default are derived from. Unlike
+// TestBuildCaptureEphemeralContainer_VolumeBudgetMatchesSizeLimit, which only
+// checks the constant's own value, this exercises captureVolume() — the same
+// function reconcileStatefulSet calls to build the StatefulSet's pod
+// template — so a future edit to the emptyDir literal itself (not just the
+// constant) is also caught.
+func TestCaptureVolume_SizeLimitMatchesConstant(t *testing.T) {
+	v := captureVolume()
+	if v.Name != "captures" {
+		t.Fatalf("captureVolume().Name = %q, want %q", v.Name, "captures")
+	}
+	if v.EmptyDir == nil {
+		t.Fatal("captureVolume().EmptyDir is nil, want an EmptyDir volume source")
+	}
+	if v.EmptyDir.SizeLimit == nil {
+		t.Fatal("captureVolume().EmptyDir.SizeLimit is nil")
+	}
+	if got := v.EmptyDir.SizeLimit.Value(); got != captureVolumeSizeLimitBytes {
+		t.Errorf("captureVolume().EmptyDir.SizeLimit = %d, want captureVolumeSizeLimitBytes (%d)", got, captureVolumeSizeLimitBytes)
 	}
 }

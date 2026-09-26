@@ -54,13 +54,19 @@ func (e *HTTPError) Error() string {
 // IsTransientError reports whether err indicates a temporary failure communicating
 // with the capture sidecar (such as a network dial error, timeout, connection refusal,
 // or 5xx server error) that is worth retrying. 4xx HTTP client errors (e.g. 400 Bad Request
-// or 409 Conflict) are considered permanent.
+// or 409 Conflict) are considered permanent, and so is 507 Insufficient Storage: the
+// capture sidecar returns it when a start would push the volume past its retention
+// budget (F-187), a condition that will not resolve within a single reconcile's retry
+// window, so retrying it just repeats a directory scan for no benefit.
 func IsTransientError(err error) bool {
 	if err == nil {
 		return false
 	}
 	var httpErr *HTTPError
 	if errors.As(err, &httpErr) {
+		if httpErr.StatusCode == http.StatusInsufficientStorage {
+			return false
+		}
 		return httpErr.StatusCode >= 500 || httpErr.StatusCode == http.StatusTooManyRequests
 	}
 	return true

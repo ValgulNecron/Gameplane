@@ -1414,28 +1414,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 					},
 				},
 			},
-			{
-				// Pre-provisioned capture emptyDir volume, added UNCONDITIONALLY
-				// to every game pod regardless of spec.capture.enabled. This is
-				// required because ephemeral containers cannot add a volume via
-				// pods/ephemeralcontainers, and pod.spec.volumes is immutable on
-				// a running pod — the volume must already exist in the StatefulSet
-				// pod template before the capture sidecar can be injected
-				// restart-free. This volume is mounted ONLY on the capture
-				// sidecar ephemeral container when capture is enabled; it is
-				// never mounted on the agent or game container (see
-				// agentVolumeMounts' doc comment for why agents cannot have
-				// multiple roots). As a consequence, every existing game pod will
-				// roll once on the release that ships this feature, regardless
-				// of whether capture is ever used — this is documented in the
-				// release upgrade notes.
-				Name: "captures",
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{
-						SizeLimit: resource.NewQuantity(1*1024*1024*1024, resource.BinarySI), // 1Gi
-					},
-				},
-			},
+			captureVolume(),
 		}
 		// Extra volumes (spec.storage.extra / template's), one PVC each,
 		// mounted only on the game container (see buildGameContainer) — not
@@ -1552,6 +1531,54 @@ const DefaultSentinelImage = "ghcr.io/valgulnecron/gameplane/sentinel:dev"
 // Overridable via the operator's --capture-sidecar-image flag for air-gapped installs.
 const DefaultCaptureSidecarImage = "ghcr.io/valgulnecron/gameplane/capture-sidecar:dev"
 
+// captureVolumeSizeLimitBytes is the "captures" emptyDir's kubelet-enforced
+// SizeLimit (see the "captures" Volume above). It is the single source of
+// truth for that number: buildCaptureEphemeralContainer derives
+// captureVolumeBudgetBytes from it below, so the sidecar's own
+// admission-time budget check (F-187) can never drift from the volume the
+// kubelet is actually watching. Matches the 1Gi documented in
+// charts/gameplane/values.yaml's capture.defaultMaxSizeBytes comment.
+const captureVolumeSizeLimitBytes int64 = 1 * 1024 * 1024 * 1024
+
+// captureVolume returns the pre-provisioned "captures" emptyDir Volume added
+// UNCONDITIONALLY to every game pod's StatefulSet template by
+// reconcileStatefulSet, regardless of spec.capture.enabled. This is required
+// because ephemeral containers cannot add a volume via
+// pods/ephemeralcontainers, and pod.spec.volumes is immutable on a running
+// pod — the volume must already exist in the StatefulSet pod template before
+// the capture sidecar can be injected restart-free. This volume is mounted
+// ONLY on the capture sidecar ephemeral container when capture is enabled;
+// it is never mounted on the agent or game container (see
+// agentVolumeMounts' doc comment for why agents cannot have multiple
+// roots). As a consequence, every existing game pod will roll once on the
+// release that ships this feature, regardless of whether capture is ever
+// used — this is documented in the release upgrade notes.
+//
+// Extracted to its own function (rather than an inline literal in
+// reconcileStatefulSet) so a unit test can assert its SizeLimit against
+// captureVolumeSizeLimitBytes without exercising the full reconcile path.
+func captureVolume() corev1.Volume {
+	return corev1.Volume{
+		Name: "captures",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{
+				SizeLimit: resource.NewQuantity(captureVolumeSizeLimitBytes, resource.BinarySI), // 1Gi
+			},
+		},
+	}
+}
+
+// captureVolumeBudgetBytes is the total bytes of retained (not-yet-deleted)
+// capture files plus one new capture's own maxSizeBytes that the sidecar
+// will allow on the "captures" volume, passed to it via the
+// CAPTURE_VOLUME_BUDGET_BYTES env var below. It reserves a 10% margin under
+// captureVolumeSizeLimitBytes: the kubelet's eviction check and the
+// sidecar's own accounting (a directory scan taken at admission time, not a
+// live byte counter) are not perfectly synchronized, so a start admitted
+// right at the hard limit could still tip the kubelet into eviction before
+// the new capture writes its first byte.
+const captureVolumeBudgetBytes = captureVolumeSizeLimitBytes - captureVolumeSizeLimitBytes/10
+
 // captureContainerName is the capture sidecar's fixed ephemeral-container
 // name on every game pod. Both GameServerReconciler's eager injection (on
 // spec.capture.enabled) and NetworkCaptureReconciler's idempotent fallback
@@ -1628,6 +1655,12 @@ func buildCaptureEphemeralContainer(image string) corev1.EphemeralContainer {
 				{Name: "TLS_CERT_FILE", Value: "/etc/tls/tls.crt"},
 				{Name: "TLS_KEY_FILE", Value: "/etc/tls/tls.key"},
 				{Name: "TLS_CA_FILE", Value: "/etc/tls/ca.crt"},
+				// See captureVolumeBudgetBytes' doc comment: derived from the
+				// "captures" emptyDir's own SizeLimit, with a safety margin,
+				// so HandleStart (capture-sidecar/internal/httpserver) can
+				// refuse a start that would push retained files plus the new
+				// capture past the volume's real limit (F-187).
+				{Name: "CAPTURE_VOLUME_BUDGET_BYTES", Value: strconv.FormatInt(captureVolumeBudgetBytes, 10)},
 			},
 		},
 		// Targets the game container for a shared pid/network/ipc namespace.
