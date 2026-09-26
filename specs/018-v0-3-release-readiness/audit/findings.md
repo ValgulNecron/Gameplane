@@ -45,9 +45,9 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-037 | website games page lists 16 games but 30 now shipped | website/ | review:website | S4 | open | | | fix with v0.3 catalog, same change as F-028/T054 |
 | F-038 | website comparison.mdx says "16 official modules" but 30 now shipped | website/ | review:website | S4 | open | | | fix with v0.3 catalog, same change as F-028/T054 |
 | F-039 | website VERSION constant still beta.7; beta.8 published 2026-08-22 | website/ | review:website | S4 | open | | | affects homepage install cmd, hero badge, footer, FAQ, roadmap; also changelog.mdx |
-| F-040 | fast game set definitions conflict: fastGameSet (6) vs buckets.sh (3) vs specs.md (3 or 4) | test/e2e/ | review:test-e2e | S4 | open | | | factorio, tmodloader, beammp inconsistently classified |
-| F-041 | e2e/internal/specs.md depth table has 16 rows but repo has 29 probe packages | test/e2e/ | review:test-e2e | S4 | open | | | docs outdated; docs/game-coverage.md is current source |
-| F-042 | api-roles bucket admin login count undercounted in docs: real count 7, cited 5–6 | test/e2e/ | review:test-e2e | S4 | open | | | bucket at ~7 ceiling; docs say ≤~5; no test failure (429 retry absorbs) |
+| F-040 | fast game set definitions conflict: fastGameSet (6) vs buckets.sh (3) vs specs.md (3 or 4) | test/e2e/ | review:test-e2e | S4 | fixed-unverified | #482 | | factorio, tmodloader, beammp inconsistently classified |
+| F-041 | e2e/internal/specs.md depth table has 16 rows but repo has 29 probe packages | test/e2e/ | review:test-e2e | S4 | fixed-unverified | #482 | | docs outdated; docs/game-coverage.md is current source |
+| F-042 | api-roles bucket admin login count undercounted in docs: real count 7, cited 5–6 | test/e2e/ | review:test-e2e | S4 | fixed-unverified | #482 | | bucket at ~7 ceiling; docs say ≤~5; no test failure (429 retry absorbs) |
 | F-043 | CHANGELOG.md "[Unreleased]" missing ~60 PRs of user-facing changes since v0.2.0-beta.8 | root docs | review:root-docs | S4 | fixed-unverified | #423 | | backfilled by the rc.1 CHANGELOG PR (OD-014) |
 | F-044 | Quiesce-state persisted before unquiesce completes | operator | review:operator | S3 | fixed-unverified | #454 | | |
 | F-045 | Auto-scheduled backups never get the quiesce default | operator | review:operator | S3 | fixed-unverified | #454 | | |
