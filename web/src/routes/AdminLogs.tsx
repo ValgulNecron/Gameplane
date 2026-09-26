@@ -258,6 +258,7 @@ export function AdminLogsPage() {
               try {
                 parsed = JSON.parse(line);
                 if (parsed.ts) timestamp = String(parsed.ts);
+                else if (parsed.time) timestamp = String(parsed.time);
                 if (parsed.level) level = String(parsed.level);
                 if (parsed.msg) message = String(parsed.msg);
               } catch {
@@ -270,9 +271,9 @@ export function AdminLogsPage() {
                 lvl === "ERROR" ? "text-[var(--danger)]" :
                 "text-foreground";
 
-              // Collect structured fields (all keys except ts, level, msg)
+              // Collect structured fields (all keys except ts, time, level, msg)
               const structuredFields = Object.entries(parsed).filter(
-                ([key]) => !["ts", "level", "msg"].includes(key),
+                ([key]) => !["ts", "time", "level", "msg"].includes(key),
               );
 
               return (

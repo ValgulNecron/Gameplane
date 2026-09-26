@@ -348,7 +348,6 @@ export function ServersPage() {
             <ServerCard
               key={`${gs.metadata.namespace ?? "gameplane-games"}/${gs.metadata.name}`}
               gs={gs}
-              onAct={act.mutate}
               templates={templates}
               gameCodes={gameCodes}
             />
@@ -364,7 +363,6 @@ export function ServersPage() {
                 <ServerCard
                   key={`shared-${gs.metadata.namespace ?? ""}-${gs.metadata.name}`}
                   gs={gs}
-                  onAct={act.mutate}
                   templates={templates}
                   gameCodes={gameCodes}
                 />
@@ -663,12 +661,10 @@ function ServerLifecycleActions({
 // with name, address, game, status pill, and players/memory chips.
 function ServerCard({
   gs,
-  onAct: _onAct,
   templates,
   gameCodes,
 }: {
   gs: GameServer;
-  onAct: (args: { name: string; verb: LifecycleVerb }) => void;
   templates?: GameTemplate[];
   gameCodes: Map<string, string>;
 }) {

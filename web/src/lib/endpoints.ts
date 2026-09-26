@@ -486,11 +486,11 @@ export const Users = {
     api<void>(`/users/${id}/bindings/${roleName}/${namespace}`, {
       method: "DELETE",
     }),
-  // Theme preferences (contracts/user-preferences-api.md §1.1–1.3): GET
-  // returns the effective preferences (pink/system defaults when the user
-  // has no stored row); PUT applies an update without clearing stored
-  // customs; POST reset is the only operation that deletes them (FR-012).
-  getPreferences: () => api<UserThemePreferences>("/users/me/preferences"),
+  // Theme preferences (contracts/user-preferences-api.md §1.1–1.3): the
+  // effective preferences (pink/system defaults when the user has no stored
+  // row) arrive on the user profile itself; PUT applies an update without
+  // clearing stored customs; POST reset is the only operation that deletes
+  // them (FR-012).
   updatePreferences: (body: UserPreferencesUpdate) =>
     api<UserThemePreferences>("/users/me/preferences", { method: "PUT", body }),
   resetPreferences: (body?: UserPreferencesReset) =>
@@ -804,22 +804,8 @@ export const ModuleSources = {
     api<void>(`/modules/sources/${source}/upload/${module}`, { method: "DELETE" }),
 };
 
-// Share link endpoint paths for authenticated (create, list, revoke) and public
-// (resolve, start) operations. Paths are returned without automatic cluster param;
-// the api functions in api.ts apply clustering and auth headers as needed.
-export const Shares = {
-  // POST /servers/{name}:shares (authenticated, owner-only).
-  create: (server: string) => `/servers/${encodeURIComponent(server)}:shares`,
-  // GET /servers/{name}:shares (authenticated, owner-only).
-  list: (server: string) => `/servers/${encodeURIComponent(server)}:shares`,
-  // DELETE /servers/{name}/shares/{id} (authenticated, owner-only).
-  revoke: (server: string, id: string) =>
-    `/servers/${encodeURIComponent(server)}/shares/${encodeURIComponent(id)}`,
-  // GET /shares/{token} (public, no auth, rate-limited).
-  resolve: (token: string) => `/shares/${encodeURIComponent(token)}`,
-  // POST /shares/{token}/start (public, no auth, rate-limited, only if canStart).
-  start: (token: string) => `/shares/${encodeURIComponent(token)}/start`,
-};
+// Share link operations live in api.ts as `Shares` (it needs the api
+// functions' clustering and auth-header handling), not here.
 
 // Module Builder visual authoring, validation, preview, and export surface.
 

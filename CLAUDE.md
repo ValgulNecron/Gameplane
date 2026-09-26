@@ -76,7 +76,7 @@ npm view eslint-plugin-react@latest version peerDependencies.eslint
 ├── mcp-server/               # Read-only Model Context Protocol server (Go)
 ├── svcutil/                  # Shared environment parsing & graceful shutdown helpers (Go)
 ├── tunnel/                   # Relay client supervisor (frp, Tailscale, playit) (Go)
-├── web/                      # React 18 + TS strict + Vite dashboard
+├── web/                      # React 19 + TS strict + Vite dashboard
 │   └── src/{routes,components,lib,router,styles,test}/
 ├── modules/                  # SUBMODULE -> gameplane-module (OCI game templates)
 ├── website/                  # SUBMODULE -> gameplane-website (Astro docs/marketing)
@@ -262,7 +262,7 @@ make tidy            # Runs `go mod tidy` across all workspace modules
 | `sentinel` | Go | Wake-on-connect listener that holds ports and triggers pod wakeups. |
 | `capture-sidecar` | Go | Ephemeral packet capture container with BPF filtering. |
 | `mcp-server` | Go | Read-only MCP daemon for cluster debugging via stdio. |
-| `web` | React 18, Vite, TS | Dashboard (TanStack Router & Query, Tailwind, HeroUI v3). |
+| `web` | React 19, Vite, TS | Dashboard (TanStack Router & Query, Tailwind, HeroUI v3). |
 | `modules/` | OCI / oras | Submodule with game templates (Minecraft, Terraria, Valheim). |
 
 ---

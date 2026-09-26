@@ -2,7 +2,7 @@
 
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** @gameplane/web  
-**Build:** Vite 5.4 + React 18.3 + TypeScript 5.6 (strict)
+**Build:** Vite 8.3 + React 19.3 + TypeScript 6.0 (strict)
 
 ## Purpose
 
@@ -98,7 +98,7 @@ The multi-slice rebuild is complete: the previous Radix-based primitives that us
 - **`PageHeader.tsx` (T043)** — route-level page header: thin wrapper around `ui/PageHeader` (slice-0 atom), passing through `title/subtitle/actions/breadcrumbs` unchanged. Called by ~30+ route pages; no changes required in call sites.
 - **`ClusterSelector.tsx` (T044)** — multi-cluster dropdown: refactored from `DropdownMenu` to HeroUI `Select`, keeping all permission/state logic, phase color mapping, and "Add cluster" action.
 - **`Login.tsx` (T040)** — login form: refactored from raw DOM to HeroUI `TextField`/`Label`/`Input`/`InputGroup`, `Alert` for errors, `Button` for actions. Kept all state, error handling, SSO provider rendering, and marketing panel. Verified compliant with FR-005 (login privacy).
-- **`Dashboard.tsx` (T041)** — landing page loading + empty state: narrowed scope to loading skeleton and empty frame only (full content deferred to slice 2+). Keeps the same cache keys and queries so downstream slices reuse prepared data.
+- **`Dashboard.tsx` (T041)** — landing page: renders full dashboard content (server/cluster summary, stat tiles, recent activity). Keeps the same cache keys and queries introduced in slice 1.
 
 ### Design Import Rule (FR-012)
 
@@ -136,7 +136,7 @@ This rule was enforced by lint and review throughout the rebuild: any rebuilt fi
 
 ### User Theme Customization (feature 016 — non-UI plumbing, landed 2026-09-21)
 
-Spec: `specs/done_016-user-theme-customization/`. Only the non-UI plumbing has landed: preset tokens, the extended boot script, preferences sync, and the isolation/safe-mode guards. **The Theme Settings modal, SafeModeBanner, keyboard shortcut, login-page safe-mode link, custom-colors derivation utility (`deriveCustomThemeTokens`), and the export/import utilities are designed in `specs/done_016-user-theme-customization/contracts/` (theme-ui.md, theme-tokens-v2.md, theme-export.md) but NOT implemented** — design-first via `design.pen` (CLAUDE.md rule 1) is pending. The `ThemeExport` wire type is declared in `src/types.ts`; nothing consumes it yet.
+Spec: `specs/done_016-user-theme-customization/`. Both the non-UI plumbing and the UI have landed: preset tokens, the extended boot script, preferences sync, the isolation/safe-mode guards, the Theme Settings page (`ThemeSettings.tsx`), `SafeModeBanner`, the keyboard shortcut (`AppLayout.tsx`), the login-page safe-mode link (`Login.tsx`), the custom-colors derivation utility (`deriveCustomThemeTokens` in `lib/theme-derivation.ts`), and the export/import utilities (`lib/theme-export.ts`). Design specs live in `specs/done_016-user-theme-customization/contracts/` (theme-ui.md, theme-tokens-v2.md, theme-export.md). The `ThemeExport` wire type is declared in `src/types.ts` and is consumed by the export/import utilities.
 
 **Preset token system (`web/src/styles/globals.css`):**
 - The default (Pink) preset keeps the HeroUI semantic tokens from the slice-0 rebuild: `[data-theme]` / `.dark` / `.light` blocks define `--accent` (pink `#FF4FA3` dark / `#DB2777` light), surfaces, borders, fields, focus, link, etc.
@@ -451,20 +451,19 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/u
 
 3. **Backups Management Page** (`web/src/routes/Backups.tsx`, 18,395 bytes)
    - Tabbed interface with three sub-views: Backups (index), Schedules, Restores
-   - **Backups tab:** List all Backup CRs (manual + scheduled); filter by server/status; view backup metadata (size, created/expires); restore/delete actions
-   - **Schedules tab:** List BackupSchedule CRs; create/edit/suspend/delete schedules; cron/daily/weekly templates; retention policy form
-   - **Restores tab:** List Restore operations in progress and completed; view status, source backup, destination server; cancel restore action
+   - **Backups tab:** List all Backup CRs (manual + scheduled); filter by server/status; view backup metadata (size, created/expires); select row to open detail drawer, or restore — no inline delete action on the row
+   - **Schedules tab:** List BackupSchedule CRs; create (per-server, no edit mode) and suspend/delete schedules; plain cron-expression input (no daily/weekly template pickers); retention policy form
+   - **Restores tab:** List Restore operations in progress and completed; view status, source backup, destination server; no row actions (no view-details drawer, no cancel-restore)
    - BackupDetailDrawer (slide-out panel) for full backup metadata, file size, retention expiry
    - RestoreDialog (modal) for restore workflow (pick source backup, destination server, confirm)
-   - ScheduleForm (modal) for create/edit schedule with cron input and retention retention-window controls
+   - ScheduleForm (inline, non-modal form) for creating a schedule with cron input and retention-window controls — no edit mode
 
 ### Design-Imported Compositions
 
 **Slice 3 uses the following ui/ atom compositions from slice 0:**
 
-- **StatCard** — metric display (total backups, schedule count, retention summary) in backup/schedule list headers (`web/src/routes/Backups.tsx` line 23)
-- **PhaseChip** — backup/restore phase badge (Completed/Failed/Pending) in Backups and Restores tables (`web/src/components/backups/BackupRow.tsx` line 8, `web/src/routes/Backups.tsx` line 24)
-- **FilterPopover** — filter controls in Backups list (server, status, date range) (`web/src/routes/Backups.tsx` line 25)
+- **PhaseChip** — backup/restore phase badge (Completed/Failed/Pending) in Backups and Restores tables (`web/src/components/backups/BackupRow.tsx`, `web/src/routes/Backups.tsx`)
+- **BackupFilters** — search box + server/phase filters with a trailing "N of M" count, used by the Backups and Restores tabs (`web/src/components/backups/BackupFilters.tsx`, `web/src/routes/Backups.tsx`); `web/src/routes/Backups.tsx` does not use `StatCard` or `FilterPopover` (both exist elsewhere in `web/src` — `StatCard` in Dashboard.tsx/Servers.tsx/Players.tsx/tabs/Backups.tsx, `FilterPopover` in Servers.tsx — but neither is imported by the Backups management route)
 - **ErrorBanner** — error display in backup/schedule operations (`web/src/components/backups/ErrorBanner.tsx` line 1)
 - **ErrorCard** — error state display when backup operations fail (`web/src/components/backups/` components, used at error boundaries)
 
@@ -479,7 +478,7 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/u
 - **Chip** — from `@heroui/react`, status badges (backup phase, restore status), module version/provider tags in Modules catalog
 - **Table** — from `@heroui/react`, backup index table (Backups.tsx), schedules list (ScheduleForm.tsx scope), restores table in Backups tab 3
 - **Slider, NumberField, Switch** — from `@heroui/react`, resource/slot range inputs in Step 3 (CPU, memory, player slots), retention window/duration inputs in ScheduleForm, tunnel toggle in Step 4
-- **Popover, PopoverTrigger, PopoverContent** — from `@heroui/react`, filter popover in Backups (FilterPopover composition), module source selector in Modules
+- **Popover, PopoverTrigger, PopoverContent** — from `@heroui/react`, underlying the `FilterPopover` composition, which is used only in `web/src/routes/Servers.tsx` (not in the top-level `Backups.tsx` route, which uses `BackupFilters` instead), module source selector in Modules
 - **Alert** — from `@heroui/react`, success/info/warning displays in backup workflows, tunnel credential save status in Create Server Step 4
 - **Drawer** (or modal equivalent for side panel) — BackupDetailDrawer.tsx implements slide-out detail view via Modal with custom positioning (right-side panel style)
 
@@ -488,12 +487,12 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/u
 **Step 1 — Name & Template Selection:**
 - Server name input (required, alphanumeric + hyphens, max length from API constraint)
 - Game template selector (required, ListBox with game icons, descriptions)
-- Validation: name uniqueness checked via API query; template exists check
+- Validation: name must match the Kubernetes name format (lowercase letters, digits, dashes, max 63 chars); no client-side uniqueness query against the API (a name collision surfaces as a 409 from the create call)
 
 **Step 2 — Version Selection:**
 - Version picker (ListBox or Radio group) showing released/beta/unstable versions per template
-- Displays version notes/changelog when available
-- Validation: selected version exists and is compatible with chosen template
+- No changelog or version-notes display
+- Validation: selected version exists for the chosen template (`isValidVersion`)
 
 **Step 3 — Configuration:**
 - Dynamic form fields rendered from template's `spec.configSchema` (slots, difficulty, world size, etc.)
@@ -507,7 +506,8 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/u
 - Port configuration: inline port overrides (game-specific ports like 25565 for Minecraft)
 - Address pool / explicit address request (if LoadBalancer mode, optional pool name + requested IP)
 - Tunnel configuration (if operator has `tunnel.enabled`): provider select (frp/Tailscale/playit), credentials form
-- Validation: ports in valid range; address valid CIDR if provided; tunnel credentials required if tunnel enabled
+- IP allow-list textarea (CIDRs, optional, newline- or comma-separated); restricts which clients reach the LoadBalancer, but the client does not validate the CIDR syntax — malformed entries are only caught server-side
+- Validation (`validateStep`): tunnel credentials required if tunnel enabled; frp requires a server address, at least one complete port mapping, and port numbers in 1–65535 (server port too, when set); no client-side check on the LoadBalancer address/CIDR fields themselves
 
 **Step 5 — Review & Confirmation:**
 - Display-only summary of all prior steps' selections (name, template, version, config values, networking, tunnel)
@@ -518,10 +518,9 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/u
 ### Modules Catalog Surface
 
 **Modules.tsx (main page):**
-- Tab/section switcher (Catalog / Installed / Upload)
-- Catalog section: list of all ModuleSources' modules; ModuleCard instances for each; search/filter by game
-- Installed section: list of installed Module CRs; version picker; uninstall action
-- Upload section: bulk file upload dialog; ModuleSourcesPanel for source CRUD
+- Single catalog view (no Catalog/Installed/Upload tab switcher): search box, source filter, and category chips over the combined catalog (`matchesAllCategories`); ModuleCard instances for each entry, each carrying its own install/upgrade/uninstall actions
+- "Create module" button opens the Module Builder; "Upload module" button (shown when an upload-capable source exists) opens `UploadModuleDialog`
+- `ModuleSourcesPanel` (source CRUD) is reached from Admin, not from a tab on this page
 
 **ModuleCard.tsx (reusable card):**
 - Game icon (ui/GameIcon); module name, description
@@ -548,22 +547,23 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/u
 
 **Backups.tsx (main page with three tabs):**
 - Tab structure (HeroUI Tabs) for Backups / Schedules / Restores
-- Shared header: StatCard summary (total backups, scheduled count, active restores count)
+- No shared summary header — each tab renders its own `BackupFilters` row with a trailing "N of M" count instead of a `StatCard` summary
 
 **Tab 1 — Backups Index:**
-- Table of Backup CRs (ID, server, status, size, created/expires dates)
-- Filter popover: server picker, status filter (Completed/Failed/Pending), date range
-- Row actions: download, restore (opens RestoreDialog), delete
-- Detail drawer (BackupDetailDrawer) opened on row click
+- Table of Backup CRs (name, server, phase, size, completed date)
+- `BackupFilters`: search box, server picker, phase filter (no date-range filter)
+- Row actions from `BackupRow`: select (opens `BackupDetailDrawer`), restore (opens `RestoreDialog`) — no inline delete action on the row
+- Detail drawer (`BackupDetailDrawer`) opened on row click
 
 **Tab 2 — Schedules:**
-- Table of BackupSchedule CRs (name, server, schedule expression, retention policy)
-- Create schedule button → opens ScheduleForm
-- Row actions: edit (ScheduleForm), suspend toggle, delete
+- Table of BackupSchedule CRs (name, server, cron expression, last/next run, active)
+- Inline "New schedule for" server picker (not a button) opens `ScheduleForm` for that server
+- Row actions: suspend/resume toggle (`Switch`), delete (confirm dialog) — no edit action
 
 **Tab 3 — Restores:**
-- Table of Restore CRs (ID, source backup, destination server, status, progress)
-- Row actions: view details (BackupDetailDrawer for source backup context), cancel restore
+- Table of Restore CRs (name, backup, target, phase, completed, message)
+- `BackupFilters`: search box, server picker, phase filter
+- No row actions — no view-details drawer and no cancel-restore action from this tab
 - Empty state when no restores
 
 **BackupDetailDrawer.tsx:**
@@ -581,21 +581,19 @@ Every file in slice 2b imports **only** from `@heroui/react` and `@/components/u
 - Cancel button → closes dialog
 
 **ScheduleForm.tsx:**
-- Modal form for create/edit BackupSchedule
-- Schedule picker: daily/weekly/cron radio buttons
-- Cron expression input (if cron selected); helper text for cron syntax
-- Retention policy: Duration (days) and/or max-snapshots inputs
-- RetentionFields sub-component for structured duration picker (numeric input + unit dropdown: days/weeks/months)
-- Save/Cancel buttons
+- Inline (non-modal) form for creating a new BackupSchedule for a given server — no edit mode
+- Backup destination picker (`Select`) and cron expression text input (no daily/weekly radio buttons)
+- Retention policy: `RetentionFields` sub-component — numeric count inputs per retention bucket (`keepLast`, `keepHourly`, `keepDaily`, `keepWeekly`, `keepMonthly`, `keepYearly`), not a duration/unit-dropdown picker
+- Create/Cancel buttons
 
 ### Backup-Related Components (`web/src/components/backups/`)
 
 - **BackupRow.tsx** (32 lines) — Single table row rendering one Backup CR; ID, server, phase chip, size, timestamps
 - **BackupDetailDrawer.tsx** (129 lines) — Slide-out detail panel for backup metadata
-- **BackupFilters.tsx** (65 lines) — Filter controls (server picker, status, date range) for Backups tab
-- **RestoreDialog.tsx** (242 lines) — Modal form for restore workflow (source backup, destination server, confirm)
-- **ScheduleForm.tsx** (188 lines) — Modal form for create/edit schedule (expression, retention)
-- **RetentionFields.tsx** (106 lines) — Sub-component for duration input + unit selector (days/weeks/months)
+- **BackupFilters.tsx** (74 lines) — Filter controls (search box, server picker, phase filter — no date-range filter)
+- **RestoreDialog.tsx** (228 lines) — Modal form for restore workflow (source backup, destination server, confirm)
+- **ScheduleForm.tsx** (172 lines) — Inline (non-modal) form for creating a schedule (cron expression, retention) — no edit mode
+- **RetentionFields.tsx** (106 lines) — Sub-component with a numeric count input per retention bucket (keep last/hourly/daily/weekly/monthly/yearly)
 - **ErrorBanner.tsx** (14 lines) — Error display for backup/schedule operations
 
 ### Modules-Related Components (`web/src/components/modules/`)
@@ -616,22 +614,11 @@ Every file in slice 3 follows the import rule:
 
 **Mechanics:** Lint and review enforce the rule; any rebuilt file importing from forbidden sources fails CI.
 
-### T139 Compliance Findings (post-hoc, 2026-09-06)
+### T139 Compliance Findings (post-hoc, 2026-09-06) — resolved
 
-T139's original check above greps for the forbidden **import paths** (`@/components/ui/`, `@radix-ui`) — it passes, and that finding stands. After T198/T201 (2026-09-16), the old `ui/` directory was deleted, `hero/` became `ui/`, and the forbidden list is now `@radix-ui` and `class-variance-authority`. It does not check that the HeroUI v3 **API surface** is used correctly, and a tier+1 review found real v2-API and syntax defects it missed:
+T139's original check above greps for the forbidden **import paths** (`@/components/ui/`, `@radix-ui`) — it passes, and that finding stands. After T198/T201 (2026-09-16), the old `ui/` directory was deleted, `hero/` became `ui/`, and the forbidden list is now `@radix-ui` and `class-variance-authority`.
 
-- **`web/src/routes/Backups.tsx`** — the file's largest offender:
-  - Curly-quote syntax corruption (smart quotes `” ‘ ’ “` in place of straight `"`) makes the file unparseable as written, at minimum lines 116, 126, 129–137, 142–143 (e.g. `aria-label=”Backups”`, `classNames={{ table: “bg-transparent” }}`, `key=”actions” align=”end”`). Same defect class as T128/T134.
-  - `SelectItem` (v2 API — HeroUI v3 has no such export; v3 `Select` maps `ListBoxItem`s, per this file's own house convention in `ScheduleForm.tsx`/`ServerActionsCard.tsx`) at lines 12, 229, 231, 247, 327, 329.
-  - `Table` v2 props: `classNames={{...}}` (lines 130, 343, 464) and `Table.Column ... align="end"` (lines 137, 351) — v3's `Table.Column`/`Table.Content` have no `classNames`/`align`.
-  - `Table.Body emptyContent={...}` (lines 140, 353, 474) — v3 uses `renderEmptyState`, not `emptyContent`.
-  - `Button` v2 props: `color="default"` and bare `disabled={...}` (line 265, plus `disabled=` at 270) instead of `isDisabled`; `onClick` instead of `onPress` (lines 66, 265).
-- **`web/src/routes/Modules.tsx`** — `Button variant="outline" asChild` (line 141): v3 `Button` has no `asChild`; a router link needs `buttonVariants()` className on the `<Link>` instead, per this rule's own guidance.
-- **`web/src/routes/CreateServer.tsx`** — checked and cleared: the `onClick`s at lines 592, 635, 807, 844 are on plain native `<button>` elements (template/version/expose/tunnel-provider picker tiles), not HeroUI `Button`, so `onClick` there is correct and not a v2-prop defect. Flagged in an earlier pass of this note and corrected here after checking the file.
-
-`ModuleCard.tsx`, `BackupFilters.tsx`, `BackupRow.tsx`, and `BackupDetailDrawer.tsx` (component-level, as opposed to the `Backups.tsx` route) do **not** reproduce the `SelectItem`/`classNames`/`emptyContent`/`CardBody`/v2-Button-prop pattern — checked against `button/*.d.ts` at the time of this note: `BackupRow.tsx`'s `onClick`s are on `Table.Row`/`Table.Cell` (not `Button`), and its one `Button` correctly uses `isDisabled`/`onPress`; `BackupDetailDrawer.tsx`'s three `Button`s likewise all use `isDisabled`/`onPress`. This confirms the defects above are concentrated in the three route files, not systemic across every slice-3 file.
-
-These defects are out of scope for whichever task adds this note (its file allowlist does not include `Backups.tsx`/`Modules.tsx`/`CreateServer.tsx`) — recorded here per rule 15/CLAUDE.md so the next converge or implementation pass on slice 3 does not have to rediscover them from scratch, and so T139's "✅ zero results" line is not mistaken for a full compliance pass.
+A tier+1 review at the time additionally found real HeroUI v2-API and syntax defects that the import-path check alone did not catch: curly-quote syntax corruption in `Backups.tsx`, v2-only props (`SelectItem`, `classNames`, `Table.Column align`, `Table.Body emptyContent`, `color="default"`, bare `disabled`/`onClick`) in `Backups.tsx`, and `Button ... asChild` in `Modules.tsx`. All of these have since been fixed: `web/src/routes/Backups.tsx` and `web/src/routes/Modules.tsx` use the v3 API throughout (`Modules.tsx` renders its admin link via `buttonVariants()` on a `Link`, not `asChild`), and a repo-wide grep for `SelectItem`, `emptyContent`, `classNames=`, and `asChild` under `web/src` returns nothing. Kept here as a historical record, not an open finding.
 
 ### Test Count Rule (FR-010)
 
@@ -670,7 +657,7 @@ Selectors updated to query by role (`getByRole("button", { name: /install/i })`,
 
 BackupDetailDrawer's slide-out panel is implemented as a Modal with right-side positioning rather than a dedicated Drawer component, since HeroUI v3's Drawer API is not yet stable. The visual effect (right-aligned overlay panel) is achieved via CSS positioning and modal backdrop styling; functionality is identical.
 
-ScheduleForm combines cron-expression input with helper UI (daily/weekly template pickers) to reduce user friction with raw cron syntax; for users familiar with cron, the raw input remains available.
+ScheduleForm is a plain cron-expression text input (no daily/weekly template pickers or other cron-helper UI).
 
 ## Directory & Package Layout
 
@@ -877,7 +864,7 @@ The warning is shown regardless of how many groups are being added (single or mu
 
 12. **Backups** (`/backups`) → `BackupsPage`
     - List Backups, Schedules, Restores (three sub-tabs)
-    - Manual backup trigger, schedule create/edit/suspend, restore from backup
+    - Manual backup trigger, schedule create/suspend (no edit mode), restore from backup
 
 13. **Share** (`/share/$token`) → `SharePage` (public route, outside AppLayout)
     - Public, unauthenticated, no sidebar or top bar
@@ -914,15 +901,15 @@ Settings tab (`SettingsTab`, `web/src/routes/tabs/Settings.tsx`) displays 12 sec
 4. **Networking** — Service type (ClusterIP/NodePort/LoadBalancer), LoadBalancer hostname, address pool / explicit address request, port overrides. Tunnel validation (`tunnel.enabled`, provider-specific config, credentials) is computed during render and reported via `onValidityChange` callback in an effect; local field state for `addressPool` and `address` is held in `useState` — so consecutive edits within one render are cumulative rather than each recomputing against the same stale `net` snapshot — and is re-seeded from props by two complementary mechanisms: on identity change, via a parent `key` remount; and in-render, whenever the incoming values differ by value from the last synced pair (so a save round-trip or a reload that returns changed values for the *same* server is picked up).
 5. **Environment** — Custom env var key=value pairs
 6. **Lifecycle** — Pre/post-start/stop scripts, quiesce grace period
-7. **Scheduled backups** — Backup schedule CRUD (daily/weekly/cron), retention policy
+7. **Scheduled backups** — `BackupsSection` (`web/src/routes/tabs/settings/Backups.tsx`): a single inline toggle (enable/disable) and form editing `spec.backupPolicy` on the server draft — cron-expression input (no daily/weekly picker), destination picker, retention fields, and a suspend switch; not a separate CRUD list
 8. **Network capture** — `NetworkCaptureSection` (`web/src/routes/tabs/settings/NetworkCapture.tsx`). Enable/disable switch for `spec.capture.enabled` (the opt-in ephemeral-container sidecar); states plainly that disabling stops new captures immediately but the already-injected sidecar container stays in the pod, idle, until the pod is next recreated (Kubernetes has no API to remove an ephemeral container); admin-access + unredacted-data warning; a Retention Window control (numeric value + seconds/minutes/hours/days unit select) writing `spec.capture.retentionSeconds`, validated client-side against the cluster ceiling of 604,800 seconds (7 days — a storage-limitation-informed engineering default, explicitly not a legal requirement) mirroring the CRD's `+kubebuilder:validation:Maximum=604800` on `CaptureConfiguration.RetentionSeconds` (`operator/api/v1alpha1/gameserver_types.go`). Controls are disabled, with an explanatory note, for a session lacking the `captures:manage` permission (`api/internal/rbac/catalog.go`) — the API is still the real enforcer (FR-005: non-admin capture operations get 403).
-9. **Placement** — Node selector labels, pod affinity/anti-affinity rules (lazy-loaded)
+9. **Placement** — Raw-JSON Monaco editors for `spec.tolerations` (array) and `spec.affinity` (object), each with inline parse-error feedback; no node-selector builder UI (`web/src/routes/tabs/settings/Placement.tsx`)
 10. **RBAC & access** — Server owner + collaborator list, permission inheritance. The `setCollaborators` mutation runs unconditionally at component render (not gated by an early return), so hook invocation order is consistent. The mutation's namespace is derived from the GameServer's `metadata.namespace` (or `gameplane-games` as fallback); when no server is loaded, the mutation returns early without calling the API. On success, the mutation invalidates the `["server", gs.metadata.name]` query cache, clears input state, and resets errors; on error, it sets a locally-rendered error message and does not clear input, allowing retry.
-11. **Danger zone** — Clone, transfer owner, wipe data (confirm-dialog), delete server
+11. **Danger zone** — Wipe world data (confirm-dialog), transfer ownership (confirm-dialog), delete server (confirm-dialog); no Clone action (`web/src/routes/tabs/settings/Danger.tsx`)
 
 **Share links (T179):** Mounted in `Settings.tsx` by slice 5 (`ShareLinksSection`). `ShareLinksSection` (`web/src/routes/tabs/settings/ShareLinks.tsx`). Create/list/revoke share links per server; table shows Created, Expires, Can start capability (view-only vs. can-start), Status (Active/Expired/Revoked). Create dialog opens to set expiry and start permission; success shows Created dialog with full URL and one-time copy prompt (token hashed server-side and unrecoverable after close). Revoke dialog (AlertDialog danger) confirms destruction. Empty state when no links exist. Visible only to users with the API-enforced permission (owner/admin create/revoke, viewers see list read-only if API permits). Uses HeroUI Modal/ModalBackdrop/ModalContainer/ModalDialog/ModalHeader/ModalHeading/ModalBody/ModalFooter, AlertDialog family, Button, Table, Select, ListBox, ListBoxItem, Label, Description, Switch, Chip.
 
-**Configurable expiry (feature 017, target contract — UI not yet implemented, blocked on design-first per CLAUDE.md rule 1 until `design.pen` nodes `atqRh`/`xCJlu` are redesigned; API already supports this, see `api/specs.md`):** The expiry selector offers exactly six choices — 15 days, 30 days, 60 days, 90 days, No expiry, Custom (date picker) — with 30 days pre-selected, replacing the old fixed 24h/7d/30d/90d menu and its "Maximum 90 days" help text. Selecting "No expiry" shows the warning "This link works until you revoke it." and sends `neverExpires: true`. Selecting "Custom" shows a date picker restricted to dates strictly after today (no maximum); choosing a date 365 days or more out additionally shows "Long-lived link — it stays valid for over a year unless you revoke it." Presets and the custom date are converted client-side to an absolute RFC3339 instant (a custom date is valid through 23:59:59 in the owner's local time) and sent as `expiresAt`; the dialog never sends the deprecated `expiresIn`. The Expires column renders "Never" for a link with `expiresAt: null`, and such a link is never shown as "Expired".
+**Configurable expiry (feature 017, `ShareLinks.tsx`):** The expiry selector offers exactly six choices — 15 days, 30 days, 60 days, 90 days, No expiry, Custom (date picker) — with 30 days pre-selected, replacing the old fixed 24h/7d/30d/90d menu and its "Maximum 90 days" help text. Selecting "No expiry" shows the warning "This link works until you revoke it." and sends `neverExpires: true`. Selecting "Custom" shows a date picker restricted to dates strictly after today (no maximum); choosing a date 365 days or more out additionally shows "Long-lived link — it stays valid for over a year unless you revoke it." Presets and the custom date are converted client-side to an absolute RFC3339 instant (a custom date is valid through 23:59:59 in the owner's local time) and sent as `expiresAt`; the dialog never sends the deprecated `expiresIn`. The Expires column renders "Never" for a link with `expiresAt: null`, and such a link is never shown as "Expired".
 
 **Capture types (`src/types.ts`, built):** `CaptureConfiguration` (`{ enabled?, retentionSeconds? }`, mirrors `spec.capture` — `retentionSeconds` is bounded by the CRD's authoritative `+kubebuilder:validation:Minimum=1 / Maximum=604800` on `operator/api/v1alpha1/gameserver_types.go`'s `CaptureConfiguration.RetentionSeconds`, omit to use cluster default (86400)), `CaptureStatus` (mirrors `status.capture`: `ready`, `activeCapture`/`lastCaptureTime` typed nullable since the API's `formatOptionalTime` never omits the key), `CapturePhase` (`"Pending" | "Running" | "Completed" | "Failed" | "Expired"`), `NetworkCapture` (one capture record — merges the API's start/stop/list/get response shapes) and `NetworkCaptureList` (the `:captures` list envelope). All are implemented in the tree; the `CaptureWidget` component and `Captures` endpoint namespace are live (see Tabs and API Client sections above).
 
@@ -1001,9 +988,11 @@ Each namespace is an object of typed functions building and fetching URLs:
 
 - **capabilities.ts** — `resolveConsoleMode(template)`, `serverHasMods(template, server)`, `serverHasModpacks(template, server)` — drive tab visibility
 - **useThemePreferences.ts** — theme preferences plumbing (feature 016; full behavior documented under "User Theme Customization" above): `useThemePreferences(me?, opts?)` reconciles the backend `preferences` from `/users/me` over the `gameplane-theme-prefs` localStorage cache (backend wins on drift), exposes `preferences` + an optimistic `updatePreferences(patch)` mutation (DOM + cache first, PUT via `Users.updatePreferences`, revert-and-report on failure, replay-on-`online` after connectivity loss), and keeps the DOM attributes (`class`/`data-theme`, `data-theme-preset`, `data-theme-type`, `data-custom-css`) and the `#gameplane-custom-css` overlay (always last in `<head>`; unmounted on logout and on `/login`/`/share/:token`) in sync. Plain helpers exported for routes and the boot script's post-boot path: `isSafeModeActive()` (`?safe-mode=1` or the `gameplane-safe-mode` sessionStorage flag — suspends only the overlay), `readThemePreferences` / `writeThemePreferences`, `normalizeThemePreferences`, `themePreferencesEqual`, `applyThemePreferences`, `unmountCustomCssOverlay`, plus the storage keys/element ids and the `gameplane-theme-error` window event. The inline `theme-boot` script in `index.html` applies the same cache synchronously pre-paint and is the authoritative boot path (never applies cached prefs on `/login` or `/share/:token`).
-- **servers.ts** — `isServerRunning(phase)`, phase → string formatters
-- **games.ts** — game icon URLs, console protocol detection (RCON/Satisfactory/Battleye)
-- **auth.ts** — `getCurrentUser()`, OIDC provider list, logout flow
+- **servers.ts** — `countByState(items)` (running/stopped/pending/failed counts), `phaseGroups(items)` (items grouped by phase)
+- **games.ts** — category helpers: `gameCategory(game)`, `resolveCategories(explicit, game)`, `matchesCategory`, `matchesAllCategories`, `categoryFilters(categories)`
+- **auth.ts** — `useMe()` (current-user query hook), `hasRole(me, allowed)`, `can(me, perm, ns?)`
+- **config.ts** — admin-config hooks: `useConfig()`, `useUpdateConfigSection(section)`, `useResetRoleMapping()`
+- **errors.ts** — `errorText(err, fallback?)`, `errorTextWithStatus(err, fallback?)`
 - **cluster.ts** — `getCurrentCluster()` / `setCurrentCluster()` (localStorage-backed)
 - **validation.ts** — domain, port, K8s resource validation
 - **events.ts** — event severity / reason → display strings

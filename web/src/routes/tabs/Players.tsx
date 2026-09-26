@@ -352,6 +352,7 @@ function ConfirmAction({
   submitting: boolean;
 }) {
   const verb = action === "kick" ? "Kick" : "Ban";
+  const verbing = action === "kick" ? "Kicking" : "Banning";
   return (
     <div className="rounded border border-border bg-surface/50 p-4">
       <p className="text-sm text-foreground">
@@ -380,7 +381,7 @@ function ConfirmAction({
           onClick={onConfirm}
           isDisabled={submitting}
         >
-          {submitting ? `${verb}ing…` : verb}
+          {submitting ? `${verbing}…` : verb}
         </Button>
       </div>
     </div>

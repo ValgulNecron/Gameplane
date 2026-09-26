@@ -185,6 +185,23 @@ describe("AdminLogsPage", () => {
     expect(await screen.findByText("network down")).toBeInTheDocument();
   });
 
+  it("parses the timestamp from slog's `time` key", async () => {
+    const line = JSON.stringify({
+      time: "2026-09-26T00:00:00Z",
+      level: "INFO",
+      msg: "api started",
+    });
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(logRes(`${line}\n`, "gameplane-api-0")),
+    );
+    render(<AdminLogsPage />);
+
+    expect(await screen.findByText(/api started/)).toBeInTheDocument();
+    expect(screen.getByText("2026-09-26T00:00:00Z")).toBeInTheDocument();
+    // The timestamp is not also rendered among the trailing structured fields.
+    expect(screen.queryByText(/time=/)).toBeNull();
+  });
+
   it("stops auto-scrolling when the user scrolls up and resumes at the bottom", async () => {
     const stream = pushableRes("gameplane-api-0");
     fetchMock.mockImplementation(() => Promise.resolve(stream.res));
