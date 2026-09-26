@@ -1,6 +1,7 @@
 package players
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -117,7 +118,7 @@ func TestWhitelistList_ParseWhitelistNilBecomesEmptyList(t *testing.T) {
 		game: "test",
 	}
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/players/whitelist", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/players/whitelist", nil)
 
 	h.whitelistList(w, req)
 
@@ -139,7 +140,7 @@ func TestBanned_ParseBanListNilBecomesEmptyList(t *testing.T) {
 		game: "test",
 	}
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/players/banned", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/players/banned", nil)
 
 	h.banned(w, req)
 

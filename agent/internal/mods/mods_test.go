@@ -1058,7 +1058,7 @@ func TestRedactURLErr_StripsQuery(t *testing.T) {
 		t.Errorf("URL = %q, want query stripped", ue.URL)
 	}
 	// The same pointer identity is mutated in place.
-	if got != error(orig) {
+	if !errors.Is(got, error(orig)) {
 		t.Errorf("redactURLErr should return the same error value it mutated")
 	}
 }
@@ -1069,7 +1069,7 @@ func TestRedactURLErr_StripsQuery(t *testing.T) {
 func TestRedactURLErr_NonURLError(t *testing.T) {
 	plain := errors.New("boom")
 	got := redactURLErr(plain)
-	if got != plain {
+	if !errors.Is(got, plain) {
 		t.Errorf("redactURLErr should pass through a non-*url.Error unchanged, got %v", got)
 	}
 }
