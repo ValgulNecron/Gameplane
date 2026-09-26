@@ -125,9 +125,8 @@ The cloud container restarted three times; the third restart (session 6, 2026-09
 - **Agent coverage margin:** now #475 (see §3 Open).
 - **Wave 2** (groups 17, 35, 39, 41, 43, 47), the group 27 rework and the agent-coverage investigation were restarted in session 6 as workflow `wf_86f6ffc1-6e8`. It reuses the session-5 worktrees wtg17/27/35/39 (rebased on master) and new ones wtg41/43/47. Each group gets its own PR after an opus review. The coverage investigation only reports.
 - **Wave 3** (groups 25, 33, 37, 40, 45, 46, 49) was merged on 2026-09-26 as #477 to #483.
-  - F-138 is partly open: 7 exports used only by tests are kept pending sign-off.
-  - F-187 has a follow-up to file: capture files deleted through the API still count against the volume budget until the pod restarts.
-  - Still to file: the mismatch between the playit NetworkPolicy comment and the code, raised in #468's review.
+  - F-138: the maintainer approved removing the 7 exports that only tests use, and their test-only coverage (2026-09-26); this rides with wave 4.
+  - Filed F-261 (a capture file deleted through the API still counts against the budget) and F-262 (the playit NetworkPolicy adds no egress ports); both ride with wave 4.
 - **CodeRabbit:** the maintainer runs it by hand on every security PR, at most once per hour. Don't push to a security PR while its review is pending, and never treat a security PR as done until its review is back.
 - **F-107 (group 35):** the session-6 call is that the doc is wrong and the code is right. A failing *first* quiesce command leaves nothing paused, so `docs/module-authoring.md` is corrected; `quiesce.go` and `TestDeclaredQuiescer_FirstCommandErrorSkipsRollback` stay unchanged.
 

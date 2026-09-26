@@ -209,6 +209,8 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | fixed-unverified | #445 | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
 | F-259 | Capture download returns 409 right after a user stop although the capture reads Completed | api | ci:e2e | S3 | fixed-unverified | #449, #453 | | seen as sporadic arm64 e2e failures on unrelated PRs (#441); same caveat on the ID as F-257 |
 | F-260 | GameServer.Stopped and Restore.Resuming phases declared but never assigned | operator | review:operator | S4 | open | | | |
+| F-261 | Capture files deleted through the API keep counting against the sidecar volume budget until the pod restarts | capture-sidecar, api | review:#483 | S3 | open | | | follow-up to F-187 (#483) |
+| F-262 | playit tunnel NetworkPolicy adds no egress ports although its comment says all ports are permitted | operator | review:#468 | S3 | open | | | |
 
 ## Details
 
@@ -2981,3 +2983,30 @@ elsewhere in the operator, but no reconciler ever sets either one.
 `operator/internal/controller/metrics.go:23`;
 `operator/internal/controller/restore_controller.go:70,83,85,127,130,161,200`;
 `inventory-CRD.md` (018 branch) row `INV-CRD-020`.
+
+### F-261
+
+**Repro / observation**
+1. #483 (F-187) makes capture-sidecar `HandleStart` refuse a start with 507 when retained capture bytes plus the new capture's `maxSizeBytes` exceed the volume budget (`CAPTURE_VOLUME_BUDGET_BYTES`, derived from the capture emptyDir `SizeLimit`).
+2. Deleting a capture through the API removes the NetworkCapture record but not the capture file in the sidecar directory; `capture-sidecar/specs.md` §8a documents this as a known limitation.
+3. The file keeps counting as retained until the pod restarts. With default values one leftover default-size capture blocks every further default-size capture on that pod, and the 507 text ("wait for retained captures to expire") is misleading.
+
+**Expected:** Deleting a capture frees its bytes from the budget (the sidecar deletes the file, or the budget ignores files whose capture no longer exists).
+
+**Actual:** Deleted captures occupy the budget until the pod restarts.
+
+**Evidence:** opus review of #483 (spec-018 wave 3); `capture-sidecar/specs.md` §8a.
+
+### F-262
+
+**Repro / observation**
+1. `operator/internal/controller/gameserver_tunnel.go` `reconcileTunnelNetworkPolicy` adds relay egress ports per provider: frp gets `ServerPort` (default 7000/TCP), tailscale gets 443/TCP and 41641/UDP.
+2. The `case "playit":` branch adds no ports; its comment says all ports are permitted.
+3. With the tunnel NetworkPolicy in place, a playit tunnel pod may be unable to reach the playit relay.
+
+**Expected:** The playit branch admits the egress playit needs (or genuinely allows all egress, as the comment says), and a test covers it.
+
+**Actual:** Comment and code disagree; playit egress depends on other policies.
+
+**Evidence:** opus review of #468 (spec-018 group 47); `docs/tunnels.md` now documents the actual behaviour.
+
