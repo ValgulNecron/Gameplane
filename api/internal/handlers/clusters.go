@@ -185,8 +185,7 @@ func (h clustersHandler) create(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, clusterRegistryView{
+	writeJSONCreated(w, clusterRegistryView{
 		Name:        in.Name,
 		DisplayName: in.DisplayName,
 		Phase:       "", // Will be populated by the operator

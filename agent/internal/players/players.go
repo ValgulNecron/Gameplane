@@ -3,9 +3,11 @@
 //
 // Many game protocols are different, but "list online players via RCON
 // list" works for all Minecraft variants (vanilla/paper/spigot/forge)
-// and Source-engine servers. Moderation commands (kick/ban/unban) vary
-// per game and are dispatched through a small commander strategy keyed
-// off the agent's --game flag.
+// and Source-engine servers. Moderation commands (kick/ban/unban/
+// whitelist) are dispatched through a single template-driven commander
+// that renders each command from the module's declared
+// capabilities.players templates; a template declaring no capabilities
+// yields a commander that reports everything unsupported.
 package players
 
 import (

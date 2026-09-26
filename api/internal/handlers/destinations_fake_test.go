@@ -139,6 +139,38 @@ func TestDestinations_Create(t *testing.T) {
 		}
 	})
 
+	// F-077 regression: hand-written validation errors must classify as
+	// 400, not the opaque 500 an unclassified error used to fall through
+	// httperr.Write to.
+	t.Run("invalid name returns 400", func(t *testing.T) {
+		body := map[string]any{"name": "BAD", "url": "x", "password": "p"}
+		rr := do(t, r, "POST", "/backup-destinations/", body)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("got %d, want 400; body=%s", rr.Code, rr.Body)
+		}
+	})
+
+	t.Run("missing url returns 400", func(t *testing.T) {
+		body := map[string]any{"name": "y", "password": "p"}
+		rr := do(t, r, "POST", "/backup-destinations/", body)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("got %d, want 400; body=%s", rr.Code, rr.Body)
+		}
+	})
+
+	t.Run("name clash with non-Gameplane secret returns 409", func(t *testing.T) {
+		if _, err := k.Typed.CoreV1().Secrets("gameplane-games").Create(context.Background(),
+			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "foreign", Namespace: "gameplane-games"}},
+			metav1.CreateOptions{}); err != nil {
+			t.Fatalf("seed foreign secret: %v", err)
+		}
+		body := map[string]any{"name": "foreign", "url": "s3://x", "password": "p"}
+		rr := do(t, r, "POST", "/backup-destinations/", body)
+		if rr.Code != http.StatusConflict {
+			t.Fatalf("got %d, want 409; body=%s", rr.Code, rr.Body)
+		}
+	})
+
 	t.Run("bad json", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), "POST", "/backup-destinations/", strings.NewReader("not json"))
 		rr := httptest.NewRecorder()

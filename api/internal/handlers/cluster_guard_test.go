@@ -273,7 +273,7 @@ func mountHomeClientRoutes(t *testing.T, r chi.Router, home *kube.Client, reg *k
 	MountNotifications(r, notify.New(store, home, controlNS), home, controlNS)
 	MountAuthProviderSecrets(r, home, controlNS)
 	MountCluster(r, home, store, "test", true, "")
-	MountClusterActions(r, home, true)
+	MountClusterActions(r, home, true, "")
 	MountClusters(r, reg, home, controlNS)
 	MountSystemLogs(r, home, controlNS)
 	MountModules(r, home, controlNS)

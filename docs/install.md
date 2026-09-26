@@ -165,6 +165,7 @@ Top-level knobs (see `values.yaml` for the full list):
     - `backupEgress.enabled` — toggle backup/restore-egress allowance (default `true`)
     - `backupEgress.ports` — TCP ports for repository connections (default 443, 22); unlike `gameEgress` there is no private-range exclusion, since the destination is an admin-configured repository Secret rather than an attacker-influenced URL, and is often itself private
 - `clusterOps.enabled` — credential-minting cluster operations (Add node, Download kubeconfig) in the dashboard's Cluster page (default off; grants powerful kube-system + CSR-approval RBAC)
+  - `clusterOps.externalAddress` — external (node-routable) API server address, e.g. `1.2.3.4:6443` or `https://k8s.example.com:6443`, used in the join command and downloaded kubeconfig instead of the in-cluster ClusterIP; leave empty only when the in-cluster address is itself reachable from outside the cluster
 - `mcpServer.enabled` — optional strictly read-only MCP (Model Context Protocol) server [optional] for AI assistants to read cluster state and propose fixes (default off); see [mcp-server/README.md](../mcp-server/README.md)
   - `mcpServer.replicas` — MCP server replicas (default 1)
 - `updates.channel` — informational release-channel label (e.g., `stable`, `edge`) shown read-only in the dashboard's Admin Settings → Updates section; purely informational (Gameplane upgrades via Helm, not auto-update)
@@ -235,13 +236,27 @@ Top-level knobs (see `values.yaml` for the full list):
 ## Observability
 
 The operator, API, and in-pod agent sidecars expose Prometheus metrics on
-`/metrics` (operator `:8080`, API `:8000`, agent `:8090`). Three
-**off-by-default** chart toggles wire them into a Prometheus-Operator stack
-(e.g. kube-prometheus-stack):
+`/metrics` (operator `:8080`, API `:8000`). The agent's control port
+(`:8090`) requires an mTLS client cert for every route it serves, so its
+`/metrics` lives on a separate, unauthenticated listener instead
+(`:9090`, `agent/cmd/main.go`'s `--metrics-addr`) — a Prometheus scraper
+never needs, and never gets, the client cert that unlocks console/files/RCON
+on `:8090`. Three **off-by-default** chart toggles wire these into a
+Prometheus-Operator stack (e.g. kube-prometheus-stack):
 
 - `serviceMonitors.enabled` — `ServiceMonitor`s so Prometheus scrapes the
-  operator and API, plus a `PodMonitor` that scrapes per-GameServer agent
-  metrics from game pods in `gamesNamespace`.
+  operator, API, and telemetry-receiver (when deployed), plus a `PodMonitor`
+  that scrapes per-GameServer agent metrics from game pods in
+  `gamesNamespace` on their plain, named `metrics` containerPort (`9090`,
+  declared by the operator's `buildAgentContainer`; no TLS, no client cert —
+  the mTLS control port `8090` is never scraped).
+- `serviceMonitors.scrapeNamespaceSelector` — set this to your Prometheus's
+  namespace (e.g. `{matchLabels: {kubernetes.io/metadata.name: monitoring}}`)
+  whenever `networkPolicies.enabled` is also `true`. Without it, both the
+  games-namespace default-deny policy (agent metrics port `9090` is not
+  admitted from any namespace by default) and the telemetry-receiver's
+  `NetworkPolicy` (admitted only from the API pod) leave the `PodMonitor`
+  and `ServiceMonitor` targets unreachable even though they render.
 - `prometheusRules.enabled` — a `PrometheusRule` of operator alerts.
 - `grafanaDashboards.enabled` — a Grafana dashboard `ConfigMap` the Grafana
   sidecar auto-imports (relabel via `grafanaDashboards.labels` if your sidecar
@@ -263,7 +278,7 @@ Every phase is always present (0 when empty). With 2+ operator replicas each
 replica reports the same cache-derived counts, so aggregate with
 `max by (phase) (...)` (the bundled dashboard and alerts already do).
 
-**Agent per-server metrics** (scraped from port 8090 in each game pod when
+**Agent per-server metrics** (scraped over plain HTTP from the named `metrics` port, 9090, in each game pod when
 `serviceMonitors.enabled: true`):
 
 | Metric | Labels | Meaning |

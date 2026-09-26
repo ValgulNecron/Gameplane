@@ -1043,6 +1043,21 @@ spec:
 | `runAsGroup` | int64 | omitted (image default) | 0 | 4294967295 | gid the game container runs as |
 | `fsGroup` | int64 | omitted (no chown) | 0 | 4294967295 | gid the kubelet chowns volumes to |
 
+### Reserved in-pod ports
+
+The agent sidecar shares the pod's network namespace with the game
+container, so any TCP port the agent itself binds is reserved: a game
+template that also binds one of these loses (or wins) an arbitrary bind
+race with the sidecar container start order. Do not declare a game port
+of **8090** (the agent's mTLS control listener) or **9090** (the agent's
+plain-HTTP Prometheus metrics listener, `agent/cmd/main.go`'s
+`--metrics-addr`) in `spec.network.ports`.
+
+If a template's game genuinely needs one of these ports, pick a
+different port for the game and remap it at the game's own config
+layer where possible — the agent's ports are not configurable per
+template today.
+
 ### Capabilities (moderation + backup quiesce)
 
 `spec.capabilities` declares the console commands behind agent
@@ -1107,10 +1122,12 @@ capabilities:
   admin API `protocol: palworld`, not RCON, so the players list is
   fetched via the REST endpoint, not a console command).
 - The quiesce sequence runs in order; any command error — or output
-  matching `failurePattern` (case-insensitive) — aborts the backup and
-  best-effort runs `unquiesce` so the game is never left paused.
-  Games that can't quiesce simply omit the block; backups proceed
-  without pausing.
+  matching `failurePattern` (case-insensitive) — aborts the backup. If
+  at least one earlier command in the sequence already succeeded,
+  `unquiesce` then runs best-effort so the game is never left paused;
+  a failure on the *first* command means nothing was paused yet, so
+  `unquiesce` is skipped. Games that can't quiesce simply omit the
+  block; backups proceed without pausing.
 - `lifecycle.stop` runs before the pod is scaled down (stop button,
   restarts): the operator issues the sequence — over RCON when the
   template has it, otherwise over a stdin pod-attach for `consoleMode:

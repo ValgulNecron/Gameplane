@@ -22,6 +22,16 @@ const (
 // We cap at a reasonable value to prevent allocation from length injection.
 const terrariaMaxPacketSize = 65535
 
+// terrariaMaxStringLength is the documented cap (specs.md) on a Terraria
+// 7-bit-encoded string's decoded length, applied independently of the
+// remaining frame payload. It is not derived from the encoding itself (a
+// 7-bit-encoded int can represent up to math.MaxInt32); it is a defensive
+// bound chosen to be well above any real Terraria protocol string (version
+// strings, player names, chat text) while still being far smaller than the
+// 65535-byte max frame, so a malformed or hostile length prefix cannot make
+// a single string consume most of the frame's payload.
+const terrariaMaxStringLength = 32 * 1024
+
 // terrariaClassifyResult holds the result of classifying a Terraria connection.
 type terrariaClassifyResult struct {
 	// Version is the protocol version string from the ConnectRequest.
@@ -157,6 +167,9 @@ func readTerrariaString(r *bytes.Reader) (string, error) {
 
 	if length < 0 {
 		return "", fmt.Errorf("negative string length: %d", length)
+	}
+	if length > terrariaMaxStringLength {
+		return "", fmt.Errorf("string length %d exceeds max %d", length, terrariaMaxStringLength)
 	}
 
 	rlen := r.Len()
