@@ -113,7 +113,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-135 | API timestamps use key instead of ts | web | review:web | S4 | open | | | |
 | F-136 | Typo: Baning | web | review:web | S4 | open | | | |
 | F-137 | Promise handlers not awaited | web | review:web | S4 | fixed-unverified | #455 | | |
-| F-138 | Dead code in exports and branches | web | review:web | S4 | open | | | #480 removes the provably dead code; kept (test-only use, removal needs sign-off): RequireRole, hasRole, themeExportToUpdate, Modules.get, Schedules.get, BackupDestinations.get, Restores.remove |
+| F-138 | Dead code in exports and branches | web | review:web | S4 | open | #480 (partial) | | #480 removes the provably dead code; kept (test-only use, removal needs sign-off): RequireRole, hasRole, themeExportToUpdate, Modules.get, Schedules.get, BackupDestinations.get, Restores.remove |
 | F-139 | specs.md contradicts implemented features | web | review:web | S4 | open | | | |
 | F-140 | specs.md lists unimplemented UI | web | review:web | S4 | open | | | |
 | F-141 | Component version claims drift from reality | web | review:web | S4 | open | | | #480 fixes the React/TS/Vite version facts only; web/specs.md still has stale line refs into api.ts/ServerDetail.tsx/Login.tsx and the "nine sub-views"/"11 sections" counts |
