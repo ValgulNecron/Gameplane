@@ -23,6 +23,7 @@ This contract defines the rule catalog, severity levels, diagnostic message form
 | `invalid-memory-percent` | **ERROR** | `template.yaml` | `autoFromMemoryLimit.percent` is not an integer between 1 and 100. | Set percent between 1 and 100 (e.g. 75 for 75%). |
 | `credential-field-not-password` | **ERROR** | `template.yaml` | Field name contains credential substrings (`PASSWORD`, `TOKEN`, `SECRET`, `KEY`, `AUTH`) but `type` is not `password`. | Set `type: password` so the operator stores value securely in a Secret instead of plaintext CR. |
 | `excessive-asset-size` | **WARN** | Assets | Asset `icon.png` exceeds 512 KiB or total directory size exceeds 1 MiB. | Compress asset or reduce resolution to optimize OCI bundle transfer. |
+| `gameplane-min-version-exceeds-tool` | **WARN** | `module.yaml` | `gameplaneMinVersion` is a valid semver higher than this `gp-module`'s own version. | Lower `gameplaneMinVersion` to match a released Gameplane version, or upgrade `gp-module`/the operator before publishing. |
 
 ---
 

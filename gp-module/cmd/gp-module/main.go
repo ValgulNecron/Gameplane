@@ -4,9 +4,13 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/ValgulNecron/gameplane/gp-module/internal/validator"
 )
 
-const version = "1.0.0"
+// version is the gp-module release, surfaced via --version and compared by
+// the validator against a module's declared gameplaneMinVersion.
+const version = validator.ToolVersion
 
 func printUsage() {
 	fmt.Printf(`gp-module — Gameplane Module Authoring & Building Toolkit (v%s)

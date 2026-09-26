@@ -32,7 +32,14 @@ const (
 	RuleInvalidMemoryPercent    = "invalid-memory-percent"
 	RuleInsecureAuthField       = "credential-field-not-password"
 	RuleExcessiveAssetSize      = "excessive-asset-size"
+	RuleMinVersionExceedsTool   = "gameplane-min-version-exceeds-tool"
 )
+
+// ToolVersion is the gp-module release. cmd/gp-module surfaces it via
+// --version, and validateModuleSchema compares it against a module's
+// declared gameplaneMinVersion to warn authors who require a newer tool
+// than the one running.
+const ToolVersion = "1.0.0"
 
 // Finding represents a single diagnostic finding.
 type Finding struct {
