@@ -50,6 +50,7 @@ import {
   AlertDialogFooter,
 } from "@heroui/react";
 import { APIError, Captures, CaptureStartBody } from "@/lib/api";
+import { captureListRefetchMs, isCaptureActive } from "@/lib/capturePolling";
 import { CaptureWarningBanner } from "@/components/ui/CaptureWarningBanner";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Chip } from "@/components/ui/PhaseChip";
@@ -124,17 +125,20 @@ export function CaptureWidget({ name, ns, gs }: Props) {
   const [showStartModal, setShowStartModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<NetworkCapture | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // The capture the user last asked to stop. A stop only requests it: the
+  // operator completes the capture once its sidecar has stopped (F-259), so
+  // the list is polled faster until that capture leaves Pending/Running —
+  // see captureListRefetchMs.
+  const [stoppingId, setStoppingId] = useState<string | null>(null);
 
   const { data: captures } = useQuery({
     queryKey: ["captures", name, ns],
     queryFn: () => Captures.list(name, ns),
     enabled,
-    refetchInterval: 5000,
+    refetchInterval: (query) => captureListRefetchMs(query.state.data, stoppingId),
   });
 
-  const activeCapture = (captures?.captures ?? []).find(
-    (c) => c.phase === "Running" || c.phase === "Pending",
-  );
+  const activeCapture = (captures?.captures ?? []).find(isCaptureActive);
   const { data: activeCaptureDetails } = useQuery({
     queryKey: ["capture", name, activeCapture?.captureId, ns],
     queryFn: () => Captures.get(name, activeCapture!.captureId, ns),
@@ -154,7 +158,10 @@ export function CaptureWidget({ name, ns, gs }: Props) {
   });
   const stopMut = useMutation({
     mutationFn: (captureId: string) => Captures.stop(name, captureId, ns),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["captures", name, ns] }),
+    onSuccess: (_stopped, captureId) => {
+      setStoppingId(captureId);
+      return qc.invalidateQueries({ queryKey: ["captures", name, ns] });
+    },
   });
   const deleteMut = useMutation({
     mutationFn: (captureId: string) => Captures.remove(name, captureId, ns),
@@ -464,12 +471,13 @@ export function CaptureWidget({ name, ns, gs }: Props) {
               <AlertDialogHeader className="flex flex-col gap-1">
                 <AlertDialogHeading>Delete capture?</AlertDialogHeading>
               </AlertDialogHeader>
-              <AlertDialogBody>
+              <AlertDialogBody className="flex flex-col gap-3">
                 <p className="text-sm">
                   This permanently deletes capture{" "}
                   <span className="font-mono">{deleteTarget?.captureId}</span> and its
                   recorded packets. This cannot be undone.
                 </p>
+                {deleteMut.error && <ErrorBanner err={deleteMut.error} />}
               </AlertDialogBody>
               <AlertDialogFooter>
                 <Button

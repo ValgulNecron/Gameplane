@@ -543,6 +543,26 @@ describe("CreateServerWizard review", () => {
     expect(navigate).toHaveBeenCalledWith({ to: "/servers" });
   });
 
+  it("closes via the header Close button back to the server list", async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [template()] }));
+    renderWithQuery(<CreateServerWizard />);
+    const close = await screen.findByRole("button", { name: "Close" });
+    fireEvent.click(close);
+    expect(navigate).toHaveBeenCalledWith({ to: "/servers" });
+  });
+
+  // F-137: both Close and Cancel passed nav(...) straight to onPress,
+  // leaving the returned promise unhandled. A rejecting navigate must not
+  // throw out of the click handler.
+  it("does not throw when navigate rejects on Cancel", async () => {
+    navigate.mockRejectedValueOnce(new Error("navigation aborted"));
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [template()] }));
+    renderWithQuery(<CreateServerWizard />);
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    fireEvent.click(cancel);
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/servers" }));
+  });
+
   it("sends addressPool and address when LoadBalancer + pool/address are set", async () => {
     routeFetch();
     renderWithQuery(<CreateServerWizard />);

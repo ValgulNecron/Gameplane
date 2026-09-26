@@ -56,18 +56,20 @@ func TestResources_GameServerCRUDRoundTrip(t *testing.T) {
 		t.Fatalf("GET round-trip lost templateRef: %#v", got["spec"])
 	}
 
-	// PUT (update). Bump templateRef.name to a different value via the
-	// API and confirm the on-cluster object reflects it.
-	got["spec"].(map[string]any)["templateRef"].(map[string]any)["name"] = "valheim"
+	// PUT (update). templateRef is immutable (F-047), so exercise the
+	// generic update path via a mutable field instead: flip suspended and
+	// confirm the on-cluster object reflects it. Changing templateRef via
+	// PUT is covered separately by TestResources_GameServerUpdate_TemplateRefImmutable.
+	got["spec"].(map[string]any)["suspend"] = true
 	resp = doJSON(t, http.MethodPut, "/servers/"+name, got)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("PUT /servers/%s status = %d; body=%s", name, resp.StatusCode, readBody(t, resp))
 	}
 
 	gs := getDynamic(t, gvrServers(), scope.DefaultNamespace, name)
-	gotTmpl, _, _ := unstructured.NestedString(gs.Object, "spec", "templateRef", "name")
-	if gotTmpl != "valheim" {
-		t.Errorf("templateRef.name on cluster = %q, want valheim", gotTmpl)
+	suspend, _, _ := unstructured.NestedBool(gs.Object, "spec", "suspend")
+	if !suspend {
+		t.Errorf("spec.suspend on cluster = %v, want true", suspend)
 	}
 
 	// DELETE.
@@ -80,6 +82,45 @@ func TestResources_GameServerCRUDRoundTrip(t *testing.T) {
 		Namespace(scope.DefaultNamespace).
 		Get(context.Background(), name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Errorf("expected NotFound after DELETE, got err=%v", err)
+	}
+}
+
+// TestResources_GameServerUpdate_TemplateRefImmutable — PUT /servers/{name}
+// with a changed spec.templateRef.name is rejected by the handler itself
+// (409, before the request ever reaches the apiserver's CEL rule) with a
+// clear message, and the on-cluster object is left untouched (F-047).
+func TestResources_GameServerUpdate_TemplateRefImmutable(t *testing.T) {
+	name := uniqueResourceName("smp")
+
+	body := map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameServer",
+		"metadata":   map[string]any{"name": name},
+		"spec": map[string]any{
+			"templateRef": map[string]any{"name": "minecraft"},
+		},
+	}
+	resp := doJSON(t, http.MethodPost, "/servers", body)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /servers status = %d, want 201; body=%s", resp.StatusCode, readBody(t, resp))
+	}
+	t.Cleanup(func() {
+		_ = kubeC.Dynamic.Resource(gvrServers()).
+			Namespace(scope.DefaultNamespace).
+			Delete(context.Background(), name, metav1.DeleteOptions{})
+	})
+
+	body["spec"].(map[string]any)["templateRef"] = map[string]any{"name": "valheim"}
+	resp = doJSON(t, http.MethodPut, "/servers/"+name, body)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("PUT /servers/%s (templateRef change) status = %d, want 409; body=%s",
+			name, resp.StatusCode, readBody(t, resp))
+	}
+
+	gs := getDynamic(t, gvrServers(), scope.DefaultNamespace, name)
+	gotTmpl, _, _ := unstructured.NestedString(gs.Object, "spec", "templateRef", "name")
+	if gotTmpl != "minecraft" {
+		t.Errorf("templateRef.name on cluster = %q, want unchanged \"minecraft\"", gotTmpl)
 	}
 }
 

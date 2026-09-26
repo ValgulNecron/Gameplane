@@ -109,7 +109,7 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
 - `/servers/{name}/files/*` — file browser, upload, download (proxied to agent); cluster-dispatch
 - **[PLANNED, Phase 8 Dashboard]** `/servers/{name}:capture-enable`, `:capture-disable` — sidecar lifecycle actions (endpoints stubbed; handlers not yet implemented; RBAC rules already in place for when implemented)
 - `/servers/{name}:capture-start` — POST: start a network packet capture (creates NetworkCapture CR, transitions to Pending)
-- `/servers/{name}:capture-stop` — POST: stop an active capture (updates NetworkCapture status to Completed)
+- `/servers/{name}:capture-stop` — POST: request a stop of an active capture (sets the `gameplane.local/stop-requested` annotation; the operator completes the capture, see "Network capture stop flow")
 - `/servers/{name}:captures` — GET: list all NetworkCaptures (active and historical) for a server, excluding Expired captures
 - `/servers/{name}:capture` — GET: fetch a single capture's metadata and status; query param `id={captureId}`; 404 if not found or Expired
 - `/servers/{name}:capture-file` — GET: download completed PCAPNG file from the capture sidecar; query param `id={captureId}` (proxied to sidecar over mTLS; 409 if still running)
@@ -178,11 +178,14 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
   - Creates NetworkCapture CR with ownerReference to GameServer (cascade delete on server deletion)
   - Audit: `WriteSync()` before response body is sent (FR-006); reason field records "server_not_found", "capture_not_enabled", "invalid_filter", "invalid_duration", "invalid_size", "capture_in_progress", "ttl_exceeded", "create_failed", or "" on success
 
-- **POST `/servers/{name}:capture-stop`** — Transition a NetworkCapture from Pending/Running to Completed; request body: `{captureId: string}`; response: `{captureId, phase, serverName, filter, createdAt, startedAt?, completedAt?, stoppingReason, bytesWritten, packetsWritten}` (HTTP 200 OK)
+- **POST `/servers/{name}:capture-stop`** — Request that a Pending/Running NetworkCapture be stopped; request body: `{captureId: string}`; response: `{captureId, phase, serverName, filter, createdAt, startedAt?, completedAt?, stoppingReason, bytesWritten, packetsWritten}` (HTTP 200 OK)
   - Returns 400 if `captureId` is missing or empty in request body
   - Returns 404 if capture not found or doesn't belong to this server
   - Returns 409 if capture is not in Pending or Running phase (already Completed/Failed/Expired)
-  - Sets capture status to Completed, records `completionTime`, and sets `message="stopped by user request"` so operator's reconciler tells the sidecar to stop (once per request, guarded by reconciler-side condition)
+  - **Network capture stop flow (F-259; maintainer decision 2026-09-25):** sets only the `gameplane.local/stop-requested` annotation (RFC3339 UTC time of the first request) via `kube.StopNetworkCapture`; it never writes status. The operator's NetworkCapture reconciler stops the sidecar (closing the PCAPNG) and only then sets `phase=Completed`, `completionTime`, `message="stopped by user request"` and `SidecarStopped=True` (see `operator/specs.md`, "Network capture stop flow"). The response therefore normally reports the pre-stop phase (Pending/Running); clients poll `:captures`/`:capture` until Completed before downloading.
+  - Idempotent: a repeat stop while the capture is still Pending/Running (operator not yet caught up) is a 200 no-op that keeps the original annotation value; once Completed it is a 409 as above.
+  - `:capture-disable` requests the stop of every Pending/Running capture the same way before clearing `spec.capture.enabled`.
+  - `:capture-file` gates on `phase=Completed` only; since the API no longer writes Completed, Completed means the sidecar has stopped and the file is closed. (PR #449's interim download-side polling for `SidecarStopped` was removed in favour of this.)
   - Audit: `WriteSync()` before response; reason field records "missing_id", "not_found", "not_running", "stop_failed", or "" on success
 
 - **GET `/servers/{name}:captures`** — List all NetworkCaptures for a server (active and historical); response: `{captures: [...], total: int, limit: 100, offset: 0}`
@@ -204,13 +207,14 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
   - Returns 404 if capture phase == Expired (TTL window elapsed)
   - Returns 409 if capture phase == Pending or Running (still recording)
   - Proxies from sidecar's `https://<gs>-agent.<ns>.svc.cluster.local:9091/captures/{id}/file` over mTLS
+  - Home cluster only: that Service name resolves in the API's own cluster and the mTLS material is the home cluster's, so a `?cluster=` naming any other registered cluster returns 501 not implemented (no cross-cluster agent yet) before any lookup, audited with reason "cluster_not_local" (see Authorization → Home-cluster-only routes)
   - **CRITICAL (FR-006):** Audit `WriteSync()` with status code BEFORE streaming starts (on both success and error paths); if audit write fails, returns 500 and stops download entirely (audit failure fails the operation)
   - Sets response headers: `Content-Type: application/vnd.tcpdump.pcap`, `Content-Disposition: attachment; filename="capture-{id}.pcapng"`
   - Streams file without buffering via `io.Copy(responseWriter, sidecarResponse.Body)` so large captures don't accumulate in memory
   - On sidecar error (non-2xx), classifies via `writeUpstreamError` (timeout→504, other transport error→502); error message is safe generic text to client, full error logged server-side
   - Audit reason field: "not_found", "not_running", "expired", "invalid_host", "download_failed", or "" on success; a second audit row (with "download_failed") is written post-stream if sidecar returned non-2xx (to correct the initial optimistic row)
 
-- **Error responses:** All errors are plain text via `httperr.WriteCode()`, no JSON envelope. Status codes: 400 (validation), 404 (not found), 409 (conflict/wrong state), 503 (sidecar unavailable), 500 (internal error)
+- **Error responses:** All errors are plain text via `httperr.WriteCode()`, no JSON envelope. Status codes: 400 (validation), 404 (not found), 409 (conflict/wrong state), 501 (non-home `?cluster=`: no cross-cluster agent yet), 503 (sidecar unavailable), 500 (internal error)
 
 **Fully implemented endpoints (all routing registered, RBAC gated, handlers complete):**
 
@@ -220,7 +224,7 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
   - Audit: synchronous write before response with reason "feature_disabled", "server_not_found", "terminating", "patch_failed", or "" on success
 
 - **POST `/servers/{name}:capture-disable`** — Disable capture on a GameServer (sets `spec.capture.enabled = false`)
-  - Patches GameServer spec directly; operator stops any running capture and rejects new ones, but the ephemeral container remains in place until the next pod recreation (Kubernetes design constraint: ephemeral containers cannot be removed without pod recreation)
+  - First requests a stop of every Pending/Running capture (the `gameplane.local/stop-requested` annotation, see "Network capture stop flow" under `:capture-stop`), then patches GameServer spec directly; operator stops any running capture and rejects new ones, but the ephemeral container remains in place until the next pod recreation (Kubernetes design constraint: ephemeral containers cannot be removed without pod recreation)
   - **ASYMMETRY (US2 central design point):** Disabling stops accepting new capture-start requests and stops any running capture but the container lingers until the pod is next recreated (e.g., on node drain, replica restart, or manual delete)
   - Gated by `captures:manage` permission
   - Audit: synchronous write before response with reason "feature_disabled", "server_not_found", "terminating", "patch_failed", or "" on success
@@ -423,6 +427,7 @@ audit:read, config:read, config:manage (cluster-scoped)
 13. **WebSocket/HTTP proxy path validation:** `api/internal/ws/dialer.go` takes the namespace and pod name from the request path before building the agent's upstream URL. Both are validated as DNS-1123 labels (`isDNS1123Label`) and rejected with a 400 before any URL is constructed — gosec's taint analysis doesn't model a custom validator as a sanitizer, hence the scoped G704 exclusion on that file.
 14. **Capture rule-table ordering:** All 8 capture permission checks (POST `:capture-enable`, `:capture-disable`, `:capture-start`, `:capture-stop`; GET `:captures`, `:capture`, `:capture-file`; DELETE `:capture`) **MUST precede** the `servers:write` catch-all rule in `api/internal/rbac/rbac.go` lines 189-196 before line 211. Because all `/servers/{name}:verb` paths match the segment "servers" (chi's `{name}` segment strips the verb suffix), an unordered insertion after `servers:write` (which the operator role holds) would **silently grant all 8 capture endpoints to the operator role**, breaking the security requirement that only admin has capture permissions (FR-005/SC-005). This regression is a structural bug CI does not currently catch — moving the capture rules after servers:write is a one-line security break. Any future RBAC edits must preserve this order; consider a structural test to prevent silent reordering.
 15. **Helm-seeded OIDC role mappings:** The "helm" provider is synthesized from CLI flags and the optional helmOverride overlay. No database migration carries the Helm seed; it lives only in flags. The helmOverride.roleMappings lives on the existing "auth" config row, per-role independently optional (key presence = overridden, absence = use Helm seed). Re-evaluated at login time so changes take effect without restart. Demotion guard prevents removing the last user able to manage users.
+16. **Home-cluster-only routes:** Handlers built on the API's home-cluster client, and routes that reach agent or sidecar Services, serve the home cluster only and answer 501 not implemented (no cross-cluster agent yet) for a `?cluster=` naming any other registered cluster, so a permission granted on one cluster is never applied to another. The route list and its tests are under Authorization → Home-cluster-only routes.
 
 ## Dependencies
 
@@ -522,6 +527,12 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 - **RBAC middleware:** intercepts all protected routes; namespace + cluster gating
 - **Owner/collaborator fallback:** fallback only when RBAC denies AND GameServer is explicitly named; fail-closed on malformed paths
 - **Cluster dispatch validation:** `?cluster=` against registry; unknown cluster is a 400 (malformed request, not 403 forbidden)
+- **Home-cluster-only routes:** some server-scoped handlers are built on the API's own (home) cluster client instead of the cluster registry, or reach agent and sidecar Services that resolve only in the home cluster. They serve the home cluster only: a `?cluster=` naming any other registered cluster answers 501 not implemented (no cross-cluster agent yet) before the handler reads or writes anything (`rejectRemoteCluster` and `isRemoteCluster` in `handlers/resources.go`, `rejectRemoteCluster` in `ws/dialer.go`), so a permission is only ever applied to the cluster it was granted on. The routes are:
+  - the mod registry browser and modpack install (`MountRegistry`): GET `/servers/{name}/mods/registry/providers`, `/servers/{name}/mods/registry/search`, `/servers/{name}/mods/registry/projects/{project}/versions`, `/servers/{name}/mods/registry/projects/{project}/modpack`, and POST `/servers/{name}/modpack`
+  - the mod update check (GET `/servers/{name}/mods/updates`) and the mod-id list (GET/PUT `/servers/{name}/mods/ids`)
+  - the capture file download (GET `/servers/{name}:capture-file`), which also records the refusal in the audit log with reason "cluster_not_local"
+  - every agent and pod route in `api/internal/ws`: console, PTY console, logs, pod logs, log download, files, players, actions, status and mods
+  - Tests: `TestHomeClientMounts_ServeHomeClusterOnly` (`handlers/cluster_guard_test.go`) calls every route of every mount that `cmd/main.go` builds with the home-cluster client, as a user whose only grant is on another cluster, and checks that the home-cluster client sees no call. `TestHomeClientMounts_MatchMain` (`cmd/mounts_test.go`) fails when `main.go` passes that client to a mount the first test doesn't cover. The multicluster e2e bucket (`TestMultiCluster_ClusterDispatchAndScopedRBAC`) checks the registry, modpack and capture download routes across two real clusters.
 
 ### Audit
 - **Scope:** every mutating request (POST/PATCH/DELETE); reads excluded

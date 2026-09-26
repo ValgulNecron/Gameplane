@@ -102,7 +102,7 @@ Always invoke commands via `Makefile`.
 ```sh
 make dev-up        # Start Kind cluster + local OCI registry (:5001) + deploy Helm chart
 make web-dev       # Start Vite dev server with proxy to in-cluster API
-make dev-load      # Rebuild and reload local images into Kind
+make dev-load      # Load already-built local images into Kind (run `make images` first to rebuild)
 make dev-install   # Re-run Helm upgrade against local cluster
 make dev-down      # Destroy Kind cluster and local registry
 ```

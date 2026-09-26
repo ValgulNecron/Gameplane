@@ -1,0 +1,20 @@
+jobs:
+  report:
+    name: ci report
+    needs:
+      [
+        changes,
+        build-images,
+        new-job,
+      ]
+    steps:
+      - name: render report
+        run: |
+          const NEEDS_ORDER = [
+            'changes', 'build-images',
+          ];
+
+          const JOB_MATCHERS = {
+            changes: (n) => n === 'detect changes',
+            'build-images': (n) => n === 'build e2e images',
+          };

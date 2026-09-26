@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    gameplane.local/crd-bundle-sha256: 32297ed1d87537f2b5b950ab7dcdc5318fcaddfda9c1b1d54b43f3bd38594fcd
+    gameplane.local/crd-bundle-sha256: 8cbd33a128199a39129851c0c3b1a2b1ed6cadc1cd60997e95d7eb376cae50fc
     controller-gen.kubebuilder.io/version: v0.20.1
   name: gameservers.gameplane.local
 spec:
@@ -2258,7 +2258,12 @@ spec:
               templateRef:
                 description: |-
                   TemplateRef references a GameTemplate that provides defaults for
-                  image, ports, probes, etc. Required.
+                  image, ports, probes, etc. Required. Immutable after creation: the
+                  StatefulSet fields derived from a template (image, selector labels)
+                  cannot be repointed at another template in place, so changing this
+                  after create wedges the StatefulSet reconcile with only an operator
+                  log to explain why (F-047). Delete and recreate the GameServer to
+                  switch templates.
                 properties:
                   name:
                     minLength: 1
@@ -2266,6 +2271,10 @@ spec:
                 required:
                 - name
                 type: object
+                x-kubernetes-validations:
+                - message: templateRef is immutable; delete and recreate the GameServer
+                    to switch templates
+                  rule: self == oldSelf
               tolerations:
                 items:
                   description: |-

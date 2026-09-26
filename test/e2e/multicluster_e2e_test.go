@@ -61,6 +61,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -71,6 +72,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -173,7 +175,7 @@ func exitErr(err error) error {
 
 // TestMultiCluster_ClusterDispatchAndScopedRBAC registers a second, real
 // kind cluster as a remote target (POST /clusters), creates a GameServer on
-// it through cluster A's API via `?cluster=<B>`, and proves three things
+// it through cluster A's API via `?cluster=<B>`, and proves four things
 // that a single-cluster suite can never actually exercise:
 //
 //  1. The GameServer lands on cluster B's own Kubernetes API — verified by
@@ -188,6 +190,9 @@ func exitErr(err error) error {
 //     namespace.
 //  3. `?cluster=<unknown>` is rejected as a bad request (400) for any
 //     caller, before RBAC or the handler ever sees a namespace/name.
+//  4. Routes built on the API's home-cluster client serve the home cluster
+//     only, for a user whose write grant is on cluster B (see
+//     checkHomeClusterOnlyRoutes).
 func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	t.Parallel()
 
@@ -419,5 +424,176 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("admin GET /servers?cluster=<unknown>: status=%d want=%d body=%s",
 			resp.StatusCode, http.StatusBadRequest, string(body))
+	}
+
+	checkHomeClusterOnlyRoutes(t, admin, clusterID)
+}
+
+// checkHomeClusterOnlyRoutes covers the routes built on the API's home-cluster
+// client: the mod registry browser, modpack install and capture file
+// download. A user whose write grant is on the remote cluster only gets 501
+// from them for ?cluster=<remote>, the home cluster's GameServer keeps its
+// spec, and the capture download refusal is recorded in the audit log.
+func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string) {
+	t.Helper()
+	const (
+		ns          = "gameplane-games"
+		modpackEnv  = "E2E_MC_MODPACK"
+		captureID   = "e2e-mc-capture"
+		notLocalWhy = "cluster_not_local"
+	)
+	ctx := context.Background()
+
+	// --- A home-cluster template with an env-mode modpack provider, and a --
+	// --- home-cluster GameServer that uses it (created directly on A). ------
+	homeTmpl := fmt.Sprintf("e2e-mc-home-tmpl-%d", time.Now().UnixNano())
+	tmpl := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameTemplate",
+		"metadata":   map[string]any{"name": homeTmpl},
+		"spec": map[string]any{
+			"displayName": "E2E busybox (home cluster)",
+			"game":        "busybox",
+			"version":     "1",
+			"image":       "busybox:1.36",
+			"command":     []any{"sh", "-c", "sleep 100000"},
+			"ports": []any{
+				map[string]any{"name": "noop", "containerPort": int64(12345), "advertise": true, "protocol": "TCP"},
+			},
+			"capabilities": map[string]any{
+				"mods": map[string]any{
+					"path": "mods",
+					"registry": map[string]any{
+						"providers": []any{
+							map[string]any{
+								"provider": "modrinth",
+								"modpacks": map[string]any{"refEnv": modpackEnv},
+							},
+						},
+					},
+				},
+			},
+		},
+	}}
+	if _, err := envInstance.Dyn.Resource(gameTemplateGVR).Create(ctx, tmpl, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create home template %s: %v", homeTmpl, err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(gameTemplateGVR).Delete(context.Background(), homeTmpl, metav1.DeleteOptions{})
+	})
+
+	homeGS := fmt.Sprintf("e2e-mc-home-gs-%d", time.Now().UnixNano())
+	gs := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameServer",
+		"metadata":   map[string]any{"name": homeGS, "namespace": ns},
+		"spec":       map[string]any{"templateRef": map[string]any{"name": homeTmpl}},
+	}}
+	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).Create(ctx, gs, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create home gameserver %s/%s: %v", ns, homeGS, err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).Delete(context.Background(), homeGS, metav1.DeleteOptions{})
+	})
+
+	// --- A user who can read on the home cluster and write only on the ----
+	// --- remote cluster (admin role bound to cluster=<remote>, ns). --------
+	remoteName, remotePW, remoteID := envInstance.CreateUser(t, admin, "viewer", "e2e-mc-remote-writer")
+	t.Cleanup(func() {
+		r, _, _ := admin.Delete("/users/" + remoteID)
+		if r != nil {
+			r.Body.Close()
+		}
+	})
+	resp, body, err := admin.Post("/users/"+remoteID+"/bindings", map[string]any{
+		"roleName":  "admin",
+		"cluster":   clusterID,
+		"namespace": ns,
+	})
+	if err != nil {
+		t.Fatalf("POST /users/%s/bindings: %v", remoteID, err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /users/%s/bindings: status=%d body=%s", remoteID, resp.StatusCode, string(body))
+	}
+	// Log in after the binding is added: adding it ends existing sessions.
+	remoteWriter := envInstance.APIClient(t, remoteName, remotePW)
+	defer remoteWriter.Close()
+
+	// Sanity: without a selector the request targets the home cluster, where
+	// this user can't write, so RBAC refuses it.
+	resp, body, err = remoteWriter.Post("/servers/"+homeGS+"/modpack", map[string]any{"ref": "e2e-pack"})
+	if err != nil {
+		t.Fatalf("POST /servers/%s/modpack (home): %v", homeGS, err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("POST /servers/%s/modpack (home): status=%d want=%d body=%s",
+			homeGS, resp.StatusCode, http.StatusForbidden, string(body))
+	}
+
+	// With ?cluster=<remote>, the home-cluster-only routes answer 501 (no cross-cluster agent yet).
+	for _, c := range []struct {
+		method, path string
+		body         any
+	}{
+		{http.MethodGet, "/servers/" + homeGS + "/mods/registry/providers?cluster=" + clusterID, nil},
+		{http.MethodPost, "/servers/" + homeGS + "/modpack?cluster=" + clusterID, map[string]any{"ref": "e2e-pack"}},
+		{http.MethodGet, "/servers/" + homeGS + ":capture-file?id=" + captureID + "&cluster=" + clusterID, nil},
+	} {
+		resp, body, err := remoteWriter.Do(c.method, c.path, c.body)
+		if err != nil {
+			t.Fatalf("%s %s: %v", c.method, c.path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotImplemented {
+			t.Errorf("%s %s: status=%d want=%d body=%s", c.method, c.path, resp.StatusCode, http.StatusNotImplemented, string(body))
+		}
+	}
+
+	// Ground truth on the home cluster: the GameServer's env is unchanged.
+	live, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).Get(ctx, homeGS, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get home gameserver %s/%s: %v", ns, homeGS, err)
+	}
+	env, _, _ := unstructured.NestedSlice(live.Object, "spec", "env")
+	for _, e := range env {
+		if m, ok := e.(map[string]any); ok && m["name"] == modpackEnv {
+			t.Errorf("home gameserver %s/%s spec.env gained %s: %v", ns, homeGS, modpackEnv, env)
+		}
+	}
+
+	// The capture download outcome is audited with its reason.
+	resp, body, err = admin.Get("/admin/audit?limit=500")
+	if err != nil {
+		t.Fatalf("GET /admin/audit: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /admin/audit: status=%d body=%s", resp.StatusCode, string(body))
+	}
+	var events []struct {
+		Target string `json:"target"`
+		Status int    `json:"status"`
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(body, &events); err != nil {
+		t.Fatalf("decode /admin/audit: %v", err)
+	}
+	target := homeGS + ":" + captureID
+	found := false
+	for _, e := range events {
+		if e.Target != target {
+			continue
+		}
+		found = true
+		if e.Reason != notLocalWhy || e.Status != http.StatusNotImplemented {
+			t.Errorf("audit row for %s: reason=%q status=%d, want reason=%q status=%d",
+				target, e.Reason, e.Status, notLocalWhy, http.StatusNotImplemented)
+		}
+	}
+	if !found {
+		t.Errorf("no audit row for capture download target %s", target)
 	}
 }

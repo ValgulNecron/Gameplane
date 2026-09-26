@@ -862,6 +862,44 @@ describe("ServerActionsCard", () => {
     expect(onOpenConsole).toHaveBeenCalled();
   });
 
+  // F-126-adjacent: the generic lifecycle shortcuts' mutation had no error
+  // handler — a failed Restart/Stop/Start/Wake left "Quick actions" silent.
+  it("shows an error banner when a generic lifecycle shortcut fails", async () => {
+    const gs: GameServer = {
+      metadata: { name: "s1" },
+      spec: { templateRef: { name: "minecraft-java" } },
+      status: { phase: "Running" },
+    };
+    fetchMock.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({
+            id: 1,
+            username: "u",
+            displayName: "U",
+            email: "",
+            role: "operator",
+            permissions: { "*": ["servers:read", "servers:write"] },
+          }),
+        );
+      }
+      if (url.endsWith("/users/me/servers")) {
+        return Promise.resolve(jsonRes({ items: [] }));
+      }
+      if (url.includes(":restart") && opts?.method === "POST") {
+        return Promise.resolve(
+          new Response("restart failed: pod not ready", { status: 500 }),
+        );
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ServerActionsCard name="s1" tmpl={tmpl([])} gs={gs} />);
+    const restart = await screen.findByRole("button", { name: /Restart/i });
+    await waitFor(() => expect(restart).not.toBeDisabled());
+    fireEvent.click(restart);
+    expect(await screen.findByText(/restart failed: pod not ready/i)).toBeInTheDocument();
+  });
+
   it("validates negative integers", async () => {
     routeFetch("operator", []);
     renderWithQuery(

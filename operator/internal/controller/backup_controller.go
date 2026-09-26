@@ -23,6 +23,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/recorder"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 	"github.com/ValgulNecron/gameplane/operator/internal/agent"
@@ -34,7 +35,20 @@ const (
 	annoQuiesceAttempted = "backup.gameplane.local/quiesce-attempted"
 	annoQuiescedAt       = "backup.gameplane.local/quiesced-at"
 	annoUnquiescedAt     = "backup.gameplane.local/unquiesced-at"
+	// annoUnquiesceRetryFirstFailedAt records when finalizeDelete's
+	// unquiesce-on-delete loop first failed against a target that still
+	// exists, so the retry can be bounded (maxUnquiesceFinalizeRetry)
+	// instead of requeuing forever.
+	annoUnquiesceRetryFirstFailedAt = "backup.gameplane.local/unquiesce-retry-first-failed-at"
 )
+
+// maxUnquiesceFinalizeRetry bounds how long finalizeDelete keeps retrying an
+// unquiesce against a target (GameServer + pod) that still exists but whose
+// agent stays unreachable. Past this window the finalizer is released and a
+// Warning event is emitted rather than blocking the Backup's deletion
+// forever; the world may still have auto-save off until the agent recovers
+// or the pod is restarted.
+const maxUnquiesceFinalizeRetry = 10 * time.Minute
 
 // backupRestoreJobLabel/backupRestoreJobValue mark Backup and Restore Job
 // pods so the chart's allow-backup-restore-egress NetworkPolicy (F-215)
@@ -85,6 +99,13 @@ type BackupReconciler struct {
 	// the pod logs before failing the Backup. Zero uses
 	// defaultSnapshotScrapeGracePeriod; tests set it small.
 	SnapshotScrapeGracePeriod time.Duration
+	// EventRecorder surfaces the UnquiesceAbandoned warning when
+	// finalizeDelete gives up on a bounded unquiesce retry (F-048). May be
+	// nil in tests that don't assert on events. Uses controller-runtime's
+	// current recorder.EventRecorder (Manager.GetEventRecorder) rather than
+	// the deprecated client-go record.EventRecorder that
+	// Manager.GetEventRecorderFor returns.
+	EventRecorder recorder.EventRecorder
 }
 
 // defaultSnapshotScrapeGracePeriod bounds how long, after the restic Job
@@ -174,10 +195,12 @@ func resticImageOrDefault(image string) string {
 
 // +kubebuilder:rbac:groups=gameplane.local,resources=backups,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=gameplane.local,resources=backups/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=backups/finalizers,verbs=update
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods/log,verbs=get
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=snapshot.storage.k8s.io,resources=volumesnapshots,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=snapshot.storage.k8s.io,resources=volumesnapshotcontents,verbs=get;list;watch
 
@@ -186,6 +209,20 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, &b); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	if !b.DeletionTimestamp.IsZero() {
+		return r.finalizeDelete(ctx, &b)
+	}
+	// Only Backups that might quiesce the world need to block on releasing
+	// it before deletion; everything else deletes immediately.
+	if b.Spec.Quiesce && !controllerutil.ContainsFinalizer(&b, gameplanev1alpha1.BackupFinalizer) {
+		controllerutil.AddFinalizer(&b, gameplanev1alpha1.BackupFinalizer)
+		if err := r.Update(ctx, &b); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
 	// A Succeeded Backup whose restic snapshot id we never managed to read isn't
 	// restorable yet, so keep working on it — but retry only the log scrape.
 	// Re-entering the full pipeline would re-validate the GameServer and repo
@@ -194,10 +231,15 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
 		return r.retrySnapshotScrape(ctx, &b)
 	}
-	// Terminal Backups need no further reconciliation.
+	// Terminal Backups need no further reconciliation of the restic Job — but
+	// a terminal phase can be persisted (mirrorJobStatus writes status.phase
+	// before the matching unquiesce is confirmed) while a prior unquiesce
+	// attempt is still failing (F-044). Retrying that is the only work a
+	// terminal Backup still owes; runUnquiesce is a fast no-op once nothing
+	// is outstanding, so this stays cheap on the common path.
 	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded ||
 		b.Status.Phase == gameplanev1alpha1.BackupPhaseFailed {
-		return ctrl.Result{}, nil
+		return r.runUnquiesce(ctx, &b)
 	}
 
 	// Resolve the target before building the Job: a Backup against a
@@ -528,6 +570,137 @@ func (r *BackupReconciler) setUnquiescedCondition(
 	}
 	b.Status.Conditions = newConds
 	return r.Status().Update(ctx, b)
+}
+
+// finalizeDelete runs on a Backup marked for deletion. It releases a
+// quiesced world (F-048) before letting the finalizer clear and the
+// apiserver garbage-collect the object — without it, deleting a Backup
+// while quiesce-attempted=true drops the unquiesce entirely and the game
+// stays with auto-save off. Retries (via requeue) until the agent is
+// reachable, mirroring runUnquiesce's terminal-phase behavior.
+//
+// The retry is not unconditional, though: an auto BackupSchedule's owner
+// chain (GameServer -> BackupSchedule -> Backup) means deleting the
+// GameServer garbage-collects this Backup right along with it, so the
+// unquiesce target can already be gone by the time this runs. Retrying
+// forever in that case would wedge the Backup's deletion permanently, since
+// nothing will ever answer. unquiesceTargetGone checks for that (and for the
+// pod alone being gone, e.g. the StatefulSet pod was deleted independently)
+// and releases the finalizer immediately when there's nothing left to
+// unquiesce — a freshly (re)started pod comes up with auto-save on. When the
+// target is still around but the agent stays unreachable, the retry is
+// bounded by maxUnquiesceFinalizeRetry so a persistently broken agent can't
+// block deletion forever either; past that window a Warning event is
+// recorded and the finalizer releases anyway.
+func (r *BackupReconciler) finalizeDelete(ctx context.Context, b *gameplanev1alpha1.Backup) (ctrl.Result, error) {
+	if !controllerutil.ContainsFinalizer(b, gameplanev1alpha1.BackupFinalizer) {
+		return ctrl.Result{}, nil
+	}
+	if unquiesceErr := r.maybeUnquiesce(ctx, b); unquiesceErr != nil {
+		ctrl.LoggerFrom(ctx).Error(unquiesceErr, "unquiesce failed during backup delete; checking target",
+			"backup", b.Name)
+
+		gone, err := r.unquiesceTargetGone(ctx, b)
+		if err != nil {
+			ctrl.LoggerFrom(ctx).Error(err, "unable to check unquiesce target; will retry", "backup", b.Name)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
+		expired := false
+		if !gone {
+			expired, err = r.unquiesceRetryExpired(ctx, b)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			if !expired {
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			r.recordEvent(b, corev1.EventTypeWarning, "UnquiesceAbandoned", fmt.Sprintf(
+				"giving up on unquiesce after %s of retries; the world may still have "+
+					"auto-save off if its pod is still running: %s", maxUnquiesceFinalizeRetry, unquiesceErr))
+		}
+
+		reason := "unquiesce target no longer exists"
+		if expired {
+			reason = "unquiesce retry window exceeded"
+		}
+		ctrl.LoggerFrom(ctx).Info("releasing backup finalizer without a confirmed unquiesce",
+			"backup", b.Name, "reason", reason)
+	}
+	controllerutil.RemoveFinalizer(b, gameplanev1alpha1.BackupFinalizer)
+	if err := r.Update(ctx, b); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
+}
+
+// unquiesceTargetGone reports whether there is nothing left to unquiesce:
+// the target GameServer no longer exists or is itself being deleted, or its
+// pod no longer exists. A GameServer can be gone-together-with-its-Backup
+// under an auto BackupSchedule's owner chain, and a pod alone can be gone if
+// it was deleted independently of the GameServer; either way a fresh pod
+// starts with auto-save on, so retrying the unquiesce would never succeed
+// and would only block this Backup's deletion.
+func (r *BackupReconciler) unquiesceTargetGone(ctx context.Context, b *gameplanev1alpha1.Backup) (bool, error) {
+	if b.Spec.ServerRef.Name == "" {
+		return true, nil
+	}
+	gs := &gameplanev1alpha1.GameServer{}
+	key := types.NamespacedName{Namespace: b.Namespace, Name: b.Spec.ServerRef.Name}
+	switch err := r.Get(ctx, key, gs); {
+	case apierrors.IsNotFound(err):
+		return true, nil
+	case err != nil:
+		return false, fmt.Errorf("get gameserver %s to check unquiesce target: %w", key.Name, err)
+	case gs.DeletionTimestamp != nil:
+		return true, nil
+	}
+
+	var pod corev1.Pod
+	podKey := types.NamespacedName{Namespace: b.Namespace, Name: gs.Name + "-0"}
+	switch err := r.Get(ctx, podKey, &pod); {
+	case apierrors.IsNotFound(err):
+		return true, nil
+	case err != nil:
+		return false, fmt.Errorf("get pod %s to check unquiesce target: %w", podKey.Name, err)
+	}
+	return false, nil
+}
+
+// unquiesceRetryExpired records (on first call) when finalizeDelete's
+// unquiesce retry against a still-existing target first failed, and reports
+// whether maxUnquiesceFinalizeRetry has since elapsed. The timestamp lives
+// in an annotation so it survives across reconciles and operator restarts.
+func (r *BackupReconciler) unquiesceRetryExpired(ctx context.Context, b *gameplanev1alpha1.Backup) (bool, error) {
+	since, ok := b.Annotations[annoUnquiesceRetryFirstFailedAt]
+	if !ok {
+		patchBackupAnnotations(b, map[string]string{
+			annoUnquiesceRetryFirstFailedAt: time.Now().UTC().Format(time.RFC3339),
+		})
+		if err := r.Update(ctx, b); err != nil {
+			return false, fmt.Errorf("record unquiesce retry start: %w", err)
+		}
+		return false, nil
+	}
+	firstFailedAt, parseErr := time.Parse(time.RFC3339, since)
+	if parseErr == nil {
+		return time.Since(firstFailedAt) >= maxUnquiesceFinalizeRetry, nil
+	}
+	// A malformed annotation shouldn't wedge deletion forever.
+	return true, nil
+}
+
+// recordEvent emits a Kubernetes event on b when EventRecorder is
+// configured; it is a no-op otherwise (e.g. in unit tests that don't wire
+// one up).
+func (r *BackupReconciler) recordEvent(b *gameplanev1alpha1.Backup, eventType, reason, message string) {
+	if r.EventRecorder == nil {
+		return
+	}
+	// events.EventRecorder's Eventf has no direct message-only form: reason
+	// doubles as the action (both are short UpperCamelCase per its contract)
+	// and message is passed through verbatim as the note.
+	r.EventRecorder.Eventf(b, nil, eventType, reason, reason, "%s", message)
 }
 
 // missingRepoSecretKeys returns the restic Secret keys the backup/restore

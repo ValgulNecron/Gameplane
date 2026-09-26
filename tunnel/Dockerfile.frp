@@ -25,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     -o /out/tunnel .
 
 # Build stage to download and verify frp binary
-FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS frp-stage
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS frp-stage
 ARG FRP_VERSION=0.70.1
 ARG TARGETARCH
 ARG FRP_SHA256_amd64=333da23d1b9009d7c01638e9ba38cf4600f7d37d393f854e96ee1396adefa9a6

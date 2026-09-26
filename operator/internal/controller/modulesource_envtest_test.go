@@ -82,6 +82,12 @@ func (f *fakeOCI) Pull(_ context.Context, ref, version string) (string, map[stri
 	return "", nil, fmt.Errorf("fakeOCI: no bundle at %s:%s", ref, version)
 }
 
+func (f *fakeOCI) pullCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.pulls
+}
+
 func (f *fakeOCI) putBundle(ref, version string, a fakeArtifact) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

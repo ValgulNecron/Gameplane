@@ -10,8 +10,12 @@ import { RoleEditorModal } from "./RoleEditorModal";
 vi.mock("@/lib/endpoints", () => ({
   Roles: {
     update: vi.fn(),
+    create: vi.fn(),
   },
 }));
+
+import { Roles } from "@/lib/endpoints";
+import { APIError } from "@/lib/api";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -209,5 +213,26 @@ describe("RoleEditorModal", () => {
     await user.clear(input);
     await user.type(input, "New description");
     expect(input).toHaveValue("New description");
+  });
+
+  // F-126: creating a role with a name that already exists 409s, and the
+  // save mutation had no error handler — the modal just stayed open silent.
+  it("shows an error banner when saving a duplicate role name 409s", async () => {
+    const user = userEvent.setup();
+    vi.mocked(Roles.create).mockRejectedValueOnce(
+      new APIError(409, "role \"operator\" already exists"),
+    );
+    render(
+      <RoleEditorModal
+        open
+        onOpenChange={() => {}}
+        role={null}
+        groups={mockGroups}
+      />,
+      { wrapper: Wrapper },
+    );
+    await user.type(screen.getByLabelText("Name"), "operator");
+    await user.click(screen.getByText("Create role"));
+    expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
   });
 });

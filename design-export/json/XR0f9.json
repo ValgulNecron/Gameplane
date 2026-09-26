@@ -3,7 +3,7 @@
   "id": "XR0f9",
   "x": 37000,
   "y": 10375,
-  "name": "Screen/Server Detail — Settings · Danger zone",
+  "name": "Screen/Server Detail \u2014 Settings \u00b7 Danger zone",
   "theme": {
     "semantic": "dark"
   },
@@ -202,7 +202,12 @@
                                 {
                                   "id": "vPgdl",
                                   "type": "ref",
-                                  "ref": "J09iP"
+                                  "ref": "J09iP",
+                                  "descendants": {
+                                    "eWkIT/r4VbAi": {
+                                      "content": "Wipe world\u2026"
+                                    }
+                                  }
                                 }
                               ]
                             },
@@ -253,7 +258,12 @@
                                 {
                                   "id": "GytYJ",
                                   "type": "ref",
-                                  "ref": "J09iP"
+                                  "ref": "J09iP",
+                                  "descendants": {
+                                    "eWkIT/r4VbAi": {
+                                      "content": "Transfer\u2026"
+                                    }
+                                  }
                                 }
                               ]
                             },

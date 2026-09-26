@@ -254,9 +254,14 @@ func TestCaptureDisable_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get network capture: %v", err)
 	}
+	// F-259 (maintainer decision 2026-09-25): disable only requests the
+	// stop; the operator completes the capture once its sidecar stops.
 	phase, _, _ := unstructured.NestedString(ncAfter.Object, "status", "phase")
-	if phase != "Completed" {
-		t.Errorf("active capture phase = %q, want Completed after disable stopped it", phase)
+	if phase != "Running" {
+		t.Errorf("active capture phase = %q, want Running (the API no longer writes Completed)", phase)
+	}
+	if _, ok := ncAfter.GetAnnotations()[kube.CaptureStopRequestedAnnotation]; !ok {
+		t.Errorf("active capture annotations = %v, want %s set after disable", ncAfter.GetAnnotations(), kube.CaptureStopRequestedAnnotation)
 	}
 }
 

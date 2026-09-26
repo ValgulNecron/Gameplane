@@ -30,6 +30,12 @@ func NewCaptureClient(agent *Client) *CaptureClient {
 	}
 }
 
+// ErrCaptureClientDisabled is returned by GetCaptureStatus when no mTLS
+// material was configured, so the client cannot reach any sidecar. Nothing
+// can have been started through such a client either, which lets callers
+// tell it apart from a transient failure with errors.Is.
+var ErrCaptureClientDisabled = errors.New("capture sidecar client disabled")
+
 // HTTPError records a non-2xx HTTP status returned by the capture sidecar.
 type HTTPError struct {
 	Op         string
@@ -193,7 +199,7 @@ func (c *CaptureClient) GetCaptureStatus(
 	namespace, server, captureID string,
 ) (string, int64, int64, string, error) {
 	if c.Disabled {
-		return "unknown", 0, 0, "", fmt.Errorf("capture sidecar client disabled")
+		return "unknown", 0, 0, "", ErrCaptureClientDisabled
 	}
 
 	url := sidecarURL(namespace, server, fmt.Sprintf("/captures/%s/status", captureID))

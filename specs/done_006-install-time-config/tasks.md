@@ -380,12 +380,12 @@ This is now fully delivered by the tasks listed above; no question remains open 
 
 ## Execution Checklist at Completion
 
-- [ ] **Phase 1 & 2 complete**: All CLI flags and Helm values in place; both stories unblocked
-- [ ] **Phase 3 complete**: OIDC role mapping at install time works end-to-end, including admin-managed `helmOverride` overrides with no restart/`helm upgrade`; e2e tests pass (api-auth bucket, T033-T034)
-- [ ] **Phase 4 complete**: Storage class configuration at install time works end-to-end; e2e tests pass (operator bucket, T041-T042)
-- [ ] **Phase 5 complete**: All docs and specs updated with configuration examples
-- [ ] **All CI checks green**: lint (gofmt, vet, golangci), test (unit + envtest), e2e (buckets pass), coverage gates met
-- [ ] **Requirement traceability verified**: Each FR-00X and SC-00X requirement confirmed delivered by implementation tasks
+- [X] **Phase 1 & 2 complete**: All CLI flags and Helm values in place; both stories unblocked
+- [X] **Phase 3 complete**: OIDC role mapping at install time works end-to-end, including admin-managed `helmOverride` overrides with no restart/`helm upgrade`; e2e tests pass (api-auth bucket, T033-T034)
+- [X] **Phase 4 complete**: Storage class configuration at install time works end-to-end; e2e tests pass (operator bucket, T041-T042)
+- [X] **Phase 5 complete**: All docs and specs updated with configuration examples
+- [X] **All CI checks green**: lint (gofmt, vet, golangci), test (unit + envtest), e2e (buckets pass), coverage gates met
+- [X] **Requirement traceability verified**: Each FR-00X and SC-00X requirement confirmed delivered by implementation tasks
 
 ---
 

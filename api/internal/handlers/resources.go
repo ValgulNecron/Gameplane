@@ -87,24 +87,34 @@ func resolveCluster(w http.ResponseWriter, req *http.Request, reg *kube.Registry
 	return c, true
 }
 
-// rejectRemoteCluster 404s a request carrying a non-local `?cluster=`
-// selector, for handlers that hold a bare *kube.Client (the LOCAL/home
-// cluster only) instead of a cluster-dispatch *kube.Registry — MountModIDs
-// and MountModUpdates. rbac.Middleware (api/internal/rbac/rbac.go)
-// authorizes namespaced permissions against whatever `?cluster=` the caller
-// supplies; without this guard, a user bound only to a registered REMOTE
-// cluster could pass `?cluster=<remote>` to satisfy that check while still
-// reaching the LOCAL cluster's same-named GameServer here. A non-local
-// selector 404s (not 400/403): these handlers have no notion of "that
-// cluster" to even be forbidden from. See ws.rejectRemoteCluster for the
-// WS-side twin of this guard. Returns true if the request was rejected
-// (caller must stop processing).
+// rejectRemoteCluster answers 501 Not Implemented for a request carrying a
+// non-local `?cluster=` selector, for handlers that hold a bare *kube.Client
+// (the LOCAL/home cluster only) instead of a cluster-dispatch *kube.Registry —
+// MountModIDs, MountModUpdates and MountRegistry. These routes serve only the
+// home cluster until a cross-cluster agent exists to serve them on a remote
+// cluster, so 501 (with a readable reason) is the honest answer.
+//
+// The guard must also stay in place for correctness: rbac.Middleware
+// (api/internal/rbac/rbac.go) authorizes namespaced permissions against
+// whatever `?cluster=` the caller supplies, so without it a user bound only
+// to a registered REMOTE cluster could pass `?cluster=<remote>` to satisfy
+// that check while still reaching the LOCAL cluster's same-named GameServer
+// here. See ws.rejectRemoteCluster for the WS-side twin of this guard.
+// Returns true if the request was rejected (caller must stop processing).
 func rejectRemoteCluster(w http.ResponseWriter, req *http.Request) bool {
-	if c := strings.TrimSpace(req.URL.Query().Get("cluster")); c != "" && c != scope.DefaultCluster {
-		http.NotFound(w, req)
+	if isRemoteCluster(req) {
+		httperr.WriteRemoteClusterNotImplemented(w)
 		return true
 	}
 	return false
+}
+
+// isRemoteCluster reports whether req carries a `?cluster=` selector naming
+// a cluster other than the home cluster (scope.DefaultCluster). An absent or
+// blank selector means the home cluster.
+func isRemoteCluster(req *http.Request) bool {
+	c := strings.TrimSpace(req.URL.Query().Get("cluster"))
+	return c != "" && c != scope.DefaultCluster
 }
 
 func listHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.HandlerFunc {
@@ -269,7 +279,11 @@ func updateHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.Han
 				cl = scope.DefaultCluster
 			}
 			if err := validateAndProtectGameServer(req.Context(), k, cl, ns, name, obj, live); err != nil {
-				httperr.WriteCode(w, req, http.StatusForbidden, err)
+				code := http.StatusForbidden
+				if errors.Is(err, errTemplateRefImmutable) {
+					code = http.StatusConflict
+				}
+				httperr.WriteCode(w, req, code, err)
 				return
 			}
 		}
@@ -408,8 +422,21 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// errTemplateRefImmutable is returned by validateAndProtectGameServer when
+// an update attempts to change spec.templateRef on an existing GameServer.
+// It mirrors the CRD's CEL rule (self == oldSelf on
+// GameServerSpec.TemplateRef, see operator/api/v1alpha1/gameserver_types.go)
+// so the handler can reject the change with a clear 409 before it ever
+// reaches the API server, instead of surfacing the apiserver's 422 CEL
+// validation error to the caller (F-047).
+var errTemplateRefImmutable = errors.New(
+	"spec.templateRef is immutable; delete and recreate the GameServer to switch templates",
+)
+
 // validateAndProtectGameServer enforces RBAC and security boundaries on
 // GameServer spec fields during create and update mutations:
+//   - spec.templateRef: Immutable once the GameServer exists. Changing it is
+//     rejected with errTemplateRefImmutable regardless of role.
 //   - spec.capture: Requires captures:manage permission. Non-admins cannot enable,
 //     modify, or configure capture settings.
 //   - spec.serviceAccountName: Requires admin privileges. Non-admins cannot set or override
@@ -433,6 +460,15 @@ func validateAndProtectGameServer(
 	if u != nil {
 		isAdmin = u.Role == "admin" || u.Can("*", false, cl, ns)
 		canManageCaptures = isAdmin || u.Can("captures:manage", true, cl, ns)
+	}
+
+	// 0. Validate spec.templateRef is unchanged (immutable once created).
+	if live != nil {
+		desiredRef, _, _ := unstructured.NestedString(desired.Object, "spec", "templateRef", "name")
+		liveRef, _, _ := unstructured.NestedString(live.Object, "spec", "templateRef", "name")
+		if desiredRef != liveRef {
+			return errTemplateRefImmutable
+		}
 	}
 
 	// 1. Validate spec.capture

@@ -119,20 +119,22 @@ func isDNS1123Label(name string) bool {
 // multi-cluster registry, unlike the cluster-dispatch-aware handlers in
 // api/internal/handlers (Resources, PodEvents, Lifecycle, …).
 //
-// rbac.Middleware (api/internal/rbac/rbac.go), by contrast, authorizes
-// namespaced permissions against whatever `?cluster=` the caller supplies
-// (api/internal/scope.ResolveCluster). Without this guard, a user bound
-// only to a registered REMOTE cluster could pass `?cluster=<remote>` to
-// satisfy that check while still reaching the LOCAL cluster's same-named
-// GameServer here — RCON/PTY console, file, and mod access on a server
-// they have no rights to. A non-local selector 404s instead: these routes
-// have no notion of "that cluster" to even be forbidden from, so 404 (not
-// 400/403) is the honest answer. See handlers.rejectRemoteCluster for the
-// REST-side twin of this guard.
+// Until a cross-cluster agent exists to serve these routes on a remote
+// cluster, a non-local selector is answered with 501 Not Implemented and a
+// readable reason.
+//
+// The guard must also stay in place for correctness: rbac.Middleware
+// (api/internal/rbac/rbac.go) authorizes namespaced permissions against
+// whatever `?cluster=` the caller supplies (api/internal/scope.ResolveCluster).
+// Without this guard, a user bound only to a registered REMOTE cluster could
+// pass `?cluster=<remote>` to satisfy that check while still reaching the
+// LOCAL cluster's same-named GameServer here — RCON/PTY console, file, and
+// mod access on a server they have no rights to. See
+// handlers.rejectRemoteCluster for the REST-side twin of this guard.
 func rejectRemoteCluster(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if c := strings.TrimSpace(req.URL.Query().Get("cluster")); c != "" && c != scope.DefaultCluster {
-			http.NotFound(w, req)
+			httperr.WriteRemoteClusterNotImplemented(w)
 			return
 		}
 		next(w, req)

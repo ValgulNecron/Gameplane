@@ -705,4 +705,28 @@ describe("ServersPage mobile layout", () => {
     renderWithQuery(<ServersPage />);
     expect(await screen.findByText("No servers match.")).toBeInTheDocument();
   });
+
+  // F-126: a viewer clicking Start on a row got a silent 403 — the mutation
+  // had no error handler at all, so the failure never reached the page.
+  it("shows an error banner when a row action is forbidden (viewer 403)", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "locked", namespace: "gameplane-games" },
+              status: { phase: "Stopped" },
+            }),
+          ],
+        }),
+      ),
+      http.post(/\/servers\/[^/]+:start$/, () =>
+        HttpResponse.text("forbidden: viewers cannot start servers", { status: 403 }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    const row = (await screen.findByText("locked")).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByTitle("Start"));
+    expect(await screen.findByText(/forbidden: viewers cannot start servers/i)).toBeInTheDocument();
+  });
 });

@@ -110,7 +110,12 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if mod.Status.AppliedVersion == desiredVersion && mod.Status.AppliedTemplate == mod.Name &&
 		mod.Status.Phase == gameplanev1alpha1.ModulePhaseReady &&
-		(entry.Digest == "" || mod.Status.AppliedDigest == entry.Digest) &&
+		// entry.Digest describes only the catalog's LatestVersion, never a
+		// pinned older one, so it can only gate convergence when the
+		// desired version *is* the latest — otherwise a pinned install
+		// could never match it and would flap Pulling/Ready forever
+		// (F-046).
+		(desiredVersion != entry.LatestVersion || entry.Digest == "" || mod.Status.AppliedDigest == entry.Digest) &&
 		(mod.Spec.Digest == "" || mod.Status.AppliedDigest == mod.Spec.Digest) {
 		// Already converged. Non-OCI sources publish a single version
 		// stream, so the digest comparison is what catches content
@@ -118,7 +123,23 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// spec.digest must also match the applied content, so a pin
 		// added or changed on a Ready Module goes through the pin check
 		// below instead of returning here.
-		return ctrl.Result{}, nil
+		//
+		// Status alone isn't proof the owned GameTemplate is actually
+		// there: a kubectl-deleted managed template (F-050) leaves these
+		// fields untouched, so confirm it still exists before trusting
+		// them. Recreating it needs the bundle content again, so a miss
+		// falls through to the normal pull/apply path below instead of
+		// returning here.
+		var tmpl gameplanev1alpha1.GameTemplate
+		err := r.Get(ctx, types.NamespacedName{Name: mod.Status.AppliedTemplate}, &tmpl)
+		if err == nil {
+			return ctrl.Result{}, nil
+		}
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+		log.FromContext(ctx).Info("owned GameTemplate missing for a converged Module; recreating",
+			"template", mod.Status.AppliedTemplate)
 	}
 
 	// Pull bundle.

@@ -17,6 +17,7 @@ import {
 } from "@heroui/react";
 import type { Role, PermissionGroup } from "@/types";
 import { Roles } from "@/lib/endpoints";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 export interface RoleEditorModalProps {
   open: boolean;
@@ -81,6 +82,8 @@ export function RoleEditorModal({
             </ModalHeader>
 
             <ModalBody className="gap-3">
+
+            {save.error && <ErrorBanner err={save.error} onDismiss={() => save.reset()} />}
 
             {creating && (
               <div className="space-y-2">

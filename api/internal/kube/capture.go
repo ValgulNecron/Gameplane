@@ -8,7 +8,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	unstructuredpkg "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -71,36 +70,20 @@ type NetworkCaptureStatus struct {
 	BytesWritten *resource.Quantity `json:"bytesWritten,omitempty"`
 	// Message is a human-readable status or error message.
 	Message string `json:"message,omitempty"`
-	// Conditions mirrors the operator's structured status conditions (e.g.
-	// SidecarStopped).
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
-// CaptureUserStoppedMessage is the status.message StopNetworkCapture writes.
-// It must match operator/internal/controller/networkcapture_controller.go's
-// userStoppedMessage exactly: the operator keys its "tell the sidecar to
-// stop" step on this string.
-const CaptureUserStoppedMessage = "stopped by user request"
+// CaptureStopRequestedAnnotation is the annotation StopNetworkCapture sets
+// to ask the operator to stop a capture (F-259). Its value is the RFC3339
+// UTC time of the first stop request. It must match
+// operator/internal/controller/networkcapture_controller.go's
+// stopRequestedAnnotation exactly: the operator's reconciler is the only
+// writer of the resulting Completed phase.
+const CaptureStopRequestedAnnotation = "gameplane.local/stop-requested"
 
-// CaptureSidecarStoppedCondition mirrors the operator's
-// SidecarStoppedCondition: set True once the reconciler has told the capture
-// sidecar to stop (and the sidecar's synchronous :stop has closed and
-// flushed the PCAPNG file).
-const CaptureSidecarStoppedCondition = "SidecarStopped"
-
-// FileFinalized reports whether the capture's backing file is safe to
-// download. A user-requested stop sets phase=Completed directly (see
-// StopNetworkCapture) before the sidecar has been told anything — the
-// operator stops the sidecar asynchronously and only then records
-// SidecarStopped=True. Until that condition lands, the sidecar still holds
-// the capture as running (its download endpoint answers 409) and the file
-// is not yet closed. Every other Completed capture was completed by the
-// sidecar itself, which closes the file before reporting completion.
-func (nc *NetworkCapture) FileFinalized() bool {
-	if nc.Status.Phase != CapturePhaseCompleted || nc.Status.Message != CaptureUserStoppedMessage {
-		return true
-	}
-	return meta.IsStatusConditionTrue(nc.Status.Conditions, CaptureSidecarStoppedCondition)
+// StopRequested reports whether a stop has already been requested for nc.
+func (nc *NetworkCapture) StopRequested() bool {
+	_, ok := nc.Annotations[CaptureStopRequestedAnnotation]
+	return ok
 }
 
 // NetworkCapture mirrors operator/api/v1alpha1.NetworkCapture.
@@ -337,39 +320,59 @@ func (c *Client) ListNetworkCaptures(ctx context.Context, ns, serverName string)
 	return captures, nil
 }
 
-// StopNetworkCapture marks a running NetworkCapture Completed by patching
-// its status subresource directly. Per the accepted design (research.md,
-// "Capture lifecycle": "User stops capture -> API patches NetworkCapture to
-// phase=Completed"), there is no spec-level "stop requested" field on
-// NetworkCaptureSpec for the operator to reconcile — the API is the one
-// that writes the terminal phase here. The sidecar and the operator's
-// retention reconciler observe the phase transition and tear down the
-// capture process / start the TTL clock respectively.
+// StopNetworkCapture requests that the operator stop a NetworkCapture by
+// setting the gameplane.local/stop-requested annotation (F-259; maintainer
+// decision 2026-09-25, see api/specs.md "Network capture stop flow"). It
+// deliberately does NOT touch status: the operator's NetworkCapture
+// reconciler tells the capture sidecar to stop (which closes and flushes
+// the PCAPNG file) and only then sets phase=Completed, so Completed always
+// means "downloadable". Patching phase=Completed here, as earlier versions
+// did, opened a window where a download reached a sidecar still holding the
+// capture as running and got a 409.
+//
+// Idempotent: when the annotation is already present the capture is
+// returned unchanged, so a repeated stop keeps the original request time.
+// The patch carries the observed resourceVersion, so two concurrent stops
+// cannot both write the annotation; the loser re-reads and returns the
+// winner's object.
 func (c *Client) StopNetworkCapture(ctx context.Context, ns, name string) (*NetworkCapture, error) {
-	now := metav1.NewTime(time.Now().UTC())
-	patch := map[string]any{
-		"status": map[string]any{
-			"phase":          string(CapturePhaseCompleted),
-			"completionTime": now.Format(time.RFC3339),
-			"message":        CaptureUserStoppedMessage,
-		},
-	}
-	patchBytes, err := json.Marshal(patch)
-	if err != nil {
-		return nil, fmt.Errorf("stop network capture %s: marshal patch: %w", name, err)
-	}
-
-	u, err := c.Dynamic.Resource(GVRNetworkCapture).Namespace(ns).
-		Patch(ctx, name, types.MergePatchType, patchBytes, metav1.PatchOptions{}, "status")
+	res := c.Dynamic.Resource(GVRNetworkCapture).Namespace(ns)
+	var out *NetworkCapture
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		u, err := res.Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if _, ok := u.GetAnnotations()[CaptureStopRequestedAnnotation]; !ok {
+			metadata := map[string]any{
+				"annotations": map[string]any{
+					CaptureStopRequestedAnnotation: time.Now().UTC().Format(time.RFC3339),
+				},
+			}
+			if rv := u.GetResourceVersion(); rv != "" {
+				metadata["resourceVersion"] = rv
+			}
+			patch := map[string]any{"metadata": metadata}
+			patchBytes, err := json.Marshal(patch)
+			if err != nil {
+				return fmt.Errorf("marshal patch: %w", err)
+			}
+			u, err = res.Patch(ctx, name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+			if err != nil {
+				return err
+			}
+		}
+		nc := &NetworkCapture{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, nc); err != nil {
+			return fmt.Errorf("convert from unstructured: %w", err)
+		}
+		out = nc
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("stop network capture %s: %w", name, err)
 	}
-
-	nc := &NetworkCapture{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, nc); err != nil {
-		return nil, fmt.Errorf("stop network capture %s: convert from unstructured: %w", name, err)
-	}
-	return nc, nil
+	return out, nil
 }
 
 // DeleteNetworkCapture deletes a NetworkCapture by namespace and name.
