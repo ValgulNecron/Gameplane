@@ -100,6 +100,33 @@ spec:
               app.kubernetes.io/name: gameplane-operator
       ports:
         - { protocol: TCP, port: 8090 }
+{{- with .Values.serviceMonitors.scrapeNamespaceSelector }}
+{{- if $.Values.serviceMonitors.enabled }}
+---
+# F-216: opens only the agent's plain-HTTP metrics port 9090, never the
+# mTLS control port 8090; rationale in agent/specs.md's /metrics section.
+# Rendered only once an operator opts in via
+# serviceMonitors.scrapeNamespaceSelector; left empty, this stays exactly
+# as restrictive as before.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-to-agent
+  namespace: {{ $.Values.gamesNamespace }}
+  labels: {{- include "gameplane.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-game
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+      ports:
+        - { protocol: TCP, port: 9090 }
+{{- end }}
+{{- end }}
 ---
 # Allow probe traffic from kubelet. Source IP depends on the CNI; by
 # default we scope to RFC1918 + link-local, which covers most single-

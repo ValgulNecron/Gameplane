@@ -1,8 +1,12 @@
 // Package heartbeat periodically patches the owning GameServer's
 // status.agent.{lastHeartbeat, playersOnline, playersMax, gameVersion} —
-// plus the agent's own cpu/memory/disk usage — so the control plane can
-// distinguish "pod ready" from "game actually up" and surface live
-// resource usage without a cluster metrics pipeline.
+// plus resource usage — so the control plane can distinguish "pod ready"
+// from "game actually up" and surface live resource usage without a
+// cluster metrics pipeline. In proc mode (the production default) the
+// reported cpu/memory/disk usage is the game process(es)' own usage, read
+// from /proc with the agent's own process subtree and the pause process
+// excluded — not the agent's usage. Cgroup mode, a fallback for older
+// clusters, reports the whole pod's usage instead.
 //
 // The agent uses its in-pod ServiceAccount to authenticate to the
 // Kubernetes API directly; no traffic flows through the Gameplane API

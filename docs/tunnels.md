@@ -122,7 +122,8 @@ metadata:
   name: minecraft-tunneled
   namespace: gameplane-games
 spec:
-  template: minecraft-java
+  templateRef:
+    name: minecraft-java
   networking:
     expose: ClusterIP
     tunnel:
@@ -163,7 +164,8 @@ metadata:
   name: minecraft-tailnet
   namespace: gameplane-games
 spec:
-  template: minecraft-java
+  templateRef:
+    name: minecraft-java
   networking:
     expose: ClusterIP
     tunnel:
@@ -210,7 +212,8 @@ metadata:
   name: minecraft-playit
   namespace: gameplane-games
 spec:
-  template: minecraft-java
+  templateRef:
+    name: minecraft-java
   networking:
     expose: ClusterIP
     tunnel:
@@ -314,7 +317,7 @@ If you want to avoid reconnects on wake, consider:
 
 1. **Check the tunnel pod is running:**
    ```bash
-   kubectl -n gameplane-games get pods -l gameplane.local/tunnel=<server-name>
+   kubectl -n gameplane-games get pods -l app.kubernetes.io/name=gameplane-tunnel,app.kubernetes.io/instance=<server-name>
    ```
    Look for a pod in `Running` or `Ready 1/1`.
 
@@ -333,12 +336,20 @@ If you want to avoid reconnects on wake, consider:
 
 4. **Check NetworkPolicy.**
    By default, `networkPolicies.enabled=true` applies a default-deny-egress
-   policy to the games namespace. The tunnel pod must have egress to your relay.
-   
-   > **Planned:** Gameplane will automatically create a NetworkPolicy rule
-   > granting the tunnel pod egress to the relay's address (for frp and playit;
-   > Tailscale traffic is handled differently). For now, manually add a
-   > NetworkPolicy if needed.
+   policy to the games namespace. The operator automatically creates a
+   `<server-name>-tunnel-egress` NetworkPolicy that admits the tunnel pod's
+   egress to DNS and the template's advertised container ports, plus
+   provider-specific relay ports:
+   - **frp:** the frp server's `ServerAddr:ServerPort` (default TCP 7000).
+   - **tailscale:** the control plane on TCP 443 and DERP relays on UDP 41641.
+   - **playit:** no additional relay ports are added — playit does not
+     publish a fixed set of relay endpoints, so relay reachability depends
+     on the advertised ports already being open or on an additional
+     NetworkPolicy for your environment.
+
+   For frp and tailscale, no manual NetworkPolicy is needed for a standard
+   setup. For playit, check whether the generated policy covers your relay
+   traffic before assuming it does.
    
    If the tunnel pod cannot reach the relay:
    ```bash

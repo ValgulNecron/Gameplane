@@ -126,6 +126,19 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Fixed
 
+- **agent, chart:** the agent now serves Prometheus metrics on a separate,
+  unauthenticated listener (`:9090`, `--metrics-addr`) instead of the mTLS
+  control port (`:8090`) it used to share `/metrics` with — every agent
+  scrape target was previously "down" because the control port requires a
+  client cert for every route (F-216). The operator declares that listener
+  as a named `metrics` containerPort (9090) on the agent sidecar, and the
+  `PodMonitor` (`serviceMonitors.enabled`) now scrapes it by that name
+  instead of needing a Prometheus client cert. The
+  telemetry-receiver now gets its own `ServiceMonitor`, and a new
+  `serviceMonitors.scrapeNamespaceSelector` value opens the `NetworkPolicy`
+  exceptions (agent metrics port `9090` and the receiver's port) a
+  Prometheus outside the release namespace needs to reach either target
+  when `networkPolicies.enabled` is also `true` (F-217).
 - **web:** catalog tag filters now intersect instead of union (AND logic), so
   selecting multiple tags shows only games matching all tags (#411).
 - **web:** vertical tab list no longer renders as an oval shape (#410).
