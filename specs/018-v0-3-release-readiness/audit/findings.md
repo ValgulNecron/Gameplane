@@ -131,12 +131,12 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-160 | CRD type enum missing boolean value | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
 | F-161 | Schema validation skips required CRD fields | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
 | F-162 | Preview lacks version-specific environment layer | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
-| F-163 | Module archetype docs contradict validation requirement | gp-module | review:gp-module | S4 | open | | | |
-| F-164 | Documented CLI and make commands fail | gp-module | review:gp-module | S4 | open | | | |
-| F-165 | Image pin command doesn't exist | gp-module | review:gp-module | S4 | open | | | |
-| F-166 | Preview flag and output format don't match contract | gp-module | review:gp-module | S4 | open | | | |
-| F-167 | Specs file lists nonexistent files and dependencies | gp-module | review:gp-module | S4 | open | | | |
-| F-168 | Version mismatch warning not implemented | gp-module | review:gp-module | S4 | open | | | |
+| F-163 | Module archetype docs contradict validation requirement | gp-module | review:gp-module | S4 | fixed-unverified | #479 | | |
+| F-164 | Documented CLI and make commands fail | gp-module | review:gp-module | S4 | fixed-unverified | #479 | | |
+| F-165 | Image pin command doesn't exist | gp-module | review:gp-module | S4 | fixed-unverified | #479 | | |
+| F-166 | Preview flag and output format don't match contract | gp-module | review:gp-module | S4 | fixed-unverified | #479 | | |
+| F-167 | Specs file lists nonexistent files and dependencies | gp-module | review:gp-module | S4 | fixed-unverified | #479 | | |
+| F-168 | Version mismatch warning not implemented | gp-module | review:gp-module | S4 | fixed-unverified | #479 | | |
 | F-170 | Docs claim adoption that didn't happen | svcutil | review:svcutil | S4 | open | | | |
 | F-171 | Specs outdated: sections missing and test count wrong | svcutil | review:svcutil | S4 | open | | | |
 | F-172 | Exponential backoff overflows after 64 retries | tunnel | review:tunnel | S3 | fixed-unverified | #428 | | |
