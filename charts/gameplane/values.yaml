@@ -442,8 +442,19 @@ updates:
   channel: ""
 
 serviceMonitors:
-  enabled: false   # when true, creates ServiceMonitors for operator/api and a PodMonitor for agent sidecars on port 8090
+  enabled: false   # when true, creates ServiceMonitors for operator/api/telemetry-receiver and a PodMonitor for agent sidecars on their separate plain metrics port 9090 (the control port 8090 stays mTLS-only)
   labels: {}       # additional labels applied to ServiceMonitor/PodMonitor objects for Prometheus selector matching
+  # Namespace selector (standard Kubernetes namespaceSelector label match
+  # expressions/labels) identifying the namespace your Prometheus runs in.
+  # Only used, when non-empty, to open NetworkPolicy exceptions so that
+  # Prometheus can reach the agent's metrics port 9090 (F-216; rationale in
+  # agent/specs.md) and the telemetry-receiver's /metrics on its normal
+  # port (F-217) when networkPolicies.enabled is also true. Required
+  # alongside enabled: true whenever networkPolicies.enabled is also true;
+  # left empty, both stay unreachable to Prometheus even though their
+  # ServiceMonitor/PodMonitor objects are rendered. Example:
+  # `{matchLabels: {kubernetes.io/metadata.name: monitoring}}`.
+  scrapeNamespaceSelector: {}
 
 # PrometheusRule (alerts) for the operator, off by default like serviceMonitors.
 # Alerts use only the operator's own metrics — controller-runtime internals plus

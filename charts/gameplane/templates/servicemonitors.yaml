@@ -44,6 +44,40 @@ spec:
   endpoints:
     - { port: http, interval: 30s, path: /metrics }
 ---
+{{- /*
+  F-217: the telemetry-receiver renders no ServiceMonitor at all today
+  (its /ingest+/metrics listener is otherwise only reachable from the API
+  pod, see the NetworkPolicy in telemetry-receiver.yaml). Only render this
+  when the receiver itself is actually deployed (same condition as
+  telemetry-receiver.yaml) — a ServiceMonitor for a Service that doesn't
+  exist just leaves Prometheus with a permanently-down target. The
+  trailing `---` stays inside this block (not after it) so skipping it
+  doesn't leave a stray empty document ahead of the PodMonitor below.
+*/}}
+{{- if and .Values.api.telemetry.receiver.enabled (not .Values.api.telemetry.endpoint) }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gameplane-telemetry-receiver
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gameplane.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitors.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: gameplane-telemetry-receiver }
+  endpoints:
+    - { port: http, interval: 30s, path: /metrics }
+---
+{{- end }}
+{{- /*
+  F-216: scrapes the agent's separate plain-HTTP metrics listener
+  (--metrics-addr, default :9090), never the mTLS control port 8090; full
+  rationale (rejected client-cert approach, containerPort naming) lives in
+  agent/specs.md's /metrics section — this is a pointer, not a copy.
+*/}}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -58,5 +92,7 @@ spec:
   selector:
     matchLabels: { app.kubernetes.io/name: gameplane-game }
   podMetricsEndpoints:
-    - { port: agent, interval: 30s }
+    - port: metrics
+      interval: 30s
+      path: /metrics
 {{- end }}

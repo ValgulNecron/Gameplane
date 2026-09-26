@@ -10,7 +10,14 @@ info:
     Auth: all /files, /logs, /console, /players routes require either
     (a) an mTLS client cert signed by the operator's CA, or (b) a
     shared-secret bearer token mounted from a per-pod Secret. The /healthz
-    and /metrics endpoints are unauthenticated.
+    endpoint on this same listener is unauthenticated.
+
+    Prometheus metrics are not served on this listener at all: /metrics
+    is exposed on a separate, plain (no TLS, no client cert, no bearer
+    token) HTTP listener on its own port — see the `/metrics` path below
+    for that listener's own `servers` entry. Nothing else is routed there;
+    a scraper never needs the mTLS client cert that unlocks the control
+    routes described above.
 
 servers:
   - url: https://{pod}.{namespace}.svc.cluster.local:8090
@@ -116,6 +123,17 @@ paths:
   /metrics:
     get:
       summary: Prometheus metrics
+      description: |
+        Served only on the agent's separate plain metrics listener
+        (`--metrics-addr`, default `:9090`), not on the mTLS control
+        listener (`--addr`, default `:8090`) that every other path in
+        this contract lives on. This listener carries no TLS and no
+        auth of any kind — it serves nothing but this one path.
+      servers:
+        - url: http://{pod}.{namespace}.svc.cluster.local:9090
+          variables:
+            pod:        { default: "<gameserver-pod-0>" }
+            namespace:  { default: "gameplane-games" }
       security: []
       responses:
         "200": { description: Metrics exposition }
