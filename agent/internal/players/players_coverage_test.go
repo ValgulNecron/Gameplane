@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
@@ -65,7 +66,7 @@ func TestBanned_RconDisabled(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", status, http.StatusOK, body)
 	}
-	if string(body) != "[]" {
+	if strings.TrimSpace(string(body)) != "[]" {
 		t.Errorf("body = %s, want []", body)
 	}
 }
@@ -81,7 +82,7 @@ func TestWhitelistList_RconDisabled(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", status, http.StatusOK, body)
 	}
-	if string(body) != "[]" {
+	if strings.TrimSpace(string(body)) != "[]" {
 		t.Errorf("body = %s, want []", body)
 	}
 }

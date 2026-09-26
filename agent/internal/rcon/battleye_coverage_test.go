@@ -203,10 +203,14 @@ func TestBattlEyeExecDeadlineNotAboveAckTimeoutUsesAckTimeoutForRemaining(t *tes
 	if err == nil {
 		t.Fatal("expected a timeout error from a server that never replies to the command")
 	}
-	// Two waits of ~ackTimeout each (initial + remaining-fallback), so this
-	// must take noticeably longer than a single ackTimeout, and (as a
-	// generous safety net, not a tight bound) well under 2s.
-	if elapsed < client.ackTimeout {
+	// Exec's two waits (the initial ackTimeout, then the remaining<=0
+	// fallback to another full ackTimeout) are each driven by time.After,
+	// which never fires early, so elapsed is deterministically bounded
+	// below by their sum (~2*ackTimeout). A single-wait implementation
+	// (the bug this test guards against) would return in ~1*ackTimeout,
+	// so requiring 1.5*ackTimeout distinguishes the two while leaving
+	// headroom for scheduling jitter.
+	if want := client.ackTimeout + client.ackTimeout/2; elapsed < want {
 		t.Errorf("Exec returned too fast (%v) for two %v waits; remaining fallback may not have applied", elapsed, client.ackTimeout)
 	}
 	if elapsed > 2*time.Second {
