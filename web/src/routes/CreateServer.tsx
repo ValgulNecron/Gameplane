@@ -167,10 +167,10 @@ function buildCreateBody(state: WizardState): ServerCreate {
         ...(state.playitTunnelName ? { tunnelName: state.playitTunnelName } : {}),
       };
     }
-    // Only include tunnel if it has meaningful config (not just enabled: true).
-    if (Object.keys(tunnelBase).length > 1 || state.tunnelCredentialsSecretName) {
-      tunnel = tunnelBase;
-    }
+    // tunnelBase always carries `provider` alongside `enabled`, so it is
+    // never just `{ enabled: true }` — include it whenever the wizard step
+    // is enabled.
+    tunnel = tunnelBase;
   }
 
   return {

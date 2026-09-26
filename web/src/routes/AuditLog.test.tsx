@@ -630,6 +630,8 @@ describe("auditAction", () => {
     [{ method: "PUT", path: "/admin/config" }, "Updated settings"],
     [{ method: "POST", path: "/auth/login" }, "Signed in"],
     [{ method: "DELETE", path: "/users/3", target: "bob" }, "Deleted user bob"],
+    [{ method: "POST", path: "/modules/sources" }, "Created module source"],
+    [{ method: "POST", path: "/modules" }, "Created module"],
     [{ method: "GET", path: "/widgets" }, "Viewed widgets"],
   ];
   it.each(cases)("maps %o -> %s", (partial, expected) => {
