@@ -124,10 +124,10 @@ The cloud container restarted three times; the third restart (session 6, 2026-09
 
 - **Agent coverage margin:** now #475 (see §3 Open).
 - **Wave 2** (groups 17, 35, 39, 41, 43, 47), the group 27 rework and the agent-coverage investigation were restarted in session 6 as workflow `wf_86f6ffc1-6e8`. It reuses the session-5 worktrees wtg17/27/35/39 (rebased on master) and new ones wtg41/43/47. Each group gets its own PR after an opus review. The coverage investigation only reports.
-- **Wave 3** (groups 25, 33, 37, 40, 45, 46, 49; the maintainer said go on 2026-09-26): PRs #483 (25), #477 (33), #480 (37), #479 (40), #478 (45), #481 (46), #482 (49). Workflow `wf_a698c6cb-a46`, worktrees scratchpad/wtg<N> from master `aef55459`. Each group gets an opus review and then its own PR.
-  - Group 49 keeps `fastGameSet` and the bucket contents unchanged; changing them would need sign-off, so it fixes docs and comments only.
-  - Group 46 lands before group 42 (the reverse of the plan); expect a rebase for group 42.
-  - Group 33 was unblocked by #430.
+- **Wave 3** (groups 25, 33, 37, 40, 45, 46, 49) was merged on 2026-09-26 as #477 to #483.
+  - F-138 is partly open: 7 exports used only by tests are kept pending sign-off.
+  - F-187 has a follow-up to file: capture files deleted through the API still count against the volume budget until the pod restarts.
+  - Still to file: the mismatch between the playit NetworkPolicy comment and the code, raised in #468's review.
 - **CodeRabbit:** the maintainer runs it by hand on every security PR, at most once per hour. Don't push to a security PR while its review is pending, and never treat a security PR as done until its review is back.
 - **F-107 (group 35):** the session-6 call is that the doc is wrong and the code is right. A failing *first* quiesce command leaves nothing paused, so `docs/module-authoring.md` is corrected; `quiesce.go` and `TestDeclaredQuiescer_FirstCommandErrorSkipsRollback` stay unchanged.
 
@@ -138,7 +138,8 @@ The cloud container restarted three times; the third restart (session 6, 2026-09
 3. The remaining public non-design fix groups from `audit/evidence/rc.1/fix-plan.md`:
    - done: groups 1, 2, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 18, 20, 21, 22, 23, 24, 26, 29, 30;
    - group 27 waits on a decision; wave 2 is partly done (see §3c);
-   - not started: 25, 31, 33 (unblocked now that #430 merged), 34, 37, 38, 40, 42, 44–46, 48–52;
+   - wave 2 and wave 3 are done: 17, 25, 27, 33, 35, 37, 39, 40, 41, 43, 45, 46, 47, 49;
+   - not started: wave 4 (31, 34, 42, 52), wave 5 (38, 44, 48, 50), 51 (external blocker);
    - 28 is blocked on the module tag (T054), 32 is T063, and 19 may need design.
 4. The OD-021 follow-ups (see OPEN-DECISIONS.md OD-021):
    - the new Go e2e bucket (item 12);
