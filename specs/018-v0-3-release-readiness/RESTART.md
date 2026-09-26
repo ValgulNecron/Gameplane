@@ -77,7 +77,8 @@ All of these still apply.
 ### Open
 
 - #460 and #461: held fixes the maintainer made on the devbox. The cloud session doesn't drive them.
-- (group 27) F-216, F-217: decided 2026-09-26 (see §3c); rework in flight.
+- Wave 2, opened in session 6 by workflow `wf_86f6ffc1-6e8` after opus review: #464 (group 17, F-081), #465 (group 35), #466 (group 43), #467 (group 41), #468 (group 47), #470 (group 39). Watch CI; the maintainer merges.
+- (group 27) F-216, F-217: the plain-metrics-port rework is done in scratchpad/wtg27. The opus review blocked it only on the stale `docs/install.md` ~L280 "port 8090" line. The maintainer **approved** the `build_agent_container_test.go` edit (Ports 1 -> 2, plus new metrics-port checks) on 2026-09-26. Workflow `wf_a63808f9-c11` fixes the doc line, commits, has opus review it, and opens the PR.
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
@@ -104,7 +105,12 @@ All the wave-1 PRs (#450–#455) and #430 were merged by 2026-09-26 00:01 UTC (s
 
 The cloud container restarted three times; the third restart (session 6, 2026-09-26 12:29 UTC) killed all background workflows. The session-5 scratchpad (`/tmp/claude-0/-home-user-Gameplane/e4cc4290-.../scratchpad`) and its worktrees survived. Re-check them after a restart. The helper `scratchpad/merged.sh PR "IDs" "label"` records a merge in findings.md and this file.
 
-- **Agent coverage margin:** the local branch `fix/018-agent-coverage-margin` (scratchpad/wtagentcov) was rejected twice in review: its tests add only about 2 statements. The next step is to settle the denominator (`.testcoverage.yml` excludes `^cmd/`, while `make cover-go` uses `-coverpkg=./...`) and find the timing-dependent coverage, working from CI evidence. The session-5 investigation workflow died in the restart without reporting; restart it. Lowering the gate is not an option.
+- **Agent coverage margin:** the session-6 investigation report is saved at `scratchpad/agentcov-report.md` (session-5 scratchpad). Findings:
+  - True coverage is 2435/2706 = 89.985%. It passes the 90% gate only because the value is rounded to one decimal.
+  - Races in the rcon tests move the count between 2433 (fails at 89.9%) and 2436.
+  - The fix is about 50 statements of deterministic, add-only tests (report §4 A–E).
+  - Workflow `wf_a63808f9-c11` implements them on `fix/018-agent-coverage-margin` (scratchpad/wtagentcov), has opus review them, and opens the PR.
+  - Lowering the gate is not an option.
 - **Wave 2** (groups 17, 35, 39, 41, 43, 47), the group 27 rework and the agent-coverage investigation were restarted in session 6 as workflow `wf_86f6ffc1-6e8`. It reuses the session-5 worktrees wtg17/27/35/39 (rebased on master) and new ones wtg41/43/47. Each group gets its own PR after an opus review. The coverage investigation only reports.
 - **F-107 (group 35):** the session-6 call is that the doc is wrong and the code is right. A failing *first* quiesce command leaves nothing paused, so `docs/module-authoring.md` is corrected; `quiesce.go` and `TestDeclaredQuiescer_FirstCommandErrorSkipsRollback` stay unchanged.
 
