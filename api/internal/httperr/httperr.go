@@ -14,6 +14,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
@@ -87,6 +88,8 @@ func classify(err error) (int, string) {
 		// that mirrors rbac.Middleware's direct 400 for the same error.
 		return http.StatusBadRequest, "cluster not permitted"
 	case apierrors.IsNotFound(err):
+		return http.StatusNotFound, "not found"
+	case errors.Is(err, db.ErrShareLinkNotFound):
 		return http.StatusNotFound, "not found"
 	case apierrors.IsAlreadyExists(err):
 		return http.StatusConflict, "already exists"
