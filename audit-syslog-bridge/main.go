@@ -48,6 +48,32 @@ var Version = "dev"
 // a misdirected client from streaming something huge at us.
 const maxBody = 64 << 10
 
+// RFC 5424 §6.2.3/§6.2.4 field-length limits for APP-NAME and HOSTNAME.
+const (
+	maxAppNameLen  = 48
+	maxHostnameLen = 255
+)
+
+// validateRFC5424Field rejects a value that can't legally sit in an RFC 5424
+// APP-NAME or HOSTNAME field: both are 1*max PRINTUSASCII (%d33-126), a range
+// that excludes space. A value containing a space or other non-printable
+// character shifts every field after it once a collector splits the header on
+// whitespace; an empty value is left alone here since it resolves to "-".
+func validateRFC5424Field(name, value string, max int) error {
+	if value == "" {
+		return nil
+	}
+	if len(value) > max {
+		return fmt.Errorf("%s %q is %d bytes, want at most %d", name, value, len(value), max)
+	}
+	for _, r := range value {
+		if r < 33 || r > 126 {
+			return fmt.Errorf("%s %q contains %q, want only RFC 5424 PRINTUSASCII (33-126)", name, value, r)
+		}
+	}
+	return nil
+}
+
 type config struct {
 	listen      string
 	syslogAddr  string
@@ -110,6 +136,12 @@ func newServer(cfg config) (*server, error) {
 	sev, ok := severities[cfg.severity]
 	if !ok {
 		return nil, fmt.Errorf("unknown SEVERITY %q", cfg.severity)
+	}
+	if err := validateRFC5424Field("APP_NAME", cfg.appName, maxAppNameLen); err != nil {
+		return nil, err
+	}
+	if err := validateRFC5424Field("SYSLOG_HOSTNAME", cfg.hostname, maxHostnameLen); err != nil {
+		return nil, err
 	}
 	host := cfg.hostname
 	if host == "" {

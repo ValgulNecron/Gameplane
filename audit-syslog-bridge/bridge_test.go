@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -93,6 +94,55 @@ func TestNewServer_Validation(t *testing.T) {
 		c.severity = "nope"
 		if _, err := newServer(c); err == nil {
 			t.Error("want error for bad severity")
+		}
+	})
+	t.Run("app name with space rejected", func(t *testing.T) {
+		c := base()
+		c.appName = "gameplane audit"
+		if _, err := newServer(c); err == nil {
+			t.Error("want error for APP_NAME containing a space")
+		}
+	})
+	t.Run("app name too long rejected", func(t *testing.T) {
+		c := base()
+		c.appName = strings.Repeat("a", 49)
+		if _, err := newServer(c); err == nil {
+			t.Error("want error for APP_NAME over 48 bytes")
+		}
+	})
+	t.Run("app name at max length ok", func(t *testing.T) {
+		c := base()
+		c.appName = strings.Repeat("a", 48)
+		if _, err := newServer(c); err != nil {
+			t.Errorf("newServer: %v", err)
+		}
+	})
+	t.Run("empty app name ok (renders as -)", func(t *testing.T) {
+		c := base()
+		c.appName = ""
+		if _, err := newServer(c); err != nil {
+			t.Errorf("newServer: %v", err)
+		}
+	})
+	t.Run("hostname with space rejected", func(t *testing.T) {
+		c := base()
+		c.hostname = "my host"
+		if _, err := newServer(c); err == nil {
+			t.Error("want error for SYSLOG_HOSTNAME containing a space")
+		}
+	})
+	t.Run("hostname too long rejected", func(t *testing.T) {
+		c := base()
+		c.hostname = strings.Repeat("h", 256)
+		if _, err := newServer(c); err == nil {
+			t.Error("want error for SYSLOG_HOSTNAME over 255 bytes")
+		}
+	})
+	t.Run("hostname with non-printable rejected", func(t *testing.T) {
+		c := base()
+		c.hostname = "host\x01name"
+		if _, err := newServer(c); err == nil {
+			t.Error("want error for SYSLOG_HOSTNAME containing a non-printable byte")
 		}
 	})
 }
@@ -311,6 +361,114 @@ func TestForwarder_ReusesConnection(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("did not receive both frames on a reused connection")
+	}
+}
+
+// TestForwarder_ReconnectsAfterWriteFailure exercises the redial-and-retry
+// branch in forwarder.send: a write that fails on the held connection must
+// close it, dial a fresh one, and retry the same frame.
+func TestForwarder_ReconnectsAfterWriteFailure(t *testing.T) {
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	type accepted struct {
+		n    int
+		data string
+	}
+	acceptCh := make(chan accepted, 2)
+	go func() {
+		for i := 0; i < 2; i++ {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			buf := make([]byte, 256)
+			n, _ := conn.Read(buf)
+			acceptCh <- accepted{n: i + 1, data: string(buf[:n])}
+			// Leave the connection open; the client side (not this accepted
+			// conn) is what gets force-closed to simulate the dead link.
+			defer conn.Close()
+		}
+	}()
+
+	f := newForwarder("tcp", ln.Addr().String(), false, time.Second)
+	if err := f.send(context.Background(), []byte("one")); err != nil {
+		t.Fatalf("send one: %v", err)
+	}
+	select {
+	case got := <-acceptCh:
+		if got.n != 1 || got.data != "one" {
+			t.Fatalf("first accept = %+v, want frame \"one\"", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("first connection never received \"one\"")
+	}
+
+	// Force the held connection dead from the client side, so the next send
+	// must observe a write failure and go through dial+retry.
+	f.mu.Lock()
+	_ = f.conn.Close()
+	f.mu.Unlock()
+
+	if err := f.send(context.Background(), []byte("two")); err != nil {
+		t.Fatalf("send two (post-reconnect): %v", err)
+	}
+	select {
+	case got := <-acceptCh:
+		if got.n != 2 || got.data != "two" {
+			t.Fatalf("second accept = %+v, want a fresh connection carrying \"two\"", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("forwarder did not reconnect and deliver \"two\" on a new connection")
+	}
+}
+
+// TestForwarder_WriteDeadlineExceeded exercises the deadline set in
+// forwarder.write: a collector that accepts the connection but never drains
+// it must make Write fail once dialTimeout elapses, instead of blocking
+// forever.
+func TestForwarder_WriteDeadlineExceeded(t *testing.T) {
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	accepted := make(chan struct{})
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		close(accepted)
+		// Deliberately never Read: let the kernel send buffer fill so Write
+		// blocks, and hold the connection open past the deadline.
+		<-time.After(3 * time.Second)
+		conn.Close()
+	}()
+
+	f := newForwarder("tcp", ln.Addr().String(), false, 200*time.Millisecond)
+	// Large enough to exceed typical kernel socket buffers so Write blocks
+	// until the deadline fires rather than completing immediately.
+	frame := make([]byte, 32<<20)
+
+	<-accepted
+	start := time.Now()
+	err = f.send(context.Background(), frame)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("want a write-deadline error, got nil")
+	}
+	if !strings.Contains(err.Error(), "i/o timeout") && !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Errorf("err = %v, want a deadline-exceeded error", err)
+	}
+	if elapsed > 3*time.Second {
+		t.Errorf("send took %s, want it bounded by the ~200ms write deadline (x2 for the retry)", elapsed)
 	}
 }
 
