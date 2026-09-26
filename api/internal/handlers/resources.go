@@ -422,6 +422,16 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// writeJSONStatus sets the JSON Content-Type header before writing the
+// given status code. net/http snapshots response headers at WriteHeader
+// time, so Content-Type must be set first — calling WriteHeader directly
+// and then writeJSON leaves the body sniffed as text/plain.
+func writeJSONStatus(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
 // errTemplateRefImmutable is returned by validateAndProtectGameServer when
 // an update attempts to change spec.templateRef on an existing GameServer.
 // It mirrors the CRD's CEL rule (self == oldSelf on

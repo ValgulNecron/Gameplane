@@ -129,11 +129,11 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if !dnsLabelRE.MatchString(in.Name) {
-		httperr.Write(w, req, errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
 		return
 	}
 	if in.URL == "" || in.Password == "" {
-		httperr.Write(w, req, errors.New("url and password are required"))
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("url and password are required"))
 		return
 	}
 
@@ -174,7 +174,7 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if !isDestination(existing) {
-		httperr.Write(w, req, errors.New("a non-Gameplane secret with that name already exists"))
+		httperr.WriteCode(w, req, http.StatusConflict, errors.New("a non-Gameplane secret with that name already exists"))
 		return
 	}
 	patch := map[string]any{

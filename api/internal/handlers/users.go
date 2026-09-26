@@ -769,8 +769,7 @@ func (h *userHandler) addBinding(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	h.invalidateSessions(req, id, "role binding added")
-	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, bindingDTO(body))
+	writeJSONStatus(w, http.StatusCreated, bindingDTO(body))
 }
 
 func (h *userHandler) deleteBinding(w http.ResponseWriter, req *http.Request) {

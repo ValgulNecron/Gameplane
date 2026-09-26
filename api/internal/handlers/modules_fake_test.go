@@ -122,15 +122,27 @@ func TestMountModules_Install(t *testing.T) {
 		if rr.Code != http.StatusCreated {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
+		// F-083 regression: writeJSONStatus sets Content-Type before
+		// WriteHeader, so the 201 body isn't sniffed as text/plain.
+		if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			t.Fatalf("Content-Type = %q, want application/json", ct)
+		}
 	})
 
 	t.Run("missing source/module", func(t *testing.T) {
 		rr := do(t, r, "POST", "/modules/", map[string]any{"module": "x"})
-		// httperr.Write maps the generic error to 500 since it's not a
-		// typed apierror. The handler still rejects it — we just confirm
-		// it didn't succeed.
+		// F-077: the handler now routes this hand-written validation error
+		// through httperr.WriteCode(400), not the httperr.Write default of
+		// 500 for an unclassified error.
 		if rr.Code == http.StatusCreated {
 			t.Fatal("missing source should not create")
+		}
+	})
+
+	t.Run("missing source/module returns 400", func(t *testing.T) {
+		rr := do(t, r, "POST", "/modules/", map[string]any{"module": "x"})
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("got %d, want 400; body=%s", rr.Code, rr.Body)
 		}
 	})
 
@@ -139,6 +151,14 @@ func TestMountModules_Install(t *testing.T) {
 		rr := do(t, r, "POST", "/modules/", body)
 		if rr.Code == http.StatusCreated {
 			t.Fatal("BAD_NAME should be rejected")
+		}
+	})
+
+	t.Run("invalid name returns 400", func(t *testing.T) {
+		body := map[string]any{"source": "u", "module": "x", "version": "1", "name": "BAD_NAME"}
+		rr := do(t, r, "POST", "/modules/", body)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("got %d, want 400; body=%s", rr.Code, rr.Body)
 		}
 	})
 

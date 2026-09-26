@@ -260,8 +260,7 @@ func (h modulesHandler) createSource(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, created)
+	writeJSONStatus(w, http.StatusCreated, created)
 }
 
 func (h modulesHandler) updateSource(w http.ResponseWriter, req *http.Request) {

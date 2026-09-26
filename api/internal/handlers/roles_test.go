@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -45,6 +49,40 @@ func TestRoles_ListIncludesBuiltins(t *testing.T) {
 	}
 	if !containsStr(byName["operator"].Permissions, "servers:write") {
 		t.Errorf("operator missing servers:write: %v", byName["operator"].Permissions)
+	}
+}
+
+// TestRoles_CreateSetsJSONContentType is the F-083 regression test: POST
+// /roles's 201 response must carry Content-Type: application/json. net/http
+// snapshots headers at WriteHeader, so calling WriteHeader(201) before the
+// JSON encoder set the header (as this handler used to) leaves the body
+// sniffed as text/plain.
+func TestRoles_CreateSetsJSONContentType(t *testing.T) {
+	srv, _ := newRolesServer(t)
+	body, err := json.Marshal(map[string]any{
+		"name":        "ct-check",
+		"description": "Content-Type regression",
+		"permissions": []string{"servers:read"},
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/roles", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		got, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d, want 201; body=%s", resp.StatusCode, got)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("Content-Type = %q, want application/json", ct)
 	}
 }
 
