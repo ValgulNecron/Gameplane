@@ -115,6 +115,10 @@ The cloud container restarted three times; the third restart (session 6, 2026-09
 
 - **Agent coverage margin:** now #475 (see §3 Open).
 - **Wave 2** (groups 17, 35, 39, 41, 43, 47), the group 27 rework and the agent-coverage investigation were restarted in session 6 as workflow `wf_86f6ffc1-6e8`. It reuses the session-5 worktrees wtg17/27/35/39 (rebased on master) and new ones wtg41/43/47. Each group gets its own PR after an opus review. The coverage investigation only reports.
+- **Wave 3** (groups 25, 33, 37, 40, 45, 46, 49; the maintainer said go on 2026-09-26): workflow `wf_a698c6cb-a46`, worktrees scratchpad/wtg<N> from master `aef55459`. Each group gets an opus review and then its own PR.
+  - Group 49 keeps `fastGameSet` and the bucket contents unchanged; changing them would need sign-off, so it fixes docs and comments only.
+  - Group 46 lands before group 42 (the reverse of the plan); expect a rebase for group 42.
+  - Group 33 was unblocked by #430.
 - **F-107 (group 35):** the session-6 call is that the doc is wrong and the code is right. A failing *first* quiesce command leaves nothing paused, so `docs/module-authoring.md` is corrected; `quiesce.go` and `TestDeclaredQuiescer_FirstCommandErrorSkipsRollback` stay unchanged.
 
 ## 4. Next (in order)
