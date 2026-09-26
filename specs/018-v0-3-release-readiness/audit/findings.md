@@ -188,9 +188,9 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-225 | podSecurity.enforceRestricted doc promises per-pod opt-in that doesn't exist | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
 | F-226 | Image list doc incomplete (12 images, lists 3) | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
 | F-232 | dev-up re-run targets wrong kubectl context | deploy/ | review:deploy | S3 | fixed-unverified | #452 | | |
-| F-233 | e2e.sh comment/message lists wrong image names | deploy/ | review:deploy | S4 | open | | | |
+| F-233 | e2e.sh comment/message lists wrong image names | deploy/ | review:deploy | S4 | fixed-unverified | #478 | | |
 | F-234 | Docker registry container name conflict blocks bootstrap if stopped manually | deploy/ | review:deploy | S3 | fixed-unverified | #452 | | |
-| F-236 | Unicode punctuation stripped from anchor slug | hack/ | review:hack | S4 | open | | | |
+| F-236 | Unicode punctuation stripped from anchor slug | hack/ | review:hack | S4 | fixed-unverified | #478 | | |
 | F-237 | CLAUDE.md says dev-load rebuilds when it only loads | hack/ | review:hack | S4 | fixed-unverified | #452 | | |
 | F-238 | capture-sidecar-setcap-proof omitted from report tally | .github/workflows/ | review:github-workflows | S3 | fixed-unverified | #450 | | |
 | F-239 | publish-edge paths miss input dependencies | .github/workflows/ | review:github-workflows | S3 | fixed-unverified | #450 | | |

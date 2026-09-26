@@ -82,6 +82,7 @@ All of these still apply.
 - #460: held H31a, owner-only server operations (maintainer PR; conditional-write fix e82ce2ab) (merged 2026-09-26; findings `fixed-unverified`).
 - #477: group 33, API error handling and api/specs.md (merged 2026-09-26; findings `fixed-unverified`).
 - #466: group 43, audit-syslog-bridge (merged 2026-09-26; findings `fixed-unverified`).
+- #478: group 45, deploy/hack scripts (merged 2026-09-26; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Open
