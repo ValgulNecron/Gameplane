@@ -159,10 +159,10 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-191 | Gopacket dependency drift: fork vs upstream, version mismatch | capture-sidecar | review:capture-sidecar | S4 | open | | | |
 | F-192 | 409 error message names wrong capture on status-poll failure | capture-sidecar | review:capture-sidecar | S4 | open | | | |
 | F-193 | /healthz route requires mTLS despite comments calling it unauthenticated | capture-sidecar | review:capture-sidecar | S4 | open | | | |
-| F-195 | specs.md references wrong files for webhook sender | audit-syslog-bridge | review:audit-syslog-bridge | S4 | open | | | |
-| F-196 | Untested reconnect and write deadline in specs.md | audit-syslog-bridge | review:audit-syslog-bridge | S4 | open | | | |
+| F-195 | specs.md references wrong files for webhook sender | audit-syslog-bridge | review:audit-syslog-bridge | S4 | fixed-unverified | #466 | | |
+| F-196 | Untested reconnect and write deadline in specs.md | audit-syslog-bridge | review:audit-syslog-bridge | S4 | fixed-unverified | #466 | | |
 | F-197 | specs.md says Go 1.25 but go.mod is 1.26 | audit-syslog-bridge | review:audit-syslog-bridge | S4 | open | | | |
-| F-198 | RFC 5424 APP-NAME validation missing | audit-syslog-bridge | review:audit-syslog-bridge | S4 | open | | | |
+| F-198 | RFC 5424 APP-NAME validation missing | audit-syslog-bridge | review:audit-syslog-bridge | S4 | fixed-unverified | #466 | | |
 | F-200 | specs.md says Go 1.25 but go.mod is 1.26 | telemetry-receiver | review:telemetry-receiver | S4 | open | | | |
 | F-201 | specs.md claims untested HTTP method guards | telemetry-receiver | review:telemetry-receiver | S4 | open | | | |
 | F-204 | Pod logs truncation keeps old end instead of newest | mcp-server | review:mcp-server | S3 | fixed-unverified | #439 | | |
