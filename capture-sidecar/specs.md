@@ -55,7 +55,7 @@ capture-sidecar/
 │   └── auth/
 │       ├── tls.go                 # mTLS certificate validation; TLS listener setup
 │       └── tls_test.go            # Unit tests for mTLS validation
-├── go.mod                         # Dependencies: gopacket/afpacket, gopacket/pcapgo, packetcap/go-pcap, svcutil
+├── go.mod                         # Dependencies: gopacket/afpacket, gopacket/pcapgo, packetcap/go-pcap
 ├── go.sum
 ├── Dockerfile                     # distroless/static:nonroot base; setcap cap_net_raw+ep on the built binary
 ├── .testcoverage.yml              # 70% coverage gate
@@ -85,7 +85,8 @@ The module declares the following external dependencies in `go.mod`:
 - `github.com/google/gopacket v1.1.19` — AF_PACKET socket setup (afpacket package) and PCAPNG file writing (pcapgo package)
 - `github.com/packetcap/go-pcap v0.0.0-20260731105150-c86974bbfbcd` — BPF filter compilation and validation
 - `golang.org/x/net` — Networking utilities (bundled by gopacket)
-- `github.com/ValgulNecron/gameplane/svcutil v0.0.0` — Shared utility helpers (graceful shutdown, env parsing) via local replace directive
+
+This module does not depend on `svcutil`: its control server is served over mTLS via `ListenAndServeTLS` with client-certificate verification, and `RunHTTP` only serves plain HTTP (`ListenAndServe`) — a plaintext listener would remove the sidecar's only authentication boundary (see the comment at `cmd/main.go:80-86`).
 
 ## External Interface / Configuration (Phase 2 Design)
 
