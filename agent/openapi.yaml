@@ -58,16 +58,17 @@ components:
         capabilities: { $ref: "#/components/schemas/Capabilities" }
     Capabilities:
       type: object
-      required: [kick, ban, unban]
+      required: [kick, ban, unban, whitelist]
       description: |
         Per-game moderation capabilities. False entries indicate the
         underlying game protocol does not expose that action via RCON,
         so the dashboard hides the corresponding controls instead of
         emitting requests that would 501.
       properties:
-        kick:  { type: boolean }
-        ban:   { type: boolean }
-        unban: { type: boolean }
+        kick:      { type: boolean }
+        ban:       { type: boolean }
+        unban:     { type: boolean }
+        whitelist: { type: boolean }
     BannedPlayer:
       type: object
       required: [name]
