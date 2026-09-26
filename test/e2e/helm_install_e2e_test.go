@@ -252,7 +252,10 @@ func TestHelmInstall_MetricsNotOnPublicPort(t *testing.T) {
 		return true, ""
 	})
 
-	if strings.Contains(out, "public-status=2") || strings.Contains(out, "public-body=metrics") {
+	if !strings.Contains(out, "public-status=404") {
+		t.Fatalf("the API's public port did not answer /metrics with 404:\n%s", out)
+	}
+	if strings.Contains(out, "public-body=metrics") {
 		t.Fatalf("the API's public port served /metrics:\n%s", out)
 	}
 }
