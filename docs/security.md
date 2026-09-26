@@ -60,27 +60,52 @@ everything else) and takes effect on the next login attempt.
 
 ### Client IP extraction from forwarded headers
 
-The API determines the real client IP from the `X-Forwarded-For` header
-to power login rate limiting and audit records. This is configurable via
-`api.trustedProxies` (default: private/loopback ranges `127.0.0.0/8`,
-`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`,
-`::1/128`, `fc00::/7`, `fe80::/10`).
+The API records a client IP for every request. Login rate limiting
+(per-IP caps) and audit records key on it. The IP comes from the TCP peer
+and, only when that peer is a trusted proxy, from the `X-Forwarded-For`
+header. Trusted proxies are set by `api.trustedProxies` (default:
+loopback and private ranges `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`,
+`192.168.0.0/16`, `169.254.0.0/16`, `::1/128`, `fc00::/7`, `fe80::/10`).
 
-**In a normal Kubernetes install** (API behind nginx-ingress, ALB, etc.),
-the default works out-of-the-box: the ingress sits in one of the default
-ranges and sets `X-Forwarded-For` unconditionally, so the API extracts the
-true client IP safely. The API **only** trusts `X-Forwarded-For` from
-requests originating within the configured CIDR blocks, defeating IP
-spoofing.
+The API applies these rules in order (`api/internal/auth/clientip.go`):
 
-**When the API is directly exposed** (no proxy), the default is correct:
-`X-Forwarded-For` is ignored, and rate limiting uses the TCP peer's
-address as the true client IP — which is already authoritative. If you
-place a proxy in front of the API, add that proxy's address(es) to
-`api.trustedProxies` so the API can extract the real client IP from
-`X-Forwarded-For`.
+1. A TCP peer outside `api.trustedProxies` is the client. Any
+   `X-Forwarded-For` header on its request is ignored.
+2. When the peer is a trusted proxy, the API reads `X-Forwarded-For` from
+   right to left and takes the first address outside `api.trustedProxies`
+   as the client.
+3. When every address in the chain is inside `api.trustedProxies`, the
+   leftmost address is the client.
+4. An entry that isn't an IP address ends the walk at the last address
+   already reached. With no `X-Forwarded-For` header that is the peer.
+5. With `api.trustedProxies` empty, the peer is always the client.
 
-Example for direct exposure behind a specific proxy at `203.0.113.1`:
+**In a normal Kubernetes install** (ingress controller, then the web
+front end, then the API), the default works out of the box: the proxies
+run in pod and node ranges the default covers, and a client on the public
+internet is recorded by its own address.
+
+**Clients on a private network.** The default treats every private-range
+address as a possible proxy, so for clients that connect from a private
+range the recorded IP depends on the forwarded chain those addresses
+present (rule 3). If dashboard users reach Gameplane from a private
+network and you rely on per-client limits for them, narrow
+`api.trustedProxies` to the ranges your proxies actually run in, usually
+the cluster's pod CIDR plus any load balancer in front of the ingress:
+
+```yaml
+api:
+  trustedProxies: "10.42.0.0/16"   # k3s default pod CIDR; use your cluster's
+```
+
+**When the API is directly exposed** (no proxy), set
+`api.trustedProxies` to `""`: the TCP peer is then always the client. If
+you place a proxy in front of the API, list that proxy's addresses so the
+API reads `X-Forwarded-For` from it. A proxy outside the list is recorded
+as the client itself, so every user behind it shares one rate-limit
+bucket.
+
+Example for a single proxy at `203.0.113.1`:
 
 ```yaml
 api:
@@ -88,9 +113,9 @@ api:
 ```
 
 The client IP is used for login rate limiting (per-IP caps) and audit
-records, so misconfigurating this can either hide the real attacker's IP
-in logs or prevent legitimate users from logging in if they're grouped
-behind a proxy the API doesn't trust.
+records, so misconfiguring this can either record a proxy instead of the
+client in audit logs or group legitimate users behind one proxy address
+in a single rate-limit bucket.
 
 ## Authorization
 
