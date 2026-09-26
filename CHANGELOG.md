@@ -29,6 +29,13 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   container itself (no ephemeral container, no `CAP_NET_RAW`, no network access
   change).
 
+- **Owner-only server operations need the owner or an admin:** transferring
+  ownership, editing collaborators, wiping data and deleting a server now need
+  the server's owner or an admin. Operator-role users keep their other server
+  permissions, but can no longer run these four operations on servers they
+  don't own. Servers without a recorded owner (for example ones created with
+  kubectl or GitOps) can be transferred, wiped or deleted only by an admin.
+
 ### Added
 
 - **User theme customization (feature 016):** Settings → Theme & Appearance
@@ -165,6 +172,7 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 - **api:** hardened multi-cluster request scoping.
 - **operator:** hardened module bundle integrity checks.
 - **web:** hardened the Admin Settings draft and managed-secret lifecycle.
+- **api:** hardened ownership checks on owner-only server operations.
 
 ## [0.3.0-rc.1] — 2026-09-23
 
