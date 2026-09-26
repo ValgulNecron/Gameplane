@@ -411,6 +411,12 @@ networkPolicies:
 # the group "gameplane:dashboard", bound to the read-only "view" ClusterRole.
 clusterOps:
   enabled: false
+  # External (node-routable) API server address handed out in the join
+  # command and downloaded kubeconfig, e.g. "1.2.3.4:6443" or
+  # "https://k8s.example.com:6443". Leave empty to use the in-cluster
+  # address the API pod itself connects through (typically the apiserver's
+  # ClusterIP), which a joining node or an off-cluster kubectl cannot reach.
+  externalAddress: ""
 
 # Optional, strictly read-only MCP (Model Context Protocol) server: lets an
 # AI assistant read cluster state (the 7 Gameplane CRDs, Pods, Events, pod
