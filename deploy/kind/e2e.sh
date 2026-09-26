@@ -8,7 +8,8 @@
 # Diffs from dev-up (deploy/kind/up.sh):
 #   - Single-node cluster (faster boot, sufficient for E2E coverage).
 #   - Skips ingress-nginx (the dashboard isn't exercised here).
-#   - Loads pre-built gameplane/{operator,api,agent}:<tag> images.
+#   - Loads pre-built gameplane-test/{operator,api,agent,sentinel,capture-sidecar,fakeoidc}:<tag>
+#     images (and gameplane-test/gameprobe:<tag> when present).
 #   - Helm install with --wait so pods are Ready before tests start.
 #
 # Image tag defaults to "e2e". Override via the second argument or
@@ -162,7 +163,7 @@ EOF
     install_metallb
     apply_metallb_pools
 
-    echo "loading gameplane/{operator,api,agent,sentinel,capture-sidecar}:${TAG} images into kind"
+    echo "loading gameplane-test/{operator,api,agent,sentinel,capture-sidecar}:${TAG} images into kind"
     for img in operator api agent sentinel capture-sidecar; do
         if ! docker image inspect "gameplane-test/${img}:${TAG}" >/dev/null 2>&1; then
             echo "  missing local image gameplane-test/${img}:${TAG} — building"

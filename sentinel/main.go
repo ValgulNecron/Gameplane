@@ -600,7 +600,7 @@ func serveTCP(ctx context.Context, l net.Listener, port PortConfig, w wakeReques
 // pod.
 func handleTCPConnection(ctx context.Context, conn net.Conn, port PortConfig, w wakeRequester, cfg Config) {
 	defer func() {
-		if err := conn.Close(); err != nil {
+		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Printf("close connection: %v", err)
 		}
 	}()
@@ -726,7 +726,7 @@ func handleJoin(ctx context.Context, conn net.Conn, br *bufio.Reader, w wakeRequ
 		return
 	}
 	defer func() {
-		if err := upstream.Close(); err != nil {
+		if err := upstream.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Printf("close upstream connection: %v", err)
 		}
 	}()

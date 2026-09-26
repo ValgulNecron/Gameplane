@@ -3,6 +3,7 @@ package console
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -104,6 +105,26 @@ func TestConsole_IgnoresEmptyAndNonCmd(t *testing.T) {
 	}
 	if got.Body != "ok" || rc.gotCmd != "go" {
 		t.Fatalf("got=%+v rcon=%q", got, rc.gotCmd)
+	}
+}
+
+// TestConsole_NonWebSocketRequestRejected covers the websocket.Accept
+// failure branch in serve(): a plain GET without the Upgrade/Connection
+// handshake headers fails the WS handshake, and the handler must return
+// immediately rather than entering the read/write loop.
+func TestConsole_NonWebSocketRequestRejected(t *testing.T) {
+	srv, _ := newServer(t, &fakeRcon{})
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL+"/console", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 400 || resp.StatusCode >= 500 {
+		t.Fatalf("status=%d, want a 4xx handshake rejection", resp.StatusCode)
 	}
 }
 

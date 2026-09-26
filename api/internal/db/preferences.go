@@ -64,7 +64,25 @@ func (s *Store) GetPreferences(ctx context.Context, userID int64) (UserPreferenc
 	if css.Valid {
 		p.CustomCSS = &css.String
 	}
+	p.UpdatedAt = normalizeTimestamp(p.UpdatedAt)
 	return p, nil
+}
+
+// normalizeTimestamp rewrites a stored timestamp to RFC 3339 UTC. Rows
+// written by Go (UpsertPreferences) are already RFC 3339 and pass through
+// unchanged; migration 011's backfill used SQLite's datetime('now'), which
+// stores "YYYY-MM-DD HH:MM:SS" (UTC, no offset) — this converts that legacy
+// form on read so api/specs.md's RFC 3339 contract holds for every row
+// without editing the (append-only) migration itself. Falls back to the raw
+// value if it matches neither format, rather than losing data.
+func normalizeTimestamp(raw string) string {
+	if _, err := time.Parse(time.RFC3339, raw); err == nil {
+		return raw
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05", raw); err == nil {
+		return t.UTC().Format(time.RFC3339)
+	}
+	return raw
 }
 
 // UpsertPreferences inserts the user's preference row or replaces it in
