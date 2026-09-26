@@ -414,7 +414,7 @@ func (h modulesHandler) builderExport(w http.ResponseWriter, req *http.Request) 
 			}
 		}
 
-		writeJSONStatus(w, http.StatusCreated, BuilderExportResponse{
+		writeJSONCreated(w, BuilderExportResponse{
 			Installed:  true,
 			ModuleName: body.Name,
 		})

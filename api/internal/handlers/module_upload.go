@@ -135,7 +135,7 @@ func (h modulesHandler) uploadBundle(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	writeJSONStatus(w, http.StatusCreated, uploadResponse{Module: *meta, ConfigMap: cmName})
+	writeJSONCreated(w, uploadResponse{Module: *meta, ConfigMap: cmName})
 }
 
 func (h modulesHandler) deleteUpload(w http.ResponseWriter, req *http.Request) {

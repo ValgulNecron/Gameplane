@@ -148,7 +148,7 @@ func (h *roleHandler) create(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	writeJSONStatus(w, http.StatusCreated, roleDTO{Name: body.Name, Description: body.Description, Permissions: dedupSorted(body.Permissions)})
+	writeJSONCreated(w, roleDTO{Name: body.Name, Description: body.Description, Permissions: dedupSorted(body.Permissions)})
 }
 
 type roleUpdateReq struct {

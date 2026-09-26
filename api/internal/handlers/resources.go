@@ -422,13 +422,13 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// writeJSONStatus sets the JSON Content-Type header before writing the
-// given status code. net/http snapshots response headers at WriteHeader
+// writeJSONCreated sets the JSON Content-Type header before writing a 201
+// Created status code. net/http snapshots response headers at WriteHeader
 // time, so Content-Type must be set first — calling WriteHeader directly
 // and then writeJSON leaves the body sniffed as text/plain.
-func writeJSONStatus(w http.ResponseWriter, status int, v any) {
+func writeJSONCreated(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(v)
 }
 

@@ -122,7 +122,7 @@ func TestMountModules_Install(t *testing.T) {
 		if rr.Code != http.StatusCreated {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
-		// F-083 regression: writeJSONStatus sets Content-Type before
+		// F-083 regression: writeJSONCreated sets Content-Type before
 		// WriteHeader, so the 201 body isn't sniffed as text/plain.
 		if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 			t.Fatalf("Content-Type = %q, want application/json", ct)
