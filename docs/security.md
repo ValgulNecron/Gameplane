@@ -206,6 +206,12 @@ When `networkPolicies.enabled=true` (default) the chart applies:
   liveness/readiness probes. By default targets RFC1918 + link-local ranges,
   or customizable via `networkPolicies.kubeletCIDRs`; probe ports via
   `networkPolicies.probePorts`.
+- `allow-prometheus-to-agent` — opt-in (rendered only when
+  `serviceMonitors.scrapeNamespaceSelector` is set) policy allowing Prometheus
+  pods in the selected namespace to reach the agent's plain-HTTP metrics port
+  (TCP 9090). That port is unauthenticated HTTP, not mTLS, and is otherwise
+  already reachable from `kubeletCIDRs` via `allow-kubelet-probes` above
+  unless `networkPolicies.probePorts` is narrowed to exclude it.
 - `allow-game-public-egress` — (enabled by default, gated by
   `networkPolicies.gameEgress.enabled`) allows game pods to reach the public
   internet for binary/asset/mod downloads. Set `networkPolicies.gameEgress.enabled: false`

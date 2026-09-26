@@ -26,7 +26,7 @@ The agent is a per-pod HTTP/HTTPS sidecar that runs inside every game pod to exp
 - The agent does **not** expose a PTY or attach the game container directly. Games with consoleMode "pty" (e.g., Unity servers) are handled by the Gameplane API bridging the browser WebSocket to Kubernetes pod-attach; the agent is uninvolved.
 - The agent does **not** manage game processes or containers — all process/container control is the operator's job (scaling, restarts, resource limits).
 - The agent does **not** validate RCON responses for correctness. It forwards raw game output to the UI, so game-specific parsing happens on the dashboard (e.g., player-list regex rendering).
-- The agent does **not** require a cluster metrics pipeline (no Prometheus scrape, no metrics-server dependency). All resource usage is sourced in-pod from `/proc` or cgroups.
+- The agent does **not** require a cluster metrics pipeline for its own resource-usage reporting (no metrics-server dependency); usage is sourced in-pod from `/proc` or cgroups. A Prometheus scrape of `/metrics` (via the chart's optional `serviceMonitors.enabled` PodMonitor) is supported but not required.
 - The agent does **not** implement game-specific business logic. All protocol handlers are per-game and declared in the module's template (`spec.capabilities`); new games require no agent code change.
 
 ## Directory & package layout
@@ -34,6 +34,7 @@ The agent is a per-pod HTTP/HTTPS sidecar that runs inside every game pod to exp
 ```
 agent/
 ├── cmd/main.go              # Entry point: flag parsing, auth setup, chi router, heartbeat goroutine
+├── cmd/metrics.go           # Separate plain-HTTP /metrics listener (--metrics-addr), off the mTLS control mux
 ├── internal/
 │   ├── actions/             # Module-declared operator actions (templated RCON)
 │   ├── auth/                # Request authenticator (mTLS + bearer token)
@@ -81,7 +82,8 @@ Mode: In-pod HTTP/HTTPS sidecar (runs as a container sidecar or as a pod share-p
 
 | Flag | Default | Env var | Purpose |
 |------|---------|---------|---------|
-| `--addr` | `:8090` | — | HTTP listen address (e.g., `:8090` for all interfaces) |
+| `--addr` | `:8090` | — | HTTP listen address for the mTLS control mux (e.g., `:8090` for all interfaces) |
+| `--metrics-addr` | `:9090` | `GAMEPLANE_METRICS_ADDR` | Listen address for the separate Prometheus metrics listener, plain HTTP with no auth (empty disables it); never shares `--addr`'s mTLS control mux, so a scraper needs no client cert |
 | `--data-root` | `/data` | — | Root path for file operations (agent restricts all I/O here) |
 | `--rcon-host` | `127.0.0.1` | — | RCON server host (loopback in-pod) |
 | `--rcon-port` | `25575` | — | RCON server port (game-specific default) |
@@ -109,9 +111,29 @@ Resource usage env vars (set by the operator):
 
 ### Endpoint groups (from mounted routes in cmd/main.go; openapi.yaml documents a subset)
 
-**Public (unauthenticated):**
+**Public (unauthenticated), on the `--addr` control mux:**
 - `GET /healthz` — Liveness probe; returns `200 ok`
-- `GET /metrics` — Prometheus metrics exposition
+
+**Public (unauthenticated), on the separate `--metrics-addr` listener — not the control mux above, and never TLS:**
+- `GET /metrics` — Prometheus metrics exposition. (F-216, canonical rationale;
+  other mentions of F-216 elsewhere in the repo point back here.) The
+  agent's only listener used to be the mTLS control port, so a plain-HTTP
+  PodMonitor scrape of that port always failed the TLS handshake and every
+  agent target showed "down" in Prometheus. An earlier fix instead handed
+  Prometheus the same mTLS client cert the API presents to agents — rejected,
+  because `RequireAndVerifyClientCert` accepts that cert for every control
+  route (console, files, RCON), not just `/metrics`, which is more trust
+  than a scraper needs. The fix here is this separate, unauthenticated
+  `--metrics-addr` listener: a scraper never needs the client cert that
+  unlocks console/files/RCON on the control mux. `buildAgentContainer`
+  (`operator/internal/controller/gameserver_controller.go`) declares this
+  listener's port as a named `metrics` containerPort (9090), and the chart's
+  agent `PodMonitor` targets it by that name rather than a bare
+  `portNumber`, so the scrape works on any Prometheus-Operator CRD version.
+  The games-namespace `default-deny-ingress` policy admits this port only
+  when an operator opts in via `serviceMonitors.scrapeNamespaceSelector`
+  (see `charts/gameplane/templates/networkpolicies.yaml`'s
+  `allow-prometheus-to-agent` policy and `docs/security.md`).
 
 **Protected (all require mTLS cert or bearer token):**
 
@@ -141,7 +163,7 @@ Resource usage env vars (set by the operator):
 | `/mods` | DELETE | Uninstall a mod; request: `{ name }` |
 | `/mods/upload` | POST | Upload a mod archive; body is multipart/form-data |
 
-All endpoints (except `/healthz` and `/metrics`) return `401 Unauthorized` if the request lacks a valid cert or token.
+All endpoints on the `--addr` control mux, except `/healthz`, return `401 Unauthorized` if the request lacks a valid cert or token. `/metrics` is not on that mux at all — it lives on the separate `--metrics-addr` listener, which has no auth of its own.
 
 ## Key invariants
 
@@ -202,7 +224,7 @@ All endpoints (except `/healthz` and `/metrics`) return `401 Unauthorized` if th
 - **No half-written uploads, and no lost files on a failed write**: `files.write` and `files.savePart` write to a temp file in the destination directory first and rename it over the target only once the copy succeeds. A failure partway through (truncated body, read error, over-limit part, out of space) removes only the temp file — a pre-existing file at that path is never truncated or deleted by a failed write or upload.
 - **Extracted mod files are 0o644, not 0o600**: `mods.moduleFileMode` grants group+world read so the game container — which runs under whatever uid its own image needs (not the agent's uid) — can read its shared mods volume; `FSGroup` alone doesn't help here since it only changes group ownership, not mode bits. The tradeoff is scoped: the `.golangci.yml` gosec G302 exclusion applies to `agent/internal/mods/mods.go` only.
 - **Low privilege within pod**: The agent is a sidecar container (not privileged, not root unless the game container is). It reads `/proc` only for the game process and the pause process; it cannot access other pods' data.
-- **No unauthenticated data exposure**: `/healthz` and `/metrics` are public; all game data (`/files`, `/logs`, `/console`, `/players`) requires authentication.
+- **No unauthenticated data exposure**: `/healthz` (control mux) and `/metrics` (its own separate, unauthenticated listener) are public; all game data (`/files`, `/logs`, `/console`, `/players`) requires authentication. `/metrics` is deliberately never reachable through the mTLS control mux, so a Prometheus scraper is never handed the client cert that would also unlock those authenticated routes.
 - **Network context**: The agent runs inside the game pod and is reached via service DNS (e.g., `gameserver-pod-0.gameplane-games.svc.cluster.local:8090`). The pod's NetworkPolicy may restrict egress (e.g., games namespace has default-deny-egress); the agent's mod downloads and heartbeat calls must be compatible with that policy.
 
 ## Testing & coverage

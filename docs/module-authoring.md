@@ -1043,6 +1043,21 @@ spec:
 | `runAsGroup` | int64 | omitted (image default) | 0 | 4294967295 | gid the game container runs as |
 | `fsGroup` | int64 | omitted (no chown) | 0 | 4294967295 | gid the kubelet chowns volumes to |
 
+### Reserved in-pod ports
+
+The agent sidecar shares the pod's network namespace with the game
+container, so any TCP port the agent itself binds is reserved: a game
+template that also binds one of these loses (or wins) an arbitrary bind
+race with the sidecar container start order. Do not declare a game port
+of **8090** (the agent's mTLS control listener) or **9090** (the agent's
+plain-HTTP Prometheus metrics listener, `agent/cmd/main.go`'s
+`--metrics-addr`) in `spec.network.ports`.
+
+If a template's game genuinely needs one of these ports, pick a
+different port for the game and remap it at the game's own config
+layer where possible — the agent's ports are not configurable per
+template today.
+
 ### Capabilities (moderation + backup quiesce)
 
 `spec.capabilities` declares the console commands behind agent
