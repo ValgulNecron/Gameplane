@@ -72,7 +72,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-075 | bodyLimit(1 MiB) deadcaps /mods/upload and /files/write; declared limits ignored | api/ | review:api | S3 | fixed-unverified | #444 | | |
 | F-076 | config row missing returns 500 instead of 200 on idempotent reset | api/ | review:api | S4 | open | | | |
 | F-077 | Plain errors mapped to 500 instead of hand-written 400/409 | api/ | review:api | S4 | open | | | |
-| F-081 | kubeconfig and join command address is in-cluster ClusterIP (unreachable) | api/ | review:api | S3 | open | | | |
+| F-081 | kubeconfig and join command address is in-cluster ClusterIP (unreachable) | api/ | review:api | S3 | fixed-unverified | #464 | | |
 | F-082 | RevokeShareLink returns 500 on unknown id instead of 404 | api/ | review:api | S4 | open | | | |
 | F-083 | 201 responses have Content-Type text/plain instead of json | api/ | review:api | S4 | open | | | |
 | F-085 | Backfilled theme preference timestamps in SQLite format not RFC 3339 | api/ | review:api | S4 | open | | | |

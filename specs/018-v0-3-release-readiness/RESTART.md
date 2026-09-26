@@ -72,12 +72,13 @@ All of these still apply.
 - #454: group 14, F-044/F-045/F-048/F-049 (merged; findings `fixed-unverified`).
 - #455: group 22, F-126/F-137 (merged; findings `fixed-unverified`).
 - #434: design PR from session 3 (merged by the maintainer).
+- #464: group 17, F-081 (merged 2026-09-26; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Open
 
 - #460 and #461: held fixes the maintainer made on the devbox. The cloud session doesn't drive them.
-- Wave 2, opened in session 6 by workflow `wf_86f6ffc1-6e8` after opus review: #464 (group 17, F-081), #465 (group 35), #466 (group 43), #467 (group 41), #468 (group 47), #470 (group 39). Watch CI; the maintainer merges.
+- Wave 2, opened in session 6 by workflow `wf_86f6ffc1-6e8` after opus review: #465 (group 35), #466 (group 43), #467 (group 41), #468 (group 47), #470 (group 39). Watch CI; the maintainer merges.
 - #476: group 27, F-216/F-217 (plain agent metrics port 9090, PodMonitor without client cert, telemetry-receiver ServiceMonitor and Service label). Opus-approved. It includes the maintainer-approved `build_agent_container_test.go` edit.
 - #475: add-only agent tests that give the coverage gate a real margin (report: scratchpad/agentcov-report.md). Opus-approved. One fix-up commit carries a `Co-Authored-By: Claude Sonnet 5` trailer, which names the model that actually ran it (CLAUDE.md rule 11).
 
