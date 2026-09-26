@@ -60,7 +60,7 @@ func TestClusterActions_KubeconfigHappyPath(t *testing.T) {
 		},
 	}
 	r := chi.NewRouter()
-	MountClusterActions(r, k, true)
+	MountClusterActions(r, k, true, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cluster/kubeconfig", nil))
@@ -94,7 +94,7 @@ func TestClusterActions_KubeconfigCSRCreateError(t *testing.T) {
 		},
 	}
 	r := chi.NewRouter()
-	MountClusterActions(r, k, true)
+	MountClusterActions(r, k, true, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cluster/kubeconfig", nil))

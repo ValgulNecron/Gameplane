@@ -94,8 +94,30 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 	t.Run("port 8090 advertised by agent", func(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{}
 		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
-		if len(c.Ports) != 1 || c.Ports[0].ContainerPort != 8090 {
+		if len(c.Ports) != 2 || c.Ports[0].ContainerPort != 8090 {
 			t.Fatalf("Ports=%+v", c.Ports)
+		}
+	})
+
+	// F-216: the agent's separate plain-HTTP metrics listener
+	// (agent/cmd/main.go's --metrics-addr, default :9090) must be declared
+	// as a named containerPort so the chart's PodMonitor can target it by
+	// name (podMetricsEndpoints[].port) instead of a bare portNumber, which
+	// requires a recent Prometheus-Operator CRD version to exist at all.
+	t.Run("named metrics port 9090 advertised by agent", func(t *testing.T) {
+		tmpl := &gameplanev1alpha1.GameTemplate{}
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
+		var found bool
+		for _, p := range c.Ports {
+			if p.Name == "metrics" {
+				found = true
+				if p.ContainerPort != 9090 {
+					t.Fatalf("metrics containerPort=%d, want 9090", p.ContainerPort)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("Ports=%+v does not include a named metrics port", c.Ports)
 		}
 	})
 }

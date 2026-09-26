@@ -48,6 +48,32 @@ var Version = "dev"
 // a misdirected client from streaming something huge at us.
 const maxBody = 64 << 10
 
+// RFC 5424 §6.2.3/§6.2.4 field-length limits for APP-NAME and HOSTNAME.
+const (
+	maxAppNameLen  = 48
+	maxHostnameLen = 255
+)
+
+// validateRFC5424Field rejects a value that can't legally sit in an RFC 5424
+// APP-NAME or HOSTNAME field: both are 1*maxLen PRINTUSASCII (%d33-126), a range
+// that excludes space. A value containing a space or other non-printable
+// character shifts every field after it once a collector splits the header on
+// whitespace; an empty value is left alone here since it resolves to "-".
+func validateRFC5424Field(name, value string, maxLen int) error {
+	if value == "" {
+		return nil
+	}
+	if len(value) > maxLen {
+		return fmt.Errorf("%s %q is %d bytes, want at most %d", name, value, len(value), maxLen)
+	}
+	for _, r := range value {
+		if r < 33 || r > 126 {
+			return fmt.Errorf("%s %q contains %q, want only RFC 5424 PRINTUSASCII (33-126)", name, value, r)
+		}
+	}
+	return nil
+}
+
 type config struct {
 	listen      string
 	syslogAddr  string
@@ -83,6 +109,18 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
+// fallbackHostname returns the OS hostname for the RFC 5424 HOSTNAME field
+// when SYSLOG_HOSTNAME is unset. A lookup error or a hostname that fails
+// validateRFC5424Field yields "" instead, which the formatter renders as the
+// nil value "-", so an unusual OS hostname can't shift the header fields.
+func fallbackHostname(lookup func() (string, error)) string {
+	h, err := lookup()
+	if err != nil || validateRFC5424Field("hostname", h, maxHostnameLen) != nil {
+		return ""
+	}
+	return h
+}
+
 // server holds the resolved relay configuration and the syslog forwarder.
 type server struct {
 	pri        int
@@ -111,10 +149,15 @@ func newServer(cfg config) (*server, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown SEVERITY %q", cfg.severity)
 	}
+	if err := validateRFC5424Field("APP_NAME", cfg.appName, maxAppNameLen); err != nil {
+		return nil, err
+	}
+	if err := validateRFC5424Field("SYSLOG_HOSTNAME", cfg.hostname, maxHostnameLen); err != nil {
+		return nil, err
+	}
 	host := cfg.hostname
 	if host == "" {
-		// Best-effort: a missing hostname is valid RFC 5424 ("-"), set below.
-		host, _ = os.Hostname()
+		host = fallbackHostname(os.Hostname)
 	}
 	return &server{
 		pri:        fac*8 + sev,
