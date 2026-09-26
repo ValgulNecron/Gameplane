@@ -121,12 +121,12 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-150 | Required parameter with default accepts empty value | gameaction/ | review:gameaction | S4 | open | | | |
 | F-151 | Template spec claims non-deterministic function exists | gameaction/ | review:gameaction | S4 | open | | | |
 | F-152 | gameaction specs.md says Go 1.25, module is 1.26 | gameaction/ | review:gameaction | S4 | open | | | |
-| F-153 | Classify error returns differ from spec promise | gameproto/ | review:gameproto | S4 | open | | | |
-| F-154 | Terraria version string exceeds documented 32 KB cap | gameproto/ | review:gameproto | S4 | open | | | |
-| F-155 | BuildStatusResponse skips JSON validation contract | gameproto/ | review:gameproto | S4 | open | | | |
-| F-156 | Example code in package doc doesn't compile | gameproto/ | review:gameproto | S4 | open | | | |
-| F-157 | gameproto specs.md layout, tests, deps, versions stale | gameproto/ | review:gameproto | S4 | open | | | |
-| F-158 | Adding WakeProtocol needs CRD enum change not documented | gameproto/ | review:gameproto | S4 | open | | | |
+| F-153 | Classify error returns differ from spec promise | gameproto/ | review:gameproto | S4 | fixed-unverified | #470 | | |
+| F-154 | Terraria version string exceeds documented 32 KB cap | gameproto/ | review:gameproto | S4 | fixed-unverified | #470 | | |
+| F-155 | BuildStatusResponse skips JSON validation contract | gameproto/ | review:gameproto | S4 | fixed-unverified | #470 | | |
+| F-156 | Example code in package doc doesn't compile | gameproto/ | review:gameproto | S4 | fixed-unverified | #470 | | |
+| F-157 | gameproto specs.md layout, tests, deps, versions stale | gameproto/ | review:gameproto | S4 | fixed-unverified | #470 | | |
+| F-158 | Adding WakeProtocol needs CRD enum change not documented | gameproto/ | review:gameproto | S4 | fixed-unverified | #470 | | |
 | F-159 | Config enum field validation uses wrong field name | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
 | F-160 | CRD type enum missing boolean value | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |
 | F-161 | Schema validation skips required CRD fields | gp-module | review:gp-module | S3 | fixed-unverified | #441 | | |

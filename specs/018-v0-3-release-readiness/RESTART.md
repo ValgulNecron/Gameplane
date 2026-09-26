@@ -76,6 +76,7 @@ All of these still apply.
 - #465: group 35, F-107/F-109..F-111 (merged 2026-09-26; findings `fixed-unverified`).
 - #467: group 41, F-182..F-186/F-254 (F-181 already fixed by #446) (merged 2026-09-26; findings `fixed-unverified`).
 - #468: group 47, F-031/F-175/F-176 tunnel docs (merged 2026-09-26; findings `fixed-unverified`).
+- #470: group 39, F-153..F-158 gameproto (merged 2026-09-26; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Open
