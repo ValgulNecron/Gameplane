@@ -3,6 +3,7 @@ package httperr
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
@@ -80,6 +82,8 @@ func TestWrite_Classification(t *testing.T) {
 		{"invalid", apierrors.NewInvalid(schema.GroupKind{Group: "gameplane.local", Kind: "X"}, "n", nil), http.StatusUnprocessableEntity},
 		{"bad request", apierrors.NewBadRequest("nope"), http.StatusBadRequest},
 		{"empty body (io.EOF)", io.EOF, http.StatusBadRequest},
+		{"share link not found (F-082)", fmt.Errorf("revoke share link %q: %w", "x", db.ErrShareLinkNotFound), http.StatusNotFound},
+		{"share link not found, wrapped again", fmt.Errorf("handler: %w", db.ErrShareLinkNotFound), http.StatusNotFound},
 		{"unknown", errors.New("mystery"), http.StatusInternalServerError},
 	}
 	for _, tc := range cases {

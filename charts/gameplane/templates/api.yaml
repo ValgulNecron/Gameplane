@@ -324,6 +324,9 @@ spec:
             {{- end }}
             - --update-channel={{ $channel }}
             - --trusted-proxies={{ .Values.api.trustedProxies }}
+            {{- if .Values.clusterOps.externalAddress }}
+            - --cluster-external-address={{ .Values.clusterOps.externalAddress }}
+            {{- end }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:

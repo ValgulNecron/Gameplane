@@ -173,6 +173,10 @@ TestAPI_LifecycleRestart
 EOF
 }
 
+# TestAPI_OwnerOnlyServerOperations_RequireOwnerOrAdmin lives here for the
+# login budget, not by subject: api-roles is at its ceiling. It costs +1
+# e2e-admin login (bringing api-mods to 6) plus one login as its own
+# operator-role user.
 # TestAPI_BootstrapAdminForceEndsExistingSessions spends no e2e-admin login:
 # it logs in once as its own throwaway account (a fresh per-username bucket),
 # so it adds one login to this job's shared per-IP budget only.
@@ -182,6 +186,7 @@ TestAPI_ModUpload
 TestAPI_ModArchiveConfinement_PathTraversalRejected
 TestAPI_ModArchiveConfinement_SymlinkEscapeRejected
 TestAPI_ModArchiveConfinement_ValidArchiveExtracts
+TestAPI_OwnerOnlyServerOperations_RequireOwnerOrAdmin
 TestAPI_BootstrapAdminForceEndsExistingSessions
 EOF
 }

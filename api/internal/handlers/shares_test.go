@@ -585,6 +585,24 @@ func TestShareRevokeOwnerOnly(t *testing.T) {
 	}
 }
 
+// TestShareRevokeUnknownID_404 is the F-082 regression test: revoking a
+// share link id that does not exist must classify as 404 (via
+// db.ErrShareLinkNotFound + httperr), not the opaque 500 the string-typed
+// sentinel used to fall through to.
+func TestShareRevokeUnknownID_404(t *testing.T) {
+	store := newTestStore(t)
+	ownerID := insertShareTestUser(t, store, "owner-revoke-404")
+	reg := kube.NewRegistry("local")
+	reg.Set("local", fakeKubeClient(newShareTestServer("srv-revoke-404", ownerID)))
+	h := mountSharesRouter(reg, store)
+	owner := &auth.User{ID: ownerID, Username: "owner-revoke-404", Role: "admin"}
+
+	status, body := shareReq(t, h, "DELETE", "/servers/srv-revoke-404/shares/does-not-exist", nil, owner, "203.0.113.20:1")
+	if status != http.StatusNotFound {
+		t.Fatalf("unknown-id revoke status = %d, want 404; body=%s", status, body)
+	}
+}
+
 // TestShareClusterScoping verifies that share links are strictly bound to the cluster
 // where they were created. A link created for cluster A cannot resolve against cluster B,
 // and listing/revoking in cluster B does not touch shares belonging to cluster A.

@@ -136,8 +136,16 @@ that specific server, regardless of their namespace role. This is purely additiv
 — it does not override namespace bindings. Collaborators retain: read, console,
 WebSocket access, start/stop/restart/clone operations, and files/players/config
 subroutes. Destructive operations are owner-only: delete, wipe-data, ownership
-transfer, and collaborator list edits. Only the owner and users holding the
-namespace `servers:write` permission can perform owner-only operations. Backups,
+transfer, and collaborator list edits. Only the server's owner or an admin (a
+role holding `*` in the server's cluster and namespace) can perform owner-only
+operations. The namespace `servers:write` permission alone does not grant them,
+and a server with no recorded owner (for example one created with kubectl or
+GitOps) can be transferred, wiped or deleted only by an admin. The transfer,
+collaborator-edit and wipe patches are conditional on the server's
+`resourceVersion` as read by the ownership check: if the server changes in
+between (for example its ownership is transferred), the API re-reads it and
+repeats the check, so a caller who is no longer the owner is refused, and
+after three conflicting attempts the request fails with 409. Backups,
 restore jobs, schedules, and events remain namespace-gated in this release.
 
 ## Share links
@@ -212,6 +220,12 @@ When `networkPolicies.enabled=true` (default) the chart applies:
   liveness/readiness probes. By default targets RFC1918 + link-local ranges,
   or customizable via `networkPolicies.kubeletCIDRs`; probe ports via
   `networkPolicies.probePorts`.
+- `allow-prometheus-to-agent` — opt-in (rendered only when
+  `serviceMonitors.scrapeNamespaceSelector` is set) policy allowing Prometheus
+  pods in the selected namespace to reach the agent's plain-HTTP metrics port
+  (TCP 9090). That port is unauthenticated HTTP, not mTLS, and is otherwise
+  already reachable from `kubeletCIDRs` via `allow-kubelet-probes` above
+  unless `networkPolicies.probePorts` is narrowed to exclude it.
 - `allow-game-public-egress` — (enabled by default, gated by
   `networkPolicies.gameEgress.enabled`) allows game pods to reach the public
   internet for binary/asset/mod downloads. Set `networkPolicies.gameEgress.enabled: false`

@@ -2167,8 +2167,17 @@ func buildAgentContainer(
 		Args:         args,
 		Env:          env,
 		VolumeMounts: agentVolumeMounts(gs, tmpl, ver, mountPath),
-		Ports:        []corev1.ContainerPort{{Name: "agent", ContainerPort: 8090}},
-		Resources:    res,
+		// "agent" (8090) is the mTLS control port. "metrics" (9090) is the
+		// separate plain-HTTP Prometheus listener (agent/cmd/main.go's
+		// --metrics-addr); declaring it as a named containerPort lets the
+		// chart's agent PodMonitor target it by name (podMetricsEndpoints[].port)
+		// instead of a bare portNumber, which needs a recent
+		// Prometheus-Operator CRD version to exist at all.
+		Ports: []corev1.ContainerPort{
+			{Name: "agent", ContainerPort: 8090},
+			{Name: "metrics", ContainerPort: 9090},
+		},
+		Resources: res,
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot:             &nonRoot,
 			RunAsUser:                &uid,

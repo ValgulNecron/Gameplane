@@ -64,7 +64,9 @@ kind: Service
 metadata:
   name: gameplane-telemetry-receiver
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: gameplane-telemetry-receiver
+    {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   selector: { app.kubernetes.io/name: gameplane-telemetry-receiver }
   ports:
@@ -90,5 +92,27 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    {{- /*
+      F-217: /metrics shares this listener/port with /ingest, and until now
+      the only ingress rule was "from the API pod", so no in-cluster
+      Prometheus could ever reach /metrics regardless of the ServiceMonitor
+      above. /ingest still requires AUTH_TOKEN (see the receiver's
+      Deployment env above), so widening this rule to the operator's
+      configured Prometheus namespace doesn't expose it to unauthenticated
+      writes — it only lets that namespace's pods reach the port at all.
+      Rendered only once an operator actually names their Prometheus
+      namespace via serviceMonitors.scrapeNamespaceSelector; left empty,
+      this stays exactly as restrictive as before.
+    */}}
+    {{- with .Values.serviceMonitors.scrapeNamespaceSelector }}
+    {{- if $.Values.serviceMonitors.enabled }}
+    - from:
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: 8080
+    {{- end }}
+    {{- end }}
 {{- end }}
 {{- end }}

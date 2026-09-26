@@ -312,7 +312,7 @@ func main() {
 		handlers.MountNotifications(p, notifier, k8s, cfg.namespace)
 		handlers.MountAuthProviderSecrets(p, k8s, cfg.namespace)
 		handlers.MountCluster(p, k8s, store, Version, cfg.clusterOps, cfg.updateChannel)
-		handlers.MountClusterActions(p, k8s, cfg.clusterOps)
+		handlers.MountClusterActions(p, k8s, cfg.clusterOps, cfg.clusterExternalAddress)
 		handlers.MountClusters(p, reg, k8s, cfg.namespace)
 		handlers.MountEvents(p, reg)
 		handlers.MountDestinations(p, reg)
@@ -425,22 +425,23 @@ type config struct {
 	oidcRoleMappingOperatorParsed []string
 	oidcRoleMappingViewerParsed   []string
 
-	telemetryEndpoint  string
-	telemetryAuth      string
-	clusterOps         bool
-	updateChannel      string
-	curseforgeAPIKey   string
-	auditRetentionDays int
-	auditStdout        bool
-	auditWebhookURL    string
-	auditWebhookAuth   string
-	auditS3Endpoint    string
-	auditS3Bucket      string
-	auditS3Prefix      string
-	auditS3Region      string
-	auditS3Insecure    bool
-	auditS3AccessKey   string
-	auditS3SecretKey   string
+	telemetryEndpoint      string
+	telemetryAuth          string
+	clusterOps             bool
+	clusterExternalAddress string
+	updateChannel          string
+	curseforgeAPIKey       string
+	auditRetentionDays     int
+	auditStdout            bool
+	auditWebhookURL        string
+	auditWebhookAuth       string
+	auditS3Endpoint        string
+	auditS3Bucket          string
+	auditS3Prefix          string
+	auditS3Region          string
+	auditS3Insecure        bool
+	auditS3AccessKey       string
+	auditS3SecretKey       string
 
 	agentCABundle   string
 	agentClientCert string
@@ -485,6 +486,8 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	// never a flag.
 	c.telemetryAuth = envOr("GAMEPLANE_TELEMETRY_AUTH", "")
 	fs.BoolVar(&c.clusterOps, "cluster-ops", envOr("GAMEPLANE_CLUSTER_OPS", "") == "true", "enable credential-minting cluster ops (Add node, Download kubeconfig)")
+	fs.StringVar(&c.clusterExternalAddress, "cluster-external-address", envOr("GAMEPLANE_CLUSTER_EXTERNAL_ADDRESS", ""),
+		"external (node-routable) API server address, e.g. \"1.2.3.4:6443\" or \"https://k8s.example.com:6443\", used in the join command and downloaded kubeconfig instead of the in-cluster ClusterIP; empty = use the in-cluster address (may be unreachable from outside the cluster)")
 	fs.StringVar(&c.updateChannel, "update-channel", envOr("GAMEPLANE_UPDATE_CHANNEL", ""), "informational release-channel label shown in the dashboard (mirrors the chart's updates.channel; Gameplane upgrades happen via Helm)")
 	fs.StringVar(&c.curseforgeAPIKey, "curseforge-api-key", envOr("GAMEPLANE_CURSEFORGE_API_KEY", ""), "CurseForge API key (enables the CurseForge mod-registry provider; empty = hidden)")
 	fs.IntVar(&c.auditRetentionDays, "audit-retention-days", envOrInt("GAMEPLANE_AUDIT_RETENTION_DAYS", 0), "delete audit events older than this many days (0 = keep forever)")
