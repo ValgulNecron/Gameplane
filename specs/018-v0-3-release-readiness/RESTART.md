@@ -127,6 +127,7 @@ The cloud container restarted three times; the third restart (session 6, 2026-09
 - **Wave 3** (groups 25, 33, 37, 40, 45, 46, 49) was merged on 2026-09-26 as #477 to #483.
   - F-138: the maintainer approved removing the 7 exports that only tests use, and their test-only coverage (2026-09-26); this rides with wave 4.
   - Filed F-261 (a capture file deleted through the API still counts against the budget) and F-262 (the playit NetworkPolicy adds no egress ports); both ride with wave 4.
+- **Wave 4** (the maintainer said go on 2026-09-26): workflow `wf_a698c6cb`-style script at scratchpad/wave4.js, run `wf_3d169a04-ffb`. It covers groups 31, 34, 42 (plus F-261) and 52, plus F-138 (the removals the maintainer signed off: branch `fix/018-web-dead-test-only-exports`, worktree wtg138) and F-262 (`fix/018-tunnel-playit-egress`, wtg262). Wave 5 comes next: 38, 44, 48, 50.
 - **CodeRabbit:** the maintainer runs it by hand on every security PR, at most once per hour. Don't push to a security PR while its review is pending, and never treat a security PR as done until its review is back.
 - **F-107 (group 35):** the session-6 call is that the doc is wrong and the code is right. A failing *first* quiesce command leaves nothing paused, so `docs/module-authoring.md` is corrected; `quiesce.go` and `TestDeclaredQuiescer_FirstCommandErrorSkipsRollback` stay unchanged.
 
