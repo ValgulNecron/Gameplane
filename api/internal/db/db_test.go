@@ -485,6 +485,36 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 	if _, err := legacyDB.ExecContext(t.Context(), `CREATE INDEX idx_audit_ts ON audit_events(ts DESC)`); err != nil {
 		t.Fatalf("create audit_events index: %v", err)
 	}
+	// 001_init.sql also creates sessions, oidc_links and api_tokens; the
+	// fixture records 001 as applied, so migration 012's cleanup statements
+	// must find them.
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE sessions (
+    token       TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    csrf_token  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+)`); err != nil {
+		t.Fatalf("create sessions: %v", err)
+	}
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE oidc_links (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    issuer   TEXT NOT NULL,
+    subject  TEXT NOT NULL,
+    email    TEXT,
+    PRIMARY KEY (issuer, subject)
+)`); err != nil {
+		t.Fatalf("create oidc_links: %v", err)
+	}
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE api_tokens (
+    token       TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used   TEXT
+)`); err != nil {
+		t.Fatalf("create api_tokens: %v", err)
+	}
 	legacyDB.Close()
 
 	// Open with a new target path — adoption should happen.

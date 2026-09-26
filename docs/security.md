@@ -120,6 +120,12 @@ named set of permissions, and a user is bound to roles **per namespace**.
   closed.
 - **Lockout guards.** The API refuses to demote or delete the last user who
   can manage users, and refuses self-demotion below `users:manage`.
+- **Account removal.** `DELETE /users/{id}` removes the account and every row
+  tied to it in one transaction (SSO links, preferences, sessions, API
+  tokens, role bindings) and revokes the share links the account created.
+  The API does this itself rather than relying on foreign-key cascades,
+  which the shipped SQLite DSN leaves off. An SSO user who is deleted and
+  signs in again is provisioned as a new user.
 
 ### Per-GameServer access (owner + collaborators)
 
@@ -160,7 +166,7 @@ Share links (`api/internal/db/shares.go`, schema in `api/internal/db/migrations/
 
 **Expiry.** Every share link either has an expiry timestamp or is explicitly created with no expiry (owner's choice; see `specs/done_017-share-link-expiry/`). There is no platform-enforced maximum lifetime: a non-expiring or long-lived link is exactly as hard to guess on any given day as a short-lived one, because guessing difficulty comes from the token's entropy, not from its age. The tradeoff of a long-lived or non-expiring link is operational — a forgotten link stays live until the owner revokes it — not cryptographic, which is why the create-link UI warns the owner explicitly ("This link works until you revoke it." for no expiry; a long-lived-token warning for a custom date a year or more out) rather than the system silently capping the choice.
 
-**Revocation.** Revocation sets `revoked_at` (never a delete, preserving the audit trail) and is checked independently of, and prior to, any expiry check, so it applies uniformly regardless of whether the link expires, expires far in the future, or never expires.
+**Revocation.** Revocation sets `revoked_at` (never a delete, preserving the audit trail) and is checked independently of, and prior to, any expiry check, so it applies uniformly regardless of whether the link expires, expires far in the future, or never expires. `DELETE /servers/{name}/shares/{id}` revokes a link only when it belongs to that server (cluster, namespace and name); any other id answers 404. Deleting a user revokes every share link that user created.
 
 **Rate limiting.** The public resolve/start endpoints are rate-limited (`auth.ShareLimiter`) specifically because tokens are guessable-by-brute-force in principle (just computationally infeasible in practice); the rate limit is defense in depth against automated probing, not a substitute for token entropy.
 

@@ -262,7 +262,11 @@ func revokeShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		}
 
 		cl, _ := scope.ResolveCluster(req, reg)
-		if err := store.RevokeShareLink(req.Context(), cl, id); err != nil {
+		if err := store.RevokeShareLink(req.Context(), cl, ns, name, id); err != nil {
+			if errors.Is(err, db.ErrShareLinkNotFound) {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
 			httperr.Write(w, req, err)
 			return
 		}

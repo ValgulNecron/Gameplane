@@ -37,8 +37,9 @@ var ErrShareLinkInvalid = errors.New("invalid share link")
 // expiry (never expires) is always valid and skips this check entirely.
 var ErrShareLinkExpiryInvalid = errors.New("share link expiry invalid")
 
-// ErrShareLinkNotFound is returned by RevokeShareLink when no row matches
-// the given id (and cluster, when scoped). httperr classifies it as 404.
+// ErrShareLinkNotFound is returned by RevokeShareLink when no share link with
+// that id belongs to the given cluster, namespace and server. httperr
+// classifies it as 404.
 var ErrShareLinkNotFound = errors.New("share link not found")
 
 // CreateShareLink mints a new share link and returns the raw token, which is
@@ -289,20 +290,19 @@ func (s *Store) ListShareLinks(ctx context.Context, cluster, ns, serverName stri
 }
 
 // RevokeShareLink marks a share link as revoked by setting revoked_at to the
-// current timestamp. Revocation is scoped to cluster when provided and auditable (never a delete).
-func (s *Store) RevokeShareLink(ctx context.Context, cluster, id string) error {
-	revokedAt := time.Now().UTC().Format(time.RFC3339)
-	var res sql.Result
-	var err error
-	if cluster != "" {
-		res, err = s.DB.ExecContext(ctx,
-			`UPDATE share_links SET revoked_at = ? WHERE id = ? AND cluster = ?`,
-			revokedAt, id, cluster)
-	} else {
-		res, err = s.DB.ExecContext(ctx,
-			`UPDATE share_links SET revoked_at = ? WHERE id = ?`,
-			revokedAt, id)
+// current timestamp. The link must belong to the given cluster, namespace and
+// server; an empty cluster means "local", as in CreateShareLink. Revocation is
+// auditable (never a delete). It returns ErrShareLinkNotFound when no such
+// link exists.
+func (s *Store) RevokeShareLink(ctx context.Context, cluster, ns, serverName, id string) error {
+	if cluster == "" {
+		cluster = "local"
 	}
+	revokedAt := time.Now().UTC().Format(time.RFC3339)
+	res, err := s.DB.ExecContext(ctx,
+		`UPDATE share_links SET revoked_at = ?
+		 WHERE id = ? AND cluster = ? AND namespace = ? AND server_name = ?`,
+		revokedAt, id, cluster, ns, serverName)
 	if err != nil {
 		return fmt.Errorf("revoke share link: %w", err)
 	}

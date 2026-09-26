@@ -184,7 +184,7 @@ func TestCreateShareLink_NilExpiry_NeverExpires(t *testing.T) {
 	}
 
 	// A never-expiring link must still be revocable.
-	if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
+	if err := s.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID); err != nil {
 		t.Fatalf("revoke never-expiring link: %v", err)
 	}
 	if _, err := s.LookupShareLink(ctx, rawToken); !errors.Is(err, ErrShareLinkInvalid) {
@@ -320,7 +320,7 @@ func TestLookupShareLink_Revoked_Invalid(t *testing.T) {
 	}
 
 	// Revoke it.
-	if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
+	if err := s.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 
@@ -548,7 +548,7 @@ func TestRevokeShareLink_Success(t *testing.T) {
 	}
 
 	// Revoke it.
-	if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
+	if err := s.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 
@@ -579,7 +579,7 @@ func TestRevokeShareLink_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	// Try to revoke a nonexistent link.
-	err := s.RevokeShareLink(ctx, "local", "nonexistent-id")
+	err := s.RevokeShareLink(ctx, "local", "default", "server", "nonexistent-id")
 	if err == nil {
 		t.Fatal("expected error for nonexistent link, got nil")
 	}
@@ -594,13 +594,13 @@ func TestRevokeShareLink_NotFound_IsErrShareLinkNotFound(t *testing.T) {
 	s := newShareLinksStore(t)
 	ctx := context.Background()
 
-	err := s.RevokeShareLink(ctx, "local", "nonexistent-id")
+	err := s.RevokeShareLink(ctx, "local", "default", "server", "nonexistent-id")
 	if !errors.Is(err, ErrShareLinkNotFound) {
 		t.Fatalf("RevokeShareLink error = %v, want errors.Is(err, ErrShareLinkNotFound)", err)
 	}
 
 	// Same for the cluster-scoped path (cluster provided but no matching row).
-	err = s.RevokeShareLink(ctx, "some-cluster", "nonexistent-id")
+	err = s.RevokeShareLink(ctx, "some-cluster", "default", "server", "nonexistent-id")
 	if !errors.Is(err, ErrShareLinkNotFound) {
 		t.Fatalf("cluster-scoped RevokeShareLink error = %v, want errors.Is(err, ErrShareLinkNotFound)", err)
 	}
@@ -643,12 +643,12 @@ func TestShareLinks_ClusterScoping(t *testing.T) {
 	}
 
 	// Revoke linkB with cluster-a must fail
-	if err := s.RevokeShareLink(ctx, "cluster-a", linkB.ID); err == nil {
+	if err := s.RevokeShareLink(ctx, "cluster-a", linkB.Namespace, linkB.ServerName, linkB.ID); err == nil {
 		t.Fatal("expected error revoking cluster-b link with cluster-a, got nil")
 	}
 
 	// Revoke linkB with cluster-b must succeed
-	if err := s.RevokeShareLink(ctx, "cluster-b", linkB.ID); err != nil {
+	if err := s.RevokeShareLink(ctx, "cluster-b", linkB.Namespace, linkB.ServerName, linkB.ID); err != nil {
 		t.Fatalf("revoke linkB with cluster-b failed: %v", err)
 	}
 }
@@ -756,7 +756,7 @@ func TestRevocation_IndependentOfExpiryShape(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: create: %v", shape.name, err)
 		}
-		if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
+		if err := s.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID); err != nil {
 			t.Fatalf("%s: revoke: %v", shape.name, err)
 		}
 		if _, err := s.LookupShareLink(ctx, rawToken); !errors.Is(err, ErrShareLinkInvalid) {
@@ -854,5 +854,57 @@ func TestMigration010_ExpiresAtNullable(t *testing.T) {
 	}
 	if postExpiresAt.Valid {
 		t.Errorf("post-010 NULL expiry round-tripped as %q, want NULL", postExpiresAt.String)
+	}
+}
+
+// TestRevokeShareLink_ScopedToServer covers revocation scope: a link is
+// revoked only through the cluster, namespace and server it was created for.
+func TestRevokeShareLink_ScopedToServer(t *testing.T) {
+	s := newShareLinksStore(t)
+	ctx := context.Background()
+	userID := insertTestUser(t, s, "scoped-revoke")
+
+	rawToken, link, err := s.CreateShareLink(ctx, "local", "default", "srv-a", userID, false, nil)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	mismatched := []struct {
+		name, cluster, ns, server string
+	}{
+		{"other namespace", "local", "other", "srv-a"},
+		{"other server", "local", "default", "srv-b"},
+		{"other cluster", "remote", "default", "srv-a"},
+	}
+	for _, m := range mismatched {
+		if err := s.RevokeShareLink(ctx, m.cluster, m.ns, m.server, link.ID); !errors.Is(err, ErrShareLinkNotFound) {
+			t.Errorf("%s: got %v, want ErrShareLinkNotFound", m.name, err)
+		}
+	}
+
+	var revokedAt sql.NullString
+	if err := s.DB.QueryRowContext(ctx, `SELECT revoked_at FROM share_links WHERE id = ?`, link.ID).Scan(&revokedAt); err != nil {
+		t.Fatalf("query revoked_at: %v", err)
+	}
+	if revokedAt.Valid {
+		t.Fatalf("revoked_at = %q after mismatched revokes, want NULL", revokedAt.String)
+	}
+	if _, err := s.LookupShareLink(ctx, rawToken); err != nil {
+		t.Fatalf("link no longer resolves after mismatched revokes: %v", err)
+	}
+
+	if err := s.RevokeShareLink(ctx, "local", "default", "srv-a", link.ID); err != nil {
+		t.Fatalf("revoke with matching scope: %v", err)
+	}
+	if _, err := s.LookupShareLink(ctx, rawToken); !errors.Is(err, ErrShareLinkInvalid) {
+		t.Fatalf("lookup after revoke: got %v, want ErrShareLinkInvalid", err)
+	}
+}
+
+func TestRevokeShareLink_UnknownIDReturnsNotFound(t *testing.T) {
+	s := newShareLinksStore(t)
+	err := s.RevokeShareLink(context.Background(), "local", "default", "server", "nonexistent-id")
+	if !errors.Is(err, ErrShareLinkNotFound) {
+		t.Fatalf("got %v, want ErrShareLinkNotFound", err)
 	}
 }

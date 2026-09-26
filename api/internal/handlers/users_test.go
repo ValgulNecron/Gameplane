@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -545,5 +546,52 @@ func TestDeleteBinding_DefaultsAndDeletesCluster(t *testing.T) {
 		alice, "local", "team-a").Scan(&n)
 	if err != nil || n != 0 {
 		t.Fatalf("binding should be deleted, got count=%d err=%v", n, err)
+	}
+}
+
+// TestUsers_DeleteRemovesAccountRows verifies that DELETE /users/{id}
+// removes the account's SSO link, preferences, sessions and bindings, and
+// revokes the share links it created.
+func TestUsers_DeleteRemovesAccountRows(t *testing.T) {
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 999, Role: "admin"})
+	id := seedUser(t, store, "leaving-user", "viewer", "longenoughpw1")
+	ctx := t.Context()
+	for _, stmt := range []string{
+		`INSERT INTO oidc_links(user_id, issuer, subject, email) VALUES (?, 'https://idp.example', 'sub-leaving', 'leaving@example.com')`,
+		`INSERT INTO user_preferences(user_id) VALUES (?)`,
+		`INSERT INTO sessions(token, user_id, csrf_token, expires_at) VALUES ('sess-leaving', ?, 'csrf-leaving', '2999-01-01T00:00:00Z')`,
+		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, 'viewer', 'local', '*')`,
+	} {
+		if _, err := store.DB.ExecContext(ctx, stmt, id); err != nil {
+			t.Fatalf("seed %q: %v", stmt, err)
+		}
+	}
+	token, _, err := store.CreateShareLink(ctx, "local", "gameplane-games", "srv-leaving", id, false, nil)
+	if err != nil {
+		t.Fatalf("create share link: %v", err)
+	}
+
+	status, body := doReq(t, "DELETE", srv.URL+"/users/"+strconv.FormatInt(id, 10), nil)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete user: status=%d body=%s", status, body)
+	}
+
+	for _, q := range []string{
+		`SELECT COUNT(*) FROM users WHERE id = ?`,
+		`SELECT COUNT(*) FROM oidc_links WHERE user_id = ?`,
+		`SELECT COUNT(*) FROM user_preferences WHERE user_id = ?`,
+		`SELECT COUNT(*) FROM sessions WHERE user_id = ?`,
+		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ?`,
+	} {
+		var n int
+		if err := store.DB.QueryRowContext(ctx, q, id).Scan(&n); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		if n != 0 {
+			t.Errorf("%s = %d after delete, want 0", q, n)
+		}
+	}
+	if _, err := store.LookupShareLink(ctx, token); !errors.Is(err, db.ErrShareLinkInvalid) {
+		t.Errorf("share link after creator delete: got %v, want ErrShareLinkInvalid", err)
 	}
 }
