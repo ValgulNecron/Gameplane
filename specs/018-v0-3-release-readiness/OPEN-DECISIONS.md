@@ -21,11 +21,3 @@ Decision: drop the beta suffix (v0.3.0), status wording becomes pre-v1 release, 
 ## OD-004: Where findings and the report live — RESOLVED 2026-09-23
 
 Decision: files inside this spec folder. Recorded in `spec.md` Clarifications and FR-020.
-
-## OD-005: Fix group 37 residuals (F-138, F-141) — recorded 2026-09-26, worktree `wtg37`
-
-This worktree's checkout of `specs/018-v0-3-release-readiness/audit/findings.md` does not exist at the branch point used for fix group 37 (`fix/018-web-code-quality-and-docs`, based on current master), so these residuals are recorded here per CLAUDE.md rule 10 instead; they should be merged into `findings.md`'s F-138/F-141 entries by whoever next has write access to that file.
-
-**F-138 (dead-export removal) — left partly open.** The following exports are used only by their own tests, not by any app code, but were kept because removing a symbol that is still test-covered needs explicit sign-off (group rule): `RequireRole`, `hasRole`, `themeExportToUpdate`, `Modules.get`, `Schedules.get`, `BackupDestinations.get`, `Restores.remove`. Everything else provably dead (grepped across `web/src` including tests) was removed in this pass: `Users.getPreferences` and path-only `Shares` endpoint helpers (app and tests use `api.ts`'s `Shares` instead), the always-true tunnel guard in `CreateServer.tsx`, and `ServerCard`'s unused `onAct` prop (`LifecycleVerb` itself is still used).
-
-**F-141 (React/TS/Vite version claims) — fixed only the version facts, per group scope.** `web/specs.md` still has stale unrelated details nearby that were not touched: line references into `api.ts`, `ServerDetail.tsx`, and `Login.tsx`, plus the "nine sub-views" and "11 sections" counts. These were left alone since F-141's scope was the version numbers only (React 18→19, TypeScript 5.6→6.0, Vite 5.4→8.3 in `web/specs.md` and `CLAUDE.md`'s architecture table, matching `web/package.json`'s `react ^19.3.0`, `typescript ^6.0.3`, `vite ^8.3.0`); no other CLAUDE.md rule text was touched.
