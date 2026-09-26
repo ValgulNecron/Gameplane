@@ -73,6 +73,7 @@ All of these still apply.
 - #455: group 22, F-126/F-137 (merged; findings `fixed-unverified`).
 - #434: design PR from session 3 (merged by the maintainer).
 - #464: group 17, F-081 (merged 2026-09-26; findings `fixed-unverified`).
+- #465: group 35, F-107/F-109..F-111 (merged 2026-09-26; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Open
