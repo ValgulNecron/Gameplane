@@ -12,8 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/watch"
 
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/rbac"
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
@@ -45,6 +47,15 @@ func eventsHandler(reg *kube.Registry) http.HandlerFunc {
 			httperr.Write(w, req, err)
 			return
 		}
+		// The route itself needs servers:read. Each kind is then streamed
+		// only when the caller holds that kind's read permission (the one
+		// its GET route needs) in this cluster and namespace.
+		clusterID, err := scope.ResolveCluster(req, reg)
+		if err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		caller := auth.UserFromContext(req.Context())
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -62,6 +73,9 @@ func eventsHandler(reg *kube.Registry) http.HandlerFunc {
 		var wg sync.WaitGroup
 		for path, gvr := range kube.GVRs {
 			path, gvr := path, gvr
+			if !canReadKind(caller, path, clusterID, ns) {
+				continue
+			}
 			ri := k.Dynamic.Resource(gvr)
 			var watcher watch.Interface
 			if cluster(gvr) {
@@ -120,4 +134,19 @@ func eventsHandler(reg *kube.Registry) http.HandlerFunc {
 			flusher.Flush()
 		}
 	}
+}
+
+// canReadKind reports whether u may read the resource kind served at
+// /<path> in the given cluster and namespace, using the read permission
+// the rbac rule table requires for a GET of that path. An unknown path is
+// never readable.
+func canReadKind(u *auth.User, path, clusterID, ns string) bool {
+	perm, ok := rbac.ReadPermission(path)
+	if !ok {
+		return false
+	}
+	if perm == "" {
+		return u != nil
+	}
+	return u.Can(perm, rbac.Namespaced(perm), clusterID, ns)
 }
