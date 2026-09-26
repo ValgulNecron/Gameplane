@@ -750,6 +750,53 @@ jobs:
           grep -q 'name: allow-backup-restore-egress' /tmp/netpol.yaml
           awk '/name: allow-backup-restore-egress/,/^---$/' /tmp/netpol.yaml \
             | grep -q 'app.kubernetes.io/name: gameplane-backup-restore'
+      - name: observability scrape TLS/reachability render correctly (F-216, F-217)
+        # F-216 rationale: agent/specs.md's /metrics section. F-217: the
+        # telemetry-receiver needs its own ServiceMonitor, and both it and
+        # the agent PodMonitor need a NetworkPolicy exception for the
+        # configured Prometheus namespace once one is set via
+        # serviceMonitors.scrapeNamespaceSelector.
+        run: |
+          scrape_ns='serviceMonitors.scrapeNamespaceSelector={"matchLabels":{"kubernetes.io/metadata.name":"monitoring"}}'
+          helm template gameplane charts/gameplane \
+            --set serviceMonitors.enabled=true \
+            --set api.telemetry.receiver.enabled=true \
+            --set-json "$scrape_ns" \
+            --show-only templates/servicemonitors.yaml > /tmp/servicemonitors.yaml
+          awk '/kind: PodMonitor/,0' /tmp/servicemonitors.yaml | grep -q 'port: metrics'
+          if awk '/kind: PodMonitor/,0' /tmp/servicemonitors.yaml | grep -q 'scheme: https'; then
+            echo "::error::agent PodMonitor must not scrape over https"
+            exit 1
+          fi
+          if awk '/kind: PodMonitor/,0' /tmp/servicemonitors.yaml | grep -q 'tlsConfig'; then
+            echo "::error::agent PodMonitor must not carry a client-cert tlsConfig"
+            exit 1
+          fi
+          grep -q 'name: gameplane-telemetry-receiver' /tmp/servicemonitors.yaml
+          helm template gameplane charts/gameplane \
+            --set serviceMonitors.enabled=true \
+            --set-json "$scrape_ns" \
+            --show-only templates/networkpolicies.yaml > /tmp/netpol-scrape.yaml
+          awk '/name: allow-prometheus-to-agent/,/^---$/' /tmp/netpol-scrape.yaml \
+            | grep -q 'port: 9090'
+          helm template gameplane charts/gameplane \
+            --set serviceMonitors.enabled=true \
+            --set api.telemetry.receiver.enabled=true \
+            --set-json "$scrape_ns" \
+            --show-only templates/telemetry-receiver.yaml > /tmp/telemetry-receiver-scrape.yaml
+          awk '/kind: NetworkPolicy/,0' /tmp/telemetry-receiver-scrape.yaml \
+            | grep -q 'kubernetes.io/metadata.name: monitoring'
+          awk '/kind: Service/,/^---$/' /tmp/telemetry-receiver-scrape.yaml \
+            | grep -q 'app.kubernetes.io/name: gameplane-telemetry-receiver'
+          # scrapeNamespaceSelector unset (the chart default): neither
+          # exception renders, matching the pre-fix behavior.
+          helm template gameplane charts/gameplane \
+            --set serviceMonitors.enabled=true \
+            --show-only templates/networkpolicies.yaml > /tmp/netpol-default.yaml
+          if grep -q 'allow-prometheus-to-agent' /tmp/netpol-default.yaml; then
+            echo "::error::allow-prometheus-to-agent rendered without serviceMonitors.scrapeNamespaceSelector set"
+            exit 1
+          fi
       - name: games Namespace carries the keep policy
         # F-212: `helm uninstall` used to delete the games Namespace and
         # every GameServer/StatefulSet/PVC in it. Assert the Namespace is

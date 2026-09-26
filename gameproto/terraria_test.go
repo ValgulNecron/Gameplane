@@ -668,3 +668,64 @@ func TestClassifyTerrariaPayloadReadNonEOFError(t *testing.T) {
 		t.Errorf("expected 'read terraria frame payload' in error message, got: %v", err)
 	}
 }
+
+// TestReadTerrariaStringExceedsDocumentedCap tests that a version string
+// above the documented 32 KB cap (terrariaMaxStringLength) is rejected even
+// though enough bytes remain in the frame to satisfy the length prefix
+// (i.e., the cap is enforced independently of, and before, the
+// remaining-payload check). This guards against F-154: previously the
+// string was bounded only by the remaining frame payload (up to ~64 KB),
+// not by the 32 KB cap specs.md documents.
+func TestReadTerrariaStringExceedsDocumentedCap(t *testing.T) {
+	t.Parallel()
+
+	const oversizedLength = terrariaMaxStringLength + 8000 // e.g. ~40,000 bytes, per F-154's repro.
+
+	var buf bytes.Buffer
+	if err := writeTerrafia7BitEncodedInt(&buf, oversizedLength); err != nil {
+		t.Fatalf("write error: %v", err)
+	}
+	// Provide enough remaining bytes to satisfy the length prefix, so the
+	// only thing that can reject this is the documented cap, not a
+	// remaining-payload shortfall.
+	buf.Write(make([]byte, oversizedLength))
+
+	br := bytes.NewReader(buf.Bytes())
+	_, err := readTerrariaString(br)
+	if err == nil {
+		t.Fatalf("expected error for string length %d exceeding cap %d", oversizedLength, terrariaMaxStringLength)
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("exceeds max")) {
+		t.Errorf("expected 'exceeds max' in error message, got: %v", err)
+	}
+}
+
+// TestClassifyTerrariaErrorShape tests F-153: on a ConnectRequest parse
+// error (here, a version-string length prefix claiming more bytes than the
+// payload actually carries), TerrariaClassifier.Classify must return
+// (nil, err), per the Classifier interface contract in classifier.go, not a
+// non-nil Unknown result. This must hold even though a non-ConnectRequest
+// message type does correctly return a non-nil Unknown result (see
+// TestClassifyTerrariaDisconnectMessage).
+func TestClassifyTerrariaErrorShape(t *testing.T) {
+	t.Parallel()
+
+	// Build a ConnectRequest payload whose 7-bit-encoded string length (10)
+	// exceeds the 3 bytes of string data actually present.
+	var payload bytes.Buffer
+	if err := writeTerrafia7BitEncodedInt(&payload, 10); err != nil {
+		t.Fatalf("write error: %v", err)
+	}
+	payload.WriteString("abc")
+	data := buildTerrariaMessage(terrariaConnectRequest, payload.Bytes())
+
+	terraria := &TerrariaClassifier{}
+	result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(data)))
+
+	if err == nil {
+		t.Fatalf("expected error for truncated ConnectRequest version string, got nil (result=%v)", result)
+	}
+	if result != nil {
+		t.Errorf("expected nil result alongside error, got %v", result)
+	}
+}

@@ -325,6 +325,9 @@ spec:
             - --update-channel={{ $channel }}
             - --trusted-proxies={{ .Values.api.trustedProxies }}
             - --metrics-addr=:{{ .Values.api.metricsPort | default 9090 }}
+            {{- if .Values.clusterOps.externalAddress }}
+            - --cluster-external-address={{ .Values.clusterOps.externalAddress }}
+            {{- end }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:

@@ -38,21 +38,21 @@ func TestOwnership_Transfer(t *testing.T) {
 	MountOwnership(r, reg, store)
 
 	t.Run("rejects an unknown user", func(t *testing.T) {
-		rr := do(t, r, "POST", "/servers/alpha:transfer", map[string]any{"userId": 999999})
+		rr := doWithUser(t, r, "POST", "/servers/alpha:transfer", map[string]any{"userId": 999999}, testAdminUser())
 		if rr.Code != 404 {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
 	})
 
 	t.Run("requires a userId", func(t *testing.T) {
-		rr := do(t, r, "POST", "/servers/alpha:transfer", map[string]any{})
+		rr := doWithUser(t, r, "POST", "/servers/alpha:transfer", map[string]any{}, testAdminUser())
 		if rr.Code != 400 {
 			t.Fatalf("got %d", rr.Code)
 		}
 	})
 
 	t.Run("transfers to a valid user", func(t *testing.T) {
-		rr := do(t, r, "POST", "/servers/alpha:transfer", map[string]any{"userId": uid})
+		rr := doWithUser(t, r, "POST", "/servers/alpha:transfer", map[string]any{"userId": uid}, testAdminUser())
 		if rr.Code != 204 {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
@@ -81,21 +81,21 @@ func TestOwnership_SetCollaborators(t *testing.T) {
 	MountOwnership(r, reg, store)
 
 	t.Run("unknown userId rejected", func(t *testing.T) {
-		rr := do(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{999999}})
+		rr := doWithUser(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{999999}}, testAdminUser())
 		if rr.Code != 400 {
 			t.Fatalf("want 400 got %d", rr.Code)
 		}
 	})
 
 	t.Run("unknown username rejected", func(t *testing.T) {
-		rr := do(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"usernames": []string{"nobody"}})
+		rr := doWithUser(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"usernames": []string{"nobody"}}, testAdminUser())
 		if rr.Code != 400 {
 			t.Fatalf("want 400 got %d", rr.Code)
 		}
 	})
 
 	t.Run("happy path with IDs", func(t *testing.T) {
-		rr := do(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{bob}})
+		rr := doWithUser(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{bob}}, testAdminUser())
 		if rr.Code != 204 {
 			t.Fatalf("want 204 got %d body=%s", rr.Code, rr.Body)
 		}
@@ -115,12 +115,12 @@ func TestOwnership_SetCollaborators(t *testing.T) {
 
 	t.Run("replace semantics", func(t *testing.T) {
 		// First, set to alice.
-		rr := do(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{alice}})
+		rr := doWithUser(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{alice}}, testAdminUser())
 		if rr.Code != 204 {
 			t.Fatalf("first PUT: got %d", rr.Code)
 		}
 		// Then replace with charlie (alice should be gone).
-		rr = do(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{charlie}})
+		rr = doWithUser(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{charlie}}, testAdminUser())
 		if rr.Code != 204 {
 			t.Fatalf("second PUT: got %d", rr.Code)
 		}
@@ -141,9 +141,9 @@ func TestOwnership_SetCollaborators(t *testing.T) {
 
 	t.Run("empty list clears", func(t *testing.T) {
 		// Set some collaborators first.
-		_ = do(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{alice}})
+		_ = doWithUser(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{alice}}, testAdminUser())
 		// Then clear.
-		rr := do(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{}})
+		rr := doWithUser(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{}}, testAdminUser())
 		if rr.Code != 204 {
 			t.Fatalf("clear: got %d", rr.Code)
 		}

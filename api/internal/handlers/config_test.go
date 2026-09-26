@@ -80,6 +80,31 @@ func TestConfig_GetEmpty(t *testing.T) {
 	}
 }
 
+// TestConfig_ResetRoleMapping_NoAuthRowYet_Returns200 is the F-076
+// regression test: on a fresh install (no "auth" row has ever been
+// written) DELETE /admin/config/auth/role-mappings/{role} must return 200
+// (idempotent reset), not 500. The store here is freshly migrated per
+// newTestStore/newConfigServer, so no prior PUT has created the row —
+// resetRoleMapping's QueryRowContext hits sql.ErrNoRows on a store the
+// string comparison `err.Error() != "sql: no rows"` (actual message: "sql:
+// no rows in result set") never matched, which used to fall through to
+// httperr.Write as a 500.
+func TestConfig_ResetRoleMapping_NoAuthRowYet_Returns200(t *testing.T) {
+	srv, _ := newConfigServer(t)
+
+	status, body := doReq(t, "DELETE", srv.URL+"/admin/config/auth/role-mappings/admin", nil)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", status, body)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal: %v; body=%s", err, body)
+	}
+	if got["section"] != "auth" {
+		t.Fatalf("body = %s, want section=auth", body)
+	}
+}
+
 func TestConfig_PutThenGet(t *testing.T) {
 	srv, _ := newConfigServer(t)
 

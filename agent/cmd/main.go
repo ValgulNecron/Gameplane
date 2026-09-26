@@ -16,7 +16,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/actions"
 	"github.com/ValgulNecron/gameplane/agent/internal/auth"
@@ -42,6 +41,7 @@ var Version = "dev"
 func main() {
 	var (
 		addr         string
+		metricsAddr  string
 		dataRoot     string
 		rconHost     string
 		rconPort     int
@@ -61,6 +61,10 @@ func main() {
 		logLevel     string
 	)
 	flag.StringVar(&addr, "addr", ":8090", "HTTP listen address")
+	flag.StringVar(&metricsAddr, "metrics-addr", envOr("GAMEPLANE_METRICS_ADDR", ":9090"),
+		"listen address for the Prometheus metrics endpoint, separate from --addr and served "+
+			"without TLS or auth (empty = metrics not served); --addr's mTLS control mux never "+
+			"carries /metrics, so this port is what a PodMonitor scrapes")
 	flag.StringVar(&dataRoot, "data-root", "/data", "path under which file ops are rooted")
 	flag.StringVar(&rconHost, "rcon-host", "127.0.0.1", "RCON host (loopback in the pod)")
 	flag.IntVar(&rconPort, "rcon-port", 25575, "RCON port")
@@ -161,7 +165,10 @@ func main() {
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
-	r.Handle("/metrics", promhttp.Handler())
+	// Prometheus metrics are served by the separate plain listener below,
+	// never on this mTLS control mux: Prometheus has no agent client cert
+	// and isn't meant to be trusted with the console/files/RCON routes that
+	// cert would also unlock.
 
 	r.Group(func(protected chi.Router) {
 		protected.Use(authCheck.Middleware)
@@ -249,10 +256,39 @@ func main() {
 		}
 	}()
 
+	// Prometheus metrics get their own plain (no TLS, no auth) listener, so
+	// a scraper never needs the mTLS client cert that unlocks the control
+	// mux above.
+	var metricsSrv *http.Server
+	if metricsAddr != "" {
+		if metricsAddr == addr {
+			logger.Error("--metrics-addr must differ from --addr", "addr", addr)
+			os.Exit(1)
+		}
+		metricsSrv = newMetricsServer(metricsAddr)
+		go func() {
+			logger.Info("metrics listening", "addr", metricsAddr)
+			// Unlike the control listener above, a failure here (most often
+			// the game container's own process binding this port first: the
+			// agent shares the pod's network namespace with it, and this
+			// listener's port is only ever configured by the operator, not
+			// by the game template) must not exit the process — metrics are
+			// optional, and taking down the mTLS control plane over them
+			// would break console/files/RCON for a game that merely happens
+			// to use this TCP port for something else.
+			if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("metrics listen: Prometheus metrics will be unavailable", "err", err)
+			}
+		}()
+	}
+
 	<-ctx.Done()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	_ = srv.Shutdown(shutdownCtx)
+	if metricsSrv != nil {
+		_ = metricsSrv.Shutdown(shutdownCtx)
+	}
 }
 
 // envOr returns the environment variable value for key if set, or fallback otherwise.

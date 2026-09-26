@@ -173,7 +173,7 @@ func (h modulesHandler) install(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if in.Source == "" || in.Module == "" {
-		httperr.Write(w, req, errors.New("source and module are required"))
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("source and module are required"))
 		return
 	}
 	name := in.Name
@@ -181,7 +181,7 @@ func (h modulesHandler) install(w http.ResponseWriter, req *http.Request) {
 		name = in.Module
 	}
 	if !dnsLabelRE.MatchString(name) {
-		httperr.Write(w, req, errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
 		return
 	}
 
@@ -200,8 +200,7 @@ func (h modulesHandler) install(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, created)
+	writeJSONCreated(w, created)
 }
 
 func (h modulesHandler) upgrade(w http.ResponseWriter, req *http.Request) {

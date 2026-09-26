@@ -118,3 +118,40 @@ func mustAtoi(s string) int {
 	}
 	return n
 }
+
+// timeoutErr is a minimal net.Error that reports Timeout() == true, used to
+// exercise isTimeout's positive branch without depending on a real network
+// deadline firing.
+type timeoutErr struct{}
+
+func (timeoutErr) Error() string   { return "i/o timeout" }
+func (timeoutErr) Timeout() bool   { return true }
+func (timeoutErr) Temporary() bool { return true }
+
+// nonTimeoutNetErr is a net.Error that is NOT a timeout (e.g. a connection
+// reset surfaced through the net.Error interface).
+type nonTimeoutNetErr struct{}
+
+func (nonTimeoutNetErr) Error() string   { return "connection reset" }
+func (nonTimeoutNetErr) Timeout() bool   { return false }
+func (nonTimeoutNetErr) Temporary() bool { return false }
+
+func TestIsTimeout(t *testing.T) {
+	if !isTimeout(timeoutErr{}) {
+		t.Error("a net.Error with Timeout()==true should be reported as a timeout")
+	}
+	if isTimeout(nonTimeoutNetErr{}) {
+		t.Error("a net.Error with Timeout()==false should not be reported as a timeout")
+	}
+	if isTimeout(io.EOF) {
+		t.Error("a plain non-net.Error like io.EOF should not be reported as a timeout")
+	}
+	if isTimeout(nil) {
+		t.Error("nil should not be reported as a timeout")
+	}
+	// Wrapped timeout errors must still be detected via errors.As.
+	wrapped := &net.OpError{Op: "read", Err: timeoutErr{}}
+	if !isTimeout(wrapped) {
+		t.Error("a wrapped net.Error timeout should still be detected via errors.As")
+	}
+}
