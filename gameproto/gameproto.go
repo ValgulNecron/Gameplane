@@ -24,10 +24,13 @@
 // All parsing is defensive: bounded reads, explicit max packet sizes, no unbounded
 // allocations from length prefixes, and no panics on hostile input.
 //
-// Example usage:
+// Example usage (the sentinel wake-on-connect daemon is the primary consumer):
 //
 //	br := bufio.NewReader(conn)
-//	classifier := registry.Lookup("minecraft")
+//	classifier, ok := gameproto.Lookup("minecraft")
+//	if !ok {
+//		return errors.New("protocol not registered")
+//	}
 //	result, err := classifier.Classify(br)
 //	if err != nil {
 //		return err

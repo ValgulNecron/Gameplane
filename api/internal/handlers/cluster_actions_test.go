@@ -58,7 +58,7 @@ func clusterActionsClient(t *testing.T) *kube.Client {
 
 func TestClusterActions_DisabledReturns501(t *testing.T) {
 	r := chi.NewRouter()
-	MountClusterActions(r, clusterActionsClient(t), false)
+	MountClusterActions(r, clusterActionsClient(t), false, "")
 
 	for _, path := range []string{"/cluster/nodes:join", "/cluster/kubeconfig"} {
 		rr := httptest.NewRecorder()
@@ -72,7 +72,7 @@ func TestClusterActions_DisabledReturns501(t *testing.T) {
 func TestClusterActions_AddNodeCreatesBootstrapToken(t *testing.T) {
 	k := clusterActionsClient(t)
 	r := chi.NewRouter()
-	MountClusterActions(r, k, true)
+	MountClusterActions(r, k, true, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cluster/nodes:join", nil))
@@ -108,5 +108,59 @@ func TestClusterActions_AddNodeCreatesBootstrapToken(t *testing.T) {
 	}
 	if secs.Items[0].Type != corev1.SecretType("bootstrap.kubernetes.io/token") {
 		t.Fatalf("secret type = %q", secs.Items[0].Type)
+	}
+}
+
+// TestClusterActions_AddNodeUsesExternalAddress covers F-081: the join
+// command must use the configured external address, not the in-cluster
+// ClusterIP the API's own kube client talks to, when one is set.
+func TestClusterActions_AddNodeUsesExternalAddress(t *testing.T) {
+	k := clusterActionsClient(t)
+	r := chi.NewRouter()
+	MountClusterActions(r, k, true, "203.0.113.10:6443")
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cluster/nodes:join", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
+	}
+	var resp joinResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Endpoint != "203.0.113.10:6443" {
+		t.Fatalf("endpoint = %q, want the configured external address, not the in-cluster host", resp.Endpoint)
+	}
+	if !strings.Contains(resp.Command, "kubeadm join 203.0.113.10:6443 --token") {
+		t.Fatalf("command = %q", resp.Command)
+	}
+}
+
+// TestClusterActions_KubeconfigUsesExternalAddress covers F-081 for the
+// downloaded kubeconfig's "server:" field.
+func TestClusterActions_KubeconfigUsesExternalAddress(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	cs.PrependReactor("get", "certificatesigningrequests", signedCSRReactor)
+	k := &kube.Client{
+		Typed: cs,
+		Config: &rest.Config{
+			Host:            "https://10.0.0.1:6443",
+			TLSClientConfig: rest.TLSClientConfig{CAData: testCAPEM(t)},
+		},
+	}
+	r := chi.NewRouter()
+	MountClusterActions(r, k, true, "k8s.example.com:6443")
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cluster/kubeconfig", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "server: https://k8s.example.com:6443") {
+		t.Fatalf("kubeconfig should use the external address, got:\n%s", body)
+	}
+	if strings.Contains(body, "10.0.0.1") {
+		t.Fatalf("kubeconfig should not leak the in-cluster host once an external address is set:\n%s", body)
 	}
 }

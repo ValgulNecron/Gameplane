@@ -88,7 +88,7 @@ Whitespace (leading/trailing newlines, spaces) is trimmed from credential values
 | tailscale | `/tmp/gameplane-tunnel-tailscaled.json` | JSON | Rendered by `renderTailscaleConfig`; read by tailscaled via `--config` flag |
 | playit | `/tmp/gameplane-tunnel-playit-auth` | Raw text (secret key) | Rendered by `renderPlayitConfig`; read by playitd via `--secret-path` flag |
 
-All files are written with mode `0o600` (read/write by owner only) via `os.WriteFile` — see `renderFrpConfig`, `renderTailscaleConfig`, `renderPlayitConfig` in `main.go`. Files are cleaned up automatically when the relay process exits or the pod is terminated.
+All files are written with mode `0o600` (read/write by owner only) via `os.WriteFile` — see `renderFrpConfig`, `renderTailscaleConfig`, `renderPlayitConfig` in `main.go`. The rendered config file is removed by a deferred `os.Remove` when the supervisor's `run` returns (context cancellation or an unrecoverable error); it is not removed on SIGKILL or on each relay restart inside the backoff loop. tailscaled's `--state` file (`/tmp/tailscale.state`) is never removed by the process. All of these files live under `/tmp` in the pod's ephemeral, per-pod filesystem, so any that remain are discarded when the pod terminates and its filesystem is reclaimed.
 
 ### Relay Binaries and Command-Line Arguments
 
@@ -257,7 +257,7 @@ No third-party dependencies. The operator provides provider-specific binaries (f
 
 ## References
 
-- **Architecture:** `docs/architecture.md` § "tunnel"
+- **Architecture:** `docs/tunnels.md` (tunnel provider setup, wake-on-connect interaction, troubleshooting)
 - **CRD & operator integration:** `operator/internal/controller/gameserver_tunnel.go` (deployment creation, env var composition), `operator/internal/controller/tunnel_rbac.go` (RBAC for playit), `operator/api/v1alpha1/gameserver_types.go` (CRD fields)
 - **Consumers:** Operator (operator/internal/controller/gameserver_controller.go invokes planTunnel and reconcileTunnel), API (api/internal/handlers may report tunnel endpoints to dashboard)
 - **Related specs:** `operator/specs.md` (CRD reconciliation), `api/specs.md` (endpoint reporting)

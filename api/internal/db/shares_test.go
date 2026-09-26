@@ -585,6 +585,27 @@ func TestRevokeShareLink_NotFound(t *testing.T) {
 	}
 }
 
+// TestRevokeShareLink_NotFound_IsErrShareLinkNotFound is the F-082
+// regression test: RevokeShareLink's unknown-id error must satisfy
+// errors.Is(err, ErrShareLinkNotFound) so httperr.classify maps it to 404
+// instead of the opaque 500 default. See httperr_test.go's
+// "share link not found (F-082)" case for the classification side.
+func TestRevokeShareLink_NotFound_IsErrShareLinkNotFound(t *testing.T) {
+	s := newShareLinksStore(t)
+	ctx := context.Background()
+
+	err := s.RevokeShareLink(ctx, "local", "default", "server", "nonexistent-id")
+	if !errors.Is(err, ErrShareLinkNotFound) {
+		t.Fatalf("RevokeShareLink error = %v, want errors.Is(err, ErrShareLinkNotFound)", err)
+	}
+
+	// Same for the cluster-scoped path (cluster provided but no matching row).
+	err = s.RevokeShareLink(ctx, "some-cluster", "default", "server", "nonexistent-id")
+	if !errors.Is(err, ErrShareLinkNotFound) {
+		t.Fatalf("cluster-scoped RevokeShareLink error = %v, want errors.Is(err, ErrShareLinkNotFound)", err)
+	}
+}
+
 func TestShareLinks_ClusterScoping(t *testing.T) {
 	s := newShareLinksStore(t)
 	ctx := context.Background()

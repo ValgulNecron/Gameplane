@@ -32,14 +32,15 @@ type ShareLink struct {
 // an attacker probing tokens must not learn that one existed.
 var ErrShareLinkInvalid = errors.New("invalid share link")
 
-// ErrShareLinkNotFound is returned by RevokeShareLink when no share link with
-// that id belongs to the given cluster, namespace and server.
-var ErrShareLinkNotFound = errors.New("share link not found")
-
 // ErrShareLinkExpiryInvalid is returned by CreateShareLink when a given
 // expiry timestamp is invalid (zero or not strictly in the future). A nil
 // expiry (never expires) is always valid and skips this check entirely.
 var ErrShareLinkExpiryInvalid = errors.New("share link expiry invalid")
+
+// ErrShareLinkNotFound is returned by RevokeShareLink when no share link with
+// that id belongs to the given cluster, namespace and server. httperr
+// classifies it as 404.
+var ErrShareLinkNotFound = errors.New("share link not found")
 
 // CreateShareLink mints a new share link and returns the raw token, which is
 // never stored and never recoverable afterwards. expiresAt is optional: nil
@@ -312,7 +313,7 @@ func (s *Store) RevokeShareLink(ctx context.Context, cluster, ns, serverName, id
 		return fmt.Errorf("rows affected: %w", err)
 	}
 	if n == 0 {
-		return ErrShareLinkNotFound
+		return fmt.Errorf("revoke share link %q: %w", id, ErrShareLinkNotFound)
 	}
 
 	return nil

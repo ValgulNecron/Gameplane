@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -750,4 +752,35 @@ func parseHostPort(t *testing.T, serverURL string) (string, int) {
 	var port int
 	_, _ = fmt.Sscanf(portStr, "%d", &port)
 	return host, port
+}
+
+func TestIsAuthCloseSignal(t *testing.T) {
+	if isAuthCloseSignal(nil) {
+		t.Error("nil should not be an auth close signal")
+	}
+	if !isAuthCloseSignal(io.EOF) {
+		t.Error("io.EOF should be treated as an auth close signal")
+	}
+	if isAuthCloseSignal(errors.New("some unrelated error")) {
+		t.Error("an unrelated plain error should not be an auth close signal")
+	}
+
+	// A peer reset surfaced as a read *net.OpError wrapping ECONNRESET.
+	reset := &net.OpError{Op: "read", Err: syscall.ECONNRESET}
+	if !isAuthCloseSignal(reset) {
+		t.Error("a read ECONNRESET should be treated as an auth close signal")
+	}
+
+	// The same errno on a non-"read" op must NOT be treated as an auth
+	// signal (only a read-side reset is disambiguated as auth).
+	writeReset := &net.OpError{Op: "write", Err: syscall.ECONNRESET}
+	if isAuthCloseSignal(writeReset) {
+		t.Error("a write-side ECONNRESET should not be treated as an auth close signal")
+	}
+
+	// A read-side timeout is neither a close frame, EOF, nor ECONNRESET.
+	timeoutOp := &net.OpError{Op: "read", Err: timeoutErr{}}
+	if isAuthCloseSignal(timeoutOp) {
+		t.Error("a read timeout should not be treated as an auth close signal")
+	}
 }

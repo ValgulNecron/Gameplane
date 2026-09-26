@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -176,7 +178,7 @@ func (h *configHandler) resetRoleMapping(w http.ResponseWriter, req *http.Reques
 	var authJSON string
 	err := h.db.DB.QueryRowContext(req.Context(),
 		`SELECT value FROM config WHERE key = 'auth'`).Scan(&authJSON)
-	if err != nil && err.Error() != "sql: no rows" {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httperr.Write(w, req, err)
 		return
 	}
@@ -269,7 +271,7 @@ func (h *configHandler) detectAuthAuditEvents(ctx context.Context, newCanon json
 	var oldAuthJSON string
 	err := h.db.DB.QueryRowContext(ctx,
 		`SELECT value FROM config WHERE key = 'auth'`).Scan(&oldAuthJSON)
-	if err != nil && err.Error() != "sql: no rows" {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		// On query error, play it safe and emit no audit events.
 		return nil
 	}

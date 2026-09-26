@@ -2,7 +2,7 @@
 
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/gameproto`  
-**Dependencies:** stdlib only (Go 1.25+)
+**Dependencies:** stdlib only (Go 1.26+)
 
 ## Purpose
 
@@ -40,7 +40,9 @@ gameproto/
 ├── demo.go                   # Reference/stub DemoClassifier implementation (validates registry pattern)
 ├── minecraft_test.go         # Minecraft codec tests (+ classifier tests)
 ├── terraria_test.go          # Terraria codec tests (+ classifier tests)
-├── gameproto_test.go         # Public API integration tests (+ registry structure tests)
+├── classifier_golden_test.go # Golden/characterization tests locking in Classify() output across input scenarios
+├── demo_test.go              # DemoClassifier stub tests
+├── gameproto_test.go         # Kind.String() unit test
 ├── registry_test.go          # Protocol Registry tests
 ├── go.mod                    # (module, stdlib-only)
 └── .testcoverage.yml         # 90% coverage gate
@@ -274,7 +276,9 @@ To add a new game protocol (e.g., "factorio"):
    - Unit tests for Classify() and response builders
    - Comparison/equivalence tests if migrating from an existing implementation
 
-5. **That's it.** No changes to sentinel/main.go, gameproto.go, or any shared code.
+5. **Register the protocol with the operator's API too.** The steps above only make the sentinel able to classify the new protocol; a `GameTemplate`'s `wakeProtocol` field is a Kubernetes CRD enum (`operator/api/v1alpha1/gametemplate_types.go`, `+kubebuilder:validation:Enum=...`) that must list the new protocol name before any `GameTemplate` can select it. Add the name to that enum, then run `make generate && make manifests` and commit the regenerated `zz_generated.deepcopy.go`, `operator/config/crd/*.yaml`, and `charts/gameplane/crds/*.yaml` (an enum change does not touch RBAC). Without this step, `kubectl apply` on a template using the new `wakeProtocol` value is rejected with `Unsupported value`, even though the sentinel recognizes it.
+
+6. **That's it for shared Go code.** No further changes to sentinel/main.go, gameproto.go, or any other shared package are needed beyond the CRD enum update above.
 
 **Reference Template:** See `gameproto/demo.go` for a minimal stub implementation showing the pattern. DemoClassifier implements all four methods but always classifies as Unknown; it serves as a worked example that demonstrates the registry pattern requires zero edits to shared code when adding a protocol.
 
@@ -292,7 +296,7 @@ To add a new game protocol (e.g., "factorio"):
   [VarInt] next_state (1 = Status, 2 = Login)
 ```
 
-**Parsing:** Read the frame length (VarInt, 5 bytes max), reject if > 512 (minecraftMaxPacketSize), read the frame data, then parse packet fields inside. Strings are bounded at 32KB (Minecraft protocol limit). The packet ID must be 0x00; any other value returns Unknown.
+**Parsing:** Read the frame length (VarInt, 5 bytes max), reject if > 512 (minecraftMaxPacketSize), read the frame data, then parse packet fields inside. Strings are bounded at 32KB (Minecraft protocol limit). The packet ID must be 0x00; any other value is a parse error (`Classify` returns `nil, err`, matching the `Classifier` interface contract, not a non-nil Unknown result).
 
 **Classification:** next_state == 2 → Join; next_state == 1 → Status; anything else → Unknown.
 
@@ -311,7 +315,7 @@ To add a new game protocol (e.g., "factorio"):
 [UTF-8] version_string
 ```
 
-**Parsing:** Read 3-byte header (2-byte length LE + 1-byte type), validate length (>= 3, <= 65535), read payload (length - 3), then parse the message type. Only ConnectRequest (type 1) indicates a join; all other types or parse errors return Unknown.
+**Parsing:** Read 3-byte header (2-byte length LE + 1-byte type), validate length (>= 3, <= 65535), read payload (length - 3), then parse the message type. Only ConnectRequest (type 1) indicates a join; all other message types return a non-nil Unknown result, but a ConnectRequest payload that fails to parse (e.g., a malformed version string) is a parse error (`Classify` returns `nil, err`), not a non-nil Unknown result. Frame-level failures (a length prefix that is too short or exceeds 65535, or a truncated header or payload read) are likewise parse errors and return `nil, err`, not a non-nil Unknown result.
 
 **Classification:** message_type == 1 → Join; otherwise → Unknown.
 
@@ -345,7 +349,7 @@ Both defend against untrusted length prefixes: they bound the decoder loop to 5 
 
 2. **String length bounds:**
    - Minecraft: 32KB max (Minecraft protocol limit for string payloads).
-   - Terraria: 32KB max (derived from the 7-bit-encoded int max for a single message).
+   - Terraria: 32KB max (terrariaMaxStringLength, a defensive cap enforced in readTerrariaString before the remaining-payload check; not derived from the encoding).
 
 3. **VarInt decoder loops:**
    - Both Minecraft and Terraria VarInt decoders loop exactly 5 times. If the 5th byte has the continuation bit set, the decoder rejects the input (overflow), rather than reading a 6th byte.
@@ -376,8 +380,10 @@ Both defend against untrusted length prefixes: they bound the decoder loop to 5 
 
 - **`minecraft_test.go`:** Table-driven tests for VarInt codec, string parsing, handshake classification (various protocol versions, next-states, edge cases), response building (JSON escaping, large payloads), error cases (truncated input, oversized frames). Includes tests for MinecraftClassifier methods on identical wire bytes.
 - **`terraria_test.go`:** Similar coverage for 7-bit-encoded-int, Terraria message framing, ConnectRequest parsing, various message types (Join, Unknown, etc.), Disconnect message building. Tests for TerrariaClassifier methods.
-- **`gameproto_test.go`:** Integration tests verifying Classifiers work end-to-end, including replay contract (Consumed bytes can be re-read without duplication). Registry structure tests verifying all expected protocols are registered, no duplicates exist, and Lookup() works correctly.
-- **`registry_test.go`:** Tests for Lookup(name) success/failure, ListRegistered() output format and sorting, registry completeness. Covers DemoClassifier stub implementation verification.
+- **`gameproto_test.go`:** Unit test for `Kind.String()` across all declared values plus an out-of-range value.
+- **`classifier_golden_test.go`:** Golden/characterization tests exercising `MinecraftClassifier.Classify()` and `TerrariaClassifier.Classify()` end-to-end across input scenarios, including the replay contract (Consumed bytes can be re-read without duplication).
+- **`demo_test.go`:** Tests for `DemoClassifier.Classify()`, verifying it always returns a non-nil result with Kind == Unknown, nil Consumed, nil Detail, and nil error.
+- **`registry_test.go`:** Tests for Lookup(name) success/failure, ListRegistered() output format and sorting, registry completeness. Covers registry structure (all expected protocols registered, no duplicates).
 
 **Key test scenarios:**
 
@@ -407,9 +413,11 @@ Both defend against untrusted length prefixes: they bound the decoder loop to 5 
 - `bufio` — buffered readers for connection streams.
 - `bytes` — byte buffers for packet assembly and frame capture.
 - `encoding/binary` — big-endian (Minecraft) and little-endian (Terraria) integer encoding.
+- `encoding/json` — validating that a status-response payload is well-formed JSON.
 - `errors` — error wrapping and identity.
 - `fmt` — error formatting.
 - `io` — io.Reader, io.ReadFull, io.ByteReader interfaces.
+- `sort` — sorting registered protocol names for ListRegistered() output.
 - `strconv` — integer parsing (port numbers).
 - `strings` — string operations (handshake address parsing).
 
@@ -435,6 +443,6 @@ No external modules.
 - **`gameproto/demo.go`** — DemoClassifier reference implementation (demonstrates registry pattern requires zero edits to shared code when adding a protocol).
 - **`sentinel/main.go`** — usage: `Lookup(wakeProtocol).Classify()` and response builder methods (BuildStatusResponse, BuildDisconnect) for hold-and-forward logic. Calls ListRegistered() at startup for validation.
 - **`sentinel/main_test.go`** — tests for registry-based dispatcher; test doubles show how to construct wire bytes for testing.
-- **`test/e2e/tests/bot_*.go`** — e2e tests that launch real game bots to verify handshake replay doesn't corrupt joins.
+- **`test/e2e/*_bot_e2e_test.go`** (e.g. `minecraft_bot_e2e_test.go`, `terraria_bot_e2e_test.go`) and `test/e2e/wake_on_connect_e2e_test.go` — e2e tests that launch real game bots (or simulate a wake-on-connect dial) to verify handshake replay doesn't corrupt joins.
 - **`go.work`** — workspace linking gameproto to sentinel, operator, api, and other Go modules.
 - **`docs/architecture.md`** — overview of sentinel's wake-on-connect feature and gameproto's role.
