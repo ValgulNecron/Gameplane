@@ -55,16 +55,16 @@ const (
 )
 
 // validateRFC5424Field rejects a value that can't legally sit in an RFC 5424
-// APP-NAME or HOSTNAME field: both are 1*max PRINTUSASCII (%d33-126), a range
+// APP-NAME or HOSTNAME field: both are 1*maxLen PRINTUSASCII (%d33-126), a range
 // that excludes space. A value containing a space or other non-printable
 // character shifts every field after it once a collector splits the header on
 // whitespace; an empty value is left alone here since it resolves to "-".
-func validateRFC5424Field(name, value string, max int) error {
+func validateRFC5424Field(name, value string, maxLen int) error {
 	if value == "" {
 		return nil
 	}
-	if len(value) > max {
-		return fmt.Errorf("%s %q is %d bytes, want at most %d", name, value, len(value), max)
+	if len(value) > maxLen {
+		return fmt.Errorf("%s %q is %d bytes, want at most %d", name, value, len(value), maxLen)
 	}
 	for _, r := range value {
 		if r < 33 || r > 126 {

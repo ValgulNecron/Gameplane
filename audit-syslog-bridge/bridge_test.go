@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -386,6 +387,8 @@ func TestForwarder_ReconnectsAfterWriteFailure(t *testing.T) {
 			if err != nil {
 				return
 			}
+			// Bound the read so a missing frame can't park this goroutine.
+			_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 			buf := make([]byte, 256)
 			n, _ := conn.Read(buf)
 			acceptCh <- accepted{n: i + 1, data: string(buf[:n])}
@@ -431,43 +434,74 @@ func TestForwarder_ReconnectsAfterWriteFailure(t *testing.T) {
 // forwarder.write: a collector that accepts the connection but never drains
 // it must make Write fail once dialTimeout elapses, instead of blocking
 // forever.
+//
+// The forwarder dials lazily inside send, so the test must not wait for an
+// Accept before calling send. A background loop accepts (and holds, unread)
+// every connection until cleanup closes the listener and the held conns, and
+// send runs in its own goroutine so every wait is bounded by a timer.
 func TestForwarder_WriteDeadlineExceeded(t *testing.T) {
 	lc := &net.ListenConfig{}
 	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
 
-	accepted := make(chan struct{})
+	var (
+		heldMu sync.Mutex
+		held   []net.Conn
+	)
+	acceptDone := make(chan struct{})
 	go func() {
-		conn, err := ln.Accept()
-		if err != nil {
-			return
+		defer close(acceptDone)
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return // listener closed by cleanup
+			}
+			// Deliberately never Read: the kernel buffers fill and the
+			// forwarder's Write blocks until its deadline fires.
+			heldMu.Lock()
+			held = append(held, conn)
+			heldMu.Unlock()
 		}
-		close(accepted)
-		// Deliberately never Read: let the kernel send buffer fill so Write
-		// blocks, and hold the connection open past the deadline.
-		<-time.After(3 * time.Second)
-		conn.Close()
 	}()
+	t.Cleanup(func() {
+		_ = ln.Close()
+		select {
+		case <-acceptDone:
+		case <-time.After(5 * time.Second):
+			t.Error("accept loop did not exit after listener close")
+		}
+		heldMu.Lock()
+		for _, c := range held {
+			_ = c.Close()
+		}
+		heldMu.Unlock()
+	})
 
 	f := newForwarder("tcp", ln.Addr().String(), false, 200*time.Millisecond)
-	// Large enough to exceed typical kernel socket buffers so Write blocks
-	// until the deadline fires rather than completing immediately.
-	frame := make([]byte, 32<<20)
+	// Far larger than loopback send+receive socket buffers combined, so the
+	// write cannot complete while the peer never reads.
+	frame := make([]byte, 64<<20)
 
-	<-accepted
+	errCh := make(chan error, 1)
 	start := time.Now()
-	err = f.send(context.Background(), frame)
+	go func() { errCh <- f.send(context.Background(), frame) }()
+
+	select {
+	case err = <-errCh:
+	case <-time.After(10 * time.Second):
+		t.Fatal("send did not return; write deadline was not enforced")
+	}
 	elapsed := time.Since(start)
 	if err == nil {
 		t.Fatal("want a write-deadline error, got nil")
 	}
-	if !strings.Contains(err.Error(), "i/o timeout") && !errors.Is(err, os.ErrDeadlineExceeded) {
-		t.Errorf("err = %v, want a deadline-exceeded error", err)
+	var nerr net.Error
+	if !errors.Is(err, os.ErrDeadlineExceeded) && (!errors.As(err, &nerr) || !nerr.Timeout()) {
+		t.Errorf("err = %v, want a deadline-exceeded / timeout error", err)
 	}
-	if elapsed > 3*time.Second {
+	if elapsed > 5*time.Second {
 		t.Errorf("send took %s, want it bounded by the ~200ms write deadline (x2 for the retry)", elapsed)
 	}
 }
