@@ -173,6 +173,7 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 - **operator:** hardened module bundle integrity checks.
 - **web:** hardened the Admin Settings draft and managed-secret lifecycle.
 - **api:** hardened ownership checks on owner-only server operations.
+- **ci:** hardened the release signing order and the scope of the signing key.
 
 ## [0.3.0-rc.1] — 2026-09-23
 
