@@ -152,7 +152,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-184 | UDP source keying and cooldown packet counting misdocumented | sentinel | review:sentinel | S4 | fixed-unverified | #467 | | |
 | F-185 | Four specs.md statements contradict code | sentinel | review:sentinel | S4 | fixed-unverified | #467 | | |
 | F-186 | Dependencies, tests and doc references don't resolve | sentinel | review:sentinel | S4 | fixed-unverified | #467 | | |
-| F-187 | Retained captures evict pod when passing 1 GiB total | capture-sidecar | review:capture-sidecar | S3 | open | | | |
+| F-187 | Retained captures evict pod when passing 1 GiB total | capture-sidecar | review:capture-sidecar | S3 | fixed-unverified | #483 | | |
 | F-188 | Environment variables ignored; works by flag-default coincidence | capture-sidecar | review:capture-sidecar | S4 | open | | | |
 | F-189 | Specs.md lists 4 endpoints but code has 6; delete endpoint undocumented | capture-sidecar | review:capture-sidecar | S4 | open | | | |
 | F-190 | Four specs.md contradictions | capture-sidecar | review:capture-sidecar | S4 | open | | | |

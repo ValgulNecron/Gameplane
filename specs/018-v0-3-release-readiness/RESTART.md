@@ -87,6 +87,7 @@ All of these still apply.
 - #480: group 37, web code quality and docs (F-138 partial: 7 test-only exports kept pending sign-off) (merged 2026-09-26; findings `fixed-unverified`).
 - #481: group 46, svcutil docs (merged 2026-09-26; findings `fixed-unverified`).
 - #482: group 49, e2e docs drift (merged 2026-09-26; findings `fixed-unverified`).
+- #483: group 25, capture-sidecar retention budget (follow-up: API-deleted capture files still count until pod restart) (merged 2026-09-26; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Open
