@@ -19,6 +19,6 @@ var (
 	GetArchetype = internalarch.GetArchetype
 	// AllArchetypes returns all built-in archetypes.
 	AllArchetypes = internalarch.AllArchetypes
-	// PlaceholderIconBytes returns default 128x128 PNG icon bytes.
+	// PlaceholderIconBytes returns default 256x256 PNG icon bytes.
 	PlaceholderIconBytes = internalarch.PlaceholderIconBytes
 )

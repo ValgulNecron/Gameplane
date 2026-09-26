@@ -135,7 +135,7 @@ func validateImageDigest(node *yaml.Node, rawContent string) []Finding {
 		Column:      imgNode.Column,
 		Field:       "spec.image",
 		Message:     fmt.Sprintf("default image %q is not pinned with @sha256 digest", val),
-		Remediation: "Pin image digest using 'gp-module pin' / 'make module-pin' or append '# gameplane:floating' if intentionally dynamic.",
+		Remediation: "Resolve the tag to a digest (e.g. 'docker buildx imagetools inspect <image>' or 'crane digest <image>') and append '@sha256:<digest>' to spec.image, or append '# gameplane:floating' if intentionally dynamic. 'make module-pin' re-resolves every module in the catalog and is meant for the periodic refresh job, not a single module.",
 	})
 
 	return findings

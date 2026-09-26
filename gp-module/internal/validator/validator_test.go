@@ -821,3 +821,78 @@ spec:
 		t.Errorf("expected image-unpinned error in findings")
 	}
 }
+
+func TestValidate_GameplaneMinVersionExceedsTool(t *testing.T) {
+	pinnedTemplate := []byte(`apiVersion: gameplane.io/v1alpha1
+kind: GameTemplate
+metadata:
+  name: test-mod
+spec:
+  game: test
+  displayName: Test Mod
+  version: "1.0.0"
+  image: "docker.io/mygame/server:latest@sha256:4b9a8e23f0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"
+`)
+
+	t.Run("above tool version warns", func(t *testing.T) {
+		files := map[string][]byte{
+			"module.yaml": []byte(`apiVersion: gameplane.local/module/v1
+name: test-mod
+displayName: Test Mod
+version: 1.0.0
+game: test
+summary: Test
+gameplaneMinVersion: 9.0.0
+`),
+			"template.yaml": pinnedTemplate,
+			"README.md":     []byte("# Test\n"),
+		}
+
+		report, err := ValidateFiles("test-mod", files, ValidateOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var found *Finding
+		for i, f := range report.Findings {
+			if f.RuleID == RuleMinVersionExceedsTool {
+				found = &report.Findings[i]
+			}
+		}
+		if found == nil {
+			t.Fatalf("expected a %s finding, got %+v", RuleMinVersionExceedsTool, report.Findings)
+		}
+		if found.Level != SeverityWarn {
+			t.Errorf("expected %s finding to be a warning, got %s", RuleMinVersionExceedsTool, found.Level)
+		}
+		if !report.Clean {
+			t.Errorf("expected report to stay clean on a warning without --strict, got findings: %+v", report.Findings)
+		}
+	})
+
+	t.Run("at or below tool version is silent", func(t *testing.T) {
+		files := map[string][]byte{
+			"module.yaml": []byte(`apiVersion: gameplane.local/module/v1
+name: test-mod
+displayName: Test Mod
+version: 1.0.0
+game: test
+summary: Test
+gameplaneMinVersion: 1.0.0
+`),
+			"template.yaml": pinnedTemplate,
+			"README.md":     []byte("# Test\n"),
+		}
+
+		report, err := ValidateFiles("test-mod", files, ValidateOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, f := range report.Findings {
+			if f.RuleID == RuleMinVersionExceedsTool {
+				t.Errorf("did not expect a %s finding for gameplaneMinVersion == tool version, got %+v", RuleMinVersionExceedsTool, f)
+			}
+		}
+	})
+}

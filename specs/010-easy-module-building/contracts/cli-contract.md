@@ -63,7 +63,8 @@ Usage: gp-module init [NAME] [options]
 | `--overwrite`, `-f` | Flag | `False` | Force overwriting existing directory. |
 
 #### Behavior:
-- In interactive mode (default when attached to a TTY and missing arguments), prompts the user for missing fields with sensible defaults shown in brackets.
+- In interactive mode (default unless `--non-interactive`/`-y` is set), prompts the user for missing fields with sensible defaults shown in brackets.
+- There is no TTY detection: `init` will block on `os.Stdin` even when not attached to a terminal, so scripted/CI invocations must pass `--non-interactive`/`-y` explicitly.
 - Validates the module name against DNS-1123 label constraints before creating directories.
 - If target directory exists and `--overwrite` is not set, exits with code 1 and a non-destructive error message.
 
@@ -90,13 +91,13 @@ Usage: gp-module validate [MODULE_PATH...] [options]
 #### Output Format (Human-Readable):
 ```text
 == modules/my-game ==
-  ERROR [template.yaml:45] [invalid-port-number] port 70000 exceeds maximum allowable port 65535.
-    -> Remediation: Change containerPort to a valid port number between 1 and 65535.
-  WARN  [module.yaml:7] [custom-category] category 'MyCustomCat' is not in canonical catalog taxonomy.
-    -> Remediation: Choose from [Survival, Sandbox, Shooter, Simulation, Building, Adventure, Horror, Co-op, PvP, Modded, Creative].
+  ERROR [invalid-port-number] template.yaml:45:7: port 70000 exceeds maximum allowable port 65535.
+        Remediation: Change containerPort to a valid port number between 1 and 65535.
+  WARN  [custom-category] module.yaml:7: category 'MyCustomCat' is not in canonical catalog taxonomy.
+        Remediation: Choose from [Survival, Sandbox, Shooter, Simulation, Building, Adventure, Horror, Co-op, PvP, Modded, Creative].
 
 ---
-SUMMARY: 0 clean, 0 warn-only, 1 with errors (of 1 scanned).
+SUMMARY: 1 module(s) checked, 1 error(s), 1 warning(s).
 ```
 
 ---
@@ -118,7 +119,7 @@ Usage: gp-module preview <MODULE_PATH> [options]
 | `--memory <qty>` | String | `4Gi` | Simulated container memory limit for computing `autoFromMemoryLimit` fields (e.g. `4Gi`, `2048Mi`). |
 | `--config <key=val>` | String (repeatable) | Empty | Provide custom configuration values to simulate server creation. |
 | `--config-file <path>`| Path | None | Path to a YAML/JSON file of key-value configuration values. |
-| `--format <type>` | Enum (`yaml`, `json`, `text`) | `text` | Output presentation format. |
+| `--json` | Flag | `False` | Output the preview as machine-readable JSON instead of the default human-readable text. |
 
 #### Output Content:
 - Effective container image (resolved version image or fallback default).

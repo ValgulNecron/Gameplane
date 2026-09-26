@@ -30,7 +30,7 @@ bin/gp-module init cs2-match \
   --archetype=steamcmd \
   --display-name="Counter-Strike 2 Match" \
   --image="ghcr.io/valgulnecron/cs2:latest@sha256:4b9a8e23f0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7" \
-  --ports="game:27015/udp:adv" \
+  --ports="27015/udp" \
   --categories="Shooter,Co-op"
 ```
 
@@ -40,7 +40,7 @@ Run static offline linting and validation on metadata, CRD schemas, image digest
 
 ```sh
 # Validate a single module
-make module-validate MODULE=modules/cs2-match
+make module-validate MODULE=cs2-match
 
 # Validate all modules with strict diagnostics
 bin/gp-module validate modules/* --strict
@@ -55,7 +55,7 @@ Simulate server creation from `template.yaml`, evaluating dynamic memory limits 
 
 ```sh
 # Preview runtime config with an 8Gi memory limit
-make module-preview MODULE=modules/minecraft-java MEMORY=8Gi
+make module-preview MODULE=minecraft-java MEMORY=8Gi
 
 # Simulate with custom user configuration
 bin/gp-module preview modules/minecraft-java \
@@ -70,7 +70,7 @@ Enforce asset size limits (icon $\le$ 512 KiB, bundle $\le$ 1 MiB) and export to
 
 ```sh
 # Package into a local tar.gz bundle
-make module-package MODULE=modules/cs2-match OUTPUT=dist/cs2-match.tar.gz
+make module-package MODULE=cs2-match OUTPUT=dist/cs2-match.tar.gz
 
 # Push OCI artifact to registry
 bin/gp-module package modules/cs2-match \
@@ -135,10 +135,9 @@ regenerate and commit it (in the submodule):
 make module-schema      # hack/gen-module-schema.py → modules/.schema/gametemplate.schema.json
 ```
 
-`template.yaml` is the same `GameTemplate` you would write today, with one
-difference: omit `metadata.name`. The name is set on install from
-`module.yaml#name`, so a single bundle can be installed under different
-names if needed.
+`template.yaml` is the same `GameTemplate` you would write today, including
+`metadata.name`. `gp-module validate` requires `metadata.name` to be present
+and non-empty, and `gp-module init` scaffolds it to match the module name.
 
 ## `module.yaml` schema
 
@@ -620,6 +619,12 @@ Because pinning stops upstream releases from arriving on their own, the
 pin and open a PR. It never auto-merges: each changed digest is a game binary
 that changes for every server on its next restart, which is exactly the event
 worth a human's attention.
+
+`make module-pin` re-resolves every module in the catalog and is meant for
+that periodic refresh job, not for pinning the one module you're authoring.
+To pin a single `spec.image` by hand, resolve the tag to a digest with
+`docker buildx imagetools inspect <image>` or `crane digest <image>` and
+append `@sha256:<digest>` to the image reference yourself.
 
 ### Config schema → wizard
 

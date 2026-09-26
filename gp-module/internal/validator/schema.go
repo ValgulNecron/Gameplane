@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -200,20 +202,78 @@ func validateModuleSchema(node *yaml.Node) []Finding {
 
 	// Check gameplaneMinVersion semver if present
 	gpMinNode := common.FindNode(node, "gameplaneMinVersion")
-	if gpMinNode != nil && gpMinNode.Value != "" && !minVerRegex.MatchString(gpMinNode.Value) {
-		findings = append(findings, Finding{
-			Level:       SeverityError,
-			RuleID:      RuleMetadataSchemaViolation,
-			File:        "module.yaml",
-			Line:        gpMinNode.Line,
-			Column:      gpMinNode.Column,
-			Field:       "gameplaneMinVersion",
-			Message:     fmt.Sprintf("gameplaneMinVersion %q is not a valid semver", gpMinNode.Value),
-			Remediation: "Review error line and correct invalid field format according to module.schema.json.",
-		})
+	if gpMinNode != nil && gpMinNode.Value != "" {
+		if !minVerRegex.MatchString(gpMinNode.Value) {
+			findings = append(findings, Finding{
+				Level:       SeverityError,
+				RuleID:      RuleMetadataSchemaViolation,
+				File:        "module.yaml",
+				Line:        gpMinNode.Line,
+				Column:      gpMinNode.Column,
+				Field:       "gameplaneMinVersion",
+				Message:     fmt.Sprintf("gameplaneMinVersion %q is not a valid semver", gpMinNode.Value),
+				Remediation: "Review error line and correct invalid field format according to module.schema.json.",
+			})
+		} else if exceeds, err := semverExceeds(gpMinNode.Value, ToolVersion); err == nil && exceeds {
+			findings = append(findings, Finding{
+				Level:  SeverityWarn,
+				RuleID: RuleMinVersionExceedsTool,
+				File:   "module.yaml",
+				Line:   gpMinNode.Line,
+				Column: gpMinNode.Column,
+				Field:  "gameplaneMinVersion",
+				Message: fmt.Sprintf("gameplaneMinVersion %q is newer than this gp-module (%s); an operator running the same or an older release will refuse this module",
+					gpMinNode.Value, ToolVersion),
+				Remediation: "Lower gameplaneMinVersion to match a released Gameplane version, or upgrade gp-module/the operator before publishing.",
+			})
+		}
 	}
 
 	return findings
+}
+
+// semverExceeds reports whether a is a strictly higher release than b, using
+// the same major.minor.patch (ignoring any pre-release/build metadata
+// suffix) that gameplaneMinVersion and gp-module's own version follow. It
+// errors if either string doesn't parse as at least major.minor.patch,
+// so callers should validate with minVerRegex/semverRegex first.
+func semverExceeds(a, b string) (bool, error) {
+	aParts, err := parseSemverCore(a)
+	if err != nil {
+		return false, err
+	}
+	bParts, err := parseSemverCore(b)
+	if err != nil {
+		return false, err
+	}
+	for i := 0; i < 3; i++ {
+		if aParts[i] != bParts[i] {
+			return aParts[i] > bParts[i], nil
+		}
+	}
+	return false, nil
+}
+
+// parseSemverCore extracts the [major, minor, patch] integers from the front
+// of a semver string, ignoring any "-prerelease" or "+build" suffix.
+func parseSemverCore(v string) ([3]int, error) {
+	var out [3]int
+	core := v
+	if i := strings.IndexAny(core, "-+"); i >= 0 {
+		core = core[:i]
+	}
+	parts := strings.SplitN(core, ".", 3)
+	if len(parts) != 3 {
+		return out, fmt.Errorf("version %q is not in major.minor.patch form", v)
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return out, fmt.Errorf("version %q has a non-numeric component %q: %w", v, p, err)
+		}
+		out[i] = n
+	}
+	return out, nil
 }
 
 // validateTemplateSchema checks template.yaml against GameTemplate CRD basics.

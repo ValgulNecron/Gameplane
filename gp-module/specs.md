@@ -2,7 +2,7 @@
 
 **Status:** Active Development  
 **Module / command:** `github.com/ValgulNecron/gameplane/gp-module`  
-**Dependencies:** `gopkg.in/yaml.v3`, `k8s.io/apimachinery`, `github.com/ValgulNecron/gameplane/operator/api/v1alpha1` (Go 1.26+)
+**Dependencies:** `gopkg.in/yaml.v3`, `k8s.io/apimachinery` (Go 1.26+)
 
 ## Purpose
 
@@ -49,10 +49,8 @@ gp-module/
 │   └── validator/                # Validation and finding reports
 ├── internal/
 │   ├── archetypes/
-│   │   ├── archetypes.go         # Archetype definitions and embedded icon asset
-│   │   ├── steamcmd.go           # SteamCMD dedicated server preset
-│   │   ├── java.go               # Java application server preset
-│   │   └── generic.go            # Generic container server preset
+│   │   ├── archetypes.go         # Archetype definitions (steamcmd, java, generic) and placeholder icon generator
+│   │   └── archetypes_test.go    # Archetype unit tests
 │   ├── common/
 │   │   ├── validation.go         # DNS-1123 validation and naming helpers
 │   │   └── yaml_ast.go           # YAML AST line-number locator utilities
