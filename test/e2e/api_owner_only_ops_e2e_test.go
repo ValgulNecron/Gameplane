@@ -27,8 +27,8 @@ func TestAPI_OwnerOnlyServerOperations_RequireOwnerOrAdmin(t *testing.T) {
 	t.Parallel()
 
 	const ns = "gameplane-games"
-	const tmpl = "e2e-owner-only-tmpl"
 	suffix := time.Now().UnixNano()
+	tmpl := fmt.Sprintf("e2e-owner-only-tmpl-%d", suffix)
 	adminServer := fmt.Sprintf("e2e-owner-only-admin-%d", suffix)
 	opServer := fmt.Sprintf("e2e-owner-only-op-%d", suffix)
 	opServer2 := fmt.Sprintf("e2e-owner-only-op2-%d", suffix)

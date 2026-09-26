@@ -1,13 +1,20 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
@@ -227,4 +234,267 @@ func TestLifecycle_WipeDataRequiresOwnerOrAdmin(t *testing.T) {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
 	})
+}
+
+// enforcePatchResourceVersion makes the fake dynamic client behave like the
+// API server for GameServer merge patches that carry
+// metadata.resourceVersion: a value that differs from the stored object's
+// is rejected with 409 Conflict. The stock fake applies such patches
+// unconditionally.
+func enforcePatchResourceVersion(t *testing.T, k *kube.Client) {
+	t.Helper()
+	dyn, ok := k.Dynamic.(*dynamicfake.FakeDynamicClient)
+	if !ok {
+		t.Fatalf("dynamic client is %T, want *fake.FakeDynamicClient", k.Dynamic)
+	}
+	gvr := kube.GVRs["servers"]
+	dyn.PrependReactor("patch", gvr.Resource, func(action clienttesting.Action) (bool, runtime.Object, error) {
+		pa, ok := action.(clienttesting.PatchAction)
+		if !ok {
+			return false, nil, nil
+		}
+		var body struct {
+			Metadata struct {
+				ResourceVersion string `json:"resourceVersion"`
+			} `json:"metadata"`
+		}
+		if err := json.Unmarshal(pa.GetPatch(), &body); err != nil {
+			return true, nil, err
+		}
+		if body.Metadata.ResourceVersion == "" {
+			return false, nil, nil
+		}
+		cur, err := dyn.Tracker().Get(gvr, pa.GetNamespace(), pa.GetName())
+		if err != nil {
+			return true, nil, err
+		}
+		m, err := meta.Accessor(cur)
+		if err != nil {
+			return true, nil, err
+		}
+		if m.GetResourceVersion() != body.Metadata.ResourceVersion {
+			return true, nil, apierrors.NewConflict(gvr.GroupResource(), pa.GetName(),
+				errors.New("the object has been modified; please apply your changes to the latest version and try again"))
+		}
+		return false, nil, nil
+	})
+}
+
+// changeOwnerBeforePatches simulates a concurrent writer: before each of
+// the first n GameServer patches reaches the store, it reassigns the named
+// server to newOwnerID and bumps its resourceVersion, as an ownership
+// transfer by another caller would. It returns a pointer to the number of
+// patch attempts seen. Register it after enforcePatchResourceVersion so it
+// runs first.
+func changeOwnerBeforePatches(t *testing.T, k *kube.Client, name string, newOwnerID int64, n int) *int {
+	t.Helper()
+	dyn, ok := k.Dynamic.(*dynamicfake.FakeDynamicClient)
+	if !ok {
+		t.Fatalf("dynamic client is %T, want *fake.FakeDynamicClient", k.Dynamic)
+	}
+	gvr := kube.GVRs["servers"]
+	patches := 0
+	dyn.PrependReactor("patch", gvr.Resource, func(action clienttesting.Action) (bool, runtime.Object, error) {
+		pa, ok := action.(clienttesting.PatchAction)
+		if !ok || pa.GetName() != name {
+			return false, nil, nil
+		}
+		patches++
+		if patches > n {
+			return false, nil, nil
+		}
+		cur, err := dyn.Tracker().Get(gvr, pa.GetNamespace(), name)
+		if err != nil {
+			return true, nil, err
+		}
+		obj, ok := cur.(*unstructured.Unstructured)
+		if !ok {
+			return true, nil, errors.New("stored server is not unstructured")
+		}
+		ann := obj.GetAnnotations()
+		if ann == nil {
+			ann = map[string]string{}
+		}
+		ann[ownerIDAnnotation] = strconv.FormatInt(newOwnerID, 10)
+		obj.SetAnnotations(ann)
+		rv, err := strconv.Atoi(obj.GetResourceVersion())
+		if err != nil {
+			return true, nil, err
+		}
+		obj.SetResourceVersion(strconv.Itoa(rv + 1))
+		if err := dyn.Tracker().Update(gvr, obj, pa.GetNamespace()); err != nil {
+			return true, nil, err
+		}
+		return false, nil, nil
+	})
+	return &patches
+}
+
+// versionedOwnedServerObj is ownedServerObj with a resourceVersion, as a
+// server read from the API server always has.
+func versionedOwnedServerObj(name string, extra map[string]string) *unstructured.Unstructured {
+	obj := ownedServerObj(name, extra)
+	obj.SetResourceVersion("1")
+	return obj
+}
+
+// otherOwnerID is the user a concurrent transfer hands the server to.
+const otherOwnerID int64 = 99
+
+func TestOwnerOnlyOps_OwnershipLostBeforePatchIsRefused(t *testing.T) {
+	store := newTestStore(t)
+	target := seedUser(t, store, "frank", "viewer", "")
+	other := strconv.FormatInt(otherOwnerID, 10)
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		body   map[string]any
+		mount  func(r chi.Router, reg *kube.Registry)
+		// unchanged asserts the refused mutation left no trace.
+		unchanged func(t *testing.T, obj *unstructured.Unstructured)
+	}{
+		{
+			name: "transfer", method: "POST", path: "/servers/alpha:transfer",
+			body:  map[string]any{"userId": target},
+			mount: func(r chi.Router, reg *kube.Registry) { MountOwnership(r, reg, store) },
+			unchanged: func(t *testing.T, obj *unstructured.Unstructured) {
+				if got := obj.GetAnnotations()[ownerIDAnnotation]; got != other {
+					t.Fatalf("owner = %q, want the concurrent owner %s", got, other)
+				}
+			},
+		},
+		{
+			name: "collaborator edit", method: "PUT", path: "/servers/alpha:collaborators",
+			body:  map[string]any{"userIds": []int64{target}},
+			mount: func(r chi.Router, reg *kube.Registry) { MountOwnership(r, reg, store) },
+			unchanged: func(t *testing.T, obj *unstructured.Unstructured) {
+				if got := obj.GetAnnotations()[collaboratorsAnnotation]; got != "" {
+					t.Fatalf("collaborators = %q, want none", got)
+				}
+			},
+		},
+		{
+			name: "wipe", method: "POST", path: "/servers/alpha:wipe-data",
+			body:  map[string]any{"confirm": "alpha"},
+			mount: func(r chi.Router, reg *kube.Registry) { MountLifecycle(r, reg) },
+			unchanged: func(t *testing.T, obj *unstructured.Unstructured) {
+				if got := obj.GetAnnotations()[wipeRequestedAnnotation]; got != "" {
+					t.Fatalf("wipe annotation = %q, want none", got)
+				}
+				if suspended, _, _ := unstructured.NestedBool(obj.Object, "spec", "suspend"); suspended {
+					t.Fatal("server suspended by a refused wipe")
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			k := fakeKubeClient(versionedOwnedServerObj("alpha", nil))
+			enforcePatchResourceVersion(t, k)
+			patches := changeOwnerBeforePatches(t, k, "alpha", otherOwnerID, 1)
+			reg := kube.NewRegistry(scope.DefaultCluster)
+			reg.Set(scope.DefaultCluster, k)
+			r := chi.NewRouter()
+			tc.mount(r, reg)
+
+			rr := doWithUser(t, r, tc.method, tc.path, tc.body, serverOwnerUser())
+			if rr.Code != http.StatusForbidden {
+				t.Fatalf("former owner got %d %s, want 403", rr.Code, rr.Body)
+			}
+			if *patches != 1 {
+				t.Fatalf("patch attempts = %d, want 1 (no retry after the re-check refuses)", *patches)
+			}
+			obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
+				Namespace("gameplane-games").Get(t.Context(), "alpha", metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("get alpha: %v", err)
+			}
+			tc.unchanged(t, obj)
+		})
+	}
+}
+
+func TestOwnerOnlyOps_AdminRetriesAfterConcurrentChange(t *testing.T) {
+	store := newTestStore(t)
+	target := seedUser(t, store, "gina", "viewer", "")
+	k := fakeKubeClient(versionedOwnedServerObj("alpha", nil))
+	enforcePatchResourceVersion(t, k)
+	patches := changeOwnerBeforePatches(t, k, "alpha", otherOwnerID, 1)
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
+	r := chi.NewRouter()
+	MountOwnership(r, reg, store)
+
+	rr := doWithUser(t, r, "POST", "/servers/alpha:transfer", map[string]any{"userId": target}, testAdminUser())
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("admin got %d %s, want 204 after a re-checked retry", rr.Code, rr.Body)
+	}
+	if *patches != 2 {
+		t.Fatalf("patch attempts = %d, want 2 (conflict, then retry)", *patches)
+	}
+	if got := serverAnnotations(t, k, "alpha")[ownerIDAnnotation]; got != strconv.FormatInt(target, 10) {
+		t.Fatalf("owner = %q, want %d", got, target)
+	}
+}
+
+func TestOwnerOnlyOps_PersistentConflictReturns409(t *testing.T) {
+	store := newTestStore(t)
+	target := seedUser(t, store, "hank", "viewer", "")
+	k := fakeKubeClient(versionedOwnedServerObj("alpha", nil))
+	enforcePatchResourceVersion(t, k)
+	// The admin stays authorized on every re-check, but the server changes
+	// before every patch.
+	patches := changeOwnerBeforePatches(t, k, "alpha", otherOwnerID, 1000)
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
+	r := chi.NewRouter()
+	MountOwnership(r, reg, store)
+
+	rr := doWithUser(t, r, "POST", "/servers/alpha:transfer", map[string]any{"userId": target}, testAdminUser())
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("got %d %s, want 409", rr.Code, rr.Body)
+	}
+	if *patches != ownerOnlyPatchAttempts {
+		t.Fatalf("patch attempts = %d, want %d", *patches, ownerOnlyPatchAttempts)
+	}
+	if got := serverAnnotations(t, k, "alpha")[ownerIDAnnotation]; got != strconv.FormatInt(otherOwnerID, 10) {
+		t.Fatalf("owner = %q, want the concurrent owner %d", got, otherOwnerID)
+	}
+}
+
+func TestOwnerOnlyOps_UnchangedServerPatchesWithResourceVersion(t *testing.T) {
+	store := newTestStore(t)
+	target := seedUser(t, store, "ivy", "viewer", "")
+	k := fakeKubeClient(versionedOwnedServerObj("alpha", nil), versionedOwnedServerObj("beta", nil))
+	enforcePatchResourceVersion(t, k)
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
+	r := chi.NewRouter()
+	MountOwnership(r, reg, store)
+	MountLifecycle(r, reg)
+
+	rr := doWithUser(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{target}}, serverOwnerUser())
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("collaborators: got %d %s", rr.Code, rr.Body)
+	}
+	if got := serverAnnotations(t, k, "alpha")[collaboratorsAnnotation]; got != strconv.FormatInt(target, 10) {
+		t.Fatalf("collaborators = %q, want %d", got, target)
+	}
+
+	rr = doWithUser(t, r, "POST", "/servers/beta:wipe-data", map[string]any{"confirm": "beta"}, serverOwnerUser())
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("wipe: got %d %s", rr.Code, rr.Body)
+	}
+	if got := serverAnnotations(t, k, "beta")[wipeRequestedAnnotation]; got == "" {
+		t.Fatal("wipe annotation not set")
+	}
+
+	rr = doWithUser(t, r, "POST", "/servers/alpha:transfer", map[string]any{"userId": target}, serverOwnerUser())
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("transfer: got %d %s", rr.Code, rr.Body)
+	}
+	if got := serverAnnotations(t, k, "alpha")[ownerIDAnnotation]; got != strconv.FormatInt(target, 10) {
+		t.Fatalf("owner = %q, want %d", got, target)
+	}
 }

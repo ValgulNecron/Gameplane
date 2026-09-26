@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -84,6 +85,56 @@ func requireOwnerOrAdmin(w http.ResponseWriter, req *http.Request, reg *kube.Reg
 	return obj, true
 }
 
+// ownerOnlyPatchAttempts bounds how many times an owner-only mutation
+// re-reads and re-authorizes the server after a resourceVersion conflict.
+const ownerOnlyPatchAttempts = 3
+
+// patchServerAsOwner applies the merge patch that build returns for obj,
+// the server requireOwnerOrAdmin just authorized against. The patch
+// carries obj's resourceVersion, so the API server rejects it with 409
+// Conflict if the server changed after the check read it (for example an
+// ownership transfer by someone else). On a conflict it re-reads the
+// server and repeats the owner-or-admin check before rebuilding the patch,
+// so a caller who lost ownership in the meantime is refused. After
+// ownerOnlyPatchAttempts conflicts the client gets 409. Objects served by
+// a real API server always carry a resourceVersion; one without it (test
+// fixtures) is patched unconditionally. ok=false means a response was
+// already written.
+func patchServerAsOwner(w http.ResponseWriter, req *http.Request, reg *kube.Registry, k *kube.Client, ns, name string,
+	obj *unstructured.Unstructured, build func(obj *unstructured.Unstructured) map[string]any,
+) bool {
+	for attempt := 1; ; attempt++ {
+		patch := build(obj)
+		if rv := obj.GetResourceVersion(); rv != "" {
+			md, _ := patch["metadata"].(map[string]any)
+			if md == nil {
+				md = map[string]any{}
+				patch["metadata"] = md
+			}
+			md["resourceVersion"] = rv
+		}
+		body, err := json.Marshal(patch)
+		if err != nil {
+			httperr.Write(w, req, err)
+			return false
+		}
+		_, err = k.Dynamic.Resource(kube.GVRs["servers"]).
+			Namespace(ns).
+			Patch(req.Context(), name, types.MergePatchType, body, metav1.PatchOptions{})
+		if err == nil {
+			return true
+		}
+		if !apierrors.IsConflict(err) || attempt >= ownerOnlyPatchAttempts {
+			httperr.Write(w, req, err)
+			return false
+		}
+		var ok bool
+		if obj, ok = requireOwnerOrAdmin(w, req, reg, k, ns, name); !ok {
+			return false
+		}
+	}
+}
+
 // MountOwnership wires the server ownership and collaborator endpoints.
 func MountOwnership(r chi.Router, reg *kube.Registry, store *db.Store) {
 	h := &ownershipHandler{reg: reg, db: store}
@@ -118,7 +169,8 @@ func (h *ownershipHandler) transfer(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := requireOwnerOrAdmin(w, req, h.reg, k, ns, name); !ok {
+	obj, ok := requireOwnerOrAdmin(w, req, h.reg, k, ns, name)
+	if !ok {
 		return
 	}
 	var body transferReq
@@ -137,18 +189,16 @@ func (h *ownershipHandler) transfer(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	patch, _ := json.Marshal(map[string]any{
-		"metadata": map[string]any{
-			"annotations": map[string]any{
-				ownerIDAnnotation: strconv.FormatInt(body.UserID, 10),
-				ownerAnnotation:   username,
+	if !patchServerAsOwner(w, req, h.reg, k, ns, name, obj, func(*unstructured.Unstructured) map[string]any {
+		return map[string]any{
+			"metadata": map[string]any{
+				"annotations": map[string]any{
+					ownerIDAnnotation: strconv.FormatInt(body.UserID, 10),
+					ownerAnnotation:   username,
+				},
 			},
-		},
-	})
-	if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
-		Namespace(ns).
-		Patch(req.Context(), name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-		httperr.Write(w, req, err)
+		}
+	}) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -168,7 +218,7 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 		return
 	}
 	// The owner-or-admin check returns the live server; the owner-ID
-	// filter below reads it.
+	// filter in the patch reads it.
 	obj, ok := requireOwnerOrAdmin(w, req, h.reg, k, ns, name)
 	if !ok {
 		return
@@ -203,9 +253,8 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 		seenIDs[id] = struct{}{}
 	}
 
-	// Validate all IDs exist, resolve usernames, and build a map.
-	idToName := make(map[int64]string)
-	finalIDs := make([]int64, 0, len(seenIDs))
+	// Validate all IDs exist and resolve their usernames.
+	idToName := make(map[int64]string, len(seenIDs))
 	for id := range seenIDs {
 		var username string
 		err := h.db.DB.QueryRowContext(req.Context(),
@@ -218,47 +267,50 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 			httperr.Write(w, req, err)
 			return
 		}
-		// Skip the owner ID.
-		ownerIDStr := obj.GetAnnotations()["gameplane.local/owner-id"]
+		idToName[id] = username
+	}
+
+	// Patch the server. The owner filter reads the server the ownership
+	// check authorized against, so it is rebuilt if that check is repeated.
+	if !patchServerAsOwner(w, req, h.reg, k, ns, name, obj, func(cur *unstructured.Unstructured) map[string]any {
+		collabIDsStr, collabNamesStr := collaboratorAnnotations(idToName, cur.GetAnnotations()[ownerIDAnnotation])
+		return map[string]any{
+			"metadata": map[string]any{
+				"annotations": map[string]any{
+					collaboratorsAnnotation:     collabIDsStr,
+					collaboratorNamesAnnotation: collabNamesStr,
+				},
+			},
+		}
+	}) {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// collaboratorAnnotations drops the owner ID from idToName, sorts the
+// remaining IDs numerically ascending and returns the comma-joined ID and
+// username annotation values, aligned by position. Both are empty when no
+// collaborator remains.
+func collaboratorAnnotations(idToName map[int64]string, ownerIDStr string) (string, string) {
+	finalIDs := make([]int64, 0, len(idToName))
+	for id := range idToName {
 		if ownerIDStr != "" && ownerIDStr == strconv.FormatInt(id, 10) {
 			continue
 		}
 		finalIDs = append(finalIDs, id)
-		idToName[id] = username
 	}
-
-	// Sort IDs numerically ascending and build annotations with aligned names.
+	if len(finalIDs) == 0 {
+		return "", ""
+	}
 	sort.Slice(finalIDs, func(i, j int) bool { return finalIDs[i] < finalIDs[j] })
-
-	collabIDsStr := ""
-	collabNamesStr := ""
-	if len(finalIDs) > 0 {
-		idStrs := make([]string, len(finalIDs))
-		nameStrs := make([]string, len(finalIDs))
-		for i, id := range finalIDs {
-			idStrs[i] = strconv.FormatInt(id, 10)
-			nameStrs[i] = idToName[id]
-		}
-		collabIDsStr = strings.Join(idStrs, ",")
-		collabNamesStr = strings.Join(nameStrs, ",")
+	idStrs := make([]string, len(finalIDs))
+	nameStrs := make([]string, len(finalIDs))
+	for i, id := range finalIDs {
+		idStrs[i] = strconv.FormatInt(id, 10)
+		nameStrs[i] = idToName[id]
 	}
-
-	// Patch the server.
-	patch, _ := json.Marshal(map[string]any{
-		"metadata": map[string]any{
-			"annotations": map[string]any{
-				collaboratorsAnnotation:     collabIDsStr,
-				collaboratorNamesAnnotation: collabNamesStr,
-			},
-		},
-	})
-	if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
-		Namespace(ns).
-		Patch(req.Context(), name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-		httperr.Write(w, req, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	return strings.Join(idStrs, ","), strings.Join(nameStrs, ",")
 }
 
 // getOwnedServers returns GameServers where the caller is owner or collaborator.

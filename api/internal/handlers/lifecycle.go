@@ -65,7 +65,8 @@ func wipeDataHandler(reg *kube.Registry) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if _, ok := requireOwnerOrAdmin(w, req, reg, k, ns, name); !ok {
+		obj, ok := requireOwnerOrAdmin(w, req, reg, k, ns, name)
+		if !ok {
 			return
 		}
 		var body wipeDataReq
@@ -78,16 +79,16 @@ func wipeDataHandler(reg *kube.Registry) http.HandlerFunc {
 			return
 		}
 		token := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-		patch, _ := json.Marshal(map[string]any{
-			"metadata": map[string]any{
-				"annotations": map[string]any{wipeRequestedAnnotation: token},
-			},
-			"spec": map[string]any{"suspend": true},
-		})
-		if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
-			Namespace(ns).
-			Patch(req.Context(), name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			httperr.Write(w, req, err)
+		// Conditional on the server the ownership check read, so a caller
+		// who loses ownership before the patch lands is refused.
+		if !patchServerAsOwner(w, req, reg, k, ns, name, obj, func(*unstructured.Unstructured) map[string]any {
+			return map[string]any{
+				"metadata": map[string]any{
+					"annotations": map[string]any{wipeRequestedAnnotation: token},
+				},
+				"spec": map[string]any{"suspend": true},
+			}
+		}) {
 			return
 		}
 		w.WriteHeader(http.StatusAccepted)

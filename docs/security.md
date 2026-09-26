@@ -134,7 +134,12 @@ transfer, and collaborator list edits. Only the server's owner or an admin (a
 role holding `*` in the server's cluster and namespace) can perform owner-only
 operations. The namespace `servers:write` permission alone does not grant them,
 and a server with no recorded owner (for example one created with kubectl or
-GitOps) can be transferred, wiped or deleted only by an admin. Backups,
+GitOps) can be transferred, wiped or deleted only by an admin. The transfer,
+collaborator-edit and wipe patches are conditional on the server's
+`resourceVersion` as read by the ownership check: if the server changes in
+between (for example its ownership is transferred), the API re-reads it and
+repeats the check, so a caller who is no longer the owner is refused, and
+after three conflicting attempts the request fails with 409. Backups,
 restore jobs, schedules, and events remain namespace-gated in this release.
 
 ## Share links
