@@ -147,11 +147,11 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-179 | Connected session cut on game-pod Ready | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |
 | F-180 | TCP listen error not logged while waiting for async UDP error | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |
 | F-181 | Startup error exits 0 instead of non-zero | sentinel | review:sentinel | S4 | closed-already-fixed | #446 | | re-verified in #467 (group 41): sentinel main already exits non-zero via log.Fatalf on a run() error since #446 |
-| F-182 | Close errors logged on healthy proxied connections | sentinel | review:sentinel | S4 | open | | | |
-| F-183 | Hostport hold-window asymmetry undocumented | sentinel | review:sentinel | S4 | open | | | |
-| F-184 | UDP source keying and cooldown packet counting misdocumented | sentinel | review:sentinel | S4 | open | | | |
-| F-185 | Four specs.md statements contradict code | sentinel | review:sentinel | S4 | open | | | |
-| F-186 | Dependencies, tests and doc references don't resolve | sentinel | review:sentinel | S4 | open | | | |
+| F-182 | Close errors logged on healthy proxied connections | sentinel | review:sentinel | S4 | fixed-unverified | #467 | | |
+| F-183 | Hostport hold-window asymmetry undocumented | sentinel | review:sentinel | S4 | fixed-unverified | #467 | | |
+| F-184 | UDP source keying and cooldown packet counting misdocumented | sentinel | review:sentinel | S4 | fixed-unverified | #467 | | |
+| F-185 | Four specs.md statements contradict code | sentinel | review:sentinel | S4 | fixed-unverified | #467 | | |
+| F-186 | Dependencies, tests and doc references don't resolve | sentinel | review:sentinel | S4 | fixed-unverified | #467 | | |
 | F-187 | Retained captures evict pod when passing 1 GiB total | capture-sidecar | review:capture-sidecar | S3 | open | | | |
 | F-188 | Environment variables ignored; works by flag-default coincidence | capture-sidecar | review:capture-sidecar | S4 | open | | | |
 | F-189 | Specs.md lists 4 endpoints but code has 6; delete endpoint undocumented | capture-sidecar | review:capture-sidecar | S4 | open | | | |
@@ -203,7 +203,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-251 | nginx.conf.template missing client_max_body_size | web/ | review:web | S2 | fixed-unverified | #426 | | |
 | F-252 | docs/oidc.md gives clientSecretRef as plain string | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-253 | README.md / plan.md say "Go 1.25" vs go.mod's 1.26 requirement | root docs | review:root-docs | S4 | open | | | |
-| F-254 | sentinel/sentinel untracked binary, no .gitignore entry | sentinel/ | review:sentinel | S4 | open | | | |
+| F-254 | sentinel/sentinel untracked binary, no .gitignore entry | sentinel/ | review:sentinel | S4 | fixed-unverified | #467 | | |
 | F-255 | make dev-load loads 4 of 12 built images | deploy/ | review:deploy | S3 | fixed-unverified | #452 | | |
 | F-257 | Release image job times out building the multi-arch operator image, so an RC publishes no operator image, chart or GitHub release | .github/workflows/ | review:.github/workflows | S2 | fixed-unverified | #435 | | seen on the `v0.3.0-rc.1` release run (T014); ID after F-255 assumes F-256 is taken in the held list, so check on the devbox |
 | F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | fixed-unverified | #445 | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
