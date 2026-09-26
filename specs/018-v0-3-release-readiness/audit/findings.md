@@ -36,7 +36,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-028 | `charts/gameplane/values.yaml` git module source still pinned to `ref: v0.2.0-beta.6` | charts/gameplane/ | review:charts/gameplane | S3 | open | | | T054: pin to a new gameplane-module v0.3.0 tag after INV-MOD rows pass |
 | F-029 | CI upgrade baseline still `0.2.0-beta.5` across `deploy/kind/upgrade.sh`, `.github/workflows/ci.yaml`, `.claude/agents/ci-triager.md` | deploy/ | review:deploy | S3 | fixed-unverified | #422 | | |
 | F-030 | CLAUDE.md repository map says "14 Go modules" and omits `gp-module/` | root docs | review:root-docs | S4 | fixed-unverified | #421 | | |
-| F-031 | GameServer examples in tunnels.md use spec.template instead of templateRef.name | docs/ | review:docs | S4 | open | | | all three examples fail kubectl apply |
+| F-031 | GameServer examples in tunnels.md use spec.template instead of templateRef.name | docs/ | review:docs | S4 | fixed-unverified | #468 | | all three examples fail kubectl apply |
 | F-032 | README, roadmap and comparison cite 16 game modules but repo has 30 | docs/ | review:docs | S4 | open | | | module count drift since v0.2.0-beta.8 |
 | F-033 | security.md misstates capture feature default as "true" when it is "false" | docs/ | review:docs | S4 | open | | | contradicts install.md and architecture.md |
 | F-034 | comparison-sources.md evidence citations no longer match CLAUDE.md line numbers | docs/ | review:docs | S4 | open | | | lines drifted after CLAUDE.md trim; also one nonexistent values.yaml key |
@@ -142,8 +142,8 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-172 | Exponential backoff overflows after 64 retries | tunnel | review:tunnel | S3 | fixed-unverified | #428 | | |
 | F-173 | Tailscale config drops backing service settings | tunnel | review:tunnel | S2 | fixed-unverified | #428 | | |
 | F-174 | Playit endpoint not written to GameServer status | tunnel | review:tunnel | S3 | fixed-unverified | #447 | | |
-| F-175 | Troubleshooting docs use wrong label selector | tunnel | review:tunnel | S4 | open | | | |
-| F-176 | Specs file misses sections, lists stale dependency | tunnel | review:tunnel | S4 | open | | | |
+| F-175 | Troubleshooting docs use wrong label selector | tunnel | review:tunnel | S4 | fixed-unverified | #468 | | |
+| F-176 | Specs file misses sections, lists stale dependency | tunnel | review:tunnel | S4 | fixed-unverified | #468 | | |
 | F-179 | Connected session cut on game-pod Ready | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |
 | F-180 | TCP listen error not logged while waiting for async UDP error | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |
 | F-181 | Startup error exits 0 instead of non-zero | sentinel | review:sentinel | S4 | closed-already-fixed | #446 | | re-verified in #467 (group 41): sentinel main already exits non-zero via log.Fatalf on a run() error since #446 |
