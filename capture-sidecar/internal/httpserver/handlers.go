@@ -136,6 +136,20 @@ type Server struct {
 
 	captureDataDir string
 
+	// budgetBytes is the maximum total bytes (already-retained capture files
+	// on captureDataDir, plus one new capture's own maxSizeBytes) HandleStart
+	// will allow before refusing to start (F-187: the volume this directory
+	// lives on is a size-limited emptyDir, and retained files that are never
+	// counted here can silently push total usage past that limit and get the
+	// whole pod evicted). Zero disables the check - used by tests that don't
+	// exercise it and don't want retained on-disk fixtures from a previous
+	// case to affect an unrelated one. Production always sets it: see
+	// cmd/main.go's CAPTURE_VOLUME_BUDGET_BYTES handling, which the operator
+	// derives from the "captures" emptyDir's own SizeLimit (see
+	// operator/internal/controller/gameserver_controller.go's
+	// captureVolumeBudgetBytes) so the two limits can never drift apart.
+	budgetBytes int64
+
 	// newSource opens the live packet source for a capture. It is a field
 	// rather than a direct call to capture.NewAFPacketSource so tests can
 	// inject a synthetic source - and a failing one - without root, a NIC, or
@@ -159,10 +173,13 @@ type Server struct {
 // NewServer creates a new capture server. ctx is the parent context for every
 // capture goroutine the server starts; cancelling it (e.g. on process
 // shutdown) stops all in-flight captures. Pass a context that outlives the
-// server's HTTP handling, not a per-request one.
-func NewServer(ctx context.Context, captureDataDir string) *Server {
+// server's HTTP handling, not a per-request one. budgetBytes is the volume
+// budget HandleStart enforces (see the Server.budgetBytes field doc); pass 0
+// to disable the check.
+func NewServer(ctx context.Context, captureDataDir string, budgetBytes int64) *Server {
 	s := &Server{
 		captureDataDir: filepath.Clean(captureDataDir),
+		budgetBytes:    budgetBytes,
 		completed:      make(map[string]*captureState),
 		baseCtx:        ctx,
 	}
@@ -298,6 +315,43 @@ func (s *Server) captureFilePath(id string) string {
 	return candidate
 }
 
+// retainedCaptureBytes sums the size of every capture PCAPNG file currently
+// on dir. A file only exists here while it is "retained": expiry is
+// deletion in this system (the operator's NetworkCapture reconciler deletes
+// a capture's file via HandleDelete once its retention window elapses, see
+// expireCapture in operator/internal/controller/networkcapture_controller.go),
+// so a file this glob finds is by definition not yet expired, and a file
+// that has expired and been deleted is by definition absent from this sum -
+// no separate age check is needed here.
+//
+// A file left over from an earlier capture that reused the same id (for
+// example after a pod restart and retry of a start that was interrupted
+// mid-write) is counted the same as any other retained file: it is real,
+// unexpired bytes on the volume, so counting it is harmless and correct,
+// even though it will be overwritten rather than accumulate once the retry
+// succeeds.
+func retainedCaptureBytes(dir string) (int64, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "capture-*.pcapng"))
+	if err != nil {
+		return 0, fmt.Errorf("glob capture files in %s: %w", dir, err)
+	}
+	var total int64
+	for _, path := range matches {
+		info, err := os.Stat(path)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				// Deleted between the glob and the stat (e.g. a concurrent
+				// expiry) - it no longer occupies space, so it correctly
+				// drops out of the sum rather than failing the whole start.
+				continue
+			}
+			return 0, fmt.Errorf("stat %s: %w", path, err)
+		}
+		total += info.Size()
+	}
+	return total, nil
+}
+
 // rememberCompletedLocked records a finished capture so its terminal state can
 // still be served after it stops being the current one. Callers must hold s.mu.
 func (s *Server) rememberCompletedLocked(state *captureState) {
@@ -392,6 +446,40 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		http.Error(w, fmt.Sprintf("capture '%s' already in progress", id), http.StatusConflict)
 		return
+	}
+
+	// F-187: refuse a start that would push the volume past its budget,
+	// before opening any socket or file. Bytes already on disk from
+	// retained (not-yet-expired) captures count against the same budget as
+	// this new capture's own ceiling - counting only the new capture's
+	// maxSizeBytes, as the check used to, lets retained files accumulate
+	// past the "captures" emptyDir's real SizeLimit and get the pod evicted
+	// (see captureVolumeBudgetBytes in
+	// operator/internal/controller/gameserver_controller.go).
+	if s.budgetBytes > 0 {
+		retained, err := retainedCaptureBytes(s.captureDataDir)
+		if err != nil {
+			s.mu.Unlock()
+			slog.Error("failed to compute retained capture bytes", "id", id, "err", err)
+			http.Error(w, fmt.Sprintf("failed to check capture volume budget: %v", err), http.StatusInternalServerError)
+			return
+		}
+		// Compare without adding: retained is always >= 0 (it is a sum of
+		// non-negative file sizes) and s.budgetBytes is always > 0 (checked
+		// above), so budgetBytes-retained cannot overflow. req.MaxSizeBytes
+		// is attacker/operator controlled and can be as large as
+		// math.MaxInt64 (a NetworkCapture CR applied directly, bypassing the
+		// API tier's DefaultMaxSizeBytes clamp, reaches here unclamped via
+		// nc.Spec.MaxSize.Value()); retained+req.MaxSizeBytes would wrap
+		// negative in that case and silently defeat this check.
+		if req.MaxSizeBytes > s.budgetBytes-retained {
+			s.mu.Unlock()
+			http.Error(w, fmt.Sprintf(
+				"capture volume budget exceeded: %d bytes retained + %d bytes requested would exceed the %d byte budget; wait for retained captures to expire or request a smaller maxSizeBytes",
+				retained, req.MaxSizeBytes, s.budgetBytes,
+			), http.StatusInsufficientStorage)
+			return
+		}
 	}
 
 	// Open the live packet source synchronously, before the capture file and

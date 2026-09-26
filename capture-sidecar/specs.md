@@ -22,6 +22,9 @@ These are the design responsibilities for the completed sidecar (Phase 2+):
 6. Validate mTLS certificates against the cluster CA and reject unauthenticated requests.
 7. Prevent multiple simultaneous captures on the same sidecar instance (409 Conflict if a duplicate capture ID arrives while one is running).
 8. Monitor disk space and gracefully stop a capture if the emptyDir volume fills (`ENOSPC` handling).
+8a. Refuse to *start* a capture that would push the volume's retained (not-yet-expired) files plus the new capture's own `maxSizeBytes` past a configured budget (507 Insufficient Storage), so retained files alone can never accumulate past the emptyDir's `SizeLimit` and trigger a kubelet eviction of the pod (F-187).
+
+    **Known limitation — deleting a capture through the API does not free its budget.** Deleting a `NetworkCapture` through the API removes only the CRD; the file on the sidecar's volume is left in place until the pod is recreated (the sidecar has no delete-on-CR-removal hook, and ephemeral containers cannot be individually torn down — see invariant 5 below). Because the volume-budget check in 8a counts every file physically present under `captureDataDir` regardless of whether a CRD still references it, such an orphaned file continues to count against the budget after its CR is gone. With the chart's default 900 MiB `maxSizeBytes` and ~1 GiB budget, this means at most one default-size capture can be admitted per 24h retention window even if the operator "deletes" every prior one from the dashboard — the 507 refusal is correct (it is still preventing an eviction, F-187's Expected outcome), but its `wait for retained captures to expire` message is misleading in that specific case, since the file it is waiting on may no longer be visible anywhere in the UI. A follow-up to delete the sidecar-side file when the API deletes the CR (or to reword the message to mention orphaned-but-undeleted files) is tracked as future work, not implemented here.
 9. Hold no persistent state; each sidecar instance is independent and does not retry captures or maintain history across restarts.
 
 ## Non-goals / boundaries
@@ -72,7 +75,7 @@ Single Go module; packages organized by responsibility (capture, httpserver, aut
 
 **`internal/capture/writer.go`**: Writes captured packets to PCAPNG files via gopacket/pcapgo.NgWriter. Enforces hard size and duration limits (stops immediately when either is reached). Detects disk-full conditions (`ENOSPC`) and stops gracefully, deleting partial files. Produces valid PCAPNG files readable by `tcpdump`, Wireshark, and other third-party tools.
 
-**`internal/httpserver/handlers.go`**: Implements four HTTP endpoints (POST `:start`, POST `:stop`, GET `/status`, GET `/file`) exposed on `:9091`. Validates requests, marshals capture state, and streams completed files to authenticated clients.
+**`internal/httpserver/handlers.go`**: Implements four HTTP endpoints (POST `:start`, POST `:stop`, GET `/status`, GET `/file`) exposed on `:9091`. Validates requests, marshals capture state, and streams completed files to authenticated clients. `HandleStart` also enforces the volume budget (F-187): before opening a packet source, it sums the bytes of every retained `capture-*.pcapng` file already on `captureDataDir` (`retainedCaptureBytes`) and refuses the start with `507 Insufficient Storage` if that total plus the requested `maxSizeBytes` would exceed `Server.budgetBytes`. A file already deleted (expired, in this system, means deleted by the operator's retention reconciler) is simply absent from that sum. `budgetBytes` of `0` disables the check.
 
 **`internal/auth/tls.go`**: Validates mTLS certificates against the cluster CA certificate. Sets up TLS listener with enforced client certificate authentication.
 
@@ -97,6 +100,8 @@ This module does not depend on `svcutil`: its control server is served over mTLS
 - **`TLS_CA_FILE`** (required): Path to the cluster CA certificate for validating client mTLS certificates (e.g., `/etc/tls/ca.crt`).
 
 All three paths are mounted from the pre-existing `agent-tls` Secret that every game pod carries (no new Secret is created for capture).
+
+- **`CAPTURE_VOLUME_BUDGET_BYTES`** (optional): Maximum total bytes of retained capture files plus a new capture's own `maxSizeBytes` that `HandleStart` will admit (F-187). Set by the operator's `buildCaptureEphemeralContainer` (`operator/internal/controller/gameserver_controller.go`), derived from the `captures` emptyDir's own `SizeLimit` with a 10% safety margin (`captureVolumeBudgetBytes`), so it can never drift from the volume the kubelet actually enforces. Unset or unparsable falls back to the same 1Gi-minus-10%-margin default hardcoded in `cmd/main.go` (matches `charts/gameplane/values.yaml`'s documented 1 GiB volume limit). `cmd/main.go` also exposes this as the `--capture-volume-budget-bytes` flag for standalone runs; `0` disables the check.
 
 ### HTTP Server Configuration
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -125,7 +126,10 @@ func (sf *sourceFactory) count() int {
 
 func newTestServer(t *testing.T) (*Server, *sourceFactory) {
 	t.Helper()
-	srv := NewServer(context.Background(), t.TempDir())
+	// budgetBytes 0 disables the F-187 volume-budget check: unrelated tests
+	// use captureFilePath-derived fixtures that would otherwise interact
+	// with it. See newTestServerWithBudget for tests that exercise it.
+	srv := NewServer(context.Background(), t.TempDir(), 0)
 	factory := &sourceFactory{}
 	srv.newSource = factory.open
 	t.Cleanup(func() {
@@ -1259,4 +1263,158 @@ func (fw *failingWriter) IsLimitReached() bool {
 
 func (fw *failingWriter) LimitReason() string {
 	return fw.inner.LimitReason()
+}
+
+// ---------------------------------------------------------------------------
+// F-187: volume budget (retained + new capture vs. the emptyDir SizeLimit)
+// ---------------------------------------------------------------------------
+
+// newTestServerWithBudget is newTestServer with a non-zero volume budget, for
+// the tests below that exercise HandleStart's F-187 admission check.
+func newTestServerWithBudget(t *testing.T, budgetBytes int64) (*Server, *sourceFactory) {
+	t.Helper()
+	srv := NewServer(context.Background(), t.TempDir(), budgetBytes)
+	factory := &sourceFactory{}
+	srv.newSource = factory.open
+	t.Cleanup(func() {
+		srv.mu.Lock()
+		state := srv.currentCapture
+		srv.mu.Unlock()
+		if state != nil {
+			srv.finish("", state, reasonUserRequested, nil)
+			<-state.done
+		}
+	})
+	return srv, factory
+}
+
+// writeRetainedFile creates a retained capture's PCAPNG file directly on
+// disk (simulating a capture that finished in an earlier pod lifetime and
+// is still waiting out its retention window) reporting exactly n bytes via
+// os.Stat. The file is created sparse (via Truncate rather than writing n
+// actual bytes) so large fixtures used to exercise volume-budget refusals
+// don't allocate or physically write gigabytes of real disk/memory in CI.
+func writeRetainedFile(t *testing.T, srv *Server, id string, n int64) {
+	t.Helper()
+	f, err := os.Create(srv.captureFilePath(id))
+	if err != nil {
+		t.Fatalf("create retained fixture %s: %v", id, err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Fatalf("close retained fixture %s: %v", id, err)
+		}
+	}()
+	if err := f.Truncate(n); err != nil {
+		t.Fatalf("truncate retained fixture %s to %d bytes: %v", id, n, err)
+	}
+}
+
+// TestHandleStart_VolumeBudget_RefusesWhenRetainedPlusNewExceedsBudget
+// covers the core F-187 regression: retained files that the old check never
+// looked at must count against the same budget as the new capture's own
+// ceiling.
+func TestHandleStart_VolumeBudget_RefusesWhenRetainedPlusNewExceedsBudget(t *testing.T) {
+	const budget = 1000
+	srv, factory := newTestServerWithBudget(t, budget)
+
+	writeRetainedFile(t, srv, "cap-old", 700)
+
+	rr := doStart(t, srv, "cap-new", startBody("tcp port 8080", 300, 400)) // 700+400 > 1000
+	if rr.Code != http.StatusInsufficientStorage {
+		t.Fatalf("status = %d, body %q; want 507", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "budget") {
+		t.Fatalf("body = %q; want it to mention the volume budget", rr.Body.String())
+	}
+	if factory.count() != 0 {
+		t.Fatalf("opened %d packet sources; a refused start must not open one", factory.count())
+	}
+	srv.mu.Lock()
+	current := srv.currentCapture
+	srv.mu.Unlock()
+	if current != nil {
+		t.Fatal("a refused start left a capture registered")
+	}
+}
+
+// TestHandleStart_VolumeBudget_AllowsWhenItFits is the mirror case: the same
+// retained file plus a new capture that fits under the budget must still be
+// admitted.
+func TestHandleStart_VolumeBudget_AllowsWhenItFits(t *testing.T) {
+	const budget = 1000
+	srv, _ := newTestServerWithBudget(t, budget)
+
+	writeRetainedFile(t, srv, "cap-old", 700)
+
+	rr := doStart(t, srv, "cap-new", startBody("tcp port 8080", 300, 300)) // 700+300 == 1000, fits
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %q; want 200", rr.Code, rr.Body.String())
+	}
+}
+
+// TestHandleStart_VolumeBudget_ExpiredFilesNotCounted covers the "expired
+// files don't count" half of F-187: a capture file already deleted (expiry,
+// in this system, is deletion - see retainedCaptureBytes' doc comment) must
+// not be counted against the budget just because it once existed.
+func TestHandleStart_VolumeBudget_ExpiredFilesNotCounted(t *testing.T) {
+	const budget = 1000
+	srv, _ := newTestServerWithBudget(t, budget)
+
+	writeRetainedFile(t, srv, "cap-old", 700)
+	writeRetainedFile(t, srv, "cap-expired", 900)
+	// Simulate the operator's expiry reconciler deleting the retention-expired
+	// file (expireCapture -> DeleteCaptureFile -> HandleDelete) before this
+	// start request arrives.
+	if err := os.Remove(srv.captureFilePath("cap-expired")); err != nil {
+		t.Fatalf("remove expired fixture: %v", err)
+	}
+
+	// Without the deleted file counted, 700(retained)+300(new) fits exactly;
+	// counting it (700+900+300) would refuse the start.
+	rr := doStart(t, srv, "cap-new", startBody("tcp port 8080", 300, 300))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %q; want 200 (expired file must not count)", rr.Code, rr.Body.String())
+	}
+}
+
+// TestHandleStart_VolumeBudget_RefusesOnOversizedRequestWithoutOverflow
+// covers the overflow regression in the admission check: a maxSizeBytes at
+// math.MaxInt64 (what an unclamped NetworkCapture CR applied directly -
+// bypassing the API tier's DefaultMaxSizeBytes clamp - can carry through to
+// this handler as nc.Spec.MaxSize.Value()) added to any positive retained
+// total wraps a signed int64 negative, which would make the naive
+// `retained+req.MaxSizeBytes > s.budgetBytes` comparison spuriously false
+// and admit a start that should be refused. The check must compare without
+// adding.
+func TestHandleStart_VolumeBudget_RefusesOnOversizedRequestWithoutOverflow(t *testing.T) {
+	const budget = 1000
+	srv, factory := newTestServerWithBudget(t, budget)
+
+	writeRetainedFile(t, srv, "cap-old", 700)
+
+	rr := doStart(t, srv, "cap-new", startBody("tcp port 8080", 300, math.MaxInt64))
+	if rr.Code != http.StatusInsufficientStorage {
+		t.Fatalf("status = %d, body %q; want 507 (must not overflow into admission)", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "budget") {
+		t.Fatalf("body = %q; want it to mention the volume budget", rr.Body.String())
+	}
+	if factory.count() != 0 {
+		t.Fatalf("opened %d packet sources; a refused start must not open one", factory.count())
+	}
+}
+
+// TestHandleStart_VolumeBudget_ZeroDisablesCheck documents that a zero
+// budget (the value every other HandleStart test uses via newTestServer)
+// disables the check entirely, regardless of what's on disk.
+func TestHandleStart_VolumeBudget_ZeroDisablesCheck(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	writeRetainedFile(t, srv, "cap-old", 10*1024*1024*1024) // absurdly large; would refuse if checked
+
+	rr := doStart(t, srv, "cap-new", startBody("tcp port 8080", 300, 1000000))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %q; want 200 (budget check disabled)", rr.Code, rr.Body.String())
+	}
 }
