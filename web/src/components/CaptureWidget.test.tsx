@@ -734,6 +734,36 @@ describe("CaptureWidget", () => {
       await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     });
 
+    // F-126: deleting a capture while the sidecar is unreachable left the
+    // dialog open with no message — deleteMut had no error handler.
+    it("shows an error banner in the dialog when delete fails", async () => {
+      const completed = makeCapture({
+        captureId: "cap-1",
+      });
+      const gs = makeServer({
+        spec: { capture: { enabled: true } },
+      });
+      server.use(
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
+          HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
+        ),
+        http.delete(/.*servers.*alpha.*capture/, () =>
+          HttpResponse.text("capture sidecar unreachable", { status: 502 }),
+        ),
+      );
+
+      renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
+
+      const deleteBtn = await screen.findByLabelText(/Delete capture cap-1/i);
+      await userEvent.click(deleteBtn);
+      const confirmBtn = await screen.findByRole("button", { name: "Delete capture" });
+      await userEvent.click(confirmBtn);
+
+      // The dialog stays open (no onSuccess fired) and now shows the error.
+      expect(await screen.findByText(/capture sidecar unreachable/i)).toBeInTheDocument();
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    });
+
     it("shows expiry time with correct tone badge", async () => {
       const completed = makeCapture({
         captureId: "cap-1",

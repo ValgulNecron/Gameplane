@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Button, Card, CardContent } from "@heroui/react";
+import { ignoreRejection } from "@/lib/utils";
 import { DeleteServerDialog } from "@/components/server/DeleteServerDialog";
 import { WipeServerDialog } from "@/components/server/WipeServerDialog";
 import { TransferServerDialog } from "@/components/server/TransferServerDialog";
@@ -57,7 +58,7 @@ export function DangerSection({ name, ns }: Props) {
         ns={ns}
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        onDeleted={() => navigate({ to: "/servers" })}
+        onDeleted={() => ignoreRejection(navigate({ to: "/servers" }))}
       />
     </div>
   );

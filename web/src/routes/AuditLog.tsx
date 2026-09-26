@@ -6,6 +6,7 @@ import { Audit, type AuditExportFilter } from "@/lib/endpoints";
 import { Button, Card, Input, Chip, Table, Tabs, Tab as TabComponent } from "@heroui/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AuditIntegrityBanner } from "@/components/ui/AuditIntegrityBanner";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { cn, formatRelative } from "@/lib/utils";
 
 const PAGE_SIZE = 100;
@@ -106,6 +107,10 @@ export function AuditLogPage() {
       />
 
       {renderIntegrityBanner(verifyQuery)}
+
+      {exportMutation.error && (
+        <ErrorBanner err={exportMutation.error} onDismiss={() => exportMutation.reset()} />
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Tabs selectedKey={statusClass} onSelectionChange={(key) => setStatusClass(key as StatusClass)} variant="secondary" aria-label="Status filter">

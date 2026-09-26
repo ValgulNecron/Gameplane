@@ -162,14 +162,18 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
   };
 
   const reload = async () => {
-    const fresh = await Servers.get(name, ns);
-    const clone = structuredClone(fresh);
-    baselineRef.current = clone;
-    setDraft(clone);
-    setDirty(false);
-    setConflict(false);
-    setError(null);
-    qc.setQueryData(["server", name, ns], fresh);
+    try {
+      const fresh = await Servers.get(name, ns);
+      const clone = structuredClone(fresh);
+      baselineRef.current = clone;
+      setDraft(clone);
+      setDirty(false);
+      setConflict(false);
+      setError(null);
+      qc.setQueryData(["server", name, ns], fresh);
+    } catch (err) {
+      setError(errMsg(err));
+    }
   };
 
   const onChangeDraft = (next: GameServer) => {
@@ -232,16 +236,28 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
         {section !== "danger" && section !== "access" && section !== "sharelinks" && (
           <footer className="flex items-center justify-between gap-4 border-t border-border bg-surface/30 px-6 py-3">
             <div className="min-w-0 text-xs">
-              {conflict && (
+              {conflict && !error && (
                 <span className="text-warning">
                   Server changed since you opened this page.{" "}
-                  <button onClick={reload} className="underline hover:text-fg">
+                  <button onClick={() => void reload()} className="underline hover:text-fg">
                     Reload
                   </button>{" "}
                   to discard your edits and load the latest.
                 </span>
               )}
-              {error && !conflict && <span className="text-danger">{error}</span>}
+              {error && (
+                <span className="text-danger">
+                  {error}
+                  {conflict && (
+                    <>
+                      {" "}
+                      <button onClick={() => void reload()} className="underline hover:text-fg">
+                        Retry reload
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
               {!conflict && !error && dirty && (
                 <span className="text-muted">Unsaved changes</span>
               )}

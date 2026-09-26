@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Swallows a rejection from a fire-and-forget call (e.g. a router
+// navigation) whose result we don't act on. Wrapped in Promise.resolve()
+// so it tolerates a caller that returns something other than a thenable —
+// notably a bare `vi.fn()` test mock, which returns `undefined` — instead
+// of assuming the value always has a `.catch`.
+export function ignoreRejection(maybePromise: unknown): void {
+  void Promise.resolve(maybePromise).catch(() => {
+    /* intentionally ignored */
+  });
+}
+
 // Upper-cases the first character. The operator's provisioning messages
 // are lowercase sentence fragments ("pulling the game image"); this makes
 // them presentable as a status line without mangling the rest.

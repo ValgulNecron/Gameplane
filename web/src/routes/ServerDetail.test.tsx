@@ -139,6 +139,22 @@ describe("ServerDetailPage lifecycle buttons", () => {
     await user.click(wake);
     await waitFor(() => expect(wakeHandler).toHaveBeenCalled());
   });
+
+  // F-126: the header's lifecycle mutation had no error handler — a failed
+  // Restart/Stop/Wake/Start left the detail header silent.
+  it("shows an error banner in the header when a lifecycle action fails", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer({ status: { phase: "Running" } }))),
+      http.post(/\/servers\/[^/]+:restart$/, () =>
+        HttpResponse.text("restart forbidden", { status: 403 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<ServerDetailPage />);
+    const restart = await screen.findByRole("button", { name: /^Restart$/i });
+    await user.click(restart);
+    expect(await screen.findByText(/restart forbidden/i)).toBeInTheDocument();
+  });
 });
 
 describe("ServerDetailPage", () => {
