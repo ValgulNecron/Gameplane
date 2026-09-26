@@ -146,7 +146,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-176 | Specs file misses sections, lists stale dependency | tunnel | review:tunnel | S4 | open | | | |
 | F-179 | Connected session cut on game-pod Ready | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |
 | F-180 | TCP listen error not logged while waiting for async UDP error | sentinel | review:sentinel | S3 | fixed-unverified | #446 | | |
-| F-181 | Startup error exits 0 instead of non-zero | sentinel | review:sentinel | S4 | open | | | |
+| F-181 | Startup error exits 0 instead of non-zero | sentinel | review:sentinel | S4 | closed-already-fixed | #446 | | re-verified in #467 (group 41): sentinel main already exits non-zero via log.Fatalf on a run() error since #446 |
 | F-182 | Close errors logged on healthy proxied connections | sentinel | review:sentinel | S4 | open | | | |
 | F-183 | Hostport hold-window asymmetry undocumented | sentinel | review:sentinel | S4 | open | | | |
 | F-184 | UDP source keying and cooldown packet counting misdocumented | sentinel | review:sentinel | S4 | open | | | |
