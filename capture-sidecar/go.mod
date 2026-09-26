@@ -8,8 +8,4 @@ require (
 	golang.org/x/net v0.59.0
 )
 
-// svcutil is an in-repo module (no published version); resolve it locally
-// both inside the workspace (go.work) and in standalone module/Docker builds.
-replace github.com/ValgulNecron/gameplane/svcutil => ../svcutil
-
 require golang.org/x/sys v0.48.0 // indirect

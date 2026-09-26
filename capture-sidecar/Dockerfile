@@ -1,10 +1,6 @@
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 WORKDIR /src
 
-# svcutil is an in-repo module the sidecar depends on via a local replace
-# (../svcutil); copy it first so `go mod download` and the build resolve
-# it. Mirrors sentinel/Dockerfile and agent/Dockerfile for the same reason.
-COPY svcutil/ ./svcutil/
 COPY capture-sidecar/go.mod capture-sidecar/go.sum* ./capture-sidecar/
 WORKDIR /src/capture-sidecar
 RUN go mod download

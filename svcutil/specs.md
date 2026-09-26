@@ -6,7 +6,9 @@
 
 ## Purpose
 
-Shared stdlib-only service helpers for environment parsing and graceful HTTP server shutdown. Reduces code duplication and enforces consistent startup and shutdown behavior across operator, api, agent, audit-syslog-bridge, and telemetry-receiver. All functions degrade gracefully on invalid inputs; no startup crashes from bad configuration.
+Shared stdlib-only service helpers for environment parsing and graceful HTTP server shutdown, intended to reduce code duplication and enforce consistent startup and shutdown behavior across the Go binaries in this repo. All functions degrade gracefully on invalid inputs; no startup crashes from bad configuration.
+
+**Adoption status:** `svcutil` has no active consumers yet. No binary in the workspace currently imports it; `operator`, `api`, `agent`, `audit-syslog-bridge`, and `telemetry-receiver` each keep their own local `envOr`/`parseLogLevel`-style helpers. `capture-sidecar` does not import it either — `RunHTTP` only serves plain HTTP (`ListenAndServe`), while the sidecar's control server needs a TLS listener with client-certificate verification (see `capture-sidecar/cmd/main.go:80-86`).
 
 ## Responsibilities
 
@@ -18,7 +20,7 @@ Shared stdlib-only service helpers for environment parsing and graceful HTTP ser
 
 ## Non-goals / boundaries
 
-- Does not provide configuration file parsing; only environment-variable and command-line inputs.
+- Does not provide configuration file parsing or command-line flag parsing; only environment-variable inputs.
 - Does not enforce configuration schema or validation; callers own business-logic constraints.
 - Does not handle signal forwarding; callers that need signal → context.Done bridging use `signal.NotifyContext`.
 - Does not manage connection pooling or middleware; `RunHTTP` runs a stock `http.Server` as-is.
@@ -28,7 +30,7 @@ Shared stdlib-only service helpers for environment parsing and graceful HTTP ser
 ```
 svcutil/
 ├── env.go             # Or, OrInt, ParseLogLevel environment helpers
-├── env_test.go        # Unit tests for environment parsing (13 subtests)
+├── env_test.go        # Unit tests for environment parsing (21 subtests)
 ├── server.go          # RunHTTP graceful shutdown helper
 ├── server_test.go     # Unit tests for server lifecycle (5 functions)
 ├── go.mod             # Module declaration (stdlib-only)
@@ -80,7 +82,7 @@ Single package; no subdirectories or internal structure.
   - `TestRunHTTPListenError`: immediate return on listen errors.
   - `TestRunHTTPContextCancelledBeforeListen`: pre-cancelled context triggers shutdown.
   - `TestRunHTTPServerClosedError`: verification that `http.ErrServerClosed` is not returned to callers.
-  - `TestRunHTTPShutdownTimeout`: shutdown timeout mechanism bounds `RunHTTP`'s wait time.
+  - `TestRunHTTPShutdownTimeout`: confirms `RunHTTP` returns promptly after context cancellation with a short `shutdownTimeout`; it does not hold a request open across shutdown, so it does not exercise the timeout actually cutting off a slow handler.
 
 **Coverage gate:** 90% (`.testcoverage.yml`, total threshold).
 
@@ -98,6 +100,6 @@ These edge cases are acceptable because:
 
 ## References
 
-- **Consumers:** `operator/cmd/main.go`, `api/cmd/main.go`, `agent/cmd/main.go`, `audit-syslog-bridge/cmd/main.go`, `telemetry-receiver/cmd/main.go`, `capture-sidecar/cmd/main.go` — each uses `RunHTTP` for graceful startup/shutdown and environment parsing (Or, OrInt, ParseLogLevel).
-- **Architecture:** `docs/architecture.md` § "svcutil" — shared helpers for consistent service lifecycle.
-- **Go workspace:** `go.work` — svcutil linked as a workspace module, imported by operator, api, agent, and sidecar components.
+- **Consumers:** None currently. `svcutil` is linked into the workspace (`go.work`) but no binary imports it yet; see "Adoption status" above.
+- **Architecture:** `docs/architecture.md` does not currently describe `svcutil`; there is no dedicated section to cross-reference.
+- **Go workspace:** `go.work` — svcutil is listed as a workspace module so it builds and vets alongside the other components, independent of whether anything imports it.
