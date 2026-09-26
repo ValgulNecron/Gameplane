@@ -138,6 +138,10 @@ type Registry struct {
 	mu    sync.Mutex
 	built map[string]builtEntry
 
+	// auditWriteSync is attached to every provider build creates, so their
+	// OIDC role assignments are audited (FR-014). Guarded by mu.
+	auditWriteSync func(ctx context.Context, method, path, target, reason string, status int) error
+
 	now func() time.Time // test seam
 }
 
@@ -169,6 +173,18 @@ func NewRegistry(store *db.Store, secrets SecretReader, legacy *OIDC, legacyLabe
 		})
 	}
 	return reg
+}
+
+// AttachAuditWriteSyncFunc sets the audit write func attached to every
+// dashboard-managed provider the registry builds, so their OIDC role
+// assignments are audited like the Helm provider's (FR-014). Providers
+// already built are dropped from the cache so the next resolve rebuilds
+// them with the func attached. A nil func disables the audit emission.
+func (r *Registry) AttachAuditWriteSyncFunc(fn func(ctx context.Context, method, path, target, reason string, status int) error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.auditWriteSync = fn
+	r.built = map[string]builtEntry{}
 }
 
 // defaultProviders is the provider set of an install whose auth config
@@ -335,6 +351,13 @@ func (r *Registry) build(ctx context.Context, p Provider) (*OIDC, error) {
 	o.AttachHelmRoleOverridesFunc(func(ctx context.Context) *RoleMappings {
 		return r.HelmRoleOverrides(ctx)
 	})
+	r.mu.Lock()
+	auditFn := r.auditWriteSync
+	r.mu.Unlock()
+	o.AttachAuditWriteSyncFunc(auditFn)
+	// The provider's own name labels its audit events; validateAuth keeps
+	// dashboard providers from using the reserved Helm name.
+	o.SetProviderName(p.Name)
 	return o, nil
 }
 

@@ -122,6 +122,11 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 	if err := store.SetClusterRoleBinding(ctx, nil, existingID, scope.DefaultCluster, "admin"); err != nil {
 		return fmt.Errorf("bind admin role: %w", err)
 	}
+	// End the account's existing sessions so none outlives the reset — the
+	// same eviction the dashboard password reset performs.
+	if err := auth.NewSessionStore(store).DeleteForUser(ctx, existingID); err != nil {
+		return fmt.Errorf("end existing sessions: %w", err)
+	}
 	_, _ = fmt.Fprintf(stderr, "bootstrap-admin: updated user %q\n", bf.username)
 	return nil
 }
@@ -151,8 +156,9 @@ func (b *bootstrapFlags) bind(fs *flag.FlagSet) {
 }
 
 // enableLocalLogin flips (or injects) the local provider's enabled flag
-// in the persisted auth config, preserving every other provider. A
-// missing row already means "local enabled", so it's left absent.
+// in the persisted auth config, preserving every other provider and every
+// other top-level key of the row (helmOverride included). A missing row
+// already means "local enabled", so it's left absent.
 func enableLocalLogin(ctx context.Context, store *db.Store, stderr io.Writer) error {
 	raw, ok, err := store.ConfigValue(ctx, "auth")
 	if err != nil {
@@ -162,27 +168,44 @@ func enableLocalLogin(ctx context.Context, store *db.Store, stderr io.Writer) er
 		_, _ = fmt.Fprintln(stderr, "bootstrap-admin: no auth config row — local login is already enabled by default")
 		return nil
 	}
-	var cfg struct {
-		Providers []map[string]any `json:"providers"`
-	}
-	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+	// Decode only the top level, so every key other than "providers" is
+	// written back byte-for-byte instead of being dropped.
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &top); err != nil {
 		return fmt.Errorf("parse auth config: %w", err)
 	}
+	if top == nil {
+		top = map[string]json.RawMessage{}
+	}
+	var providers []map[string]any
+	if rawProviders, ok := top["providers"]; ok {
+		if err := json.Unmarshal(rawProviders, &providers); err != nil {
+			return fmt.Errorf("parse auth config providers: %w", err)
+		}
+	}
 	found := false
-	for _, p := range cfg.Providers {
+	for _, p := range providers {
+		if p == nil {
+			continue
+		}
 		if kind, _ := p["kind"].(string); kind == "local" {
 			p["enabled"] = true
 			found = true
 		}
 	}
 	if !found {
-		cfg.Providers = append(cfg.Providers, map[string]any{
+		providers = append(providers, map[string]any{
 			"name": "local", "kind": "local", "enabled": true,
 		})
 	}
-	canon, err := json.Marshal(cfg)
+	encodedProviders, err := json.Marshal(providers)
 	if err != nil {
-		return err
+		return fmt.Errorf("encode auth config providers: %w", err)
+	}
+	top["providers"] = encodedProviders
+	canon, err := json.Marshal(top)
+	if err != nil {
+		return fmt.Errorf("encode auth config: %w", err)
 	}
 	if _, err := store.DB.ExecContext(ctx,
 		`INSERT INTO config(key, value, updated_at)

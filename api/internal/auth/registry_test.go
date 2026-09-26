@@ -307,3 +307,67 @@ func TestLogin_DisabledByRegistry(t *testing.T) {
 		t.Fatalf("code = %d after re-enable, want 200 (%s)", rr.Code, rr.Body)
 	}
 }
+
+// Dashboard-managed OIDC providers audit their role assignments the same
+// way the Helm provider does, naming the provider in the audit reason.
+func TestRegistry_DashboardProviderAuditsRoleAssignment(t *testing.T) {
+	s := newAuthDB(t)
+	seedExternalURL(t, s)
+	idp := newFakeIDP(t, "gameplane")
+	idp.nonce = "nonce-dash"
+	idp.groups = []string{"corp-admins"}
+	seedConfigRow(t, s, "auth", authRow(fmt.Sprintf(
+		`{"name":"corp","kind":"oidc","enabled":true,"issuer":%q,"clientID":"gameplane","roleMappings":{"admin":["corp-admins"]}}`,
+		idp.issuer())))
+	reg := NewRegistry(s, staticSecrets(secretFor("corp")), nil, "", nil)
+	rec := &auditWriteRecorder{}
+	reg.AttachAuditWriteSyncFunc(rec.write)
+
+	o, err := reg.OIDCFor(context.Background(), "corp")
+	if err != nil {
+		t.Fatalf("OIDCFor: %v", err)
+	}
+	if rr := callbackViaIDP(t, o, NewSessionStore(s), "nonce-dash"); rr.Code != http.StatusFound {
+		t.Fatalf("login: code=%d body=%q", rr.Code, rr.Body)
+	}
+	if len(rec.reasons) != 1 {
+		t.Fatalf("audit events = %d (%v), want 1", len(rec.reasons), rec.reasons)
+	}
+	if want := "oidc role assigned: provider=corp matched=corp-admins from=new_user to=admin"; rec.reasons[0] != want {
+		t.Fatalf("audit reason = %q, want %q", rec.reasons[0], want)
+	}
+}
+
+// Attaching the audit func drops providers built before it, so none keeps
+// running without it.
+func TestRegistry_AttachAuditWriteSyncFuncRebuildsCachedProviders(t *testing.T) {
+	s := newAuthDB(t)
+	seedExternalURL(t, s)
+	idp := newFakeIDP(t, "gameplane")
+	seedConfigRow(t, s, "auth", authRow(providerRow("corp", idp.issuer(), true)))
+	reg := NewRegistry(s, staticSecrets(secretFor("corp")), nil, "", nil)
+	ctx := context.Background()
+
+	before, err := reg.OIDCFor(ctx, "corp")
+	if err != nil {
+		t.Fatalf("OIDCFor: %v", err)
+	}
+	if before.auditWriteSync != nil {
+		t.Fatal("no audit func attached yet, provider must have none")
+	}
+	rec := &auditWriteRecorder{}
+	reg.AttachAuditWriteSyncFunc(rec.write)
+	after, err := reg.OIDCFor(ctx, "corp")
+	if err != nil {
+		t.Fatalf("OIDCFor after attach: %v", err)
+	}
+	if after == before {
+		t.Fatal("provider built before the audit func was attached must be rebuilt")
+	}
+	if after.auditWriteSync == nil {
+		t.Fatal("rebuilt provider must carry the audit func")
+	}
+	if after.providerName != "corp" {
+		t.Fatalf("providerName = %q, want corp", after.providerName)
+	}
+}

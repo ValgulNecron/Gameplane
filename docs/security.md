@@ -55,8 +55,14 @@ kubectl -n gameplane-system exec deploy/gameplane-api -- \
   /api bootstrap-admin --enable-local-login
 ```
 
-It force-enables the local provider in the auth config row (preserving
-everything else) and takes effect on the next login attempt.
+It force-enables the local provider in the auth config row, keeping
+everything else in that row as it was (the other providers and the
+`helmOverride` role-mapping overlay), and takes effect on the next login
+attempt.
+
+`bootstrap-admin --username <name> --force` resets that account's password,
+promotes it to `admin`, and ends every existing session of the account, the
+same way a dashboard password reset does.
 
 ### Client IP extraction from forwarded headers
 
@@ -718,10 +724,12 @@ On each OIDC login, Gameplane:
 4. If no role matches, assigns the default role (configured via `api.oidc.defaultRole`;
    defaults to `viewer`; can be set to `deny` to reject login).
 
-This re-evaluation runs only when Helm OIDC role mappings are configured
-(i.e., `api.oidc.roleMappings` has at least one non-empty role array). If role
-mappings are not configured, new OIDC users receive the fixed `viewer` role and
-existing users' roles are never re-evaluated.
+This re-evaluation runs whenever the effective role mappings exist: Helm-seeded
+`api.oidc.roleMappings` (at least one non-empty role array), a dashboard
+`helmOverride.roleMappings` overlay (which counts even when the Helm values set
+no mappings), or the mappings of a dashboard-managed provider. If none is
+configured, new OIDC users receive the fixed `viewer` role and existing users'
+roles are never re-evaluated.
 
 Two guards prevent lockout during re-evaluation:
 
@@ -759,7 +767,7 @@ is recorded in `audit_events` with the matched group name and role transition:
 - **Action**: OIDC login with role assignment
 - **Target**: the user (subject of the OIDC token)
 - **Details recorded**:
-  - Which OIDC provider performed the assignment (always `"helm"` for Helm-seeded mappings)
+  - Which OIDC provider performed the assignment (`"helm"` for the Helm-seeded provider, otherwise the dashboard-managed provider's name)
   - Which group matched a mapping rule (or `"none"` if no mapping matched)
   - The user's old role (`"new_user"` on first login, or the previous role)
   - The assigned role (`"viewer"`, `"operator"`, `"admin"`, or `"denied"` if rejected)

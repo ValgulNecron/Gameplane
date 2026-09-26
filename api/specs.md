@@ -85,7 +85,8 @@ Two subcommands:
 2. **`bootstrap-admin`** — seed or reset the initial admin user
    - Flags: `--db-driver`, `--db-dsn`, `--username`, `--password`, `--password-stdin`, `--email`, `--display-name`, `--force`, `--enable-local-login`
    - Runs schema migrations like the serve path; password hashed with argon2id
-   - Break-glass: `--enable-local-login` alone re-enables local auth in the config row (for OIDC-lockout recovery)
+   - Break-glass: `--enable-local-login` alone re-enables local auth in the config row (for OIDC-lockout recovery); every other key of the row (other providers, `helmOverride`) is written back unchanged
+   - `--force` on an existing user resets the password, promotes to admin, and deletes all of that user's sessions (same eviction as the dashboard password reset)
 
 ### REST surface (domain-level)
 
@@ -249,6 +250,8 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
 - **Two safety guards:**
   1. Role assignment only applies when mappings are explicitly configured (when overrides exist or when Helm seeded them). No automatic role assignment from bare group names without explicit mapping.
   2. Demotion guard: A user who is the **only user able to manage users** (sole admin, or sole admin-equivalent) cannot be demoted or removed from the admin role by the login-time role assignment flow. This prevents accidental lockout: if a user is currently the only admin and a role remapping would remove their admin status, the remapping is skipped (logged as warn), leaving them as admin. The guard applies only on login re-evaluation; the override API (PATCH /admin/config/auth) does not enforce it (an explicit admin action).
+- **Re-evaluation trigger:** re-evaluation runs whenever the effective policy the role was computed from has role mappings — for the Helm provider that is the Helm seed merged with `helmOverride`, so an override alone (no Helm-seeded mappings) is enough.
+- **Audit (FR-014):** every applied role assignment (first login, or a re-evaluation that changes the role) is audited with reason `oidc role assigned: provider=<name> matched=<group> from=<old> to=<new>`, for the Helm provider (`provider=helm`) and for every dashboard-managed provider (`provider=<provider name>`). A demotion skipped by the guard is logged, not audited.
 
 **The helmOverride overlay:**
 - **Storage:** Lives in the "auth" config row as `helmOverride.roleMappings.{admin, operator, viewer}`. No separate table, no migration beyond the existing config table. The entire overlay is optional.
