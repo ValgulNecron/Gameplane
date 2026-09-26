@@ -25,8 +25,10 @@ import (
 // without claiming we can join as a player.
 //
 // Factorio boots quickly (no steamcmd, small initial world generation) but
-// early images may vary. This is a heavy-set test (opt-in via
-// GAMEPLANE_E2E_GAME_BOT=1 and GAMEPLANE_E2E_GAMES=all).
+// early images may vary. It is in fastGameSet (gamebot_helpers_e2e_test.go),
+// so it runs by default with GAMEPLANE_E2E_GAME_BOT=1 alone (GAMEPLANE_E2E_GAMES
+// need not be "all"). It is still excluded from CI's bot-fast bucket and
+// bucketed under bot-heavy for CI disk budget reasons — see buckets.sh.
 // Deliberately NOT t.Parallel(): two real game servers booting concurrently
 // OOM-starves a single kind node.
 func TestGameServer_FactorioBot_Query(t *testing.T) {

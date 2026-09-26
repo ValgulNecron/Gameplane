@@ -964,7 +964,7 @@ func TestAPI_OIDCHelmSeeded_RoleReevaluatedOnGroupChange(t *testing.T) {
 //
 // NOT t.Parallel(): writes helmOverride.roleMappings which, if shared with other
 // config-mutating tests, could interfere. The test reuses one admin session for both
-// the PUT and DELETE, costing +1 admin login to bring the api-roles bucket to 5.
+// the PUT and DELETE, costing +1 admin login to bring the api-roles bucket to 6.
 // Budget: one admin login total.
 func TestAPI_OIDCHelmOverride_EffectiveAtLoginTime(t *testing.T) {
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
