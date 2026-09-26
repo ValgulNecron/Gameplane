@@ -80,6 +80,7 @@ All of these still apply.
 - #475: agent coverage margin tests (agent at 91.8%, 2483/2706) (merged 2026-09-26; findings `fixed-unverified`).
 - #476: group 27, F-216/F-217 plain agent metrics port + telemetry-receiver ServiceMonitor (merged 2026-09-26; findings `fixed-unverified`).
 - #460: held H31a, owner-only server operations (maintainer PR; conditional-write fix e82ce2ab) (merged 2026-09-26; findings `fixed-unverified`).
+- #477: group 33, API error handling and api/specs.md (merged 2026-09-26; findings `fixed-unverified`).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
 ### Open

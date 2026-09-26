@@ -70,16 +70,16 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-063 | Operator config/ dev path samples fail end-to-end | operator | review:operator | S4 | open | | | |
 | F-074 | requestTimeout(60s) exempts WebSocket/SSE only; upload/capture proxies cut at 60s | api/ | review:api | S3 | fixed-unverified | #444 | | |
 | F-075 | bodyLimit(1 MiB) deadcaps /mods/upload and /files/write; declared limits ignored | api/ | review:api | S3 | fixed-unverified | #444 | | |
-| F-076 | config row missing returns 500 instead of 200 on idempotent reset | api/ | review:api | S4 | open | | | |
-| F-077 | Plain errors mapped to 500 instead of hand-written 400/409 | api/ | review:api | S4 | open | | | |
+| F-076 | config row missing returns 500 instead of 200 on idempotent reset | api/ | review:api | S4 | fixed-unverified | #477 | | |
+| F-077 | Plain errors mapped to 500 instead of hand-written 400/409 | api/ | review:api | S4 | fixed-unverified | #477 | | |
 | F-081 | kubeconfig and join command address is in-cluster ClusterIP (unreachable) | api/ | review:api | S3 | fixed-unverified | #464 | | |
-| F-082 | RevokeShareLink returns 500 on unknown id instead of 404 | api/ | review:api | S4 | open | | | |
-| F-083 | 201 responses have Content-Type text/plain instead of json | api/ | review:api | S4 | open | | | |
-| F-085 | Backfilled theme preference timestamps in SQLite format not RFC 3339 | api/ | review:api | S4 | open | | | |
-| F-086 | Spec lists 7 capture endpoints but code has 8; documentation gaps only | api/ | review:api | S4 | open | | | |
-| F-087 | Spec capture/audit/RBAC statements contradictory | api/ | review:api | S4 | open | | | |
-| F-088 | Spec session/limits/roles statements contradictory | api/ | review:api | S4 | open | | | |
-| F-089 | Spec dependencies and flags stale vs. go.mod and main.go | api/ | review:api | S4 | open | | | |
+| F-082 | RevokeShareLink returns 500 on unknown id instead of 404 | api/ | review:api | S4 | fixed-unverified | #477 | | |
+| F-083 | 201 responses have Content-Type text/plain instead of json | api/ | review:api | S4 | fixed-unverified | #477 | | |
+| F-085 | Backfilled theme preference timestamps in SQLite format not RFC 3339 | api/ | review:api | S4 | fixed-unverified | #477 | | |
+| F-086 | Spec lists 7 capture endpoints but code has 8; documentation gaps only | api/ | review:api | S4 | fixed-unverified | #477 | | |
+| F-087 | Spec capture/audit/RBAC statements contradictory | api/ | review:api | S4 | fixed-unverified | #477 | | |
+| F-088 | Spec session/limits/roles statements contradictory | api/ | review:api | S4 | fixed-unverified | #477 | | |
+| F-089 | Spec dependencies and flags stale vs. go.mod and main.go | api/ | review:api | S4 | fixed-unverified | #477 | | |
 | F-102 | File write operations lose previous file on error | agent | review:agent | S1 | fixed-unverified | #433 | | |
 | F-103 | WebSocket and file streams drop after 30s context timeout | agent | review:agent | S3 | fixed-unverified | #437 | | |
 | F-104 | RCON reply size check rejects packets 4087 bytes or larger | agent | review:agent | S3 | fixed-unverified | #437 | | |
