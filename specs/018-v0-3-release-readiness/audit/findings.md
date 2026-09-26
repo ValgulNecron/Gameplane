@@ -49,13 +49,13 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-041 | e2e/internal/specs.md depth table has 16 rows but repo has 29 probe packages | test/e2e/ | review:test-e2e | S4 | open | | | docs outdated; docs/game-coverage.md is current source |
 | F-042 | api-roles bucket admin login count undercounted in docs: real count 7, cited 5–6 | test/e2e/ | review:test-e2e | S4 | open | | | bucket at ~7 ceiling; docs say ≤~5; no test failure (429 retry absorbs) |
 | F-043 | CHANGELOG.md "[Unreleased]" missing ~60 PRs of user-facing changes since v0.2.0-beta.8 | root docs | review:root-docs | S4 | fixed-unverified | #423 | | backfilled by the rc.1 CHANGELOG PR (OD-014) |
-| F-044 | Quiesce-state persisted before unquiesce completes | operator | review:operator | S3 | open | | | |
-| F-045 | Auto-scheduled backups never get the quiesce default | operator | review:operator | S3 | open | | | |
-| F-046 | Pinned module versions stuck in Pulling loop | operator | review:operator | S3 | open | | | |
-| F-047 | Template reference change wedges the server | operator | review:operator | S3 | open | | | |
-| F-048 | Backup with quiesce can be deleted before unquiesce | operator | review:operator | S3 | open | | | |
-| F-049 | Restore does not delete post-snapshot files | operator | review:operator | S3 | open | | | |
-| F-050 | Deleted managed GameTemplate not recreated on next reconcile | operator | review:operator | S3 | open | | | |
+| F-044 | Quiesce-state persisted before unquiesce completes | operator | review:operator | S3 | fixed-unverified | #454 | | |
+| F-045 | Auto-scheduled backups never get the quiesce default | operator | review:operator | S3 | fixed-unverified | #454 | | |
+| F-046 | Pinned module versions stuck in Pulling loop | operator | review:operator | S3 | fixed-unverified | #451 | | |
+| F-047 | Template reference change wedges the server | operator | review:operator | S3 | fixed-unverified | #451 | | |
+| F-048 | Backup with quiesce can be deleted before unquiesce | operator | review:operator | S3 | fixed-unverified | #454 | | |
+| F-049 | Restore does not delete post-snapshot files | operator | review:operator | S3 | fixed-unverified | #454 | | |
+| F-050 | Deleted managed GameTemplate not recreated on next reconcile | operator | review:operator | S3 | fixed-unverified | #451 | | |
 | F-051 | Capture expiration waits for unreachable sidecar | operator | review:operator | S4 | open | | | |
 | F-052 | UDP tunnel forwarding sends TCP | operator | review:operator | S3 | fixed-unverified | #428 | | |
 | F-054 | Wipe always succeeds even if it failed | operator | review:operator | S3 | fixed-unverified | #436 | | |
@@ -101,7 +101,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-123 | Revoked share links show as active | web | review:web | S3 | open | | | |
 | F-124 | Node selector never applied to running server | web | review:web | S3 | open | | | |
 | F-125 | Safe mode exits on in-app navigation | web | review:web | S3 | fixed-unverified | #440 | | |
-| F-126 | Six mutations have no error handlers | web | review:web | S3 | open | | | |
+| F-126 | Six mutations have no error handlers | web | review:web | S3 | fixed-unverified | #455 | | |
 | F-127 | Default namespace not used on server create | web | review:web | S3 | open | | | |
 | F-128 | Modules hash navigation fails | web | review:web | S4 | open | | | |
 | F-129 | Add cluster links to unusable page | web | review:web | S4 | open | | | |
@@ -112,7 +112,7 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-134 | Identity provider tab contradicts code | web | review:web | S4 | open | | | |
 | F-135 | API timestamps use key instead of ts | web | review:web | S4 | open | | | |
 | F-136 | Typo: Baning | web | review:web | S4 | open | | | |
-| F-137 | Promise handlers not awaited | web | review:web | S4 | open | | | |
+| F-137 | Promise handlers not awaited | web | review:web | S4 | fixed-unverified | #455 | | |
 | F-138 | Dead code in exports and branches | web | review:web | S4 | open | | | |
 | F-139 | specs.md contradicts implemented features | web | review:web | S4 | open | | | |
 | F-140 | specs.md lists unimplemented UI | web | review:web | S4 | open | | | |
@@ -187,27 +187,27 @@ Security findings that are not yet fixed are held off-git until their fix merges
 | F-224 | S3 region doc says path-style, code uses virtual-hosted | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
 | F-225 | podSecurity.enforceRestricted doc promises per-pod opt-in that doesn't exist | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
 | F-226 | Image list doc incomplete (12 images, lists 3) | charts/gameplane/ | review:charts/gameplane | S4 | open | | | |
-| F-232 | dev-up re-run targets wrong kubectl context | deploy/ | review:deploy | S3 | open | | | |
+| F-232 | dev-up re-run targets wrong kubectl context | deploy/ | review:deploy | S3 | fixed-unverified | #452 | | |
 | F-233 | e2e.sh comment/message lists wrong image names | deploy/ | review:deploy | S4 | open | | | |
-| F-234 | Docker registry container name conflict blocks bootstrap if stopped manually | deploy/ | review:deploy | S3 | open | | | |
+| F-234 | Docker registry container name conflict blocks bootstrap if stopped manually | deploy/ | review:deploy | S3 | fixed-unverified | #452 | | |
 | F-236 | Unicode punctuation stripped from anchor slug | hack/ | review:hack | S4 | open | | | |
-| F-237 | CLAUDE.md says dev-load rebuilds when it only loads | hack/ | review:hack | S4 | open | | | |
-| F-238 | capture-sidecar-setcap-proof omitted from report tally | .github/workflows/ | review:github-workflows | S3 | open | | | |
-| F-239 | publish-edge paths miss input dependencies | .github/workflows/ | review:github-workflows | S3 | open | | | |
-| F-240 | doc gates skip checks when appVersion or renamed docs change | .github/workflows/ | review:github-workflows | S3 | open | | | |
-| F-241 | .golangci.yml edit skips lint job | .github/workflows/ | review:github-workflows | S3 | open | | | |
-| F-242 | ratelimit bucket missing from report bucketSet | .github/workflows/ | review:github-workflows | S4 | open | | | |
-| F-243 | coverage report posts hard-coded success | .github/workflows/ | review:github-workflows | S4 | open | | | |
-| F-244 | gp-module missing from dependabot gomod | .github/workflows/ | review:github-workflows | S3 | open | | | |
+| F-237 | CLAUDE.md says dev-load rebuilds when it only loads | hack/ | review:hack | S4 | fixed-unverified | #452 | | |
+| F-238 | capture-sidecar-setcap-proof omitted from report tally | .github/workflows/ | review:github-workflows | S3 | fixed-unverified | #450 | | |
+| F-239 | publish-edge paths miss input dependencies | .github/workflows/ | review:github-workflows | S3 | fixed-unverified | #450 | | |
+| F-240 | doc gates skip checks when appVersion or renamed docs change | .github/workflows/ | review:github-workflows | S3 | fixed-unverified | #450 | | |
+| F-241 | .golangci.yml edit skips lint job | .github/workflows/ | review:github-workflows | S3 | fixed-unverified | #450 | | |
+| F-242 | ratelimit bucket missing from report bucketSet | .github/workflows/ | review:github-workflows | S4 | fixed-unverified | #450 | | |
+| F-243 | coverage report posts hard-coded success | .github/workflows/ | review:github-workflows | S4 | fixed-unverified | #450 | | |
+| F-244 | gp-module missing from dependabot gomod | .github/workflows/ | review:github-workflows | S3 | fixed-unverified | #450 | | |
 | F-245 | actionlint doc command uses wrong extension glob | .github/workflows/ | review:github-workflows | S4 | open | | | |
 | F-251 | nginx.conf.template missing client_max_body_size | web/ | review:web | S2 | fixed-unverified | #426 | | |
 | F-252 | docs/oidc.md gives clientSecretRef as plain string | charts/gameplane/ | review:charts/gameplane | S3 | open | | | |
 | F-253 | README.md / plan.md say "Go 1.25" vs go.mod's 1.26 requirement | root docs | review:root-docs | S4 | open | | | |
 | F-254 | sentinel/sentinel untracked binary, no .gitignore entry | sentinel/ | review:sentinel | S4 | open | | | |
-| F-255 | make dev-load loads 4 of 12 built images | deploy/ | review:deploy | S3 | open | | | |
+| F-255 | make dev-load loads 4 of 12 built images | deploy/ | review:deploy | S3 | fixed-unverified | #452 | | |
 | F-257 | Release image job times out building the multi-arch operator image, so an RC publishes no operator image, chart or GitHub release | .github/workflows/ | review:.github/workflows | S2 | fixed-unverified | #435 | | seen on the `v0.3.0-rc.1` release run (T014); ID after F-255 assumes F-256 is taken in the held list, so check on the devbox |
 | F-258 | A Failed Module rewrites its status twice on every reconcile and re-triggers itself through its own watch | operator | review:operator | S4 | fixed-unverified | #445 | | seen while fixing CI on a hardening PR: an envtest update to a Failed Module lost every RetryOnConflict attempt; same caveat on the ID as F-257 |
-| F-259 | Capture download returns 409 right after a user stop although the capture reads Completed | api | ci:e2e | S3 | fixed-unverified | #449 | | seen as sporadic arm64 e2e failures on unrelated PRs (#441); same caveat on the ID as F-257 |
+| F-259 | Capture download returns 409 right after a user stop although the capture reads Completed | api | ci:e2e | S3 | fixed-unverified | #449, #453 | | seen as sporadic arm64 e2e failures on unrelated PRs (#441); same caveat on the ID as F-257 |
 | F-260 | GameServer.Stopped and Restore.Resuming phases declared but never assigned | operator | review:operator | S4 | open | | | |
 
 ## Details

@@ -1,6 +1,6 @@
 # Restart Guide: spec 018 (v0.3 release readiness)
 
-Live hand-off, last updated during session 5 (a cloud session, 2026-09-25 ~00:00 UTC). **After every context compaction, re-read this file first**, then [tasks.md](tasks.md) and [OPEN-DECISIONS.md](OPEN-DECISIONS.md). Keep this file current before context runs out.
+Live hand-off, last updated during session 6 (a cloud session, 2026-09-26 ~12:40 UTC). **After every context compaction, re-read this file first**, then [tasks.md](tasks.md) and [OPEN-DECISIONS.md](OPEN-DECISIONS.md). Keep this file current before context runs out.
 
 ## 0. Setup
 
@@ -64,25 +64,27 @@ All of these still apply.
 - #447: F-174 playit address (merged; findings `fixed-unverified`).
 - #448: group 18, F-105/F-106 (merged; findings `fixed-unverified`).
 - #449: F-259 API-side wait. The maintainer-chosen operator-side redesign follows as a new PR from master (the rework in scratchpad/wtcap is rebased on master, which now includes #449) (merged; findings `fixed-unverified`).
+- #430: held H01 plus the 501 change (merged). Update `held/findings.md` on the devbox.
+- #450: group 30, F-238..F-244 (merged; findings `fixed-unverified`). The agent coverage check passed on the run that went green; it was not re-run.
+- #451: group 10, F-046/F-047/F-050 (merged; the maintainer's merge counts as sign-off on the `TestResources_GameServerCRUDRoundTrip` edit).
+- #452: group 29, F-232/F-234/F-255/F-237 (merged; this also fixed the master `chart render` check).
+- #453: F-259 operator-side capture stop (merged; the maintainer's merge counts as sign-off on the `networkcapture_envtest_test.go` edit). F-259's Fix column is now `#449, #453`.
+- #454: group 14, F-044/F-045/F-048/F-049 (merged; findings `fixed-unverified`).
+- #455: group 22, F-126/F-137 (merged; findings `fixed-unverified`).
+- #434: design PR from session 3 (merged by the maintainer).
 - #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
 
-### Green at the end of session 4; ready to merge
+### Open
 
-| PR | Content |
-|---|---|
-
-### Opened or fixed in session 5 (all green as of 2026-09-25 01:12 UTC)
-
-| PR | Content | State |
-|---|---|---|
-| #430 | held H01 plus the 501 change | **Green** on `592b9771` (master merged after #449; the 501 check runs before #449's wait). Ready to merge. |
+- #460 (`fix/018-harden-server-owner-operations`, F-256) and #461 (`fix/018-harden-metrics-endpoint`): opened outside session 6. Not driven by the cloud session unless the maintainer asks.
+- (group 27) F-216, F-217 (PodMonitor TLS, telemetry scrape): see §3c. Still waiting on a maintainer decision.
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
 ## 3b. Session-5 scout briefs (`audit/evidence/rc.1/fix-groups-brief-session5.md`, `od021-followups-brief-session5.md`)
 
 - **Fix-group waves** (from `fixgroups-brief.md`; all verified against master, none needs design):
-  - wave 1: 10, 14, 22, 27, 29, 30 (in flight in session 5);
+  - wave 1: 10, 14, 22, 29, 30 merged; 27 waits on a maintainer decision;
   - wave 2: 17, 35, 39, 41, 43, 47;
   - wave 3: 25, 37, 40, 45, 46, 49;
   - wave 4: 31, 34, 42, 52;
@@ -94,31 +96,25 @@ Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #
   - (c) filed as F-260.
 - **F-259 follow-up:** the operator-side redesign goes on the new branch `fix/018-capture-stop-operator`, because #449 merged the API-side wait first.
 
-## 3c. Session-5 wave-1 PRs (state at 2026-09-25 ~14:00 UTC)
+## 3c. Session-5 wave-1 leftovers
 
-| PR | Content | State |
-|---|---|---|
-| #430 | held H01 plus the 501 change | Green on `592b9771`; ready to merge. |
-| #450 | group 30: F-238..F-244 (CI reporting and trigger gaps) | **Green** on `310d0516` (run 36135725521, agent coverage passed on re-run). Ready to merge. |
-| #451 | group 10: F-046, F-047, F-050 | **Green** on `03f89864` (the api PUT handler rejects a templateRef change with 4xx, since the CRD now makes it immutable). **Sign-off needed:** the pre-existing `TestResources_GameServerCRUDRoundTrip` no longer changes templateRef. |
-| #452 | group 29: F-232, F-234, F-255, F-237 | **Green** on `bb395a69`. It also carries the fix for `chart render`, which was red on MASTER: commit 4bdbe329 left the chart CRD copies with a stale bundle-hash stamp, and #452 re-syncs them. **Merge #452 early:** until it lands, any PR that doesn't touch the CRDs fails `chart render`. |
-| #453 | F-259 follow-up: the operator-side capture stop (maintainer-chosen design) | **Green** (14/14) on `2f5b7695`. **Sign-off needed** on the `networkcapture_envtest_test.go` disable assertion, which now expects the annotation. |
-| #454 | group 14: F-044, F-045, F-048, F-049 | **Green** on `e335a473`: events.k8s.io RBAC for the event recorder, and restic restore keeps `--include /data`. |
-| #455 | group 22: F-126, F-137 (web silent failures) | **Green** on `7f085ff6`. Ready to merge. |
-| (group 27) | F-216, F-217 (PodMonitor TLS, telemetry scrape) | Branch `fix/018-charts-observability-scrape` exists only locally, in scratchpad/wtg27. **Needs a maintainer decision:** the fix gave Prometheus the agent's full mTLS client cert, which the agent accepts for all control routes. Options: a separate plain metrics port on the agent, a separate scrape-only CA/cert that the agent checks for /metrics only, or drop the agent PodMonitor. |
+All the wave-1 PRs (#450–#455) and #430 were merged by 2026-09-26 00:01 UTC (see §3).
 
-The cloud container restarted twice. The scratchpad worktrees survived, but re-check them after a restart. The helper `scratchpad/merged.sh PR "IDs" "label"` records a merge in findings.md and this file.
+- **Group 27** (F-216, F-217; PodMonitor TLS, telemetry scrape): the branch `fix/018-charts-observability-scrape` exists only locally, in the session-5 scratchpad at wtg27. **Needs a maintainer decision:** the fix gave Prometheus the agent's full mTLS client cert, which the agent accepts for all control routes. Options: a separate plain metrics port on the agent, a separate scrape-only CA/cert that the agent checks for /metrics only, or drop the agent PodMonitor. (#461 moves the *api* metrics to a dedicated listener; the agent side is still open.)
 
-- **Agent coverage margin:** the local branch `fix/018-agent-coverage-margin` (scratchpad/wtagentcov) was rejected twice in review: its tests add only about 2 statements. The next step is to settle the denominator (`.testcoverage.yml` excludes `^cmd/`, while `make cover-go` uses `-coverpkg=./...`) and find the timing-dependent coverage, working from CI evidence. A workflow is investigating this; lowering the gate is not an option.
-- **Wave 2** (groups 17, 35, 39, 41, 43, 47) is in flight in session 5 (workflow run `wf_fde12aaa-9c4`, worktrees scratchpad/wtg<N>). Each group gets its own PR, opened by the workflow after an opus review.
+The cloud container restarted three times; the third restart (session 6, 2026-09-26 12:29 UTC) killed all background workflows. The session-5 scratchpad (`/tmp/claude-0/-home-user-Gameplane/e4cc4290-.../scratchpad`) and its worktrees survived. Re-check them after a restart. The helper `scratchpad/merged.sh PR "IDs" "label"` records a merge in findings.md and this file.
+
+- **Agent coverage margin:** the local branch `fix/018-agent-coverage-margin` (scratchpad/wtagentcov) was rejected twice in review: its tests add only about 2 statements. The next step is to settle the denominator (`.testcoverage.yml` excludes `^cmd/`, while `make cover-go` uses `-coverpkg=./...`) and find the timing-dependent coverage, working from CI evidence. The session-5 investigation workflow died in the restart without reporting; restart it. Lowering the gate is not an option.
+- **Wave 2** (groups 17, 35, 39, 41, 43, 47): workflow `wf_fde12aaa-9c4` died in the restart. What is left: wtg17 has one local, unpushed, unreviewed commit `cd51d146` (F-081); wtg35 and wtg39 have uncommitted, unreviewed edits; groups 41, 43 and 47 were never started. Each group still gets its own PR after an opus review.
 
 ## 4. Next (in order)
 
 1. Finish the in-flight items above. Review each agent's result (one tier up), push, and watch until green.
 2. Give the maintainer the merge-ready list. After each merge, set its findings to `fixed-unverified`.
 3. The remaining public non-design fix groups from `audit/evidence/rc.1/fix-plan.md`:
-   - done or in flight: groups 1, 2, 4, 5, 6, 8, 9, 11, 15, 16, 18, 20, 21, 23, 24, 26;
-   - not started: 10, 14, 17, 22 (land after #429), 25, 27, 29–31, 33–35, 37–52;
+   - done: groups 1, 2, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 18, 20, 21, 22, 23, 24, 26, 29, 30;
+   - group 27 waits on a decision; wave 2 is partly done (see §3c);
+   - not started: 25, 31, 33 (unblocked now that #430 merged), 34, 37, 38, 40, 42, 44–46, 48–52;
    - 28 is blocked on the module tag (T054), 32 is T063, and 19 may need design.
 4. The OD-021 follow-ups (see OPEN-DECISIONS.md OD-021):
    - the new Go e2e bucket (item 12);
