@@ -364,6 +364,10 @@ func TestGameServer_HeartbeatReachesRunning(t *testing.T) {
 //     carries the filter-matching TCP port, at least one such packet
 //     exists (guards against a silently-empty-but-valid file passing
 //     by coincidence), and zero packets carry the non-matching port.
+//   - Default filter (FR-003): a second capture started with no filter
+//     reaches Running, because the operator builds the filter from the
+//     template's advertised ports, and every packet in its file is on
+//     the advertised port. It reuses this test's API session.
 func TestGameServer_NetworkCaptureStartStopDownload(t *testing.T) {
 	t.Parallel()
 
@@ -675,6 +679,131 @@ func TestGameServer_NetworkCaptureStartStopDownload(t *testing.T) {
 	}
 	t.Logf("capture file size=%d bytes, packets=%d, all matched filter %q (SC-001+SC-008 verified)",
 		len(fileBody), matchedPackets, startReq["filter"])
+
+	// Default filter (FR-003). Wait until the operator has told the sidecar
+	// to stop the first capture (it holds one capture at a time), then start
+	// a second capture with no filter on the same session.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		conds, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		for _, c := range conds {
+			m, ok := c.(map[string]any)
+			if ok && m["type"] == "SidecarStopped" && m["status"] == "True" {
+				return true, ""
+			}
+		}
+		return false, "first capture not yet stopped on the sidecar"
+	})
+
+	defaultReq := map[string]any{
+		"maxDurationSeconds":      300,
+		"maxSizeBytes":            testCaptureMaxSize,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	var defaultCaptureID string
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		resp, body, err := cli.Post("/servers/"+gsName+":capture-start", defaultReq)
+		if err != nil {
+			return false, "start capture without filter: " + err.Error()
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusConflict {
+			return false, "previous capture still holds the server's capture lock"
+		}
+		if resp.StatusCode != http.StatusAccepted {
+			t.Fatalf("start capture without filter: status=%s body=%s", resp.Status, body)
+		}
+		var started struct {
+			CaptureID string `json:"captureId"`
+		}
+		if err := json.Unmarshal(body, &started); err != nil || started.CaptureID == "" {
+			t.Fatalf("parse capture-start response %q: %v", body, err)
+		}
+		defaultCaptureID = started.CaptureID
+		return true, ""
+	})
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Delete(context.Background(), defaultCaptureID, metav1.DeleteOptions{})
+	})
+
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, defaultCaptureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		if phase == "Failed" {
+			msg, _, _ := unstructured.NestedString(obj.Object, "status", "message")
+			t.Fatalf("capture without filter failed: %s", msg)
+		}
+		if phase != "Running" {
+			return false, "phase=" + phase
+		}
+		return true, ""
+	})
+
+	stopDefaultResp, stopDefaultBody, err := cli.Post("/servers/"+gsName+":capture-stop", map[string]any{
+		"captureId": defaultCaptureID,
+	})
+	if err != nil {
+		t.Fatalf("stop capture without filter: %v", err)
+	}
+	defer func() { _ = stopDefaultResp.Body.Close() }()
+	if stopDefaultResp.StatusCode != http.StatusOK {
+		t.Fatalf("stop capture without filter: status=%s body=%s", stopDefaultResp.Status, stopDefaultBody)
+	}
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, defaultCaptureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		if phase != "Completed" {
+			return false, "phase=" + phase
+		}
+		return true, ""
+	})
+
+	defaultFileResp, defaultFileBody, err := cli.Get("/servers/" + gsName + ":capture-file?id=" + defaultCaptureID)
+	if err != nil {
+		t.Fatalf("download capture file without filter: %v", err)
+	}
+	defer func() { _ = defaultFileResp.Body.Close() }()
+	if defaultFileResp.StatusCode != http.StatusOK {
+		t.Fatalf("download capture file without filter: status=%s", defaultFileResp.Status)
+	}
+	defaultReader, err := pcapgo.NewNgReader(bytes.NewReader(defaultFileBody), pcapgo.DefaultNgReaderOptions)
+	if err != nil {
+		t.Fatalf("capture file without filter is not valid PCAPNG: %v", err)
+	}
+	defaultPackets := 0
+	for {
+		data, _, err := defaultReader.ReadPacketData()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("read packet from capture without filter: %v", err)
+		}
+		packet := gopacket.NewPacket(data, defaultReader.LinkType(), gopacket.Default)
+		tcp, ok := packet.Layer(layers.LayerTypeTCP).(*layers.TCP)
+		if !ok {
+			t.Fatalf("default-filter capture holds a non-TCP packet; the template advertises only TCP %d: %s", matchPort, packet.String())
+		}
+		if uint16(tcp.SrcPort) != matchPort && uint16(tcp.DstPort) != matchPort {
+			t.Errorf("default-filter capture holds a packet off the advertised port %d: src=%d dst=%d", matchPort, tcp.SrcPort, tcp.DstPort)
+		}
+		defaultPackets++
+	}
+	t.Logf("capture without filter reached Running; file size=%d bytes, packets=%d, all on the advertised port %d",
+		len(defaultFileBody), defaultPackets, matchPort)
 }
 
 // findContainerByName returns the container named `name` from cs, or nil.

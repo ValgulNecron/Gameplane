@@ -384,13 +384,23 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			ctx, nc.Namespace, gs.Name, nc.Name,
 		)
 		if statusErr != nil {
-			// The sidecar has no record of this capture yet; start it.
+			// The sidecar has no record of this capture yet; start it. With
+			// no spec.filter, the filter is built from the template's
+			// advertised ports (FR-003). The sidecar refuses an empty filter,
+			// so one is always sent.
+			filter, failMsg, filterErr := r.captureFilter(ctx, &nc, &gs)
+			if filterErr != nil {
+				return ctrl.Result{}, filterErr
+			}
+			if failMsg != "" {
+				return r.fail(ctx, &nc, failMsg)
+			}
 			if err := r.SidecarClient.StartCapture(
 				ctx,
 				nc.Namespace,
 				gs.Name,
 				nc.Name,
-				nc.Spec.Filter,
+				filter,
 				maxDurationSeconds,
 				maxSizeBytes,
 			); err != nil {
