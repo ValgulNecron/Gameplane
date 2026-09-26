@@ -76,8 +76,8 @@ All of these still apply.
 
 ### Open
 
-- #460 (`fix/018-harden-server-owner-operations`, F-256) and #461 (`fix/018-harden-metrics-endpoint`): opened outside session 6. Not driven by the cloud session unless the maintainer asks.
-- (group 27) F-216, F-217 (PodMonitor TLS, telemetry scrape): see §3c. Still waiting on a maintainer decision.
+- #460 and #461: held fixes the maintainer made on the devbox. The cloud session doesn't drive them.
+- (group 27) F-216, F-217: decided 2026-09-26 (see §3c); rework in flight.
 
 Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
 
@@ -100,12 +100,13 @@ Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #
 
 All the wave-1 PRs (#450–#455) and #430 were merged by 2026-09-26 00:01 UTC (see §3).
 
-- **Group 27** (F-216, F-217; PodMonitor TLS, telemetry scrape): the branch `fix/018-charts-observability-scrape` exists only locally, in the session-5 scratchpad at wtg27. **Needs a maintainer decision:** the fix gave Prometheus the agent's full mTLS client cert, which the agent accepts for all control routes. Options: a separate plain metrics port on the agent, a separate scrape-only CA/cert that the agent checks for /metrics only, or drop the agent PodMonitor. (#461 moves the *api* metrics to a dedicated listener; the agent side is still open.)
+- **Group 27** (F-216, F-217; PodMonitor TLS, telemetry scrape): the branch `fix/018-charts-observability-scrape` exists only locally, in the session-5 scratchpad at wtg27. The first attempt gave Prometheus the agent's full mTLS client cert, which the agent accepts for all control routes. **Maintainer decision (2026-09-26):** the agent serves `/metrics` on a separate plain metrics port, and the PodMonitor scrapes that port without a client cert.
 
 The cloud container restarted three times; the third restart (session 6, 2026-09-26 12:29 UTC) killed all background workflows. The session-5 scratchpad (`/tmp/claude-0/-home-user-Gameplane/e4cc4290-.../scratchpad`) and its worktrees survived. Re-check them after a restart. The helper `scratchpad/merged.sh PR "IDs" "label"` records a merge in findings.md and this file.
 
 - **Agent coverage margin:** the local branch `fix/018-agent-coverage-margin` (scratchpad/wtagentcov) was rejected twice in review: its tests add only about 2 statements. The next step is to settle the denominator (`.testcoverage.yml` excludes `^cmd/`, while `make cover-go` uses `-coverpkg=./...`) and find the timing-dependent coverage, working from CI evidence. The session-5 investigation workflow died in the restart without reporting; restart it. Lowering the gate is not an option.
-- **Wave 2** (groups 17, 35, 39, 41, 43, 47): workflow `wf_fde12aaa-9c4` died in the restart. What is left: wtg17 has one local, unpushed, unreviewed commit `cd51d146` (F-081); wtg35 and wtg39 have uncommitted, unreviewed edits; groups 41, 43 and 47 were never started. Each group still gets its own PR after an opus review.
+- **Wave 2** (groups 17, 35, 39, 41, 43, 47), the group 27 rework and the agent-coverage investigation were restarted in session 6 as workflow `wf_86f6ffc1-6e8`. It reuses the session-5 worktrees wtg17/27/35/39 (rebased on master) and new ones wtg41/43/47. Each group gets its own PR after an opus review. The coverage investigation only reports.
+- **F-107 (group 35):** the session-6 call is that the doc is wrong and the code is right. A failing *first* quiesce command leaves nothing paused, so `docs/module-authoring.md` is corrected; `quiesce.go` and `TestDeclaredQuiescer_FirstCommandErrorSkipsRollback` stay unchanged.
 
 ## 4. Next (in order)
 
