@@ -1,0 +1,242 @@
+[
+  {
+    "kind": "GameTemplate",
+    "name": "7-days-to-die",
+    "namespace": null,
+    "uid": "7f1405e0-5af2-46c0-b046-021afc39fb97",
+    "generation": 3,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "ark-survival-ascended",
+    "namespace": null,
+    "uid": "cc6a519a-7c7f-4ae5-ac44-74da094c256a",
+    "generation": 3,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "ark-survival-evolved",
+    "namespace": null,
+    "uid": "9e1eb13b-8886-4c26-a2c8-94ee08b22000",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "arma-reforger",
+    "namespace": null,
+    "uid": "42a3813f-da03-4dbf-b6db-6a324aaeee4b",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "beammp",
+    "namespace": null,
+    "uid": "c2fbf8ee-af0d-4453-99f8-1a941e8931b1",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "cs2",
+    "namespace": null,
+    "uid": "3486d71d-a84b-4beb-98f4-7f33ce5d5cf3",
+    "generation": 3,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "dayz",
+    "namespace": null,
+    "uid": "e9fdb2e2-fc14-4beb-970b-ae1a487ad71d",
+    "generation": 3,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "dont-starve-together",
+    "namespace": null,
+    "uid": "3ad8b091-ed18-4531-a925-f54cf79b90ac",
+    "generation": 3,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "enshrouded",
+    "namespace": null,
+    "uid": "bab0b460-def9-4c74-98fd-188793094c81",
+    "generation": 2,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "euro-truck-simulator-2",
+    "namespace": null,
+    "uid": "29730858-2a62-4ea4-807b-eaba521fe12c",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "factorio",
+    "namespace": null,
+    "uid": "a0b6d116-b748-48d6-9f6a-e87613370312",
+    "generation": 3,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "farming-simulator-25",
+    "namespace": null,
+    "uid": "1505f6c3-bec0-48fc-95a3-26c0164d362b",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "fivem",
+    "namespace": null,
+    "uid": "896f0822-f68e-4f65-abcc-8e87dbfd8481",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "garrys-mod",
+    "namespace": null,
+    "uid": "d134673f-082b-42e3-96c9-3b5e2f750a30",
+    "generation": 2,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "hell-let-loose",
+    "namespace": null,
+    "uid": "bd1a157a-73a5-4656-b83d-7924ba5465ef",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "left-4-dead-2",
+    "namespace": null,
+    "uid": "0e67fec0-f8b0-42d6-9b0c-53715ed6ab63",
+    "generation": 2,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "minecraft-java",
+    "namespace": null,
+    "uid": "733d0d28-8e7f-4a33-b9a5-4535e716e4c3",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "mount-and-blade-2-bannerlord",
+    "namespace": null,
+    "uid": "4881976c-3854-4f87-84a9-194ac922e0e0",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "palworld",
+    "namespace": null,
+    "uid": "10365d57-a8ac-4171-aea8-5f809ef311b0",
+    "generation": 2,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "probe-palworld",
+    "namespace": null,
+    "uid": "72911169-464f-4f3c-a9df-82d3e3ca6b69",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "project-zomboid",
+    "namespace": null,
+    "uid": "dafdb482-69e1-46c0-b00b-b30f8d82ada9",
+    "generation": 2,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "rust",
+    "namespace": null,
+    "uid": "0b511904-5a3b-4e4a-9917-81f7ef5e032f",
+    "generation": 2,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "satisfactory",
+    "namespace": null,
+    "uid": "ca31f34a-2e66-4e25-b0b8-9c28cd62a301",
+    "generation": 3,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "squad",
+    "namespace": null,
+    "uid": "50de0e6f-5859-4f48-8226-2d22761d12b5",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "team-fortress-2",
+    "namespace": null,
+    "uid": "8ceb0889-8686-4a15-8807-172af9f99ea9",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "terraria",
+    "namespace": null,
+    "uid": "f132c5c9-9150-4e21-bded-1017215c7d53",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "the-isle",
+    "namespace": null,
+    "uid": "c1e055dd-4a45-4713-b7fb-0a5146138dbb",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "tmodloader",
+    "namespace": null,
+    "uid": "df495892-a9d3-4f04-b408-ed2828ec0199",
+    "generation": 1,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "v-rising",
+    "namespace": null,
+    "uid": "abcec904-445e-4427-b37d-03e9091f96a9",
+    "generation": 2,
+    "phase": null
+  },
+  {
+    "kind": "GameTemplate",
+    "name": "valheim",
+    "namespace": null,
+    "uid": "d563e242-c60d-4307-accb-8c5ed618a0cb",
+    "generation": 3,
+    "phase": null
+  }
+]

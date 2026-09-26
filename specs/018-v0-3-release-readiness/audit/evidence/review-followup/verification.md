@@ -1,0 +1,87 @@
+# Follow-up chunk: independent verification
+
+Verifier input: five functional/docs items noticed during other chunks' review but never filed as a candidate by any component reviewer. Checked against branch `018-v0-3-release-readiness` at `213bdaa7`. Method: read the named files directly, and for items 1 and 2 reproduced the actual failure (`helm template` render, `git check-ignore`) rather than relying on inspection alone. No test or lint suite was run; only `go build`-adjacent and `helm template` compilation-style checks. No repo file other than this one was changed. Checked `audit/findings.md` (2912 lines) and `evidence/review-deploy/verification.md` + `evidence/review-hack/verification.md` for duplicates as directed.
+
+Severity follows research R3 (`specs/018-v0-3-release-readiness/research.md#r3-severity-scale`): S1 data loss/security-boundary break/upgrade corruption, S2 a core path broken with no workaround, S3 degraded behaviour or a workaround exists, S4 cosmetic/documentation/wording. None of the five items concern a security control, so none are routed to held.
+
+| Item | Verdict | Severity | Reason |
+|---|---|---|---|
+| 1. nginx.conf.template missing client_max_body_size | kept | S2 | Confirmed. No directive anywhere in `web/nginx.conf.template`, so nginx-unprivileged's compiled-in 1 MiB default applies. The value is baked into the image (`web/Dockerfile:37` `COPY`s it straight into `/etc/nginx/templates/`, no envsubst placeholder for it), so there is no Helm-level or ConfigMap-level override — an admin would have to rebuild the image. All traffic including uploads routes through this pod (`charts/gameplane/templates/ingress.yaml`), so this is a core path (dashboard file/mod upload) broken for any payload over 1 MiB, despite the API allowing 64 MiB and the ingress annotation allowing 64 MiB. |
+| 2. docs/oidc.md gives clientSecretRef as a plain string | kept | S3 | Confirmed. All three example blocks (Okta `:165`, Azure AD `:229`, Keycloak CLI `:266` and values `:282`) set `clientSecretRef` to a bare string; the chart requires an object (`charts/gameplane/templates/api.yaml:339-340` dereferences `.name`/`.key`). Reproduced: `helm template` with a values file matching the docs' shape fails at `api.yaml:339:34` (`can't evaluate field name in type interface {}`). A workaround exists — `values.yaml:243-244` shows the correct `{name, key}` shape — so S3, not S2. Also confirmed: no example in the file sets `api.oidc.enabled: true`, so literally following any doc example as given renders nothing related to OIDC at all (the whole `env` block is gated on `.Values.api.oidc.enabled`) even before the type error is hit in a config that does turn it on. |
+| 3. README.md / plan.md say "Go 1.25" vs go.mod's newer requirement | kept | S4 | Confirmed. `README.md:230` says "Go 1.25+"; `specs/018-v0-3-release-readiness/plan.md:20` says "Go 1.25". All 15 workspace `go.mod` files (and `go.work:1`) declare `go 1.26.0`. Same category and severity as the already-tracked per-module instances (F-152, F-197, F-200), but neither of those two files is covered by any existing finding. |
+| 4. sentinel/sentinel untracked binary, no .gitignore entry | kept | S4 | Confirmed. `sentinel/sentinel` (16.8 MB) is untracked (`git status --porcelain sentinel/` → `?? sentinel/sentinel`) and `git check-ignore -v sentinel/sentinel` exits 1 (not ignored by any pattern). Sibling single-binary modules each carry their own `.gitignore` ignoring exactly this shape of artifact — `mcp-server/.gitignore`, `telemetry-receiver/.gitignore` and `audit-syslog-bridge/.gitignore` each contain one line, `/<module-name>`. `sentinel/` has no `.gitignore` of its own, and the root `.gitignore`'s Go section (`/bin/`, `/dist/`, `operator/bin/`, etc.) does not match a bare `sentinel/sentinel` path either. Repo-hygiene/build-tooling gap, not a runtime defect, so S4. |
+| 5. make dev-load loads only 4 of the 12 images built by `make images` | kept | S3 | Confirmed as a real gap recorded nowhere. `evidence/review-deploy/verification.md#c-deploy-02` was rejected as a duplicate of `evidence/review-hack/verification.md#c-hack-04`; `C-hack-04` itself was kept "narrowed" for the `CLAUDE.md:104` "Rebuild" wording only, explicitly leaving the image-count defect "in the deploy chunk... counted once" and adding it back only as an uncounted "Supporting observation." Neither `evidence/review-deploy/verification.md` nor `evidence/review-hack/verification.md` has a `###`-level kept item for the image-loading gap itself, and `findings.md` (F-237) covers only the wording half. Verified independently: `Makefile:260` builds 12 images (`operator api web agent telemetry-receiver sentinel mcp-server capture-sidecar` + `audit-syslog image-tunnel-frp image-tunnel-tailscale image-tunnel-playit`); `Makefile:367-371` (`dev-load`) `kind load`s only `operator api web agent`. The other 8 are used by optional/on-demand components (sentinel and the tunnel images are created per-GameServer by the operator for quiesce/wake-on-connect and relay features; `mcpServer.enabled` and `capture.enabled` default `false` in `values.yaml`), so a bare `make dev-up` does not hit the gap, but exercising any of those 8 components on a local Kind cluster does — `kind`'s local image and GHCR both then miss the ref (GHCR `:dev` tag confirmed 404 for `sentinel` per the hack chunk's evidence). A workaround exists (manually `kind load docker-image` the missing images after `make images`), so S3. |
+
+### followup-pub-1
+
+**Location:** `web/nginx.conf.template` (no `client_max_body_size` directive anywhere in the file — checked the full 133 lines); `web/Dockerfile:36-37` (bakes the template into the image, no runtime override point); `charts/gameplane/templates/ingress.yaml:16-24` (all paths, including uploads, route to `gameplane-web` when `web.enabled`, the default); `charts/gameplane/values.yaml:307` (ingress-level `proxy-body-size: "64m"`); `api/cmd/main.go:254,602-611,619-623` (API's own `bodyLimit` middleware exempts `/servers/{name}/files/upload`); `api/internal/ws/dialer.go:244-247` (default proxy cap `64<<20` = 64 MiB for the file/mod upload proxy paths).
+
+**Repro / observation:**
+1. `grep -c client_max_body_size web/nginx.conf.template` → `0`.
+2. nginx's compiled-in default for `client_max_body_size` (unset) is `1m`, and nothing in `web/nginx.conf.template`'s `server {}` or `location {}` blocks sets it.
+3. `web/Dockerfile:37` copies the template verbatim into the image at build time (`COPY web/nginx.conf.template /etc/nginx/templates/gameplane.conf.template`); the only substitutions applied at container start are `${API_UPSTREAM}` and `${NGINX_RESOLVER}` (per the file's own header comment), so `client_max_body_size` cannot be raised via env var, ConfigMap, or Helm value — only by editing the source file and rebuilding the image.
+4. A dashboard user uploads a file or mod archive larger than 1 MiB via Files.tsx or the mod-upload UI. The browser's request reaches the ingress (which allows up to 64 MiB per `nginx.ingress.kubernetes.io/proxy-body-size: "64m"`), then the `gameplane-web` pod's own nginx, which rejects it with `413 Request Entity Too Large` before the request is proxied to `gameplane-api` at all.
+5. The API itself would have accepted it: `bodyLimit(1<<20)` at `api/cmd/main.go:254` is explicitly bypassed for `isUploadPath` (`/servers/{name}/files/upload`), and the agent-proxy path caps uploads at 64 MiB (`dialer.go:247`, raised further for mod uploads per the same file's `httpProxyLimit` callers) — the API is never given the chance to apply its own, larger limit.
+
+**Expected:** `web/nginx.conf.template` sets `client_max_body_size` to at least the ingress's 64m (or the API's model-specific per-route caps), so a body the ingress and API are willing to accept is not rejected by the pod sitting between them.
+
+**Actual:** The web pod's nginx silently falls back to the 1 MiB compiled-in default, so any dashboard upload over 1 MiB gets `413` from the web pod regardless of what the ingress or API would allow, and there is no config knob to raise it without rebuilding the `web` image.
+
+### followup-pub-2
+
+**Location:** `docs/oidc.md:165` (Okta example), `:229` (Azure AD example), `:266` and `:282` (Keycloak CLI + values example); `charts/gameplane/values.yaml:239-244` (schema); `charts/gameplane/templates/api.yaml:334-340` (consumer).
+
+**Repro / observation:**
+1. `grep -n clientSecretRef docs/oidc.md` returns four hits, all of the shape `clientSecretRef: "<name>-oidc-secret"` (YAML example blocks) or `--set api.oidc.clientSecretRef="keycloak-oidc-secret"` (Helm CLI example), i.e. a bare string in every case.
+2. `charts/gameplane/values.yaml:239-244` declares the real schema: `clientSecretRef: { name: gameplane-oidc, key: ... }`, an object with `name` and `key`.
+3. `charts/gameplane/templates/api.yaml:337-340` dereferences it as an object: `secretKeyRef: { name: {{ .Values.api.oidc.clientSecretRef.name }}, key: {{ .Values.api.oidc.clientSecretRef.key }} }`, gated on `.Values.api.oidc.enabled`.
+4. Reproduced live: `helm template gameplane charts/gameplane -f <values with api.oidc.enabled: true, clientSecretRef: "keycloak-oidc-secret">` (i.e., the Keycloak values-file example from the doc, plus turning `enabled: true` on since the doc's own example never does) prints `coalesce.go:298: warning: cannot overwrite table with non table for gameplane.api.oidc.clientSecretRef (map[key:clientSecret name:gameplane-oidc])` and then fails outright: `Error: template: gameplane/templates/api.yaml:339:34: executing "gameplane/templates/api.yaml" at <.Values.api.oidc.clientSecretRef.name>: can't evaluate field name in type interface {}`.
+5. Separately: `grep -n "oidc.enabled\|enabled: true" docs/oidc.md` matches nothing — none of the doc's own example blocks actually sets `api.oidc.enabled: true`, so copy-pasting an example as given renders no OIDC env vars at all (the whole block is gated on that flag) until a reader also adds `enabled: true` themselves, at which point they hit the type error above.
+
+**Expected:** The doc's Helm examples use the real schema (`clientSecretRef: { name: ..., key: ... }` in YAML, or `--set api.oidc.clientSecretRef.name=... --set api.oidc.clientSecretRef.key=...` on the CLI) and include `api.oidc.enabled: true`, so a reader who copies an example gets a working install.
+
+**Actual:** Every example gives `clientSecretRef` the wrong shape and omits `enabled: true`; following any of them as literally written either renders nothing OIDC-related, or — once a reader also flips `enabled` on, as the surrounding prose clearly intends — fails `helm template`/`helm install` outright with a Go-template type error.
+
+### followup-pub-3
+
+**Location:** `README.md:230`; `specs/018-v0-3-release-readiness/plan.md:20`; `go.work:1`; all 15 workspace `go.mod` files (`agent`, `api`, `audit-syslog-bridge`, `capture-sidecar`, `gameaction`, `gameproto`, `gp-module`, `mcp-server`, `netguard`, `operator`, `sentinel`, `svcutil`, `telemetry-receiver`, `tunnel`, `test/e2e`), each at line 3 (`go.work` at line 1).
+
+**Repro / observation:**
+1. `sed -n 230p README.md`: "Requires: Go 1.25+, Node 20+, Docker, kind, kubectl, helm, ...".
+2. `sed -n 20p specs/018-v0-3-release-readiness/plan.md`: "**Language/Version**: ... Fixes land in the existing stack: Go 1.25 (`go.work`, 15 modules including `gp-module` and `test/e2e`), ...".
+3. `grep '^go ' go.work` → `go 1.26.0`.
+4. `grep -h '^go ' */go.mod` (all 15 modules, including `gp-module` and `test/e2e`) → `go 1.26.0` in every one, no exceptions.
+
+**Expected:** The quickstart requirement and the plan's technical-context line state the real minimum, Go 1.26 (matching `go.work` and every module's `go.mod`).
+
+**Actual:** Both say "Go 1.25", one minor version behind what `go.work` and all 15 `go.mod` files actually require. Same pattern already tracked per-module for `gameaction`, `audit-syslog-bridge` and `telemetry-receiver` specs.md files (F-152, F-197, F-200), but `README.md` and this feature's own `plan.md` are not covered by any existing finding.
+
+### followup-pub-4
+
+**Location:** `sentinel/` (no `.gitignore` file present); `.gitignore:1-15` (root, Go section); `mcp-server/.gitignore:1`, `telemetry-receiver/.gitignore:1`, `audit-syslog-bridge/.gitignore:1` (sibling single-binary modules' own ignore files).
+
+**Repro / observation:**
+1. `ls sentinel/` shows `Dockerfile, go.mod, go.sum, main.go, main_test.go, sentinel, specs.md, .testcoverage.yml` — `sentinel` is a compiled ELF binary (16,823,897 bytes), and there is no `sentinel/.gitignore`.
+2. `git status --porcelain sentinel/` → `?? sentinel/sentinel` (untracked).
+3. `git check-ignore -v sentinel/sentinel` exits `1` (no pattern matches; nothing is printed) — confirming the root `.gitignore`'s Go section (`/bin/`, `/dist/`, `*.test`, `*.out`, `*.prof`, `coverage.*`, `coverage/`, `vendor/`, `operator/bin/`, `test/e2e/.kube/`) does not cover a bare `sentinel/sentinel` path.
+4. `cat mcp-server/.gitignore` → `/mcp-server`; `cat telemetry-receiver/.gitignore` → `/telemetry-receiver`; `cat audit-syslog-bridge/.gitignore` → `/audit-syslog-bridge`. Each of these three modules, structured the same way as `sentinel/` (a `main.go` directly in the module root, no `cmd/` subdirectory, so `go build ./...` from the module root drops a same-named binary there), carries exactly the one-line `.gitignore` that `sentinel/` lacks.
+
+**Expected:** `sentinel/` has a `.gitignore` (or a root-level pattern) matching its sibling modules, so `go build ./...` inside it can't leave a committable binary.
+
+**Actual:** No such pattern exists for `sentinel/`; the binary is untracked but not ignored, so a routine `git add -A` (or `git add sentinel/`) commits a 16 MB compiled binary to the repository by accident.
+
+### followup-pub-5
+
+**Location:** `Makefile:260` (`IMAGES` list), `:263` (`images` target), `:353-365` (`dev-up`), `:367-371` (`dev-load`), `:384-391` (`dev-install`); `charts/gameplane/values.yaml` (`mcpServer.enabled: false` at `:400`, `capture.enabled: false` at `:527`); `evidence/review-deploy/verification.md#c-deploy-02`; `evidence/review-hack/verification.md#c-hack-04`; `findings.md:201` (F-237).
+
+**Repro / observation:**
+1. `Makefile:260`: `IMAGES := operator api web agent telemetry-receiver sentinel mcp-server capture-sidecar` (8 names). `Makefile:263`: `images: $(addprefix image-,$(IMAGES)) image-audit-syslog image-tunnel-frp image-tunnel-tailscale image-tunnel-playit` — 8 + 4 = 12 images total, confirming the "12 images" premise.
+2. `Makefile:367-371` (`dev-load`): four `kind load docker-image` lines, exactly `operator`, `api`, `web`, `agent` — 4 of the 12.
+3. `evidence/review-deploy/verification.md`, `C-deploy-02` row: "rejected (duplicate) ... same finding as C-hack-04 ... If the hack-chunk verifier drops C-hack-04, reinstate this one at S3." No `### C-deploy-02` subsection was written (only `C-deploy-01`, `-03`, `-04` have one) — the substantive image-count defect has no kept, evidenced section in this file.
+4. `evidence/review-hack/verification.md`, `C-hack-04` row: "kept (narrowed) ... The other half of the candidate says dev-load loads 4 of the 12 built images ... That is the same defect as the deploy chunk's C-deploy-02 ... so it is left there and counted once." The `### C-hack-04` subsection's **Repro/Expected/Actual** cover only the "Rebuild" wording claim; the image-count half appears solely as a **Supporting observation for C-deploy-02 (not counted here)** paragraph beneath it.
+5. Net effect: each chunk explicitly defers the substantive image-loading gap to the other chunk, and neither actually files a kept, evidenced `###` section for it. `findings.md:201` (F-237) is titled "CLAUDE.md says dev-load rebuilds when it only loads" — the wording claim only, not the count.
+6. Independently confirmed the gap itself is real: `mcpServer.enabled` defaults `false` (`values.yaml:400`) and `capture.enabled` defaults `false` (`values.yaml:527`), so those two of the 8 unloaded images are opt-in. `sentinel` and the three `tunnel-*` images are per-GameServer images the operator references for quiesce/wake-on-connect and relay features rather than always-running `gameplane-system` deployments, so a bare `make dev-up` does not hit an `ImagePullBackOff` from this gap — but enabling mcp-server, capture, quiesce/sentinel, a tunnel relay, telemetry-receiver, or the bundled audit-syslog bridge on a `make dev-up` Kind cluster does, since neither the local `kind` registry (only 4 loaded) nor GHCR (`:dev` tag confirmed absent for `sentinel`, per `C-hack-04`'s supporting observation) can supply the image.
+
+**Expected:** Either `dev-load` (and its `dev-up` caller) loads all images `make images` builds, so every optional component works out of the box on a Kind dev cluster, or `CLAUDE.md`/the target's help text says which images it loads and that the rest need a manual `kind load docker-image` — and the gap has one kept, evidenced item in the audit trail.
+
+**Actual:** `dev-load` loads 4 of 12; the other 8 back optional/on-demand components that silently fail to pull their image on a Kind cluster if exercised, and — because each component chunk deferred the substantive defect to the other — it has no kept `###` section or table row in either `evidence/review-deploy/verification.md`, `evidence/review-hack/verification.md`, or `findings.md` (F-237 covers only the wording half).

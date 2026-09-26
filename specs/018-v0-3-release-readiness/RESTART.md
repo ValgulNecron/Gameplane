@@ -1,0 +1,163 @@
+# Restart Guide: spec 018 (v0.3 release readiness)
+
+Live hand-off, last updated during session 6 (a cloud session, 2026-09-26 ~12:40 UTC). **After every context compaction, re-read this file first**, then [tasks.md](tasks.md) and [OPEN-DECISIONS.md](OPEN-DECISIONS.md). Keep this file current before context runs out.
+
+## 0. Setup
+
+1. `git fetch origin && git checkout 018-v0-3-release-readiness` (draft PR #424 holds the audit records).
+2. The held security material (`audit/held/`, `SECURITY_AUDIT.md` rewording, `~/gameplane-audit-018/`, `~/kubelab.yaml`) exists **only on the devbox** and is git-ignored (OD-019). Never commit it or paste it anywhere public.
+3. `git submodule update --init modules`.
+
+## 1. Working rules
+
+All of these still apply.
+
+- **Context:** use `Workflow` and `Agent` for triage, fixes and reviews, so the main loop's context isn't used up (maintainer, session 5). Work only in scratchpad worktrees, never by switching the main checkout's branch.
+- **OD-019:** held fixes read as neutral "hardening": no held IDs or repros in branches, commits, comments or PRs.
+- **CLAUDE.md 8:** compile checks only locally. CI is the verifier.
+- **Branches and PRs:**
+  - One `fix/018-<group>` branch and PR per fix group. The maintainer approved this.
+  - PR labels are set with the GitHub API (issue labels).
+  - Only the maintainer merges.
+- **Branch deletion:** the cloud session can't delete remote branches (403). Ask the maintainer, or enable GitHub's "Automatically delete head branches".
+- **`github-advanced-security`:** ignore this check. It is Copilot autofind and always fails with "model not supported", per the maintainer.
+- **Open PRs:** don't leave them to rot. Watch every open PR, fix red CI immediately, and say what is ready to merge. Session 5 is subscribed to #427–#447 and has an hourly `send_later` check-in.
+- **Scope:** no design work (OD-025 groups 3, 7, 12, 13 and 36, the H31b dashboard, #434) and no held security fixes in cloud sessions. The held fixes (H31a onward) are done on the devbox.
+- **Questions:** ask with the question tool, one issue plus its proposed fix per question. Never ask a blanket "go ahead or wait".
+- **Model tiers (CLAUDE.md 13):** fable is banned. Opus work gets an independent opus review.
+- **Helm:** CI uses Helm 4 (`azure/setup-helm` latest). For local `helm template` checks, download a helm binary into the scratchpad.
+
+## 2. Decisions
+
+- **Session 4 records (applied in `3990fa18`):**
+  - `audit/findings.md` Status/Fix PR updates.
+  - OD-021 and OD-026 RESOLVED 2026-09-24. Their resolutions are in OPEN-DECISIONS.md, and the live rounds use them.
+  - **Session 5 maintainer decisions (2026-09-25):**
+  - Test edits **approved**: #441 (api fixtures), #443 (Helm-version-dependent hook events), #447 (`TestBuildCommandPlayit`), #448 (`players_test.go` -1/-1, `heartbeat_test.go` gameVersion check dropped).
+  - #446: keep the 4h drain ceiling.
+  - #449 / F-259: do the **operator-side fix**. The API only requests the stop (annotation), and the operator sets Completed after `SidecarStopped`. The edits to the `capture_envtest_test.go:151` and `capture_test.go:259` assertions and the research.md "Capture lifecycle" amendment are approved as part of it.
+  - Next work: the remaining non-design fix groups, plus the OD-021 follow-ups.
+- **rc.1:** don't re-run or move the tag; `v0.3.0-rc.1` predates #435. Cut **rc.2** from master once the current fixes land (T057).
+- **#430:** remote-cluster requests to home-cluster-only routes answer **501**, with the body `httperr.RemoteClusterNotImplemented`. The maintainer asked for this; the cross-cluster agent comes later.
+- **#434** (a design PR from session 3) is ignored for now.
+
+## 3. PR state
+
+### Merged (findings already `fixed-unverified`)
+
+- #432: F-215.
+- #435: F-257. Confirm the operator, api and web images finished on `publish-edge` (run 36069312826).
+- #438: F-121.
+- #431: held H03. Update `held/findings.md` on the devbox.
+- #428: group 8, F-172/F-052/F-173 (merged 2026-09-25 11:08 UTC; findings `fixed-unverified`). #447 retargeted to master.
+- #429: group 4, F-116/F-130 (merged 2026-09-25 11:08 UTC; findings `fixed-unverified`). Group 22 can start now (it waited on #429).
+- #436: group 11, F-054 (merged; findings `fixed-unverified`).
+- #437: group 15, F-103/F-104 (merged; findings `fixed-unverified`).
+- #439: group 26, F-204 (merged; findings `fixed-unverified`).
+- #433: group 2, F-102/F-108 (merged; findings `fixed-unverified`).
+- #440: group 21, F-125 (merged; findings `fixed-unverified`).
+- #441: group 23, F-159..F-162 (merged; findings `fixed-unverified`).
+- #443: group 9, F-213/F-214/F-218 (merged; findings `fixed-unverified`).
+- #444: group 16, F-074/F-075 (merged; findings `fixed-unverified`).
+- #445: F-258 (merged; findings `fixed-unverified`).
+- #446: group 24, F-179/F-180 (merged; findings `fixed-unverified`).
+- #447: F-174 playit address (merged; findings `fixed-unverified`).
+- #448: group 18, F-105/F-106 (merged; findings `fixed-unverified`).
+- #449: F-259 API-side wait. The maintainer-chosen operator-side redesign follows as a new PR from master (the rework in scratchpad/wtcap is rebased on master, which now includes #449) (merged; findings `fixed-unverified`).
+- #430: held H01 plus the 501 change (merged). Update `held/findings.md` on the devbox.
+- #450: group 30, F-238..F-244 (merged; findings `fixed-unverified`). The agent coverage check passed on the run that went green; it was not re-run.
+- #451: group 10, F-046/F-047/F-050 (merged; the maintainer's merge counts as sign-off on the `TestResources_GameServerCRUDRoundTrip` edit).
+- #452: group 29, F-232/F-234/F-255/F-237 (merged; this also fixed the master `chart render` check).
+- #453: F-259 operator-side capture stop (merged; the maintainer's merge counts as sign-off on the `networkcapture_envtest_test.go` edit). F-259's Fix column is now `#449, #453`.
+- #454: group 14, F-044/F-045/F-048/F-049 (merged; findings `fixed-unverified`).
+- #455: group 22, F-126/F-137 (merged; findings `fixed-unverified`).
+- #434: design PR from session 3 (merged by the maintainer).
+- #464: group 17, F-081 (merged 2026-09-26; findings `fixed-unverified`).
+- #465: group 35, F-107/F-109..F-111 (merged 2026-09-26; findings `fixed-unverified`).
+- #467: group 41, F-182..F-186/F-254 (F-181 already fixed by #446) (merged 2026-09-26; findings `fixed-unverified`).
+- #468: group 47, F-031/F-175/F-176 tunnel docs (merged 2026-09-26; findings `fixed-unverified`).
+- #470: group 39, F-153..F-158 gameproto (merged 2026-09-26; findings `fixed-unverified`).
+- #475: agent coverage margin tests (agent at 91.8%, 2483/2706) (merged 2026-09-26; findings `fixed-unverified`).
+- #476: group 27, F-216/F-217 plain agent metrics port + telemetry-receiver ServiceMonitor (merged 2026-09-26; findings `fixed-unverified`).
+- #460: held H31a, owner-only server operations (maintainer PR; conditional-write fix e82ce2ab) (merged 2026-09-26; findings `fixed-unverified`).
+- #477: group 33, API error handling and api/specs.md (merged 2026-09-26; findings `fixed-unverified`).
+- #466: group 43, audit-syslog-bridge (merged 2026-09-26; findings `fixed-unverified`).
+- #478: group 45, deploy/hack scripts (merged 2026-09-26; findings `fixed-unverified`).
+- #479: group 40, gp-module docs and tooling (merged 2026-09-26; findings `fixed-unverified`).
+- #480: group 37, web code quality and docs (F-138 partial: 7 test-only exports kept pending sign-off) (merged 2026-09-26; findings `fixed-unverified`).
+- #481: group 46, svcutil docs (merged 2026-09-26; findings `fixed-unverified`).
+- #482: group 49, e2e docs drift (merged 2026-09-26; findings `fixed-unverified`).
+- #483: group 25, capture-sidecar retention budget (follow-up: API-deleted capture files still count until pod restart) (merged 2026-09-26; findings `fixed-unverified`).
+- #427: held H02 (merged 2026-09-25 11:05 UTC). Update `held/findings.md` on the devbox.
+
+### Open
+
+- #460 and #461: held fixes the maintainer made on the devbox. The cloud session doesn't drive them.
+- Wave 2, opened in session 6 by workflow `wf_86f6ffc1-6e8` after opus review: #465 (group 35), #466 (group 43), #467 (group 41), #468 (group 47), #470 (group 39). Watch CI; the maintainer merges.
+- #476: group 27, F-216/F-217 (plain agent metrics port 9090, PodMonitor without client cert, telemetry-receiver ServiceMonitor and Service label). Opus-approved. It includes the maintainer-approved `build_agent_container_test.go` edit.
+- #475: add-only agent tests that give the coverage gate a real margin (report: scratchpad/agentcov-report.md). Opus-approved. One fix-up commit carries a `Co-Authored-By: Claude Sonnet 5` trailer, which names the model that actually ran it (CLAUDE.md rule 11).
+
+Local `npm ci` fails with ERESOLVE (`@eslint/js` 10 vs `eslint` 9, from merged #387). Use `--legacy-peer-deps` for the compile check only.
+
+## 3b. Session-5 scout briefs (`audit/evidence/rc.1/fix-groups-brief-session5.md`, `od021-followups-brief-session5.md`)
+
+- **Fix-group waves** (from `fixgroups-brief.md`; all verified against master, none needs design):
+  - wave 1: 10, 14, 22, 29, 30 merged; 27 waits on a maintainer decision;
+  - wave 2: 17, 35, 39, 41, 43, 47;
+  - wave 3: 25, 37, 40, 45, 46, 49;
+  - wave 4: 31, 34, 42, 52;
+  - wave 5: 38, 44, 48, 50.
+  - Group 33 waits for #430 (shared `httperr.go`/`api/specs.md`). Group 51 has an external blocker. Re-check F-181 (group 41), which may already be fixed by #446. F-253's citation exists only on the 018 branch.
+- **OD-021 follow-ups** (from `od021-brief.md`):
+  - (a) new `api-web` Go e2e bucket: 71 web.md procedures in 13 table-driven test functions; the login-budget sizing is still open;
+  - (b) the nuclear-option, terraria and minecraft-java bundles all pass `gp-module validate`; the likely cause is F-258 churn (#445, now merged) plus live factors, which need kubelab to confirm;
+  - (c) filed as F-260.
+- **F-259 follow-up:** the operator-side redesign goes on the new branch `fix/018-capture-stop-operator`, because #449 merged the API-side wait first.
+
+## 3c. Session-5 wave-1 leftovers
+
+All the wave-1 PRs (#450–#455) and #430 were merged by 2026-09-26 00:01 UTC (see §3).
+
+- **Group 27** (F-216, F-217; PodMonitor TLS, telemetry scrape): the branch `fix/018-charts-observability-scrape` exists only locally, in the session-5 scratchpad at wtg27. The first attempt gave Prometheus the agent's full mTLS client cert, which the agent accepts for all control routes. **Maintainer decision (2026-09-26):** the agent serves `/metrics` on a separate plain metrics port, and the PodMonitor scrapes that port without a client cert.
+
+The cloud container restarted three times; the third restart (session 6, 2026-09-26 12:29 UTC) killed all background workflows. The session-5 scratchpad (`/tmp/claude-0/-home-user-Gameplane/e4cc4290-.../scratchpad`) and its worktrees survived. Re-check them after a restart. The helper `scratchpad/merged.sh PR "IDs" "label"` records a merge in findings.md and this file.
+
+- **Agent coverage margin:** now #475 (see §3 Open).
+- **Wave 2** (groups 17, 35, 39, 41, 43, 47), the group 27 rework and the agent-coverage investigation were restarted in session 6 as workflow `wf_86f6ffc1-6e8`. It reuses the session-5 worktrees wtg17/27/35/39 (rebased on master) and new ones wtg41/43/47. Each group gets its own PR after an opus review. The coverage investigation only reports.
+- **Wave 3** (groups 25, 33, 37, 40, 45, 46, 49) was merged on 2026-09-26 as #477 to #483.
+  - F-138: the maintainer approved removing the 7 exports that only tests use, and their test-only coverage (2026-09-26); this rides with wave 4.
+  - Filed F-261 (a capture file deleted through the API still counts against the budget) and F-262 (the playit NetworkPolicy adds no egress ports); both ride with wave 4.
+- **Wave 4** (the maintainer said go on 2026-09-26): workflow `wf_a698c6cb`-style script at scratchpad/wave4.js, run `wf_3d169a04-ffb`. It covers groups 31, 34, 42 (plus F-261) and 52, plus F-138 (the removals the maintainer signed off: branch `fix/018-web-dead-test-only-exports`, worktree wtg138) and F-262 (`fix/018-tunnel-playit-egress`, wtg262). Wave 5 comes next: 38, 44, 48, 50.
+- **CodeRabbit:** the maintainer runs it by hand on every security PR, at most once per hour. Don't push to a security PR while its review is pending, and never treat a security PR as done until its review is back.
+- **F-107 (group 35):** the session-6 call is that the doc is wrong and the code is right. A failing *first* quiesce command leaves nothing paused, so `docs/module-authoring.md` is corrected; `quiesce.go` and `TestDeclaredQuiescer_FirstCommandErrorSkipsRollback` stay unchanged.
+
+## 4. Next (in order)
+
+1. Finish the in-flight items above. Review each agent's result (one tier up), push, and watch until green.
+2. Give the maintainer the merge-ready list. After each merge, set its findings to `fixed-unverified`.
+3. The remaining public non-design fix groups from `audit/evidence/rc.1/fix-plan.md`:
+   - done: groups 1, 2, 4, 5, 6, 8, 9, 10, 11, 14, 15, 16, 18, 20, 21, 22, 23, 24, 26, 29, 30;
+   - group 27 waits on a decision; wave 2 is partly done (see §3c);
+   - wave 2 and wave 3 are done: 17, 25, 27, 33, 35, 37, 39, 40, 41, 43, 45, 46, 47, 49;
+   - not started: wave 4 (31, 34, 42, 52), wave 5 (38, 44, 48, 50), 51 (external blocker);
+   - 28 is blocked on the module tag (T054), 32 is T063, and 19 may need design.
+4. The OD-021 follow-ups (see OPEN-DECISIONS.md OD-021):
+   - the new Go e2e bucket (item 12);
+   - fix the Failed nuclear-option, terraria and minecraft-java Modules (items 3 and 23a);
+   - the S4 finding for the unused phases (item 22);
+   - procedure edits for every item.
+5. rc.2 (T057): a CHANGELOG PR, then RC-TAG-2 approval, the tag, the release run (check it against contracts/rc-deploy.md §1) and a deploy to kubelab.
+6. The devbox-only work:
+   - held fixes H31a onward;
+   - the T012 user list;
+   - T046 and the live rounds T025–T034 and T047–T049, using the OD-021 resolutions in OPEN-DECISIONS.md.
+
+## 5. kubelab facts
+
+Unchanged from session 3.
+
+- `KUBECONFIG=~/kubelab.yaml`. Nodes: `kubelab-control` and `kubelab-worker-{1,2}`, on k3s v1.36.2.
+- Helm release `gameplane` in `gameplane-system`, revision 6, chart 0.2.0-beta.8.
+- Site settings to preserve: `image.registry=gameplane-test`, `image.tag=016`, `operator.addressManager=metallb`, `ingress.host=gameplane.local`, `defaultModuleSource` git `ref: main`, `crds.autoApply.enabled=false`.
+- Pre-existing GameServers (never write to them): `mc-fabric`, `soak-bogus-pool`, `soak-no-preference`, `squad` and `soak-pool-west`. ModuleSources `default` and `uploads` are also off limits.
+- API access: `kubectl port-forward -n gameplane-system svc/gameplane-web 18080:80`, then `GP=http://127.0.0.1:18080`. The DB is at migration 011.

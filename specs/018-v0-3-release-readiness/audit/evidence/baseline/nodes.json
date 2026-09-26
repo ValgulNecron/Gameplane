@@ -1,0 +1,25 @@
+[
+  {
+    "name": "kubelab-control",
+    "uid": "7dc653ab-d4d2-4ff8-8939-00c827743102",
+    "roles": [
+      "control-plane"
+    ],
+    "schedulable": true,
+    "kubeletVersion": "v1.36.2+k3s1"
+  },
+  {
+    "name": "kubelab-worker-1",
+    "uid": "daf806bc-1137-4a84-8126-2f0bcdc9403f",
+    "roles": [],
+    "schedulable": true,
+    "kubeletVersion": "v1.36.2+k3s1"
+  },
+  {
+    "name": "kubelab-worker-2",
+    "uid": "a0d20e24-d778-41c8-8584-46198f35e820",
+    "roles": [],
+    "schedulable": true,
+    "kubeletVersion": "v1.36.2+k3s1"
+  }
+]
