@@ -37,6 +37,10 @@ var ErrShareLinkInvalid = errors.New("invalid share link")
 // expiry (never expires) is always valid and skips this check entirely.
 var ErrShareLinkExpiryInvalid = errors.New("share link expiry invalid")
 
+// ErrShareLinkNotFound is returned by RevokeShareLink when no row matches
+// the given id (and cluster, when scoped). httperr classifies it as 404.
+var ErrShareLinkNotFound = errors.New("share link not found")
+
 // CreateShareLink mints a new share link and returns the raw token, which is
 // never stored and never recoverable afterwards. expiresAt is optional: nil
 // means the link never expires. When non-nil it must be strictly in the
@@ -309,7 +313,7 @@ func (s *Store) RevokeShareLink(ctx context.Context, cluster, id string) error {
 		return fmt.Errorf("rows affected: %w", err)
 	}
 	if n == 0 {
-		return fmt.Errorf("share link not found: %w", errors.New("unknown id"))
+		return fmt.Errorf("revoke share link %q: %w", id, ErrShareLinkNotFound)
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 )
 
 // TestUserThemePreferencesMigration proves migration 011 (data-model.md §3):
@@ -143,6 +144,60 @@ func TestUserPreferences_GetDefaultsWithoutRow(t *testing.T) {
 	}
 	if prefs.UpdatedAt == "" {
 		t.Error("defaults: UpdatedAt must be populated")
+	}
+}
+
+// TestUserPreferences_GetNormalizesLegacyBackfillTimestamp is the F-085
+// regression test: migration 011's backfill stores updated_at via SQLite's
+// datetime('now'), which is "YYYY-MM-DD HH:MM:SS" — not RFC 3339, contrary
+// to api/specs.md's contract. GetPreferences must normalize it on read
+// without editing the (append-only) migration itself.
+func TestUserPreferences_GetNormalizesLegacyBackfillTimestamp(t *testing.T) {
+	s := newShareLinksStore(t)
+	ctx := context.Background()
+	userID := insertTestUser(t, s, "legacy-backfill")
+
+	// Simulate what migration 011's backfill INSERT produces: a row whose
+	// updated_at came from the column default datetime('now'), not Go's
+	// RFC3339 writer.
+	if _, err := s.DB.ExecContext(ctx,
+		`INSERT INTO user_preferences (user_id, theme_type, preset_id, appearance_mode, updated_at)
+		    VALUES (?, 'preset', 'legacy', 'system', '2026-09-24 08:00:00')`, userID); err != nil {
+		t.Fatalf("seed legacy row: %v", err)
+	}
+
+	prefs, err := s.GetPreferences(ctx, userID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if _, err := time.Parse(time.RFC3339, prefs.UpdatedAt); err != nil {
+		t.Fatalf("UpdatedAt = %q, not RFC3339: %v", prefs.UpdatedAt, err)
+	}
+	if prefs.UpdatedAt != "2026-09-24T08:00:00Z" {
+		t.Fatalf("UpdatedAt = %q, want 2026-09-24T08:00:00Z", prefs.UpdatedAt)
+	}
+}
+
+// TestUserPreferences_GetPassesThroughRFC3339Timestamp confirms a row
+// already written by Go (UpsertPreferences, RFC3339) is returned verbatim
+// by normalizeTimestamp — no double-conversion or format drift.
+func TestUserPreferences_GetPassesThroughRFC3339Timestamp(t *testing.T) {
+	s := newShareLinksStore(t)
+	ctx := context.Background()
+	userID := insertTestUser(t, s, "rfc3339-passthrough")
+
+	if _, err := s.UpsertPreferences(ctx, userID, UserPreferences{
+		ThemeType: "preset", PresetID: "pink", AppearanceMode: "system",
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	prefs, err := s.GetPreferences(ctx, userID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if _, err := time.Parse(time.RFC3339, prefs.UpdatedAt); err != nil {
+		t.Fatalf("UpdatedAt = %q, not RFC3339: %v", prefs.UpdatedAt, err)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -120,6 +121,13 @@ func classifyMinecraftHandshake(br *bufio.Reader) (Kind, *minecraftClassifyResul
 // buildMinecraftStatusResponse builds a JSON status response packet.
 // Format: packet_id (0x00) + string(json).
 func buildMinecraftStatusResponse(jsonPayload string) ([]byte, error) {
+	// Reject a malformed payload up front, per the Classifier interface
+	// contract (classifier.go / specs.md): BuildStatusResponse errors if the
+	// payload "is malformed or oversized".
+	if !json.Valid([]byte(jsonPayload)) {
+		return nil, errors.New("build status response: payload is not valid JSON")
+	}
+
 	var inner bytes.Buffer
 
 	// Packet ID (0x00 for Status Response).
