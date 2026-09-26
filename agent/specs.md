@@ -60,11 +60,11 @@ Per-package roles:
 - **`caps`**: Unmarshals JSON capabilities blob from `GAMEPLANE_CAPABILITIES` env; exposes `Spec` with `Players`, `Quiesce`, `Lifecycle`, `Actions`, `Status`, `Mods`.
 - **`console`**: Accepts `{ kind: "cmd", body: "<rcon cmd>" }` JSON over WebSocket, runs it via RCON, replies with `{ kind: "out"|"err", body: "<response>" }`.
 - **`files`**: Walks the filesystem under `--data-root`, enforces path-traversal protection (no `..`, no symlinks escaping the root), handles multipart uploads.
-- **`heartbeat`**: Runs a background goroutine that every 20 seconds patches `gameservers/<name>/status` with `agent.lastHeartbeat`, `status.playersOnline`, `status.playersMax`, `status.gameVersion`, and resource usage via the pod's ServiceAccount. `gameVersion` is currently always patched `null` ("unknown") — the agent has no source for the game's actual running version; it must never be filled in with the game/template identifier (e.g. `minecraft-java`), which is a different value.
+- **`heartbeat`**: Runs a background goroutine that every 20 seconds patches `gameservers/<name>/status` with `status.agent.lastHeartbeat`, `status.agent.playersOnline`, `status.agent.playersMax`, `status.agent.gameVersion`, and resource usage via the pod's ServiceAccount. `gameVersion` is currently always patched `null` ("unknown") — the agent has no source for the game's actual running version; it must never be filled in with the game/template identifier (e.g. `minecraft-java`), which is a different value.
 - **`lifecycle`**: HTTP handler for the operator's `/lifecycle/stop` call; runs module-declared stop commands over RCON before the game process terminates.
 - **`logs`**: Tails a game log file (path from `--game-log-path`) over WebSocket; supports streaming from end (default, "live") or start ("backlog").
 - **`mods`**: Tracks installed mods in a per-volume manifest (`.gameplane-mods.json`); downloads from registry with strict egress validation via `netguard.IsPublic`.
-- **`players`**: Queries player count, names, ban lists, and runs moderation actions over RCON; game-specific `commander` implementations (Minecraft, Satisfactory, Palworld, etc.) report capabilities.
+- **`players`**: Queries player count, names, ban lists, and runs moderation actions over RCON; a single template-driven `commander` renders each moderation command from the module's declared `capabilities.players` templates (no per-game Go implementations), and reports capabilities from what the template declares.
 - **`quiesce`**: Runs module-declared sequences (e.g., Minecraft's `save-off` + `save-all flush`) over RCON; responds `quiesced: false` + reason when unsupported (not an error).
 - **`rcon`**: Factory pattern for wire-protocol clients (`Valve/Source`, `Telnet`, `WebSocket`, `BattlEye`, `Satisfactory`, `Palworld`, `NuclearOption`, `REST`, `CLI`, `Disabled`); `Exec(cmd) (string, error)` interface. RCON reply packets are accepted up to 16394 bytes (a 4096-character Minecraft chunk at its worst-case UTF-8 byte length, plus the 10-byte packet header) and rejected as malformed outside `[10, 16394]` (F-104).
 - **`status`**: Runs module-declared metrics queries over RCON; each metric specifies a command and a regex with named group `"value"` for extraction.
@@ -98,6 +98,7 @@ Mode: In-pod HTTP/HTTPS sidecar (runs as a container sidecar or as a pod share-p
 | `--game` | `` | `GAMEPLANE_GAME` | Game identifier (e.g., `minecraft`, `rust`, `satisfactory`) |
 | `--capabilities` | `` | `GAMEPLANE_CAPABILITIES` | Declared game capabilities (JSON, from `GameTemplate.spec.capabilities`) |
 | `--log-level` | `info` (from env) | `GAMEPLANE_LOG_LEVEL` | Log verbosity: `debug`, `info`, `warn`, `error` |
+| `--cli-pipe` | `/var/run/gameplane/console.pipe` (from env) | `GAMEPLANE_CLI_PIPE` | Named FIFO pipe used by the `cli` RCON protocol to drive commands via container stdin/PTY |
 
 Resource usage env vars (set by the operator):
 
@@ -134,12 +135,16 @@ Resource usage env vars (set by the operator):
 | `/quiesce` | POST | Pause auto-saves before snapshot; response: `{ quiesced, reason? }` (boolean, reason optional); unsupported games return `quiesced: false` with a reason |
 | `/unquiesce` | POST | Resume auto-saves after snapshot; response: `{ quiesced, reason? }` |
 | `/lifecycle/stop` | POST | Run stop sequence before scale-to-zero; RCON connection drop is the expected outcome |
-| `/actions/run` | POST | Execute module-declared operator action; request: `{ name, params }` |
-| `/status` | GET | Live game metrics (module-declared); response: `{ metrics[] }` |
-| `/mods` | GET | List installed mods; response: `{ mods[] }` |
-| `/mods/install` | POST | Install a mod; request: `{ name, version, ... }` |
-| `/mods` | DELETE | Uninstall a mod; request: `{ name }` |
+| `/actions/run` | POST | Execute module-declared operator action; request: `{ id, params }`; response: `{ ok, raw? }` |
+| `/status` | GET | Live game metrics (module-declared); response: bare JSON array `[ { id, displayName?, value, unit? } ]` |
+| `/mods` | GET | List installed mods; response: bare JSON array `[ { name, size, modTime, meta? } ]` |
+| `/mods/install` | POST | Install a mod; request: `{ url, name?, replaces?, meta? }` (no `version` field; `meta` carries the registry identity) |
+| `/mods` | DELETE | Uninstall a mod; query param `?name=` (not a JSON body) |
 | `/mods/upload` | POST | Upload a mod archive; body is multipart/form-data |
+| `/logs/download` | GET | Download the full game log file as an attachment |
+| `/players/whitelist` | GET | Currently whitelisted players; response: bare JSON array of names (`[]` if whitelist management isn't supported or RCON is disabled) |
+| `/players/whitelist/add` | POST | Add a player to the whitelist; request: `{ name }`; response: `{ ok, raw? }` |
+| `/players/whitelist/remove` | POST | Remove a player from the whitelist; request: `{ name }`; response: `{ ok, raw? }` |
 
 All endpoints (except `/healthz` and `/metrics`) return `401 Unauthorized` if the request lacks a valid cert or token.
 
@@ -169,14 +174,14 @@ All endpoints (except `/healthz` and `/metrics`) return `401 Unauthorized` if th
 
 | Module | Version | Purpose |
 |--------|---------|---------|
-| `github.com/go-chi/chi/v5` | v5.1.0 | HTTP router |
-| `github.com/coder/websocket` | v1.8.12 | WebSocket library for console, logs, player queries |
-| `k8s.io/apimachinery` | **v0.31.1** | Kubernetes types for status patches |
-| `k8s.io/client-go` | **v0.31.1** | Kubernetes client for heartbeat (GameServer status patches) |
-| `github.com/prometheus/client_golang` | v1.20.5 | Prometheus metrics (`/metrics` endpoint) |
-| `golang.org/x/sys` | v0.22.0 | System-level utilities (used by client-go) |
+| `github.com/go-chi/chi/v5` | v5.3.2 | HTTP router |
+| `github.com/coder/websocket` | v1.8.15 | WebSocket library for console, logs, player queries |
+| `k8s.io/apimachinery` | v0.37.0 | Kubernetes types for status patches |
+| `k8s.io/client-go` | v0.37.0 | Kubernetes client for heartbeat (GameServer status patches) |
+| `github.com/prometheus/client_golang` | v1.24.1 | Prometheus metrics (`/metrics` endpoint) |
+| `golang.org/x/sys` | v0.48.0 | System-level utilities (used by client-go) |
 
-**Note:** The agent is pinned to Kubernetes v0.31.1 (Kubernetes 1.31) while other modules (operator, api) use v0.35.0 (Kubernetes 1.35). This is intentional to maintain compatibility with a broader range of cluster versions. The older k8s version does not restrict the agent's functionality in the current scope.
+The agent, operator, and api modules all use `k8s.io/apimachinery`/`k8s.io/client-go` v0.37.0 — there is no intentional version skew between them.
 
 ## Data & persistence
 

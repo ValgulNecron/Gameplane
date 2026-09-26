@@ -1107,10 +1107,12 @@ capabilities:
   admin API `protocol: palworld`, not RCON, so the players list is
   fetched via the REST endpoint, not a console command).
 - The quiesce sequence runs in order; any command error — or output
-  matching `failurePattern` (case-insensitive) — aborts the backup and
-  best-effort runs `unquiesce` so the game is never left paused.
-  Games that can't quiesce simply omit the block; backups proceed
-  without pausing.
+  matching `failurePattern` (case-insensitive) — aborts the backup. If
+  at least one earlier command in the sequence already succeeded,
+  `unquiesce` then runs best-effort so the game is never left paused;
+  a failure on the *first* command means nothing was paused yet, so
+  `unquiesce` is skipped. Games that can't quiesce simply omit the
+  block; backups proceed without pausing.
 - `lifecycle.stop` runs before the pod is scaled down (stop button,
   restarts): the operator issues the sequence — over RCON when the
   template has it, otherwise over a stdin pod-attach for `consoleMode:

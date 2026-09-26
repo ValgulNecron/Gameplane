@@ -13,7 +13,17 @@
 //
 // An authentication failure responds with id=-1. Large command
 // responses are split across multiple RESPONSE_VALUE packets; we
-// assemble them with the Valve-documented "empty-cmd sentinel" trick.
+// assemble them with a short grace-window read loop instead of the
+// Valve-documented "empty-cmd sentinel" trick, which Minecraft's RCON
+// doesn't tolerate (see the comment on Exec's read loop).
+//
+// Every client in this package dials the address configured by
+// --rcon-host/--rcon-port, which the game module declares and which is
+// expected to stay pod-local (typically 127.0.0.1, the sidecar's own
+// pod). The WebSocket and Satisfactory clients additionally enforce
+// this: WebSocket routes its dial through netguard.IsAllowed, and
+// Satisfactory only relaxes TLS verification when the configured host
+// actually resolves to loopback.
 package rcon
 
 import (
