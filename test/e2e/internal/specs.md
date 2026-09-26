@@ -304,32 +304,23 @@ The `buckets.sh verify` step fails CI if any test is unbucketed or double-bucket
 
 ### Per-game depth table
 
-| Module | Transport | Port | Set | Probe | Depth | Status |
-|---|---|---|---|---|---|---|
-| minecraft-java | TCP | 25565 | Fast | JOINED protocol | JOINED | Protocol client implemented; CI-verified (PR #194) |
-| terraria | TCP | 7777 | Fast | JOINED protocol | JOINED | Protocol client implemented; CI-verified (PR #194) |
-| garrys-mod | UDP | 27015 | Fast | Source A2S | QUERY | A2S query confirmed (PR #197); Source connect channel confirmed reachable (real GMod server reply: 0x39 connect rejection with protocol version mismatch); protocol version measured as blocker (PR #197, 2026-07-24) |
-| cs2 | UDP | 27015 | Heavy | Source A2S | QUERY | A2S query verified against Valve spec; Source protocol family confirmed against real server (shared with garrys-mod) |
-| 7-days-to-die | UDP | 26901 | Heavy | Steam A2S | QUERY | Protocol client implemented |
-| project-zomboid | UDP | 16261 | Heavy | Steam A2S | QUERY | Protocol client implemented |
-| valheim | HTTP | 80 | Heavy | status.json | QUERY | Protocol client implemented; server listens on HTTP /status.json endpoint (documented protocol) |
-| palworld | UDP | 27015 | Heavy | Steam A2S | QUERY | Protocol client implemented |
-| rust | UDP | 28015 | Heavy | Steam A2S | QUERY | Protocol client implemented |
-| v-rising | UDP | 9877 | Heavy | Steam A2S | QUERY | Protocol client implemented |
-| dayz | UDP | 27015 | Heavy | Steam A2S | QUERY | Protocol client implemented |
-| ark-survival-ascended | TCP | 27020 | Heavy | TCP accept | QUERY | Protocol client implemented; no query protocol surface, TCP accept proof only |
-| dont-starve-together | UDP | 27016 | Heavy | Steam A2S | QUERY | Protocol client implemented |
-| enshrouded | UDP | 15637 | Heavy | Steam A2S | QUERY | Protocol client implemented |
-| factorio | TCP | 27015 | Heavy | TCP accept | QUERY | Measured (2026-07-25, live k3s via operator): server reached Running/2-2-Ready in <1min; UDP 34197 returns nothing; TCP 27015 open. Probe asserts TCP accept; verified pass against real server and fail against dead address |
-| satisfactory | HTTPS | 7777 | Heavy | documented API | QUERY | Protocol client implemented; server listens on HTTPS documented API (no open-world query protocol) |
+The canonical, up-to-date per-game join-protocol coverage table — covering
+all 29 probe packages under `internal/` (30 modules including
+`nuclear-option`, which has no probe package yet) — lives in
+[`docs/game-coverage.md`](../../../docs/game-coverage.md). It lists each
+module's transport, status, depth, test name, bucket, last-verified date and
+blocker. This file no longer duplicates that table to avoid drift between
+the two; see it there instead.
 
-The depth column is filled in *only when a client actually measures it* — not before. All 16 game modules now have implemented protocol clients. Depths recorded here are exact measurements from real servers, not guesses or expectations.
+The depth column in that table is filled in *only when a client actually
+measures it* — not before. Depths recorded there are exact measurements from
+real servers, not guesses or expectations.
 
 ### Probe verification: a lesson hard-won
 
 A probe that cannot fail is worse than no test, because it is believed. Every per-game probe is therefore verified two ways: it must **fail** against an address where nothing is listening, and it must **pass** against a real listener. Passing only the first is not enough — a probe that sends an invented packet and requires a reply satisfies it while being permanently red against a real server, which is exactly what the first Factorio client did. UDP `Dial` proves nothing on its own: it completes no handshake and succeeds even against a dead address.
 
-Every probe must establish connection semantics (TCP three-way, UDP state exchange, a request-response pair) before measuring depth. Invented packets don't suffice — the probe's response must come from a real listener, not the probe's own assumptions. Only when a probe has been verified to both fail against a dead address and pass against a known-good server can its depth measurement be trusted and recorded in this table.
+Every probe must establish connection semantics (TCP three-way, UDP state exchange, a request-response pair) before measuring depth. Invented packets don't suffice — the probe's response must come from a real listener, not the probe's own assumptions. Only when a probe has been verified to both fail against a dead address and pass against a known-good server can its depth measurement be trusted and recorded in `docs/game-coverage.md`.
 
 ### Path A implementation status
 
@@ -342,16 +333,26 @@ Path A exercises the module's control channel after Path B proves the server is 
 | garrys-mod | none (protocol: none, no PTY) | SKIPPED | Template declares no control channel; no Path A test |
 | all others | — | NOT YET IMPLEMENTED | Path A will be implemented as games are added to the fast set |
 
-## Why the fast set is small
+## Why fastGameSet is small
 
-Four games cover the essential depth variety:
+Note: this section is about the design of `fastGameSet` in
+`gamebot_helpers_e2e_test.go` — the default game scope for a local
+`GAMEPLANE_E2E_GAME_BOT=1` run — 6 games: minecraft-java, terraria,
+garrys-mod, factorio, tmodloader and beammp. The CI `bot-fast` bucket (see
+`buckets.sh`) is a narrower, 3-game subset of it — minecraft-java, terraria,
+garrys-mod only. factorio, tmodloader and beammp are part of `fastGameSet`
+but bucketed under `bot-heavy` instead of `bot-fast`, mainly to stay within
+the GitHub runner's CI disk budget (see `buckets.sh`'s `bot-heavy`
+comments) — not because they lack protocol variety.
+
+Four of `fastGameSet`'s six games cover the essential depth variety:
 
 - **minecraft-java (TCP, Java):** traditional login state machine, tests *JOINED* via Encryption Request rejection (offline-mode override) or Login Success.
 - **terraria (TCP, .NET):** different TCP framing (message length prefixes), tests *JOINED* via the initial handshake and player ID assignment.
 - **factorio (TCP, Lua):** hand-rolled TCP accept probe and *QUERY* depth (no headless join possible — Factorio uses in-game UI for multiplayer, no headless auth). Demonstrates that UDP diagnostics can deceive: the server exposes no UDP query surface despite listening on its game port.
 - **garrys-mod (UDP, Source engine):** shared Source family with cs2, exercises A2S query protocol.
 
-These four, plus their shared protocol families, give coverage: TCP state machines, UDP queries, TCP-only (non-protocol) probes, and the two depth tiers most games hit (JOINED or QUERY). Adding Valheim, Palworld, 7-days-to-die, and Rust would triple CI boot time with no new protocol variety.
+These four, plus their shared protocol families, give coverage: TCP state machines, UDP queries, TCP-only (non-protocol) probes, and the two depth tiers most games hit (JOINED or QUERY). tmodloader and beammp round out `fastGameSet`'s engine coverage without changing this depth-tier story. Adding Valheim, Palworld, 7-days-to-die, and Rust would triple CI boot time with no new protocol variety.
 
 ## Why the heavy set never runs in CI
 
@@ -367,7 +368,7 @@ Heavy games are not a testing gap — they are a provisioning constraint:
 GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<kubelab|prod> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=all make test-e2e-keep
 ```
 
-runs all 16 games against a pre-existing cluster (e.g., the `kubelab` remote k3s). No CI job ever executes `bot-heavy` or sets `GAMEPLANE_E2E_GAMES` to `all` or `heavy`.
+runs all 29 games with an implemented e2e bot test (`fastGameSet` plus `heavyGameSet` in `gamebot_helpers_e2e_test.go`) against a pre-existing cluster (e.g., the `kubelab` remote k3s). No CI job ever executes `bot-heavy` or sets `GAMEPLANE_E2E_GAMES` to `all` or `heavy`.
 
 ## Shared protocol families
 

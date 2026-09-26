@@ -21,11 +21,23 @@ import (
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
-// fastGameSet lists the games run by default (unset GAMEPLANE_E2E_GAMES).
-// These four cover a JOINED Java protocol (Minecraft), a JOINED .NET protocol
-// (Terraria), a hand-rolled UDP protocol (Factorio), and the shared Source
-// family (Garry's Mod). They boot quickly (minutes at most) and fit within a
-// single kind node.
+// fastGameSet lists the games run by default when GAMEPLANE_E2E_GAME_BOT=1 is
+// set and GAMEPLANE_E2E_GAMES is unset. These six cover a JOINED Java protocol
+// (Minecraft), a JOINED .NET protocol (Terraria), a hand-rolled UDP protocol
+// (Factorio), the shared Source family (Garry's Mod), a modded .NET protocol
+// (tModLoader) and a UDP-based multiplayer protocol (BeamMP). They boot
+// quickly (minutes at most) and fit within a single kind node.
+//
+// fastGameSet is NOT the same axis as buckets.sh's "bot-fast" CI bucket: the
+// CI bot-fast bucket only runs TestGameServer_MinecraftJavaBot_Joined,
+// TestGameServer_TerrariaBot_Joined and TestGameServer_GarrysModBot_Query
+// (plus the wake-on-connect tests) to stay within GitHub runner disk limits.
+// fastGameSet is the broader default scope for a manual/local
+// GAMEPLANE_E2E_GAME_BOT=1 run; factorio, tmodloader and beammp are in
+// fastGameSet but are excluded from CI's bot-fast bucket and instead
+// bucketed under bot-heavy, mainly for CI disk budget reasons. See
+// buckets.sh's bucket_bot_fast/bucket_bot_heavy comments for the CI-side
+// rationale, including the per-game notes on why each one is heavy.
 var fastGameSet = []string{
 	"minecraft-java", "terraria", "factorio", "garrys-mod",
 	"tmodloader", "beammp",

@@ -14,7 +14,7 @@ The e2e suite is divided into buckets by **login pressure**, not feature area. E
 **Current buckets** (from `bucket_names()` in `buckets.sh`):
 - `operator`: zero logins, runs with `t.Parallel()`
 - `api-auth`: OIDC + password + session lifecycle (ceiling: ~8 admin logins per job)
-- `api-roles`: custom roles + role mappings (ceiling: ~5 admin logins)
+- `api-roles`: custom roles + role mappings (currently at 7 admin logins — the ~7/job ceiling — with no headroom left; see `buckets.sh` comments)
 - `api-rbac`: permission matrix + scope binding (no login budget constraints documented)
 - `api-agent`: agent endpoint proxying (agent in-pod, shared restic repo)
 - `api-mods`: module installation + confinement (shared oras-push Job via `ociPushMu`)
@@ -24,7 +24,7 @@ The e2e suite is divided into buckets by **login pressure**, not feature area. E
 - `multicluster`: requires dual-cluster setup (separate CI job)
 - `upgrade`: requires previous-release chart (separate CI job)
 
-**Login budget per bucket**: The API rate limiter is per-IP (5/min, burst 10) + per-username (3/min, burst 6). All tests in a job share one client IP through the kubectl port-forward, so admin logins — not CPU — bound wall-clock time. Keep api-auth ≤ ~8 logins, api-roles ≤ ~5. Check `buckets.sh` comments for current budget positions before committing.
+**Login budget per bucket**: The API rate limiter is per-IP (5/min, burst 10) + per-username (3/min, burst 6). All tests in a job share one client IP through the kubectl port-forward, so admin logins — not CPU — bound wall-clock time. Keep api-auth ≤ ~8 logins; api-roles is already at 7 admin logins (the ~7/job ceiling) with no headroom — do not add another admin-login test to api-roles. Check `buckets.sh` comments for current budget positions before committing.
 
 ### 2. Name the test and resources consistently
 
