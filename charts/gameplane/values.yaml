@@ -115,6 +115,11 @@ operator:
 api:
   replicas: 1        # SQLite driver is single-writer on a RWO volume; only values >1 are safe with db.driver=postgres
   logLevel: info     # API log verbosity (debug|info|warn|error), passed as GAMEPLANE_LOG_LEVEL
+  # Port of the API's Prometheus metrics listener. It is separate from the
+  # public API port (the one the ingress and the web front end route to), so
+  # metrics are reachable only in-cluster; the ServiceMonitor scrapes it.
+  # Templates fall back to 9090 when this key is absent (helm --reuse-values).
+  metricsPort: 9090
   resources:
     requests: { cpu: 100m, memory: 64Mi }
     limits:   { cpu: 500m, memory: 256Mi }

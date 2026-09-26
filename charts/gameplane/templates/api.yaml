@@ -324,6 +324,7 @@ spec:
             {{- end }}
             - --update-channel={{ $channel }}
             - --trusted-proxies={{ .Values.api.trustedProxies }}
+            - --metrics-addr=:{{ .Values.api.metricsPort | default 9090 }}
             {{- if .Values.clusterOps.externalAddress }}
             - --cluster-external-address={{ .Values.clusterOps.externalAddress }}
             {{- end }}
@@ -390,6 +391,7 @@ spec:
               value: {{ .Values.api.logLevel | quote }}
           ports:
             - { name: http,    containerPort: 8000 }
+            - { name: metrics, containerPort: {{ .Values.api.metricsPort | default 9090 }} }
           livenessProbe:  { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 15 }
           readinessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 5 }
           resources: {{ toYaml .Values.api.resources | nindent 12 }}
@@ -428,3 +430,6 @@ spec:
   selector: { app.kubernetes.io/name: gameplane-api }
   ports:
     - { name: http, port: 80, targetPort: http }
+    # In-cluster scrape port for the ServiceMonitor. The Ingress and the web
+    # front end route only to the http port.
+    - { name: metrics, port: {{ .Values.api.metricsPort | default 9090 }}, targetPort: metrics }

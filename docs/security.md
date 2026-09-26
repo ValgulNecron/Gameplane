@@ -802,3 +802,9 @@ gated by access controls on the cluster itself (e.g., who can run Helm in produc
 No internal infrastructure metrics are displayed on the login page or
 any other unauthenticated surface. This is a hard requirement — see
 `web/src/routes/Login.tsx` for the enforcement.
+
+The API's Prometheus metrics follow the same rule. They are served on a
+dedicated listener (`--metrics-addr`, chart value `api.metricsPort`,
+default `9090`), never on the public API port that the Ingress and the web
+front end route to, so `/metrics` on the dashboard host answers 404. The
+chart's ServiceMonitor scrapes the metrics port from inside the cluster.

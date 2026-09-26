@@ -236,8 +236,10 @@ Top-level knobs (see `values.yaml` for the full list):
 ## Observability
 
 The operator, API, and in-pod agent sidecars expose Prometheus metrics on
-`/metrics` (operator `:8080`, API `:8000`). The agent's control port
-(`:8090`) requires an mTLS client cert for every route it serves, so its
+`/metrics` (operator `:8080`, API `:9090`). The API serves metrics on a
+dedicated listener (`api.metricsPort`, default `9090`), not on its public
+port (`:8000`), so only in-cluster scrapers reach them. The agent's control
+port (`:8090`) requires an mTLS client cert for every route it serves, so its
 `/metrics` lives on a separate, unauthenticated listener instead
 (`:9090`, `agent/cmd/main.go`'s `--metrics-addr`) — a Prometheus scraper
 never needs, and never gets, the client cert that unlocks console/files/RCON
