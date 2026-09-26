@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -1332,6 +1333,42 @@ func TestHandleTCPConnectionDispatchesByWakeProtocol(t *testing.T) {
 	handleTCPConnection(context.Background(), server, port, cw, cfg)
 	if cw.count() != 0 {
 		t.Errorf("expected no wake requests for an unrecognized wakeProtocol, got %d", cw.count())
+	}
+}
+
+// TestHandleTCPConnectionDoesNotLogCloseOfAlreadyClosedConn covers F-182:
+// a connection that a protocol handler (or a concurrent shutdown) has
+// already closed must not produce a "close connection" error line when
+// handleTCPConnection's deferred Close then observes net.ErrClosed.
+func TestHandleTCPConnectionDoesNotLogCloseOfAlreadyClosedConn(t *testing.T) {
+	server, client := tcpPipe(t)
+	defer client.Close()
+
+	// Close the accepted side up front, as proxyBidirectional does once a
+	// session ends: handleTCPConnection's own deferred Close then hits
+	// net.ErrClosed.
+	if err := server.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	var logBuf bytes.Buffer
+	prevOut := log.Writer()
+	prevFlags := log.Flags()
+	log.SetOutput(&logBuf)
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(prevOut)
+		log.SetFlags(prevFlags)
+	}()
+
+	cw := newCountingWaker(nil)
+	cfg := Config{GameServerName: "does-not-exist", GameServerNamespace: "nowhere", WakeDeadline: 50 * time.Millisecond}
+	port := PortConfig{ContainerPort: 25565, Protocol: "TCP", WakeProtocol: "generic"}
+
+	handleTCPConnection(context.Background(), server, port, cw, cfg)
+
+	if got := logBuf.String(); strings.Contains(got, "close connection") {
+		t.Errorf("expected no close-error log line for an already-closed connection, got %q", got)
 	}
 }
 

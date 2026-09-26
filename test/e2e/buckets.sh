@@ -178,12 +178,17 @@ TestAPI_LifecycleRestart
 EOF
 }
 
+# TestAPI_OwnerOnlyServerOperations_RequireOwnerOrAdmin lives here for the
+# login budget, not by subject: api-roles is at its ceiling. It costs +1
+# e2e-admin login (bringing api-mods to 6) plus one login as its own
+# operator-role user.
 bucket_api_mods() { cat <<'EOF'
 TestAPI_ModManifestInstallUpgrade
 TestAPI_ModUpload
 TestAPI_ModArchiveConfinement_PathTraversalRejected
 TestAPI_ModArchiveConfinement_SymlinkEscapeRejected
 TestAPI_ModArchiveConfinement_ValidArchiveExtracts
+TestAPI_OwnerOnlyServerOperations_RequireOwnerOrAdmin
 EOF
 }
 

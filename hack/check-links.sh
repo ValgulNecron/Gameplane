@@ -76,7 +76,9 @@
 #   0 = all 18 audited files exist and every internal link/anchor resolves
 #   1 = an audited file is missing, or one or more links/anchors are broken
 #
-# No external dependencies; pure bash + grep/sed/tr. No network access.
+# No network access. Pure bash + grep/sed/tr, plus perl (present on Ubuntu
+# runners) for Unicode-aware anchor-slug punctuation stripping when
+# available; falls back to an ASCII-only strip otherwise.
 
 set -euo pipefail
 
@@ -158,17 +160,78 @@ github_slug() {
     text=$(printf '%s' "$text" | sed -E 's/\[([^]]*)\]\([^)]*\)/\1/g')
     # Remove backticks.
     text=${text//\`/}
-    # Remove ASCII punctuation other than hyphen/underscore. Hyphen and
-    # underscore are protected (mapped to control bytes) before [:punct:]
-    # strips punctuation, then restored — this keeps multi-byte UTF-8 bytes
-    # (Unicode letters) untouched, since [:punct:] in the C locale only
-    # matches the 32 ASCII punctuation characters.
-    text=$(printf '%s' "$text" | LC_ALL=C sed -e 's/-/\x01/g' -e 's/_/\x02/g' -e 's/[[:punct:]]//g' -e 's/\x01/-/g' -e 's/\x02/_/g')
+    # Remove any character that is not a letter (including Unicode letters),
+    # digit, space, hyphen, or underscore — GitHub's actual rule. `[[:punct:]]`
+    # in the C locale only matches the 32 ASCII punctuation bytes, so it never
+    # touches multi-byte UTF-8 punctuation/symbols (e.g. "→", "—"); use Perl's
+    # Unicode-aware \p{L}/\p{N} properties instead, decoding/encoding the
+    # stream as UTF-8 (-CSD) so multi-byte sequences are matched as single
+    # characters. Falls back to the ASCII-only C-locale strip if perl is
+    # unavailable, matching prior (ASCII-correct) behavior.
+    if command -v perl >/dev/null 2>&1; then
+        text=$(printf '%s' "$text" | LC_ALL=C.UTF-8 perl -CSD -pe 's/[^\p{L}\p{N} _-]//g')
+    else
+        text=$(printf '%s' "$text" | LC_ALL=C sed -e 's/-/\x01/g' -e 's/_/\x02/g' -e 's/[[:punct:]]//g' -e 's/\x01/-/g' -e 's/\x02/_/g')
+    fi
     # Lowercase ASCII letters.
     text=$(printf '%s' "$text" | LC_ALL=C tr '[:upper:]' '[:lower:]')
     # Spaces -> hyphens, one-for-one (not collapsed).
     text=${text// /-}
     printf '%s' "$text"
+}
+
+# ---------------------------------------------------------------------------
+# self_test: exercises github_slug against known-good GitHub anchor slugs,
+# including headings with Unicode punctuation/symbols (→, —) that the C
+# locale's [[:punct:]] strip used to leave in the slug (F-236). Prints PASS
+# or a diff-style FAIL per case; returns non-zero if any case fails.
+# Invoke via: hack/check-links.sh --self-test
+# ---------------------------------------------------------------------------
+self_test() {
+    local failures=0
+    local desc heading expected actual
+
+    _assert_slug() {
+        desc="$1" heading="$2" expected="$3"
+        actual=$(github_slug "$heading")
+        if [[ "$actual" == "$expected" ]]; then
+            echo "PASS: $desc"
+        else
+            echo "FAIL: $desc"
+            echo "  heading:  $heading"
+            echo "  expected: $expected"
+            echo "  actual:   $actual"
+            failures=$((failures + 1))
+        fi
+    }
+
+    # Regression: existing ASCII behavior (worked example in the header
+    # comment) must not change.
+    _assert_slug "ASCII punctuation (regression)" \
+        "Beta Status & Limitations" "beta-status--limitations"
+
+    # Unicode arrow: only the arrow itself is dropped, surrounding spaces
+    # are untouched (so two spaces -> two hyphens), matching GitHub.
+    _assert_slug "Unicode arrow (→)" \
+        "Config schema → wizard" "config-schema--wizard"
+
+    # Unicode em dash, combined with an arrow later in the same heading.
+    _assert_slug "Unicode em dash and arrow (—, →)" \
+        "Signing key rotation — Ed25519 → ECDSA P-256 (2026-07)" \
+        "signing-key-rotation--ed25519--ecdsa-p-256-2026-07"
+
+    # Unicode letters (accented) are kept, not stripped as "punctuation".
+    _assert_slug "Unicode letters kept" \
+        "Café Déploiement" "café-déploiement"
+
+    unset -f _assert_slug
+
+    if [[ $failures -eq 0 ]]; then
+        echo "self-test: all cases passed"
+        return 0
+    fi
+    echo "self-test: $failures case(s) failed"
+    return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -323,6 +386,16 @@ process_file() {
         done < <(printf '%s\n' "$line" | grep -oE '\]\([^)]*\)' || true)
     done < "$src"
 }
+
+# ---------------------------------------------------------------------------
+# --self-test: run the github_slug unit cases (see self_test above) and exit,
+# skipping the full audited-file link scan. Wired into nothing else — run it
+# directly (`hack/check-links.sh --self-test`) or via hack/check-links_test.sh.
+# ---------------------------------------------------------------------------
+if [[ "${1:-}" == "--self-test" ]]; then
+    self_test
+    exit $?
+fi
 
 # ---------------------------------------------------------------------------
 # Main: verify all 18 audited files exist, then link-check every one that

@@ -23,7 +23,7 @@ NOT Gameplane-specific — forwards the received JSON body verbatim as the syslo
 
 ## Directory & package layout
 
-Single flat package (`main`): `main.go` (relay + config + server logic), `bridge_test.go` (unit tests covering HTTP handler, syslog framing, config validation, TCP/UDP forwarding, auth, reconnection), `go.mod` (workspace-linked, stdlib-only), `Dockerfile`, `README.md`.
+Single flat package (`main`): `main.go` (relay + config + server logic), `bridge_test.go` (unit tests covering HTTP handler, syslog framing, config validation, TCP/UDP forwarding, auth, reconnection, write-deadline enforcement), `go.mod` (workspace-linked, stdlib-only), `Dockerfile`, `README.md`.
 
 ## External interface / contracts
 
@@ -49,6 +49,7 @@ Single flat package (`main`): `main.go` (relay + config + server logic), `bridge
 - Connection reuse: lazily dials once, then reuses; on write error, closes and reconnects once before surfacing the error
 - Write deadline per frame (5s default) prevents a collector that accepts but does not drain from blocking indefinitely and wedging the handler behind the connection mutex
 - RFC 5424 compliance: formats message as `<PRI>1 TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG`; collapses embedded newlines/CRs to spaces so each syslog record is one line; PROCID, MSGID, STRUCTURED-DATA are "-"
+- `APP_NAME` and `SYSLOG_HOSTNAME` are validated at startup the same way `FACILITY`/`SEVERITY` are: each must be 1*max PRINTUSASCII (RFC 5424 %d33-126, no spaces or control bytes), APP-NAME capped at 48 bytes and HOSTNAME at 255 bytes, or `newServer` rejects the config before the process starts serving. An empty value is accepted and rendered as the RFC 5424 nil value `-`; when `SYSLOG_HOSTNAME` is empty the OS hostname is used instead, and an OS hostname that fails the same check (or can't be read) falls back to `-`
 
 ## Dependencies
 
@@ -65,11 +66,11 @@ Single flat package (`main`): `main.go` (relay + config + server logic), `bridge
 
 ## Testing & coverage
 
-**Coverage gate:** 70% (`.testcoverage.yml`). Tests cover HTTP handler (methods, auth, empty body), RFC 5424 framing, facility/severity enum validation, TCP/UDP forward, connection reuse, write deadline enforcement, forward-failure 502, graceful shutdown on context cancel, and env-var defaults. Uncovered: `main()`/`run()` process signal handling (ListenAndServe + SIGTERM), which is not unit-testable; ~30% gap is acceptable and noted in the gate comment.
+**Coverage gate:** 70% (`.testcoverage.yml`). Tests cover HTTP handler (methods, auth, empty body), RFC 5424 framing, APP-NAME/HOSTNAME/facility/severity validation, TCP/UDP forward, connection reuse, reconnect-after-write-failure, write deadline enforcement, forward-failure 502, graceful shutdown on context cancel, and env-var defaults. Uncovered: `main()`/`run()` process signal handling (ListenAndServe + SIGTERM), which is not unit-testable; ~30% gap is acceptable and noted in the gate comment.
 
 ## References
 
 - `audit-syslog-bridge/README.md` — behavior table, config env-vars, transport tradeoffs, run instructions
 - `docs/security.md` — audit integrity, threat model, pre-auth privacy (login page anonymity is separate; the bridge sits behind auth)
 - `docs/install.md#audit-log` — Helm values to enable syslog-bridge, auth-header Secret wiring
-- API audit webhook sink (`api/internal/handlers/audit.go`, `api/internal/notify/`) — calls `POST http://syslog-bridge-svc:8514/` with audit events
+- API audit webhook sink (`api/internal/audit/audit.go`) — `WebhookSink` calls `POST http://gameplane-audit-syslog-bridge.<namespace>.svc:8514/` with audit events
