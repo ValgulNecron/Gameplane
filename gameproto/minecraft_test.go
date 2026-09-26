@@ -198,6 +198,19 @@ func TestBuildMinecraftStatusResponse(t *testing.T) {
 			jsonData: `{"description":{"text":"Hello \"World\""}}`,
 			expectOK: true,
 		},
+		{
+			// F-155: BuildStatusResponse must reject malformed JSON per the
+			// Classifier interface contract ("Error: if payload is malformed
+			// or oversized"), instead of silently framing invalid data.
+			name:     "malformed JSON: unclosed brace",
+			jsonData: `{`,
+			expectOK: false,
+		},
+		{
+			name:     "malformed JSON: not JSON at all",
+			jsonData: `not json`,
+			expectOK: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -207,6 +220,14 @@ func TestBuildMinecraftStatusResponse(t *testing.T) {
 
 			if tt.expectOK && err != nil {
 				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.expectOK {
+				if err == nil {
+					t.Errorf("expected error for malformed JSON payload %q, got nil (data=%v)", tt.jsonData, data)
+				}
+				if data != nil {
+					t.Errorf("expected nil data on error, got %v", data)
+				}
 			}
 
 			// Verify we can parse the response back
@@ -736,6 +757,34 @@ func TestBuildMinecraftStatusResponseTooLong(t *testing.T) {
 	}
 }
 
+// TestBuildMinecraftStatusResponseTooLongValidJSON tests F-155: an oversized
+// payload that IS valid JSON must still be rejected by the length check in
+// writeMinecraftString (via the "encode status response" wrap), not just by
+// the upfront json.Valid check. TestBuildMinecraftStatusResponseTooLong uses
+// bigString(100000), which is not valid JSON on its own, so it now fails at
+// the json.Valid check and never exercises this length branch; this test
+// keeps that branch covered.
+func TestBuildMinecraftStatusResponseTooLongValidJSON(t *testing.T) {
+	t.Parallel()
+
+	// A JSON string literal wrapping a 100000-byte payload: valid JSON, but
+	// still far past the 32767-byte writeMinecraftString limit.
+	payload := `"` + bigString(100000) + `"`
+
+	minecraft := &MinecraftClassifier{}
+	_, err := minecraft.BuildStatusResponse(payload)
+
+	if err == nil {
+		t.Fatalf("expected error for oversized (but valid JSON) payload")
+	}
+	if !strings.Contains(err.Error(), "encode status response") {
+		t.Errorf("expected 'encode status response' in error message, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "too long") {
+		t.Errorf("expected 'too long' in error message, got: %v", err)
+	}
+}
+
 // TestBuildMinecraftLoginDisconnectTooLong tests that an oversized
 // disconnect reason is rejected rather than silently truncated.
 func TestBuildMinecraftLoginDisconnectTooLong(t *testing.T) {
@@ -788,5 +837,36 @@ func TestReadMinecraftStringNonIOReader(t *testing.T) {
 	_, err := readMinecraftString(br)
 	if err == nil {
 		t.Errorf("expected error for non-io.Reader ByteReader")
+	}
+}
+
+// TestClassifyMinecraftErrorShape tests F-153: on a parse error (here, a
+// non-0x00 handshake packet ID), MinecraftClassifier.Classify must return
+// (nil, err), per the Classifier interface contract in classifier.go ("On
+// error (err != nil), result may be nil or carry partial Consumed bytes").
+// It must NOT return a non-nil Unknown result, which specs.md previously
+// (incorrectly) documented as the behavior for this case.
+func TestClassifyMinecraftErrorShape(t *testing.T) {
+	t.Parallel()
+
+	var packet bytes.Buffer
+	// Packet ID 0x01 instead of the required 0x00.
+	writeMinecraftVarInt(&packet, 0x01)
+	writeMinecraftVarInt(&packet, 761)
+	if err := writeMinecraftString(&packet, "localhost"); err != nil {
+		t.Fatalf("write error: %v", err)
+	}
+	packet.Write([]byte{0x63, 0xDD})
+	writeMinecraftVarInt(&packet, 2)
+	data := frameMinecraftPacket(packet.Bytes())
+
+	minecraft := &MinecraftClassifier{}
+	result, err := minecraft.Classify(bufio.NewReader(bytes.NewReader(data)))
+
+	if err == nil {
+		t.Fatalf("expected error for invalid packet id, got nil (result=%v)", result)
+	}
+	if result != nil {
+		t.Errorf("expected nil result alongside error, got %v", result)
 	}
 }
