@@ -109,6 +109,18 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
+// fallbackHostname returns the OS hostname for the RFC 5424 HOSTNAME field
+// when SYSLOG_HOSTNAME is unset. A lookup error or a hostname that fails
+// validateRFC5424Field yields "" instead, which the formatter renders as the
+// nil value "-", so an unusual OS hostname can't shift the header fields.
+func fallbackHostname(lookup func() (string, error)) string {
+	h, err := lookup()
+	if err != nil || validateRFC5424Field("hostname", h, maxHostnameLen) != nil {
+		return ""
+	}
+	return h
+}
+
 // server holds the resolved relay configuration and the syslog forwarder.
 type server struct {
 	pri        int
@@ -145,8 +157,7 @@ func newServer(cfg config) (*server, error) {
 	}
 	host := cfg.hostname
 	if host == "" {
-		// Best-effort: a missing hostname is valid RFC 5424 ("-"), set below.
-		host, _ = os.Hostname()
+		host = fallbackHostname(os.Hostname)
 	}
 	return &server{
 		pri:        fac*8 + sev,

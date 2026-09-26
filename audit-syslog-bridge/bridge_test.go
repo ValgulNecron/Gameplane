@@ -118,6 +118,13 @@ func TestNewServer_Validation(t *testing.T) {
 			t.Errorf("newServer: %v", err)
 		}
 	})
+	t.Run("empty hostname ok", func(t *testing.T) {
+		c := base()
+		c.hostname = ""
+		if _, err := newServer(c); err != nil {
+			t.Errorf("newServer: %v", err)
+		}
+	})
 	t.Run("empty app name ok (renders as -)", func(t *testing.T) {
 		c := base()
 		c.appName = ""
@@ -574,5 +581,26 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.listen != ":8514" || cfg.network != "tcp" || cfg.appName != "gameplane-audit" ||
 		cfg.facility != "local0" || cfg.severity != "info" {
 		t.Errorf("unexpected defaults: %+v", cfg)
+	}
+}
+
+func TestFallbackHostname(t *testing.T) {
+	cases := []struct {
+		name   string
+		lookup func() (string, error)
+		want   string
+	}{
+		{"valid OS hostname kept", func() (string, error) { return "node-1", nil }, "node-1"},
+		{"hostname with space dropped", func() (string, error) { return "my host", nil }, ""},
+		{"non-ASCII hostname dropped", func() (string, error) { return "hôte", nil }, ""},
+		{"too long hostname dropped", func() (string, error) { return strings.Repeat("h", 256), nil }, ""},
+		{"lookup error dropped", func() (string, error) { return "", errors.New("no hostname") }, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := fallbackHostname(tc.lookup); got != tc.want {
+				t.Errorf("fallbackHostname = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
