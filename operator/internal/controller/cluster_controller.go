@@ -24,7 +24,7 @@ type ClusterStatusReconciler struct {
 	Namespace string // namespace where kubeconfig Secrets live (control-plane namespace)
 }
 
-// +kubebuilder:rbac:groups=gameplane.local,resources=clusters,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=clusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gameplane.local,resources=clusters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 

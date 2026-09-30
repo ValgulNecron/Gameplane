@@ -152,12 +152,10 @@ type NetworkCaptureReconciler struct {
 	CaptureMaxRetentionSeconds     int32
 }
 
-// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=gameplane.local,resources=gameservers,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gameplane.local,resources=gameservers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.local,resources=gameservers,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=pods/ephemeralcontainers,verbs=get;list;watch;patch;update
+// +kubebuilder:rbac:groups="",resources=pods/ephemeralcontainers,verbs=get;list;watch
 
 func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var nc gameplanev1alpha1.NetworkCapture

@@ -281,7 +281,7 @@ for the registration flow.
 - **Browser → API**: HTTPS, session cookie + CSRF header, OIDC or local login.
 - **API → Agent**: mTLS; client cert signed by operator-managed CA mounted into API pod.
 - **Agent → K8s**: in-pod ServiceAccount, scoped to updating its owning GameServer's status.
-- **Operator → K8s**: cluster-wide CRUD on Gameplane CRDs + workload primitives it manages.
+- **Operator → K8s**: The operator's Kubernetes RBAC enforces a principle of least privilege across two layers. **Cluster-wide:** The operator's ServiceAccount holds a ClusterRole granting get/list/watch on Gameplane CRDs, Secrets, ConfigMaps, Services, PVCs, Pods, ServiceAccounts, Roles/RoleBindings, VolumeSnapshots and NetworkPolicies; writes are restricted to the cluster-scoped CRDs (GameTemplate CRUD, Module update/patch and finalizers), to CRD `/status` subresources, and to Events. **Namespace-scoped:** A Role in each managed namespace (`gameplane-games` by default, and any user-defined namespace) grants the operator create/update/patch/delete on GameServers, Backups, BackupSchedules, NetworkCaptures, StatefulSets, Deployments, Jobs, Services, PVCs, ConfigMaps, Secrets, ServiceAccounts, Roles/RoleBindings, NetworkPolicies and VolumeSnapshots, `update` on the GameServer, Backup, BackupSchedule and Restore finalizers, plus `pods/attach create` and `pods/ephemeralcontainers` get/patch/update. This split confines the operator's writes to its managed namespaces; it does not limit cluster-wide reads, including Secrets.
 - **Operator/Agent → external fetches**: a shared dial-time SSRF guard
   (`netguard/`) refuses cloud-metadata and other unroutable-for-the-caller
   addresses — permissive for the operator's admin-configured ModuleSource

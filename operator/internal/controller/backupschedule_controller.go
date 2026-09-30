@@ -42,9 +42,8 @@ type BackupScheduleReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=gameplane.local,resources=backupschedules,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gameplane.local,resources=backupschedules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=gameplane.local,resources=backups,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups=gameplane.local,resources=backupschedules,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.local,resources=backups,verbs=get;list;watch
 
 func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)

@@ -10,8 +10,10 @@ rules:
   - configmaps
   - persistentvolumeclaims
   - pods
+  - pods/ephemeralcontainers
   - pods/log
   - secrets
+  - serviceaccounts
   - services
   verbs:
   - get
@@ -28,27 +30,6 @@ rules:
   - patch
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - pods/ephemeralcontainers
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - apps
   resources:
   - deployments
@@ -62,12 +43,8 @@ rules:
   resources:
   - jobs
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - events.k8s.io
@@ -81,8 +58,30 @@ rules:
   resources:
   - backups
   - backupschedules
-  - gametemplates
+  - clusters
+  - gameservers
+  - modulesources
   - networkcaptures
+  - restores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gameplane.local
+  resources:
+  - clusters/status
+  - gametemplates/status
+  - modules/status
+  - modulesources/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - gameplane.local
+  resources:
+  - gametemplates
   verbs:
   - create
   - delete
@@ -94,58 +93,19 @@ rules:
 - apiGroups:
   - gameplane.local
   resources:
-  - backups/finalizers
-  - gameservers/finalizers
+  - modules
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gameplane.local
+  resources:
   - modules/finalizers
   verbs:
   - update
-- apiGroups:
-  - gameplane.local
-  resources:
-  - backups/status
-  - backupschedules/status
-  - clusters/status
-  - gameservers/status
-  - gametemplates/status
-  - modules/status
-  - modulesources/status
-  - networkcaptures/status
-  - restores/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - gameplane.local
-  resources:
-  - clusters
-  - modules
-  - restores
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - gameplane.local
-  resources:
-  - gameservers
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - gameplane.local
-  resources:
-  - modulesources
-  verbs:
-  - get
-  - list
-  - watch
 - apiGroups:
   - metallb.io
   resources:
@@ -159,12 +119,8 @@ rules:
   resources:
   - networkpolicies
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - rbac.authorization.k8s.io
@@ -172,31 +128,17 @@ rules:
   - rolebindings
   - roles
   verbs:
-  - create
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - snapshot.storage.k8s.io
   resources:
   - volumesnapshotcontents
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - snapshot.storage.k8s.io
-  resources:
   - volumesnapshots
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - storage.k8s.io

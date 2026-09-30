@@ -18,7 +18,7 @@ type GameTemplateReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=gameplane.local,resources=gametemplates,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=gametemplates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gameplane.local,resources=gametemplates/status,verbs=get;update;patch
 
 func (r *GameTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

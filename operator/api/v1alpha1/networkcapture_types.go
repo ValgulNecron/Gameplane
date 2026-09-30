@@ -116,8 +116,7 @@ type NetworkCaptureStatus struct {
 // +kubebuilder:printcolumn:name="Packets",type=integer,JSONPath=`.status.packetsWritten`
 // +kubebuilder:printcolumn:name="Size",type=string,JSONPath=`.status.bytesWritten`
 // +kubebuilder:printcolumn:name="Start",type=date,JSONPath=`.status.startTime`
-// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures,verbs=get;list;watch
 
 // NetworkCapture represents a single packet-capture session initiated by an admin user.
 // It tracks the capture's lifecycle (Pending, Running, Completed, Failed), configuration

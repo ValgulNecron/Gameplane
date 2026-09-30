@@ -190,11 +190,15 @@ const (
 )
 
 // RBAC markers below describe only the CLUSTER-wide permissions the
-// operator needs. Writes to workload primitives (StatefulSets, Services,
-// PVCs, Secrets, ConfigMaps, Jobs) are scoped per-namespace via a
+// operator needs. Writes to workload primitives (StatefulSets,
+// Deployments, Services, PVCs, Secrets, ConfigMaps, Jobs,
+// NetworkPolicies, ServiceAccounts, Roles/RoleBindings), to the
+// namespaced Gameplane CRDs and their finalizers, and to
+// pods/ephemeralcontainers are scoped per-namespace via a
 // hand-managed Role bound in the games namespace(s) — see
 // operator/config/rbac/role_namespace.yaml and the Helm chart. This
-// keeps a compromised operator token from reading Secrets cluster-wide.
+// keeps a compromised operator token from mutating workloads, policies
+// or RBAC outside the games namespace(s).
 //
 // pods/attach create (softStop's stdin pod-attach for consoleMode: pty
 // games, see gameserver_stop_attach.go) is likewise namespace-scoped
@@ -206,20 +210,17 @@ const (
 // in this list.
 //
 // +kubebuilder:rbac:groups=gameplane.local,resources=gameservers,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gameplane.local,resources=gameservers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=gameplane.local,resources=gameservers/finalizers,verbs=update
-// +kubebuilder:rbac:groups=gameplane.local,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gameplane.local,resources=gametemplates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
-// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=pods/ephemeralcontainers,verbs=get;list;watch;patch;update
-// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods/ephemeralcontainers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch
 //

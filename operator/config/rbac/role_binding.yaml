@@ -1,3 +1,14 @@
+# Operator bindings for a local `kubectl apply -f operator/config/rbac/`
+# install. A production Helm install uses the chart's own bindings instead
+# (see charts/gameplane/templates/operator.yaml).
+#
+# Upgrading an existing dev install: the ClusterRoleBinding below now
+# points at manager-role, the ClusterRole controller-gen writes to
+# role.yaml. A binding's roleRef is immutable, so the apply fails with
+# "cannot change roleRef" while the old binding exists. Delete it first:
+#
+#   kubectl delete clusterrolebinding gameplane-operator-manager
+#   kubectl apply -f operator/config/rbac/
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -5,7 +16,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: gameplane-operator-manager
+  name: manager-role
 subjects:
   - kind: ServiceAccount
     name: gameplane-operator
@@ -20,6 +31,20 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: gameplane-operator-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: gameplane-operator
+    namespace: gameplane-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gameplane-operator-manage
+  namespace: gameplane-games
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gameplane-operator-manage
 subjects:
   - kind: ServiceAccount
     name: gameplane-operator
