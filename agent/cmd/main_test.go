@@ -2,12 +2,37 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestValidateTLSFlags(t *testing.T) {
+	cases := []struct {
+		name      string
+		cert, key string
+		wantErr   bool
+	}{
+		{"cert only", "/tls/tls.crt", "", true},
+		{"key only", "", "/tls/tls.key", true},
+		{"both set", "/tls/tls.crt", "/tls/tls.key", false},
+		{"neither set", "", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateTLSFlags(tc.cert, tc.key)
+			if tc.wantErr && !errors.Is(err, errTLSFlagsUnpaired) {
+				t.Fatalf("validateTLSFlags(%q, %q) = %v, want errTLSFlagsUnpaired", tc.cert, tc.key, err)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("validateTLSFlags(%q, %q) = %v, want nil", tc.cert, tc.key, err)
+			}
+		})
+	}
+}
 
 func TestParseLogLevel(t *testing.T) {
 	cases := map[string]slog.Level{

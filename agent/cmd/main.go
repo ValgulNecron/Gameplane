@@ -97,6 +97,11 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: parseLogLevel(logLevel)}))
 	slog.SetDefault(logger)
 
+	if err := validateTLSFlags(certFile, keyFile); err != nil {
+		logger.Error("tls flags", "err", err)
+		os.Exit(1)
+	}
+
 	authCheck, err := auth.New(auth.Config{
 		ClientCAFile: clientCAFile,
 		TokenFile:    apiTokenFile,
@@ -289,6 +294,18 @@ func main() {
 	if metricsSrv != nil {
 		_ = metricsSrv.Shutdown(shutdownCtx)
 	}
+}
+
+// errTLSFlagsUnpaired reports that only one of --tls-cert / --tls-key was set.
+var errTLSFlagsUnpaired = errors.New("--tls-cert and --tls-key must both be set or both be empty")
+
+// validateTLSFlags rejects a half-configured TLS setup: with only one of the
+// cert/key pair set the agent would otherwise silently start in plain HTTP.
+func validateTLSFlags(cert, key string) error {
+	if (cert != "") != (key != "") {
+		return errTLSFlagsUnpaired
+	}
+	return nil
 }
 
 // envOr returns the environment variable value for key if set, or fallback otherwise.

@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"syscall"
@@ -782,5 +783,147 @@ func TestIsAuthCloseSignal(t *testing.T) {
 	timeoutOp := &net.OpError{Op: "read", Err: timeoutErr{}}
 	if isAuthCloseSignal(timeoutOp) {
 		t.Error("a read timeout should not be treated as an auth close signal")
+	}
+}
+
+// TestURLErrorRedaction verifies that dial errors containing the WebSocket URL
+// (which includes the password) are redacted before being returned to callers,
+// while keeping the *url.Error type and the dial target.
+func TestURLErrorRedaction(t *testing.T) {
+	sentinel := "s3cr#t pw/x?y"
+
+	// Same shape ensureLocked builds: the path-escaped password as the path.
+	baseErr := errors.New("connection refused")
+	urlErr := &url.Error{
+		Op:  "dial",
+		URL: "ws://localhost:28016/" + url.PathEscape(sentinel),
+		Err: baseErr,
+	}
+
+	redacted := redactURLErr(urlErr)
+	redactedMsg := redacted.Error()
+
+	for _, leak := range []string{sentinel, url.PathEscape(sentinel)} {
+		if strings.Contains(redactedMsg, leak) {
+			t.Errorf("redacted error still contains %q: %v", leak, redactedMsg)
+		}
+	}
+	if !strings.Contains(redactedMsg, "localhost:28016") {
+		t.Errorf("redacted error lost the dial target: %v", redactedMsg)
+	}
+	var ue *url.Error
+	if !errors.As(redacted, &ue) {
+		t.Errorf("redacted error is no longer a *url.Error: %T", redacted)
+	}
+	if !errors.Is(redacted, baseErr) {
+		t.Errorf("redacted error lost its cause: %v", redacted)
+	}
+}
+
+// TestURLErrorRedaction_Unparseable verifies that a URL that cannot be parsed
+// is replaced rather than echoed.
+func TestURLErrorRedaction_Unparseable(t *testing.T) {
+	sentinel := "s3cr#t pw/x?y"
+	urlErr := &url.Error{Op: "dial", URL: "ws://%zz/" + sentinel, Err: errors.New("boom")}
+	msg := redactURLErr(urlErr).Error()
+	if strings.Contains(msg, sentinel) || strings.Contains(msg, url.PathEscape(sentinel)) {
+		t.Errorf("unparseable URL leaked the secret: %v", msg)
+	}
+}
+
+// TestWebSocketDialErrorNoSecretLeak verifies that WebSocket dial errors
+// don't leak the password, raw or path-escaped, into error messages.
+func TestWebSocketDialErrorNoSecretLeak(t *testing.T) {
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+	secret := "s3cr#t pw/x?y"
+
+	client := NewWebSocket("127.0.0.1", port, func() (string, error) {
+		return secret, nil
+	})
+	defer client.Close()
+
+	_, err = client.Exec("test")
+	if err == nil {
+		t.Fatal("dial to a closed port should fail")
+	}
+
+	errMsg := err.Error()
+	for _, leak := range []string{secret, url.PathEscape(secret)} {
+		if strings.Contains(errMsg, leak) {
+			t.Errorf("error message leaked %q: %v", leak, errMsg)
+		}
+	}
+	if !strings.Contains(errMsg, "dial") {
+		t.Errorf("error message should still describe the dial failure: %v", errMsg)
+	}
+}
+
+// TestErrorLeaksSecret verifies the errorLeaksSecret helper function correctly
+// detects password leaks in error messages, including URL-escaped variants.
+func TestErrorLeaksSecret(t *testing.T) {
+	tests := []struct {
+		name     string
+		msg      string
+		pw       string
+		expected bool
+	}{
+		{
+			name:     "empty password should never leak",
+			msg:      "connection failed",
+			pw:       "",
+			expected: false,
+		},
+		{
+			name:     "empty password and empty message",
+			msg:      "",
+			pw:       "",
+			expected: false, // strings.Contains("", "") is true; the helper must still say no leak
+		},
+		{
+			name:     "password present raw",
+			msg:      "websocket dial failed: invalid password 's3cr#t'",
+			pw:       "s3cr#t",
+			expected: true,
+		},
+		{
+			name:     "password present path-escaped",
+			msg:      "websocket dial failed: invalid password " + url.PathEscape("s3cr#t"),
+			pw:       "s3cr#t",
+			expected: true,
+		},
+		{
+			name:     "password present query-escaped",
+			msg:      "websocket dial failed: invalid password " + url.QueryEscape("s3cr#t"),
+			pw:       "s3cr#t",
+			expected: true,
+		},
+		{
+			name:     "password absent",
+			msg:      "connection refused",
+			pw:       "s3cr#t",
+			expected: false,
+		},
+		{
+			name:     "partial password match should not leak",
+			msg:      "connection refused at s3cr",
+			pw:       "s3cr#t",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := errorLeaksSecret(tt.msg, tt.pw)
+			if got != tt.expected {
+				t.Errorf("errorLeaksSecret(%q, %q) = %v, want %v", tt.msg, tt.pw, got, tt.expected)
+			}
+		})
 	}
 }

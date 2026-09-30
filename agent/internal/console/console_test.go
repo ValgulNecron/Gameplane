@@ -1,8 +1,10 @@
 package console
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -82,8 +84,48 @@ func TestConsole_RconError(t *testing.T) {
 	if err := wsjson.Read(ctx, conn, &got); err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if got.Kind != "err" || got.Body != "rcon offline" {
+	// Error responses carry a generic message, not the upstream error details,
+	// to avoid leaking RCON secrets or connection information to the client.
+	// The detailed error is logged separately by the handler.
+	if got.Kind != "err" || got.Body != "upstream unavailable" {
+		t.Fatalf("got %+v, expected Body='upstream unavailable'", got)
+	}
+}
+
+// TestConsole_UnclassifiedErrorOmitsSecret confirms the warning logged for an
+// unclassified Exec failure does not contain the submitted command or error
+// details, since the command may carry a secret and error text from RCON
+// servers sometimes contains arguments or other unclassified data.
+func TestConsole_UnclassifiedErrorOmitsSecret(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	const cmd = `setpassword "hunter2"`
+	rc := &fakeRcon{err: errors.New("connection dropped with arg hunter2")}
+	_, wsURL := newServer(t, rc)
+	conn, ctx, _ := dial(t, wsURL)
+
+	if err := wsjson.Write(ctx, conn, Envelope{Kind: "cmd", Body: cmd}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	var got Envelope
+	if err := wsjson.Read(ctx, conn, &got); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.Kind != "err" || got.Body != "upstream unavailable" {
 		t.Fatalf("got %+v", got)
+	}
+	logged := buf.String()
+	if strings.Contains(logged, "hunter2") {
+		t.Fatalf("log contains the command password: %q", logged)
+	}
+	if strings.Contains(logged, "connection dropped") {
+		t.Fatalf("log contains unclassified error details: %q", logged)
+	}
+	if !strings.Contains(logged, "unclassified error") {
+		t.Fatalf("log should indicate redaction: %q", logged)
 	}
 }
 

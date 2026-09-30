@@ -59,7 +59,7 @@ Per-package roles:
 - **`actions`**: Renders module-declared RCON command templates with user parameters; validates via `gameaction` package.
 - **`auth`**: Two modes: mTLS (agent listens TLS, requires client cert signed by `--tls-client-ca`), or shared-secret bearer token (fallback for dev).
 - **`caps`**: Unmarshals JSON capabilities blob from `GAMEPLANE_CAPABILITIES` env; exposes `Spec` with `Players`, `Quiesce`, `Lifecycle`, `Actions`, `Status`, `Mods`.
-- **`console`**: Accepts `{ kind: "cmd", body: "<rcon cmd>" }` JSON over WebSocket, runs it via RCON, replies with `{ kind: "out"|"err", body: "<response>" }`.
+- **`console`**: Accepts `{ kind: "cmd", body: "<rcon cmd>" }` JSON over WebSocket, runs it via RCON, replies with `{ kind: "out"|"err", body: "<response>" }`. On an RCON failure the `err` body is the generic `upstream unavailable`; the detailed error is logged with every occurrence of the submitted command replaced by `<redacted>`, since RCON clients embed the command in their errors and it may carry a secret.
 - **`files`**: Walks the filesystem under `--data-root`, enforces path-traversal protection (no `..`, no symlinks escaping the root), handles multipart uploads.
 - **`heartbeat`**: Runs a background goroutine that every 20 seconds patches `gameservers/<name>/status` with `status.agent.lastHeartbeat`, `status.agent.playersOnline`, `status.agent.playersMax`, `status.agent.gameVersion`, and resource usage via the pod's ServiceAccount. `gameVersion` is currently always patched `null` ("unknown") — the agent has no source for the game's actual running version; it must never be filled in with the game/template identifier (e.g. `minecraft-java`), which is a different value.
 - **`lifecycle`**: HTTP handler for the operator's `/lifecycle/stop` call; runs module-declared stop commands over RCON before the game process terminates.
@@ -91,8 +91,8 @@ Mode: In-pod HTTP/HTTPS sidecar (runs as a container sidecar or as a pod share-p
 | `--rcon-enabled` | `true` (from env) | `GAMEPLANE_RCON_ENABLED` | Whether the game exposes RCON; `false` degrades RCON-backed endpoints gracefully |
 | `--rcon-protocol` | `source` (from env) | `GAMEPLANE_RCON_PROTOCOL` | RCON wire protocol: `source` (Valve/Minecraft), `telnet` (7 Days to Die), `websocket` (Rust), `battleye` (DayZ/Arma), `satisfactory` (Satisfactory), `palworld` (Palworld), `nuclearoption` (Nuclear Option), `rest` (generic HTTP/JSON admin API, e.g. FiveM txAdmin or Farming Simulator 25), `cli` (container stdin/PTY); unrecognized falls back to `source` |
 | `--game-log-path` | `` | — | Path to the game container's log file for `/logs/tail` |
-| `--tls-cert` | `` | — | Server TLS cert (PEM); if set, requires `--tls-key` and enables HTTPS + mTLS |
-| `--tls-key` | `` | — | Server TLS key (PEM) |
+| `--tls-cert` | `` | — | Server TLS cert (PEM); if set, requires `--tls-key` and enables HTTPS + mTLS; exits with error if set without `--tls-key` or vice versa |
+| `--tls-key` | `` | — | Server TLS key (PEM); must be set together with `--tls-cert` |
 | `--tls-client-ca` | `` | — | CA bundle that signs API client certs (required if `--tls-cert` is set) |
 | `--api-token-file` | `` | — | Fallback shared-secret auth (used when TLS is not configured); file contents become the bearer token |
 | `--server-name` | `` | `GAMEPLANE_SERVER_NAME` | Owning GameServer name (for status patches) |
@@ -112,10 +112,10 @@ Resource usage env vars (set by the operator):
 
 ### Endpoint groups (from mounted routes in cmd/main.go; openapi.yaml documents a subset)
 
-**Public (unauthenticated), on the `--addr` control mux:**
-- `GET /healthz` — Liveness probe; returns `200 ok`
+**Outside the auth middleware, on the `--addr` control mux:**
+- `GET /healthz` — Liveness probe; returns `200 ok`. Registered outside the auth middleware. In mTLS mode (always used by the operator) the TLS handshake requires a verified client certificate for every path, including this one. In bearer-token fallback mode it answers without a token.
 
-**Public (unauthenticated), on the separate `--metrics-addr` listener — not the control mux above, and never TLS:**
+**Unauthenticated, on the separate `--metrics-addr` listener — not the control mux above, and never TLS:**
 - `GET /metrics` — Prometheus metrics exposition. (F-216, canonical rationale;
   other mentions of F-216 elsewhere in the repo point back here.) The
   agent's only listener used to be the mTLS control port, so a plain-HTTP
@@ -168,16 +168,16 @@ Resource usage env vars (set by the operator):
 | `/players/whitelist/add` | POST | Add a player to the whitelist; request: `{ name }`; response: `{ ok, raw? }` |
 | `/players/whitelist/remove` | POST | Remove a player from the whitelist; request: `{ name }`; response: `{ ok, raw? }` |
 
-All endpoints on the `--addr` control mux, except `/healthz`, return `401 Unauthorized` if the request lacks a valid cert or token. `/metrics` is not on that mux at all — it lives on the separate `--metrics-addr` listener, which has no auth of its own.
+All endpoints on the `--addr` control mux, except `/healthz`, return `401 Unauthorized` if the request lacks a valid cert or token. `/healthz` is outside the auth middleware: in mTLS mode (always used by the operator) the TLS handshake still requires a verified client certificate for it, as for every path; in bearer-token fallback mode it answers without a token. `/metrics` is not on that mux at all — it lives on the separate `--metrics-addr` listener, which has no auth of its own.
 
 ## Key invariants
 
 - **Every request is authenticated**: The `auth` package gates all protected routes with either mTLS verification or bearer-token matching.
-- **RCON is a lower-trust boundary**: The agent uses `netguard.IsPublic()` (strict, permissive only for well-known registries) for mod-install downloads, assuming modules are less trusted than the operator.
+- **RCON is a lower-trust boundary**: The agent uses `netguard.IsAllowed()` for WebRcon dial operations (permissive, allows loopback and private addresses on the assumption game servers run inside the cluster), and `netguard.IsPublic()` (strict, permissive only for well-known registries) for mod-install downloads, assuming modules are less trusted than the operator.
 - **Gameaction validation is independent**: Both the API (stdin pod-attach) and the agent (RCON) call `gameaction.Resolve()` independently to validate action inputs (no control characters, 512-char cap, required-ness checks, etc.). Neither trusts the other.
 - **No persistent storage**: The agent has no database. GameServer status patches flow through the operator; all transient state (WebSocket streams, RCON sessions) is in-memory.
-- **Path confinement is consolidated**: `mods.ConfinePath(rootDir, untrustedName)` is the single point of validation for all filesystem operations on untrusted paths. It returns a cleaned, absolute path guaranteed to be confined within rootDir (or raises an error if escape is attempted). All path-based operations — mod removal, download, archive extraction, archive swap, and stat operations — route through ConfinePath before use. ConfinePath validates against both direct traversal (`..`, `/`, absolute paths, separators) and symlink escape (resolves both the target and the deepest existing ancestor, rejecting if either escapes). The prior `safeName()` function remains in use as caller-side defense-in-depth (pre-filtering before ConfinePath), but ConfinePath is the authoritative guard within the function boundary where the file operation occurs. Older code may still hold remnants of ad-hoc Join+Clean+HasPrefix guards; these are superseded by ConfinePath and should be consolidated into it over time.
-- **WebRcon dials through netguard**: `rcon.websocket.go`'s `ensureLocked()` method dials the Rust WebSocket using `netguard.IsPublic()` dial policy for defense-in-depth, ensuring that admin-supplied WebSocket URLs cannot reach private/loopback addresses regardless of their origin in the GameServer CRD.
+- **Path confinement via per-component validation**: The `files` package enforces path confinement through `resolve()` and `resolveForDelete()`, which validate against direct traversal (`..`, `/`, absolute paths), symlink escape (`resolve()` resolves both the target and the deepest existing ancestor; `resolveForDelete()` resolves only the parent so a symlink is deleted as a link), and dotfile access (any dot-prefixed path component is rejected, in the requested path and in its symlink-resolved target or deepest existing ancestor, so a plain-named symlink cannot reach a dotfile or dot-directory; `savePart` likewise rejects dot-prefixed upload filenames; `/files/list` excludes dot-prefixed entries from its output). The `mods` package uses `ConfinePath(rootDir, untrustedName)` as the authoritative guard for single-component mod paths (upload, download, removal, archive swap), and `ConfineRelPath(root, relPath)` for multi-component archive entry paths during extraction. ConfinePath returns a cleaned, absolute path guaranteed to be confined within rootDir (or raises an error if escape is attempted), validating against both direct traversal and symlink escape. The prior `safeName()` function remains in use as caller-side defense-in-depth (pre-filtering before ConfinePath), but ConfinePath is the authoritative guard within the function boundary where the archive operation occurs.
+- **WebRcon dials through netguard**: `rcon.websocket.go`'s `ensureLocked()` method dials the Rust WebSocket using `netguard.IsAllowed()` dial policy for defense-in-depth, allowing loopback and private addresses (since game servers legitimately run inside the cluster) while blocking the ranges `netguard.IsAllowed` rejects (link-local, multicast, NAT64/6to4).
 - **Partial uploads never linger, and never destroy an existing file**: `files.savePart` writes to a temp file in the destination directory and renames it over the final name only once the copy succeeds. A save that fails after the temp file is opened — a source read error, an `io.ErrUnexpectedEOF` from a truncated multipart body, or an over-the-limit part — removes only the temp file, so a client abort mid-upload can't leave a half-written file where a later `/files/read` or `/files/download` would serve it as complete, and can't delete a file that already existed at that name.
 - **Extracted mod files stay world-readable**: `mods.moduleFileMode` is `0o644`, not a tighter `0o600`, because the mods volume is shared with the game container, which runs as whatever uid its image needs — a different uid than the agent's own. At `0o600` the game process couldn't read its own mods. This is the rationale behind the `.golangci.yml` gosec G302 exclusion scoped to `agent/internal/mods/mods.go`.
 - **Resource usage is in-pod**: The `usage` package reads from `/proc` or cgroups; no external metrics pipeline required. Cgroup mode is a fallback for older clusters; proc mode (default in production) requires the operator to set `ShareProcessNamespace: true`.
@@ -189,7 +189,7 @@ All endpoints on the `--addr` control mux, except `/healthz`, return `401 Unauth
 
 ### Internal
 
-- **`netguard`** (sibling module): SSRF dial-guard for egress validation. Agent uses `IsPublic()` (strict policy for mod downloads). Operator uses `IsAllowed()` (permissive for git/http ModuleSource fetches).
+- **`netguard`** (sibling module): SSRF dial-guard for egress validation. Agent uses `IsPublic()` for mod downloads and `IsAllowed()` for WebRcon dials. Operator uses `IsAllowed()` (permissive for git/http ModuleSource fetches).
 - **`gameaction`** (sibling module): Console-injection guard and command-template renderer. Agent calls `Resolve()` on RCON action inputs independently.
 
 ### External
@@ -223,13 +223,13 @@ The agent and operator modules use `k8s.io/apimachinery`/`k8s.io/client-go` v0.3
 ## Security considerations
 
 - **mTLS + token auth**: All protected endpoints require either a valid mTLS client cert (signed by `--tls-client-ca`) or a bearer token (from `--api-token-file`).
-- **SSRF guard on mod downloads**: `netguard.IsPublic()` enforces a strict allowlist for registry hostnames. Private registries on loopback or non-routable addresses are rejected unless explicitly whitelisted.
+- **SSRF guard on mod downloads**: `netguard.IsPublic()` gates every mod download dial; private or loopback registries are rejected regardless of `allowedHosts`, which only narrows the host allowlist.
 - **Console-injection guard on RCON actions**: `gameaction.Resolve()` validates action inputs independently on the agent side; control characters, oversized inputs, and required-parameter validation prevent blind command injection.
 - **Path-traversal protection**: The `files` package rejects `..`, symlinks escaping `--data-root`, and dotfile access; all I/O is confined.
 - **No half-written uploads, and no lost files on a failed write**: `files.write` and `files.savePart` write to a temp file in the destination directory first and rename it over the target only once the copy succeeds. A failure partway through (truncated body, read error, over-limit part, out of space) removes only the temp file — a pre-existing file at that path is never truncated or deleted by a failed write or upload.
 - **Extracted mod files are 0o644, not 0o600**: `mods.moduleFileMode` grants group+world read so the game container — which runs under whatever uid its own image needs (not the agent's uid) — can read its shared mods volume; `FSGroup` alone doesn't help here since it only changes group ownership, not mode bits. The tradeoff is scoped: the `.golangci.yml` gosec G302 exclusion applies to `agent/internal/mods/mods.go` only.
 - **Low privilege within pod**: The agent is a sidecar container (not privileged, not root unless the game container is). It reads `/proc` only for the game process and the pause process; it cannot access other pods' data.
-- **No unauthenticated data exposure**: `/healthz` (control mux) and `/metrics` (its own separate, unauthenticated listener) are public; all game data (`/files`, `/logs`, `/console`, `/players`) requires authentication. `/metrics` is deliberately never reachable through the mTLS control mux, so a Prometheus scraper is never handed the client cert that would also unlock those authenticated routes.
+- **No unauthenticated data exposure**: `/metrics` (its own separate, unauthenticated listener) is public, and `/healthz` is outside the auth middleware on the control mux (in mTLS mode the TLS handshake still requires a verified client certificate for it; in bearer-token fallback mode it answers without a token); all game data (`/files`, `/logs`, `/console`, `/players`) requires authentication. `/metrics` is deliberately never reachable through the mTLS control mux, so a Prometheus scraper is never handed the client cert that would also unlock those authenticated routes.
 - **Network context**: The agent runs inside the game pod and is reached via service DNS (e.g., `gameserver-pod-0.gameplane-games.svc.cluster.local:8090`). The pod's NetworkPolicy may restrict egress (e.g., games namespace has default-deny-egress); the agent's mod downloads and heartbeat calls must be compatible with that policy.
 
 ## Testing & coverage

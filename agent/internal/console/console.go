@@ -14,11 +14,14 @@ package console
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/go-chi/chi/v5"
+
+	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
 // Rcon is the interface to the game's remote console.
@@ -66,7 +69,15 @@ func (h *handler) serve(w http.ResponseWriter, req *http.Request) {
 		out, err := h.rcon.Exec(in.Body)
 		env := Envelope{Kind: "out", Body: out}
 		if err != nil {
-			env = Envelope{Kind: "err", Body: err.Error()}
+			errBody := "upstream unavailable"
+			if errors.Is(err, rcon.ErrDisabled) {
+				errBody = "rcon disabled"
+			} else if errors.Is(err, rcon.ErrAuth) {
+				errBody = "rcon authentication failed"
+			} else {
+				slog.Warn("console rcon", "err", "unclassified error (redacted)")
+			}
+			env = Envelope{Kind: "err", Body: errBody}
 		}
 		if err := wsjson.Write(ctx, conn, env); err != nil {
 			return

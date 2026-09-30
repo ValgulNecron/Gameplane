@@ -101,6 +101,38 @@ func TestList_NotFound(t *testing.T) {
 	}
 }
 
+func TestList_FiltersDotfiles(t *testing.T) {
+	srvURL, root := newServer(t)
+	// Create a normal file and a dotfile in the same directory.
+	if err := os.WriteFile(filepath.Join(root, "normal.txt"), []byte("visible"), 0o600); err != nil {
+		t.Fatalf("write normal: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".hidden"), []byte("invisible"), 0o600); err != nil {
+		t.Fatalf("write dotfile: %v", err)
+	}
+
+	resp := get(t, srvURL, "/files/list", url.Values{"path": []string{"/"}})
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	var ents []Entry
+	if err := json.NewDecoder(resp.Body).Decode(&ents); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// Should have exactly one entry: normal.txt.
+	if len(ents) != 1 {
+		t.Fatalf("got %d entries, want 1: %+v", len(ents), ents)
+	}
+	if ents[0].Name != "normal.txt" {
+		t.Fatalf("got entry %q, want 'normal.txt'", ents[0].Name)
+	}
+	// Verify the dotfile actually exists on disk (to confirm the filter works).
+	if _, err := os.Stat(filepath.Join(root, ".hidden")); err != nil {
+		t.Fatalf("dotfile does not exist: %v", err)
+	}
+}
+
 func TestRead(t *testing.T) {
 	srvURL, root := newServer(t)
 	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("hi"), 0o600); err != nil {
@@ -551,6 +583,42 @@ func TestDelete(t *testing.T) {
 		}
 	})
 
+	t.Run("recursive refuses tree containing dotfile", func(t *testing.T) {
+		if err := os.MkdirAll(filepath.Join(root, "w", "sub"), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "w", "sub", ".state"), []byte("x"), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/w&recursive=true", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("delete: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("status=%d", resp.StatusCode)
+		}
+		if _, err := os.Stat(filepath.Join(root, "w", "sub", ".state")); err != nil {
+			t.Fatalf("dotfile removed: %v", err)
+		}
+	})
+
+	t.Run("recursive on a plain file removes it", func(t *testing.T) {
+		if err := os.WriteFile(filepath.Join(root, "pf"), []byte("x"), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/pf&recursive=true", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("delete: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNoContent {
+			t.Fatalf("status=%d", resp.StatusCode)
+		}
+	})
+
 	t.Run("refuses to delete root", func(t *testing.T) {
 		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/&recursive=true", nil)
 		resp, err := http.DefaultClient.Do(req)
@@ -638,6 +706,170 @@ func TestHttpErr_GenericMappedTo500(t *testing.T) {
 	}
 	if strings.Contains(rr.Body.String(), "disk on fire") {
 		t.Fatal("error message leaked")
+	}
+}
+
+// TestResolve_DotfileAccess rejects dotfile access (paths starting with . or
+// containing /.) to prevent access to sensitive files like .gameplane-mods.json
+// or .bashrc, as specified in the security contract.
+func TestResolve_DotfileAccess(t *testing.T) {
+	root := t.TempDir()
+	resolved, _ := filepath.EvalSymlinks(root)
+	h := &handler{root: resolved}
+
+	tests := []struct {
+		path string
+		desc string
+	}{
+		{".gameplane-mods.json", "dotfile at root"},
+		{".bashrc", "hidden config file"},
+		{".hidden", "hidden directory"},
+		{"foo/.hidden", "dotfile in subdirectory"},
+		{"foo/.hidden/file", "file inside dotfile directory"},
+		{"/.hidden", "dotfile with leading slash"},
+		{"./.hidden", "dotfile with leading dot-slash"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			_, err := h.resolve(tt.path)
+			if err == nil {
+				t.Fatalf("resolve(%q) should reject dotfile access, but succeeded", tt.path)
+			}
+			if !strings.Contains(err.Error(), "dotfile") {
+				t.Errorf("error should mention 'dotfile', got: %v", err)
+			}
+		})
+	}
+}
+
+// TestList_DotfileRejected confirms that the list HTTP endpoint rejects
+// dotfile requests with a 400 error code.
+func TestList_DotfileRejected(t *testing.T) {
+	srvURL, _ := newServer(t)
+	resp := get(t, srvURL, "/files/list", url.Values{"path": []string{"/.gameplane-mods.json"}})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", resp.StatusCode)
+	}
+	body := readBody(resp)
+	if !strings.Contains(body, "dotfile") {
+		t.Errorf("error message should mention 'dotfile', got: %q", body)
+	}
+}
+
+// TestDelete_DotfileRejected confirms that the delete endpoint refuses a
+// dot-prefixed path and leaves the file in place.
+func TestDelete_DotfileRejected(t *testing.T) {
+	srvURL, root := newServer(t)
+	target := filepath.Join(root, ".gameplane-mods.json")
+	if err := os.WriteFile(target, []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/.gameplane-mods.json", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", resp.StatusCode)
+	}
+	if body := readBody(resp); !strings.Contains(body, "dotfile") {
+		t.Errorf("error message should mention 'dotfile', got: %q", body)
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("dotfile was removed: %v", err)
+	}
+}
+
+// TestUpload_DotfileRejected confirms that an upload whose part filename is
+// dot-prefixed is refused and neither creates nor overwrites that file.
+func TestUpload_DotfileRejected(t *testing.T) {
+	srvURL, root := newServer(t)
+	target := filepath.Join(root, ".gameplane-mods.json")
+	if err := os.WriteFile(target, []byte("original"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	buf, ct := multipartBody(t, map[string]string{".gameplane-mods.json": "replaced"})
+	resp, err := testPost(t, srvURL+"/files/upload?path=/", ct, buf)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", resp.StatusCode)
+	}
+	if body := readBody(resp); !strings.Contains(body, "dotfile") {
+		t.Errorf("error message should mention 'dotfile', got: %q", body)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "original" {
+		t.Fatalf("dotfile overwritten: got %q err=%v", got, err)
+	}
+}
+
+// TestResolve_SymlinkToDotfileRejected confirms a plain-named symlink cannot
+// be used to reach a dotfile or a dot-directory inside the root: the dotfile
+// check is applied to the symlink-resolved path as well as the requested one.
+func TestResolve_SymlinkToDotfileRejected(t *testing.T) {
+	root := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("eval root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(resolved, ".gameplane-mods.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(resolved, ".state"), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(resolved, ".gameplane-mods.json"), filepath.Join(resolved, "manifest")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(resolved, ".state"), filepath.Join(resolved, "state")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+	h := &handler{root: resolved}
+
+	// Existing target reached through a link to a dotfile.
+	if _, err := h.resolve("/manifest"); !errors.Is(err, errDotfile) {
+		t.Fatalf("resolve(/manifest) err=%v, want errDotfile", err)
+	}
+	// New file whose existing ancestor is a link to a dot-directory.
+	if _, err := h.resolve("/state/new.txt"); !errors.Is(err, errDotfile) {
+		t.Fatalf("resolve(/state/new.txt) err=%v, want errDotfile", err)
+	}
+	// Delete of an entry inside a dot-directory reached through a link.
+	if _, err := h.resolveForDelete("/state/x"); !errors.Is(err, errDotfile) {
+		t.Fatalf("resolveForDelete(/state/x) err=%v, want errDotfile", err)
+	}
+	// Deleting the link itself stays allowed: it removes the link, not the
+	// dotfile it points to.
+	want := filepath.Join(resolved, "manifest")
+	if got, err := h.resolveForDelete("/manifest"); err != nil || got != want {
+		t.Fatalf("resolveForDelete(/manifest) = %q, %v; want %q", got, err, want)
+	}
+}
+
+// TestRead_SymlinkToDotfileRejected confirms the read endpoint refuses a
+// symlink that points at a dotfile and does not serve its contents.
+func TestRead_SymlinkToDotfileRejected(t *testing.T) {
+	srvURL, root := newServer(t)
+	if err := os.WriteFile(filepath.Join(root, ".gameplane-mods.json"), []byte("secret-manifest"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(root, ".gameplane-mods.json"), filepath.Join(root, "manifest")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+	resp := get(t, srvURL, "/files/read", url.Values{"path": []string{"/manifest"}})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", resp.StatusCode)
+	}
+	body := readBody(resp)
+	if body != "dotfile access denied\n" {
+		t.Fatalf("body=%q, want %q", body, "dotfile access denied\n")
 	}
 }
 
