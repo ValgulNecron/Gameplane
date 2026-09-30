@@ -1,24 +1,21 @@
 // Package netguard restricts outbound connections made on behalf of
 // user-influenced inputs (module-source fetches, mod downloads) so they
 // cannot be aimed at the cloud instance-metadata endpoint or other
-// cluster-internal SSRF targets.
+// cluster-internal SSRF targets. It is shared by the operator, the API
+// gateway, and the agent via two deliberately different policies:
 //
-// It is shared by the operator and the agent, which enforce two deliberately
-// different policies over the same machinery:
+//   - IsAllowed (operator & API, permissive): admin-configured
+//     infrastructure (module sources, notification sinks) and the agent's
+//     loopback WebSocket RCON. Blocks only addresses that are never
+//     legitimate targets and are high-value SSRF targets: link-local
+//     (where 169.254.169.254 lives), unspecified, multicast, and NAT64/6to4
+//     prefixes that can wrap a link-local address.
 //
-//   - IsAllowed (operator, permissive): ModuleSources are admin-configured
-//     infrastructure endpoints that are frequently and legitimately internal —
-//     a self-hosted GitLab/Harbor on an RFC1918 address, or a kind/k3d
-//     registry on loopback. So it blocks only addresses that are never a
-//     legitimate module store and are high-value SSRF targets: link-local
-//     (where 169.254.169.254 lives), the unspecified address, multicast, and
-//     the NAT64/6to4 prefixes that can wrap a link-local address.
-//
-//   - IsPublic (agent, strict): mod URLs are untrusted, so only globally
-//     routable unicast addresses are allowed — loopback, private (RFC1918 /
-//     ULA), link-local, multicast and the reserved/special-use ranges below
-//     (notably RFC 6598 CGNAT, used by EKS/GKE/Cilium pod networks) are all
-//     refused.
+//   - IsPublic (agent & API Steam resolver, strict): user-supplied targets
+//     (mod URLs, Steam names). Only globally routable unicast addresses are
+//     allowed — loopback, private (RFC1918 / ULA), link-local, multicast,
+//     reserved/special-use ranges, and specific cloud metadata addresses are
+//     all refused.
 //
 // The two policies must stay separately selectable: collapsing them would
 // either re-open the SSRF the agent guards against or break the private
@@ -51,11 +48,15 @@ func parseCIDRs(cidrs ...string) []*net.IPNet {
 	return out
 }
 
-// normalize maps an IPv4-mapped IPv6 address (e.g. ::ffff:a.b.c.d) to its
-// 4-byte form so the IPv4 reserved prefixes match it.
+// normalize maps IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d)
+// IPv6 addresses to their 4-byte form so the IPv4 reserved prefixes match them.
 func normalize(ip net.IP) net.IP {
 	if v4 := ip.To4(); v4 != nil {
 		return v4
+	}
+	// Unwrap IPv4-compatible addresses (::0.0.0.0/96, deprecated but still covered).
+	if len(ip) == net.IPv6len && ip[0:12].Equal([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}) {
+		return ip[12:16]
 	}
 	return ip
 }
@@ -63,9 +64,18 @@ func normalize(ip net.IP) net.IP {
 // blockedV6Prefixes are IPv6 ranges that can embed or translate to a
 // link-local/metadata address and so are refused defensively by IsAllowed.
 var blockedV6Prefixes = parseCIDRs(
-	"64:ff9b::/96", // NAT64 well-known prefix (can wrap 169.254.0.0/16)
-	"2002::/16",    // 6to4 (can wrap a link-local IPv4)
+	"64:ff9b::/96",   // NAT64 well-known prefix (can wrap 169.254.0.0/16)
+	"64:ff9b:1::/48", // RFC 8215 local-use NAT64 prefix
+	"2002::/16",      // 6to4 (can wrap a link-local IPv4)
 )
+
+// metadataAddrs are cloud instance-metadata addresses that should be blocked by
+// IsAllowed even though they're not link-local (fd00:ec2::254 is AWS IPv6 EC2 IMDS;
+// 100.100.100.200 is Alibaba Cloud IMDS, inside the CGNAT range).
+var metadataAddrs = []net.IP{
+	net.ParseIP("fd00:ec2::254"),
+	net.ParseIP("100.100.100.200"),
+}
 
 // reservedBlocks are non-globally-routable ranges that Go's net.IP predicates
 // (IsPrivate/IsLoopback/…) miss but that IsPublic must still refuse: most
@@ -75,6 +85,7 @@ var blockedV6Prefixes = parseCIDRs(
 // translation prefixes and the TEST-NET / reserved blocks are denied for the
 // same defense-in-depth reason.
 var reservedBlocks = parseCIDRs(
+	"0.0.0.0/8",       // entire "this" network
 	"100.64.0.0/10",   // RFC 6598 CGNAT (k8s node/pod ranges)
 	"192.0.0.0/24",    // IETF protocol assignments
 	"192.0.2.0/24",    // TEST-NET-1
@@ -83,24 +94,31 @@ var reservedBlocks = parseCIDRs(
 	"203.0.113.0/24",  // TEST-NET-3
 	"240.0.0.0/4",     // reserved / future use (incl. 255.255.255.255)
 	"64:ff9b::/96",    // NAT64 well-known prefix
+	"64:ff9b:1::/48",  // RFC 8215 local-use NAT64 prefix
 	"2001:db8::/32",   // documentation
 	"2002::/16",       // 6to4
+	"100::/64",        // RFC 6666 discard-only prefix
 	"fec0::/10",       // deprecated site-local
 )
 
 // IsAllowed is the operator policy: it refuses link-local (the cloud metadata
-// range), the unspecified address, multicast, and NAT64/6to4 prefixes that can
-// wrap them. Loopback and private/ULA addresses are allowed because
-// self-hosted module stores legitimately live there.
+// range), the unspecified address, multicast, specific cloud metadata addresses,
+// and NAT64/6to4 prefixes that can wrap them. Loopback and private/ULA
+// addresses are allowed because self-hosted module stores legitimately live there.
 func IsAllowed(ip net.IP) bool {
 	if ip == nil {
 		return false
 	}
-	if ip.IsUnspecified() || ip.IsMulticast() || ip.IsInterfaceLocalMulticast() ||
-		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+	norm := normalize(ip)
+	if norm.IsUnspecified() || norm.IsMulticast() || norm.IsInterfaceLocalMulticast() ||
+		norm.IsLinkLocalUnicast() || norm.IsLinkLocalMulticast() {
 		return false
 	}
-	norm := normalize(ip)
+	for _, m := range metadataAddrs {
+		if norm.Equal(m) {
+			return false
+		}
+	}
 	for _, blk := range blockedV6Prefixes {
 		if blk.Contains(norm) {
 			return false
@@ -118,11 +136,13 @@ func IsPublic(ip net.IP) bool {
 	if ip == nil {
 		return false
 	}
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
-		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() {
+	norm := normalize(ip)
+	// ip.IsLoopback() keeps ::1 blocked on its own merit: normalize turns it
+	// into 0.0.0.1, which is otherwise refused only by the 0.0.0.0/8 entry.
+	if ip.IsLoopback() || norm.IsLoopback() || norm.IsPrivate() || norm.IsUnspecified() ||
+		norm.IsLinkLocalUnicast() || norm.IsLinkLocalMulticast() || norm.IsMulticast() {
 		return false
 	}
-	norm := normalize(ip)
 	for _, blk := range reservedBlocks {
 		if blk.Contains(norm) {
 			return false

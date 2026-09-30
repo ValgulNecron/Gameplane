@@ -60,15 +60,15 @@ were added and verified on **2026-09-26**.
 `netguard/go.mod` has **no `require` block at all** — it imports only the
 Go standard library (`context`, `net`, `net/http`, `errors`, `strings`,
 `syscall`, `time`). It is a dial-time SSRF guard: `IsAllowed` (permissive,
-used by the operator for admin-configured ModuleSource fetches) and
-`IsPublic` (strict, used for user-triggered downloads) both work by
-inspecting the resolved IP in a `net.Dialer.Control` hook, so no client
-library is needed — just `net` and `syscall` for the dial-time hook itself.
+for admin-configured infrastructure) and `IsPublic` (strict, for user-supplied
+targets) both work by inspecting the resolved IP in a `net.Dialer.Control`
+hook, so no client library is needed — just `net` and `syscall` for the
+dial-time hook itself.
 
-Imported by:
-- `operator/internal/oci/` (module bundle OCI pulls) and `operator/internal/modsrc/` (git/http/OCI ModuleSource fetches) — permissive `IsAllowed`.
-- `agent/internal/mods/mods.go` — strict `IsPublic`, for user-triggered mod-install downloads.
-- `api/internal/notify/notify.go` and `deliver.go` — permissive `IsAllowed`, for admin-configured notification destinations (Discord/Slack/SMTP/webhook). This is a third importer beyond the two documented in the architecture doc; it makes sense under the same "admin-configured infrastructure endpoint" rationale as ModuleSources.
+**Callers and policies:**
+- **Operator** (`operator/internal/modsrc/`): module-source HTTP/git fetches via `IsAllowed`.
+- **API gateway** (`api/internal/notify/{notify,deliver}.go` and `api/internal/steam/resolver.go`): admin-configured notification sinks via `IsAllowed`; Steam name resolution via `IsPublic`.
+- **Agent** (`agent/internal/mods/mods.go` and `agent/internal/rcon/websocket.go`): user-supplied mod downloads via `IsPublic`; loopback WebSocket RCON via `IsAllowed`.
 
 It is a local `replace` module (`replace github.com/ValgulNecron/gameplane/netguard => ../netguard` in every importer's `go.mod`), not a published module — each Dockerfile that builds an importer must `COPY netguard/` into the build context alongside the component's own source.
 
@@ -424,13 +424,14 @@ The Helm chart itself (`charts/gameplane/Chart.yaml`) declares **no chart
   to set `dsn` *and* rebuild the image with `-tags postgres` themselves.
   So `pgx/v5` is a real, live dependency, but it ships dormant in the
   default binary.
-- **netguard's two policies, three importers.** The architecture doc
-  documents `operator` (`IsAllowed`, permissive) and `agent`
-  (`IsPublic`, strict) as netguard's two consumers. `api/internal/notify`
-  is a third, using the permissive `IsAllowed` policy for admin-configured
-  notification destinations (Discord/Slack/SMTP/webhook) — the same
-  "admin-configured infrastructure, not user-supplied" rationale as
-  ModuleSources.
+- **netguard's two policies, three importers.** Both `IsAllowed` (permissive,
+  for admin-configured infrastructure) and `IsPublic` (strict, for user-supplied
+  targets) are used by operator (module sources), API gateway
+  (notification sinks via `IsAllowed`; Steam resolver and module registry via `IsPublic`), and agent
+  (mod downloads via `IsPublic`; loopback WebSocket RCON via `IsAllowed`). The
+  split prevents private-registry access from being re-opened (if strict rules
+  apply to the operator) or agent SSRF from being introduced (if permissive rules
+  apply to the agent).
 - **Local `replace` modules need explicit Docker `COPY`s.** `netguard` and
   `gameaction` are both resolved via `replace ... => ../netguard` /
   `../gameaction` directives, not published modules. Every Dockerfile that

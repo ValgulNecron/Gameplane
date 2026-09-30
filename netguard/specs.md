@@ -5,7 +5,14 @@
 
 ## Purpose
 
-Shared SSRF/egress dial-guard restricting outbound connections made on behalf of user-influenced inputs (module-source fetches, mod downloads) so they cannot be aimed at cloud instance-metadata endpoints or other cluster-internal SSRF targets. Enforced at dial time to defeat DNS rebinding past a name-based allowlist. Used by both the operator (reconciliation) and the agent (sidecar) via two deliberately different policies that must remain separately selectable.
+Shared SSRF/egress dial-guard restricting outbound connections so they cannot be aimed at cloud instance-metadata endpoints or other cluster-internal SSRF targets. Enforced at dial time to defeat DNS rebinding past a name-based allowlist. Used by:
+- **Operator reconciliation** (module-source HTTP/git fetches)
+- **API gateway** (notification sinks, Steam resolver)
+- **Agent sidecar** (mod downloads, WebSocket RCON)
+
+via two deliberately different policies that must remain separately selectable:
+- **`IsAllowed`** (operator & API, permissive): admin-configured infrastructure (private registries, notification sinks, loopback RCON).
+- **`IsPublic`** (agent & API Steam resolver, strict): user-supplied targets (mod URLs, Steam names).
 
 ## Responsibilities
 
@@ -63,7 +70,7 @@ Single package; no subdirectories or internal structure.
 - **Two policies must remain separate.** Collapsing `IsAllowed` and `IsPublic` would either re-open the SSRF the agent guards against (if strict rules apply to the operator) or break self-hosted registries (if permissive rules apply to the agent). Tests (`TestIsPublic`) explicitly assert the split via a `policy split broken` check.
 - **Dial-time enforcement.** The `Control` hook runs after name resolution but before the connection is established, so it sees the real destination IP and defeats DNS rebinding past a name-based allowlist.
 - **No proxy bypass.** `HTTPClient` sets `Proxy: nil` to ensure the dial guard is authoritative; a forward proxy in the pod environment would hide the destination.
-- **IPv4-mapped IPv6 handling.** The `normalize()` helper converts IPv4-mapped IPv6 addresses (`::ffff:a.b.c.d`) to their 4-byte form so IPv4 reserved-prefix checks apply uniformly.
+- **IPv4-mapped and IPv4-compatible IPv6 handling.** The `normalize()` helper converts IPv4-mapped (`::ffff:a.b.c.d`) and IPv4-compatible (deprecated, but still covered: `::a.b.c.d`) IPv6 addresses to their 4-byte form so IPv4 reserved-prefix checks apply uniformly.
 - **Metadata hosts by name and IP.** Cloud metadata addresses (link-local 169.254.169.254 / metadata.google.internal) are blocked by address via the policy and by name via `HostIsMetadata` for clearer error messages.
 
 ## Dependencies
@@ -91,6 +98,10 @@ Single package; no subdirectories or internal structure.
 
 - **`docs/architecture.md`** — overview of netguard in the operator/agent's security boundaries.
 - **`docs/security.md`** — threat model and SSRF defense rationale.
-- **`operator/internal/modsrc/http.go`** — usage: `HTTPClient(2*time.Minute, netguard.IsAllowed)` for module-source HTTP fetches.
-- **`agent/internal/mods/mods.go`** — usage: `netguard.IsPublic` policy for mod downloads via `capabilities.mods.install`.
+- **`operator/internal/modsrc/{git,http}.go`** — module-source fetches via `IsAllowed`.
+- **`agent/internal/rcon/websocket.go`** — loopback WebSocket RCON via `IsAllowed`.
+- **`agent/internal/mods/mods.go`** — mod downloads via `IsPublic`.
+- **`api/internal/notify/{notify,deliver}.go`** — admin-configured notification sinks via `IsAllowed`.
+- **`api/internal/steam/resolver.go`** — Steam name resolution via `IsPublic`.
+- **`api/internal/registry/registry.go`** — module registry queries (Modrinth, Thunderstore, etc.) via `IsPublic`.
 - **`go.work`** — workspace linking netguard to operator, agent, and other Go modules.

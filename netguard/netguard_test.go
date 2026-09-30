@@ -31,7 +31,11 @@ func TestIsAllowed(t *testing.T) {
 		{"224.0.0.1", false},              // multicast
 		{"ff02::1", false},                // link-local multicast v6
 		{"::ffff:169.254.169.254", false}, // IPv4-mapped link-local
+		{"::a9fe:a9fe", false},            // IPv4-compatible 169.254.169.254
 		{"64:ff9b::a9fe:a9fe", false},     // NAT64-wrapped 169.254.169.254
+		{"64:ff9b:1::a9fe:a9fe", false},   // local-use NAT64-wrapped 169.254.169.254
+		{"fd00:ec2::254", false},          // AWS IPv6 EC2 IMDS — BLOCKED
+		{"100.100.100.200", false},        // Alibaba Cloud IMDS — BLOCKED
 	}
 	for _, tc := range cases {
 		ip := net.ParseIP(tc.ip)
@@ -55,21 +59,26 @@ func TestIsPublic(t *testing.T) {
 		// stdlib-covered: loopback, private, link-local, unspecified
 		"127.0.0.1", "10.0.0.5", "192.168.1.1", "172.16.0.1",
 		"169.254.169.254", // cloud metadata endpoint (link-local)
-		"::1", "0.0.0.0", "fd00::1", "fc00::1", "fe80::1",
-		// IPv4-mapped IPv6 of the above must also be blocked
+		"::1", "0.0.0.0", "0.0.0.1", "fd00::1", "fc00::1", "fe80::1",
+		// IPv4-mapped and IPv4-compatible IPv6 of the above must also be blocked
 		"::ffff:169.254.169.254", "::ffff:127.0.0.1", "::ffff:10.0.0.1",
+		"::7f00:1",    // IPv4-compatible 127.0.0.1
+		"::a9fe:a9fe", // IPv4-compatible link-local
 		// reserved/special-use ranges the stdlib predicates miss
 		"100.64.0.1", "100.127.255.255", // RFC 6598 CGNAT (k8s)
 		"192.0.2.1", "198.18.0.1", "198.51.100.1", "203.0.113.1",
 		"240.0.0.1", "255.255.255.255",
-		"64:ff9b::1.2.3.4", "2002::1", "2001:db8::1", "fec0::1",
+		"64:ff9b::1.2.3.4", "64:ff9b:1::a9fe:a9fe", // local-use NAT64
+		"2002::1", "2001:db8::1", "100::1", // RFC 6666 discard
+		"fec0::1",
 	}
 	for _, s := range blocked {
 		if ip := net.ParseIP(s); ip == nil || IsPublic(ip) {
 			t.Errorf("IsPublic(%s) = true, want false", s)
 		}
 	}
-	for _, s := range []string{"8.8.8.8", "1.1.1.1", "9.9.9.9", "2606:4700:4700::1111"} {
+	allowed := []string{"8.8.8.8", "1.1.1.1", "9.9.9.9", "2606:4700:4700::1111"}
+	for _, s := range allowed {
 		if !IsPublic(net.ParseIP(s)) {
 			t.Errorf("IsPublic(%s) = false, want true", s)
 		}

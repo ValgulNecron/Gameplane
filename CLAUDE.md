@@ -32,7 +32,7 @@ Run every session.
 ## Repository map
 
 ```
-netguard/            SSRF dial-guard (operator, agent)
+netguard/            SSRF dial-guard: IsAllowed (operator module sources, API sinks, agent loopback RCON); IsPublic (agent mod downloads, API Steam resolver)
 gameaction/          console-injection guard + command renderer (api, agent)
 gameproto/           Minecraft/Terraria handshake parser (sentinel)
 gp-module/           module authoring CLI: init/validate/preview/package
@@ -111,7 +111,7 @@ After cloning: `git submodule update --init` (`modules/` required for `make dev-
 
 | Component | Stack | Role |
 |---|---|---|
-| netguard | Go | dial-time SSRF prevention (`IsAllowed` operator, `IsPublic` agent) |
+| netguard | Go | dial-time SSRF prevention: `IsAllowed` (operator/API module sources and sinks, agent loopback RCON), `IsPublic` (agent mod downloads, API Steam resolver) |
 | gameaction | Go | validates console input against schemas; escapes injection |
 | gameproto | Go | Minecraft/Terraria wire parser for connection filtering |
 | gp-module | Go | module CLI: scaffold, offline validate, dry-run preview, OCI package |
