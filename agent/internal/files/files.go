@@ -327,10 +327,10 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 			h.badRequest(w, fmt.Errorf("too many files (max %d)", maxUploadFiles))
 			return
 		}
-		saveErr := savePart(p, part.FileName(), part, maxUploadFileBytes)
+		saveErr := savePart(h.root, p, part.FileName(), part, maxUploadFileBytes)
 		_ = part.Close()
 		if saveErr != nil {
-			if errors.Is(saveErr, io.ErrUnexpectedEOF) {
+			if errors.Is(saveErr, io.ErrUnexpectedEOF) || errors.Is(saveErr, errPathOutOfRoot) {
 				h.badRequest(w, saveErr)
 				return
 			}
@@ -347,18 +347,34 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 }
 
 // savePart streams one multipart part into dir under a sanitized name,
-// refusing anything larger than limit bytes. It writes to a temp file in
+// refusing anything larger than limit bytes and any destination that is a
+// symlink not resolving inside root. It writes to a temp file in
 // dir first and renames it over the final name only once the copy
 // succeeds, so a failure partway through (a truncated/erroring source, or
 // an over-limit part) removes only the temp file — a pre-existing file at
 // that name is left untouched instead of being deleted (F-102).
-func savePart(dir, filename string, src io.Reader, limit int64) error {
+func savePart(root, dir, filename string, src io.Reader, limit int64) error {
 	// Sanitize filename — reject anything that would climb out of dir.
 	name := filepath.Base(filename)
 	if name == "." || name == ".." || name == string(os.PathSeparator) {
 		return errors.New("invalid filename")
 	}
 	dstPath := filepath.Clean(filepath.Join(dir, name))
+
+	// Confine the final destination: an existing symlink at this name must resolve inside root.
+	if info, err := os.Lstat(dstPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		// Compare against the root with its own symlinks resolved too, so a
+		// data root reached through a symlinked path still accepts in-root links.
+		realRoot, rootErr := filepath.EvalSymlinks(root)
+		if rootErr != nil {
+			return fmt.Errorf("resolve root: %w", rootErr)
+		}
+		resolved, evalErr := filepath.EvalSymlinks(dstPath)
+		if evalErr != nil || (!strings.HasPrefix(resolved, realRoot+string(os.PathSeparator)) && resolved != realRoot) {
+			return errPathOutOfRoot
+		}
+	}
+
 	tmp, err := os.CreateTemp(dir, ".upload-*")
 	if err != nil {
 		return err

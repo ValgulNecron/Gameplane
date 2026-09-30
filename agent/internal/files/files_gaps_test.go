@@ -67,14 +67,15 @@ func TestSavePart_CreateError(t *testing.T) {
 	if err := os.WriteFile(blocking, []byte("x"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := savePart(blocking, "x.txt", strings.NewReader("y"), 16); err == nil {
+	if err := savePart(blocking, blocking, "x.txt", strings.NewReader("y"), 16); err == nil {
 		t.Fatal("expected create error")
 	}
 }
 
 // TestSavePart_CopyError confirms a mid-stream read failure is wrapped.
 func TestSavePart_CopyError(t *testing.T) {
-	err := savePart(t.TempDir(), "x.txt", errReader{}, 16)
+	dir := t.TempDir()
+	err := savePart(dir, dir, "x.txt", errReader{}, 16)
 	if !errors.Is(err, errRead) {
 		t.Fatalf("got %v, want wrapped %v", err, errRead)
 	}

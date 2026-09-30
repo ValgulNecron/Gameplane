@@ -326,7 +326,7 @@ func TestSavePart_CopyErrorPreservesExistingFile(t *testing.T) {
 	if err := os.WriteFile(dst, []byte("original"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := savePart(dir, "x.txt", errReader{}, 16); !errors.Is(err, errRead) {
+	if err := savePart(dir, dir, "x.txt", errReader{}, 16); !errors.Is(err, errRead) {
 		t.Fatalf("got %v, want wrapped %v", err, errRead)
 	}
 	got, err := os.ReadFile(dst)
@@ -437,7 +437,7 @@ func TestSavePart_RejectsBadFilenames(t *testing.T) {
 	cases := []string{".", "..", string(os.PathSeparator)}
 	for _, name := range cases {
 		t.Run(name, func(t *testing.T) {
-			err := savePart(dir, name, strings.NewReader("x"), maxUploadFileBytes)
+			err := savePart(dir, dir, name, strings.NewReader("x"), maxUploadFileBytes)
 			if err == nil || !strings.Contains(err.Error(), "invalid filename") {
 				t.Fatalf("got %v", err)
 			}
@@ -447,9 +447,208 @@ func TestSavePart_RejectsBadFilenames(t *testing.T) {
 
 func TestSavePart_RejectsOversize(t *testing.T) {
 	dir := t.TempDir()
-	err := savePart(dir, "big", strings.NewReader("abcdef"), 3)
+	err := savePart(dir, dir, "big", strings.NewReader("abcdef"), 3)
 	if err == nil || !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+// resolvedTempDir returns a fresh temp dir with any symlinks in its path
+// resolved, matching how the production root is compared.
+func resolvedTempDir(t *testing.T) string {
+	t.Helper()
+	d, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("eval temp dir: %v", err)
+	}
+	return d
+}
+
+// TestSavePart_RejectsOutOfRootSymlinkDestination checks that an upload
+// whose destination name is a symlink out of root is rejected and leaves
+// the target untouched.
+func TestSavePart_RejectsOutOfRootSymlinkDestination(t *testing.T) {
+	root := resolvedTempDir(t)
+	outside := resolvedTempDir(t)
+	target := filepath.Join(outside, "target.txt")
+	if err := os.WriteFile(target, []byte("orig"), 0o600); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	linkPath := filepath.Join(root, "esc-link")
+	if err := os.Symlink(target, linkPath); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	err := savePart(root, root, "esc-link", strings.NewReader("should-reject"), 1024)
+	if !errors.Is(err, errPathOutOfRoot) {
+		t.Fatalf("got %v, want %v", err, errPathOutOfRoot)
+	}
+
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "orig" {
+		t.Fatalf("outside target modified: got %q err=%v", got, err)
+	}
+	fi, err := os.Lstat(linkPath)
+	if err != nil {
+		t.Fatalf("lstat symlink: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("symlink was replaced with a regular file")
+	}
+}
+
+// TestSavePart_RejectsDanglingSymlinkDestination checks that a destination
+// symlink which cannot be resolved is rejected rather than replaced.
+func TestSavePart_RejectsDanglingSymlinkDestination(t *testing.T) {
+	root := resolvedTempDir(t)
+	linkPath := filepath.Join(root, "dangling")
+	if err := os.Symlink(filepath.Join(resolvedTempDir(t), "missing", "file"), linkPath); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+	err := savePart(root, root, "dangling", strings.NewReader("x"), 1024)
+	if !errors.Is(err, errPathOutOfRoot) {
+		t.Fatalf("got %v, want %v", err, errPathOutOfRoot)
+	}
+	fi, err := os.Lstat(linkPath)
+	if err != nil {
+		t.Fatalf("lstat symlink: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("symlink was replaced with a regular file")
+	}
+}
+
+// TestSavePart_AllowsInRootSymlinkDestination checks that a destination
+// symlink pointing at another folder inside root is accepted: the upload
+// replaces the link and the linked file is left as it was.
+func TestSavePart_AllowsInRootSymlinkDestination(t *testing.T) {
+	root := resolvedTempDir(t)
+	dirA := filepath.Join(root, "a")
+	dirB := filepath.Join(root, "b")
+	for _, d := range []string{dirA, dirB} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	target := filepath.Join(dirB, "y")
+	if err := os.WriteFile(target, []byte("orig"), 0o600); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	linkPath := filepath.Join(dirA, "x")
+	if err := os.Symlink(target, linkPath); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	if err := savePart(root, dirA, "x", strings.NewReader("new"), 1024); err != nil {
+		t.Fatalf("savePart: %v", err)
+	}
+	got, err := os.ReadFile(linkPath)
+	if err != nil || string(got) != "new" {
+		t.Fatalf("upload not stored: got %q err=%v", got, err)
+	}
+	got, err = os.ReadFile(target)
+	if err != nil || string(got) != "orig" {
+		t.Fatalf("linked file modified: got %q err=%v", got, err)
+	}
+}
+
+// TestUpload_RejectsOutOfRootSymlinkDestination checks the handler answers
+// a rejected destination with 400 and leaves the target untouched.
+func TestUpload_RejectsOutOfRootSymlinkDestination(t *testing.T) {
+	srvURL, root := newServer(t)
+	outside := resolvedTempDir(t)
+	target := filepath.Join(outside, "target.txt")
+	if err := os.WriteFile(target, []byte("orig"), 0o600); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(root, "esc-link")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	buf, ct := multipartBody(t, map[string]string{"esc-link": "should-reject"})
+	resp, err := testPost(t, srvURL+"/files/upload?path=/", ct, buf)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", resp.StatusCode, readBody(resp))
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "orig" {
+		t.Fatalf("outside target modified: got %q err=%v", got, err)
+	}
+}
+
+// symlinkedRoot returns a data root reached through a symlink (the link
+// path) together with the real directory it points at.
+func symlinkedRoot(t *testing.T) (string, string) {
+	t.Helper()
+	realRoot := resolvedTempDir(t)
+	link := filepath.Join(resolvedTempDir(t), "data")
+	if err := os.Symlink(realRoot, link); err != nil {
+		t.Fatalf("symlink root: %v", err)
+	}
+	return link, realRoot
+}
+
+// TestUpload_SymlinkedRootAllowsInRootSymlinkDestination checks that when
+// the data root itself is reached through a symlink, uploading over an
+// existing symlink whose target is inside the root is accepted.
+func TestUpload_SymlinkedRootAllowsInRootSymlinkDestination(t *testing.T) {
+	linkRoot, realRoot := symlinkedRoot(t)
+	if err := os.Mkdir(filepath.Join(realRoot, "b"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	target := filepath.Join(realRoot, "b", "y")
+	if err := os.WriteFile(target, []byte("orig"), 0o600); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(realRoot, "x")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+	r := chi.NewRouter()
+	Mount(r, linkRoot)
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	buf, ct := multipartBody(t, map[string]string{"x": "new"})
+	resp, err := testPost(t, srv.URL+"/files/upload?path=/", ct, buf)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status=%d body=%s", resp.StatusCode, readBody(resp))
+	}
+	got, err := os.ReadFile(filepath.Join(realRoot, "x"))
+	if err != nil || string(got) != "new" {
+		t.Fatalf("upload not stored: got %q err=%v", got, err)
+	}
+	got, err = os.ReadFile(target)
+	if err != nil || string(got) != "orig" {
+		t.Fatalf("linked file modified: got %q err=%v", got, err)
+	}
+}
+
+// TestSavePart_SymlinkedRootRejectsOutOfRootSymlinkDestination checks that
+// resolving the root's own symlinks does not loosen confinement.
+func TestSavePart_SymlinkedRootRejectsOutOfRootSymlinkDestination(t *testing.T) {
+	linkRoot, _ := symlinkedRoot(t)
+	target := filepath.Join(resolvedTempDir(t), "target.txt")
+	if err := os.WriteFile(target, []byte("orig"), 0o600); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(linkRoot, "esc-link")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+	err := savePart(linkRoot, linkRoot, "esc-link", strings.NewReader("x"), 1024)
+	if !errors.Is(err, errPathOutOfRoot) {
+		t.Fatalf("got %v, want %v", err, errPathOutOfRoot)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "orig" {
+		t.Fatalf("outside target modified: got %q err=%v", got, err)
 	}
 }
 

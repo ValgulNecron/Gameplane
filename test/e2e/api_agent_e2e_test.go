@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -327,6 +328,53 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		}
 		return true, ""
 	})
+
+	// Upload confinement: an upload whose destination name is an existing
+	// symlink pointing outside the data root must be refused with 400 Bad Request (errPathOutOfRoot),
+	// leaving the symlink in place.
+	const escLinkName = "esc-link"
+	const escLinkPath = "/data/" + escLinkName
+	if out, err := envInstance.KubectlExec(t, ns, "pod/"+gs+"-0",
+		"ln", "-s", "/etc", escLinkPath); err != nil {
+		t.Fatalf("create out-of-root symlink: %v output=%s", err, out)
+	}
+	t.Cleanup(func() {
+		// t.Context() is already canceled when cleanups run.
+		_, _ = envInstance.Kubectl(context.Background(), "exec", "-n", ns, "pod/"+gs+"-0", "--", "rm", "-f", escLinkPath)
+	})
+
+	escBuf := &bytes.Buffer{}
+	escMW := multipart.NewWriter(escBuf)
+	escFW, err := escMW.CreateFormFile("files", escLinkName)
+	if err != nil {
+		t.Fatalf("form file: %v", err)
+	}
+	if _, err := escFW.Write([]byte("should-be-rejected")); err != nil {
+		t.Fatalf("write part: %v", err)
+	}
+	if err := escMW.Close(); err != nil {
+		t.Fatalf("close multipart: %v", err)
+	}
+	escReq, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+		cli.BaseURL+"/servers/"+gs+"/files/upload?path="+url.QueryEscape("/"), escBuf)
+	if err != nil {
+		t.Fatalf("build symlink upload req: %v", err)
+	}
+	escReq.Header.Set("Content-Type", escMW.FormDataContentType())
+	escReq.Header.Set("X-Gameplane-CSRF", cli.CSRF)
+	escResp, err := cli.HTTP.Do(escReq)
+	if err != nil {
+		t.Fatalf("POST /files/upload onto symlink: %v", err)
+	}
+	escBody, _ := io.ReadAll(escResp.Body)
+	_ = escResp.Body.Close()
+	if escResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("upload onto out-of-root symlink expected %d, got %d body=%q", http.StatusBadRequest, escResp.StatusCode, string(escBody))
+	}
+	if out, err := envInstance.KubectlExec(t, ns, "pod/"+gs+"-0",
+		"test", "-L", escLinkPath); err != nil {
+		t.Fatalf("out-of-root symlink was replaced by the rejected upload: %v output=%s", err, out)
+	}
 }
 
 // TestAPI_AgentPlayers covers /servers/{name}/players. Busybox doesn't
