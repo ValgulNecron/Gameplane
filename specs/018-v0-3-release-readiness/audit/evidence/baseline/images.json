@@ -1,0 +1,32 @@
+[
+  {
+    "kind": "Deployment",
+    "name": "gameplane-api",
+    "namespace": "gameplane-system",
+    "generation": 10,
+    "uid": "58ee16c1-8b31-4707-8a77-cbfc3766c3f3",
+    "images": [
+      "gameplane-test/api:016"
+    ]
+  },
+  {
+    "kind": "Deployment",
+    "name": "gameplane-operator",
+    "namespace": "gameplane-system",
+    "generation": 7,
+    "uid": "4b4945eb-ddd6-4d49-873e-0c34617b6219",
+    "images": [
+      "gameplane-test/operator:016"
+    ]
+  },
+  {
+    "kind": "Deployment",
+    "name": "gameplane-web",
+    "namespace": "gameplane-system",
+    "generation": 10,
+    "uid": "c632b604-e696-487f-a5fd-b11fd7a4f34b",
+    "images": [
+      "gameplane-test/web:016"
+    ]
+  }
+]

@@ -1,0 +1,1020 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e1344c2..74eb1a4 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -147,6 +147,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
+   #334, #344, #354, #355, #356, #357, #358, #359, #379, #380, #381, #382, #387,
+   #399, #400, #401, #402, #403, #404, #405, #406, #412).
+ 
++### Security hardening
++
++- **api:** hardened account removal and share-link revocation.
++
+ ## [0.3.0-rc.1] — 2026-09-23
+ 
+ The first release candidate for v0.3.0, the first Gameplane release without a
+diff --git a/api/internal/auth/oidc_db_test.go b/api/internal/auth/oidc_db_test.go
+index 422c192..a64de25 100644
+--- a/api/internal/auth/oidc_db_test.go
++++ b/api/internal/auth/oidc_db_test.go
+@@ -102,3 +102,41 @@ func TestPickUniqueUsername_ShortSubKeepsAll(t *testing.T) {
+ 		t.Fatalf("expected full sub in username, got %q", u.Username)
+ 	}
+ }
++
++// TestResolveOrLinkUser_DeletedUserIsProvisionedAgain covers account
++// removal for SSO users: once the user is deleted, the same IdP subject
++// logging in again is provisioned as a fresh user.
++func TestResolveOrLinkUser_DeletedUserIsProvisionedAgain(t *testing.T) {
++	store := newAuthDB(t)
++	o := &OIDC{}
++	o.AttachStore(store)
++	ctx := context.Background()
++
++	first, _, err := o.resolveOrLinkUser(ctx, "https://idp", "sub-returning", "returning@x", "Returning", "viewer", "none", false)
++	if err != nil {
++		t.Fatalf("first login: %v", err)
++	}
++	if err := store.DeleteUser(ctx, first.ID); err != nil {
++		t.Fatalf("DeleteUser: %v", err)
++	}
++
++	second, outcome, err := o.resolveOrLinkUser(ctx, "https://idp", "sub-returning", "returning@x", "Returning", "viewer", "none", false)
++	if err != nil {
++		t.Fatalf("login after delete: %v", err)
++	}
++	if second.ID == first.ID {
++		t.Fatalf("login after delete reused deleted user id %d", first.ID)
++	}
++	if outcome == nil || outcome.PreviousRole != "new_user" {
++		t.Fatalf("login after delete outcome = %+v, want a first-login outcome", outcome)
++	}
++	var links int
++	if err := store.DB.QueryRowContext(ctx,
++		`SELECT COUNT(*) FROM oidc_links WHERE issuer = ? AND subject = ? AND user_id = ?`,
++		"https://idp", "sub-returning", second.ID).Scan(&links); err != nil {
++		t.Fatalf("count links: %v", err)
++	}
++	if links != 1 {
++		t.Fatalf("oidc links for the new user = %d, want 1", links)
++	}
++}
+diff --git a/api/internal/db/migrations/012_account_removal_cleanup.sql b/api/internal/db/migrations/012_account_removal_cleanup.sql
+new file mode 100644
+index 0000000..c4b7d21
+--- /dev/null
++++ b/api/internal/db/migrations/012_account_removal_cleanup.sql
+@@ -0,0 +1,22 @@
++-- One-off cleanup of rows that belong to users who no longer exist.
++--
++-- modernc-sqlite runs with foreign_keys OFF, so the ON DELETE CASCADE
++-- clauses on these tables never fired on that driver, and a user delete
++-- left the rows below in place. db.Store.DeleteUser now removes them in the
++-- same transaction as the user; this migration clears what earlier deletes
++-- left. Share links are revoked rather than deleted, which keeps their audit
++-- trail (revoked_at uses the RFC3339 UTC format shares.go writes and parses).
++-- On Postgres the cascades already removed these rows, so every statement
++-- matches nothing there.
++DELETE FROM oidc_links WHERE user_id NOT IN (SELECT id FROM users);
++
++DELETE FROM user_preferences WHERE user_id NOT IN (SELECT id FROM users);
++
++DELETE FROM sessions WHERE user_id NOT IN (SELECT id FROM users);
++
++DELETE FROM api_tokens WHERE user_id NOT IN (SELECT id FROM users);
++
++DELETE FROM user_role_bindings WHERE user_id NOT IN (SELECT id FROM users);
++
++UPDATE share_links SET revoked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
++    WHERE revoked_at IS NULL AND created_by NOT IN (SELECT id FROM users);
+diff --git a/api/internal/db/shares.go b/api/internal/db/shares.go
+index e1cd589..6056a73 100644
+--- a/api/internal/db/shares.go
++++ b/api/internal/db/shares.go
+@@ -32,6 +32,10 @@ type ShareLink struct {
+ // an attacker probing tokens must not learn that one existed.
+ var ErrShareLinkInvalid = errors.New("invalid share link")
+ 
++// ErrShareLinkNotFound is returned by RevokeShareLink when no share link with
++// that id belongs to the given cluster, namespace and server.
++var ErrShareLinkNotFound = errors.New("share link not found")
++
+ // ErrShareLinkExpiryInvalid is returned by CreateShareLink when a given
+ // expiry timestamp is invalid (zero or not strictly in the future). A nil
+ // expiry (never expires) is always valid and skips this check entirely.
+@@ -285,20 +289,19 @@ func (s *Store) ListShareLinks(ctx context.Context, cluster, ns, serverName stri
+ }
+ 
+ // RevokeShareLink marks a share link as revoked by setting revoked_at to the
+-// current timestamp. Revocation is scoped to cluster when provided and auditable (never a delete).
+-func (s *Store) RevokeShareLink(ctx context.Context, cluster, id string) error {
+-	revokedAt := time.Now().UTC().Format(time.RFC3339)
+-	var res sql.Result
+-	var err error
+-	if cluster != "" {
+-		res, err = s.DB.ExecContext(ctx,
+-			`UPDATE share_links SET revoked_at = ? WHERE id = ? AND cluster = ?`,
+-			revokedAt, id, cluster)
+-	} else {
+-		res, err = s.DB.ExecContext(ctx,
+-			`UPDATE share_links SET revoked_at = ? WHERE id = ?`,
+-			revokedAt, id)
++// current timestamp. The link must belong to the given cluster, namespace and
++// server; an empty cluster means "local", as in CreateShareLink. Revocation is
++// auditable (never a delete). It returns ErrShareLinkNotFound when no such
++// link exists.
++func (s *Store) RevokeShareLink(ctx context.Context, cluster, ns, serverName, id string) error {
++	if cluster == "" {
++		cluster = "local"
+ 	}
++	revokedAt := time.Now().UTC().Format(time.RFC3339)
++	res, err := s.DB.ExecContext(ctx,
++		`UPDATE share_links SET revoked_at = ?
++		 WHERE id = ? AND cluster = ? AND namespace = ? AND server_name = ?`,
++		revokedAt, id, cluster, ns, serverName)
+ 	if err != nil {
+ 		return fmt.Errorf("revoke share link: %w", err)
+ 	}
+@@ -309,7 +312,7 @@ func (s *Store) RevokeShareLink(ctx context.Context, cluster, id string) error {
+ 		return fmt.Errorf("rows affected: %w", err)
+ 	}
+ 	if n == 0 {
+-		return fmt.Errorf("share link not found: %w", errors.New("unknown id"))
++		return ErrShareLinkNotFound
+ 	}
+ 
+ 	return nil
+diff --git a/api/internal/db/shares_test.go b/api/internal/db/shares_test.go
+index 65f6dc8..2143172 100644
+--- a/api/internal/db/shares_test.go
++++ b/api/internal/db/shares_test.go
+@@ -184,7 +184,7 @@ func TestCreateShareLink_NilExpiry_NeverExpires(t *testing.T) {
+ 	}
+ 
+ 	// A never-expiring link must still be revocable.
+-	if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
++	if err := s.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID); err != nil {
+ 		t.Fatalf("revoke never-expiring link: %v", err)
+ 	}
+ 	if _, err := s.LookupShareLink(ctx, rawToken); !errors.Is(err, ErrShareLinkInvalid) {
+@@ -320,7 +320,7 @@ func TestLookupShareLink_Revoked_Invalid(t *testing.T) {
+ 	}
+ 
+ 	// Revoke it.
+-	if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
++	if err := s.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID); err != nil {
+ 		t.Fatalf("revoke: %v", err)
+ 	}
+ 
+@@ -548,7 +548,7 @@ func TestRevokeShareLink_Success(t *testing.T) {
+ 	}
+ 
+ 	// Revoke it.
+-	if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
++	if err := s.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID); err != nil {
+ 		t.Fatalf("revoke: %v", err)
+ 	}
+ 
+@@ -579,7 +579,7 @@ func TestRevokeShareLink_NotFound(t *testing.T) {
+ 	ctx := context.Background()
+ 
+ 	// Try to revoke a nonexistent link.
+-	err := s.RevokeShareLink(ctx, "local", "nonexistent-id")
++	err := s.RevokeShareLink(ctx, "local", "default", "server", "nonexistent-id")
+ 	if err == nil {
+ 		t.Fatal("expected error for nonexistent link, got nil")
+ 	}
+@@ -622,12 +622,12 @@ func TestShareLinks_ClusterScoping(t *testing.T) {
+ 	}
+ 
+ 	// Revoke linkB with cluster-a must fail
+-	if err := s.RevokeShareLink(ctx, "cluster-a", linkB.ID); err == nil {
++	if err := s.RevokeShareLink(ctx, "cluster-a", linkB.Namespace, linkB.ServerName, linkB.ID); err == nil {
+ 		t.Fatal("expected error revoking cluster-b link with cluster-a, got nil")
+ 	}
+ 
+ 	// Revoke linkB with cluster-b must succeed
+-	if err := s.RevokeShareLink(ctx, "cluster-b", linkB.ID); err != nil {
++	if err := s.RevokeShareLink(ctx, "cluster-b", linkB.Namespace, linkB.ServerName, linkB.ID); err != nil {
+ 		t.Fatalf("revoke linkB with cluster-b failed: %v", err)
+ 	}
+ }
+@@ -735,7 +735,7 @@ func TestRevocation_IndependentOfExpiryShape(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("%s: create: %v", shape.name, err)
+ 		}
+-		if err := s.RevokeShareLink(ctx, "local", link.ID); err != nil {
++		if err := s.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID); err != nil {
+ 			t.Fatalf("%s: revoke: %v", shape.name, err)
+ 		}
+ 		if _, err := s.LookupShareLink(ctx, rawToken); !errors.Is(err, ErrShareLinkInvalid) {
+@@ -835,3 +835,55 @@ func TestMigration010_ExpiresAtNullable(t *testing.T) {
+ 		t.Errorf("post-010 NULL expiry round-tripped as %q, want NULL", postExpiresAt.String)
+ 	}
+ }
++
++// TestRevokeShareLink_ScopedToServer covers revocation scope: a link is
++// revoked only through the cluster, namespace and server it was created for.
++func TestRevokeShareLink_ScopedToServer(t *testing.T) {
++	s := newShareLinksStore(t)
++	ctx := context.Background()
++	userID := insertTestUser(t, s, "scoped-revoke")
++
++	rawToken, link, err := s.CreateShareLink(ctx, "local", "default", "srv-a", userID, false, nil)
++	if err != nil {
++		t.Fatalf("create: %v", err)
++	}
++
++	mismatched := []struct {
++		name, cluster, ns, server string
++	}{
++		{"other namespace", "local", "other", "srv-a"},
++		{"other server", "local", "default", "srv-b"},
++		{"other cluster", "remote", "default", "srv-a"},
++	}
++	for _, m := range mismatched {
++		if err := s.RevokeShareLink(ctx, m.cluster, m.ns, m.server, link.ID); !errors.Is(err, ErrShareLinkNotFound) {
++			t.Errorf("%s: got %v, want ErrShareLinkNotFound", m.name, err)
++		}
++	}
++
++	var revokedAt sql.NullString
++	if err := s.DB.QueryRowContext(ctx, `SELECT revoked_at FROM share_links WHERE id = ?`, link.ID).Scan(&revokedAt); err != nil {
++		t.Fatalf("query revoked_at: %v", err)
++	}
++	if revokedAt.Valid {
++		t.Fatalf("revoked_at = %q after mismatched revokes, want NULL", revokedAt.String)
++	}
++	if _, err := s.LookupShareLink(ctx, rawToken); err != nil {
++		t.Fatalf("link no longer resolves after mismatched revokes: %v", err)
++	}
++
++	if err := s.RevokeShareLink(ctx, "local", "default", "srv-a", link.ID); err != nil {
++		t.Fatalf("revoke with matching scope: %v", err)
++	}
++	if _, err := s.LookupShareLink(ctx, rawToken); !errors.Is(err, ErrShareLinkInvalid) {
++		t.Fatalf("lookup after revoke: got %v, want ErrShareLinkInvalid", err)
++	}
++}
++
++func TestRevokeShareLink_UnknownIDReturnsNotFound(t *testing.T) {
++	s := newShareLinksStore(t)
++	err := s.RevokeShareLink(context.Background(), "local", "default", "server", "nonexistent-id")
++	if !errors.Is(err, ErrShareLinkNotFound) {
++		t.Fatalf("got %v, want ErrShareLinkNotFound", err)
++	}
++}
+diff --git a/api/internal/db/users.go b/api/internal/db/users.go
+new file mode 100644
+index 0000000..f8a7d99
+--- /dev/null
++++ b/api/internal/db/users.go
+@@ -0,0 +1,48 @@
++package db
++
++import (
++	"context"
++	"fmt"
++	"time"
++)
++
++// DeleteUser removes a user account and every row tied to it, in one
++// transaction: the account's SSO links, preferences, sessions, API tokens and
++// role bindings are deleted, and the share links it created are revoked
++// (revocation, not a delete, keeps their audit trail). The rows are removed
++// explicitly rather than left to ON DELETE CASCADE, because the shipped
++// SQLite DSN runs with foreign keys off. Deleting an unknown id is a no-op.
++func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
++	tx, err := s.DB.BeginTx(ctx, nil)
++	if err != nil {
++		return fmt.Errorf("delete user: begin: %w", err)
++	}
++	defer func() { _ = tx.Rollback() }()
++
++	revokedAt := time.Now().UTC().Format(time.RFC3339)
++	if _, err := tx.ExecContext(ctx,
++		`UPDATE share_links SET revoked_at = ? WHERE created_by = ? AND revoked_at IS NULL`,
++		revokedAt, userID); err != nil {
++		return fmt.Errorf("delete user: revoke share links: %w", err)
++	}
++	for _, stmt := range []string{
++		`DELETE FROM oidc_links WHERE user_id = ?`,
++		`DELETE FROM user_preferences WHERE user_id = ?`,
++		`DELETE FROM sessions WHERE user_id = ?`,
++		`DELETE FROM api_tokens WHERE user_id = ?`,
++	} {
++		if _, err := tx.ExecContext(ctx, stmt, userID); err != nil {
++			return fmt.Errorf("delete user: %s: %w", stmt, err)
++		}
++	}
++	if err := s.DeleteUserBindings(ctx, tx, userID); err != nil {
++		return fmt.Errorf("delete user: %w", err)
++	}
++	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, userID); err != nil {
++		return fmt.Errorf("delete user: users row: %w", err)
++	}
++	if err := tx.Commit(); err != nil {
++		return fmt.Errorf("delete user: commit: %w", err)
++	}
++	return nil
++}
+diff --git a/api/internal/db/users_test.go b/api/internal/db/users_test.go
+new file mode 100644
+index 0000000..b6bce3a
+--- /dev/null
++++ b/api/internal/db/users_test.go
+@@ -0,0 +1,145 @@
++package db
++
++import (
++	"context"
++	"errors"
++	"testing"
++	"time"
++)
++
++// seedAccountRows gives userID one row in every table tied to an account and
++// one active share link, and returns that link's raw token.
++func seedAccountRows(t *testing.T, s *Store, userID int64, tag string) string {
++	t.Helper()
++	ctx := context.Background()
++	for _, stmt := range []struct {
++		sql  string
++		args []any
++	}{
++		{`INSERT INTO oidc_links(user_id, issuer, subject, email) VALUES (?, ?, ?, ?)`,
++			[]any{userID, "https://idp.example", "sub-" + tag, tag + "@example.com"}},
++		{`INSERT INTO user_preferences(user_id) VALUES (?)`, []any{userID}},
++		{`INSERT INTO sessions(token, user_id, csrf_token, expires_at) VALUES (?, ?, ?, ?)`,
++			[]any{"session-" + tag, userID, "csrf-" + tag, time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}},
++		{`INSERT INTO api_tokens(token, user_id, name) VALUES (?, ?, ?)`, []any{"api-token-" + tag, userID, tag}},
++		{`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, 'viewer', 'local', '*')`, []any{userID}},
++	} {
++		if _, err := s.DB.ExecContext(ctx, stmt.sql, stmt.args...); err != nil {
++			t.Fatalf("seed %q: %v", stmt.sql, err)
++		}
++	}
++	token, _, err := s.CreateShareLink(ctx, "local", "default", "server-"+tag, userID, false, nil)
++	if err != nil {
++		t.Fatalf("seed share link: %v", err)
++	}
++	return token
++}
++
++// accountRowCount counts userID's rows across the tables tied to an account.
++func accountRowCount(t *testing.T, s *Store, userID int64) int {
++	t.Helper()
++	total := 0
++	for _, q := range []string{
++		`SELECT COUNT(*) FROM users WHERE id = ?`,
++		`SELECT COUNT(*) FROM oidc_links WHERE user_id = ?`,
++		`SELECT COUNT(*) FROM user_preferences WHERE user_id = ?`,
++		`SELECT COUNT(*) FROM sessions WHERE user_id = ?`,
++		`SELECT COUNT(*) FROM api_tokens WHERE user_id = ?`,
++		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ?`,
++	} {
++		var n int
++		if err := s.DB.QueryRowContext(context.Background(), q, userID).Scan(&n); err != nil {
++			t.Fatalf("%s: %v", q, err)
++		}
++		total += n
++	}
++	return total
++}
++
++func TestDeleteUser_RemovesAccountRowsAndRevokesShareLinks(t *testing.T) {
++	s := newShareLinksStore(t)
++	ctx := context.Background()
++	gone := insertTestUser(t, s, "leaving")
++	kept := insertTestUser(t, s, "staying")
++	goneToken := seedAccountRows(t, s, gone, "leaving")
++	keptToken := seedAccountRows(t, s, kept, "staying")
++
++	if err := s.DeleteUser(ctx, gone); err != nil {
++		t.Fatalf("DeleteUser: %v", err)
++	}
++
++	if n := accountRowCount(t, s, gone); n != 0 {
++		t.Errorf("deleted user still has %d account rows", n)
++	}
++	if _, err := s.LookupShareLink(ctx, goneToken); !errors.Is(err, ErrShareLinkInvalid) {
++		t.Errorf("deleted user's share link: got %v, want ErrShareLinkInvalid", err)
++	}
++	var revoked int
++	if err := s.DB.QueryRowContext(ctx,
++		`SELECT COUNT(*) FROM share_links WHERE created_by = ? AND revoked_at IS NOT NULL`, gone).Scan(&revoked); err != nil {
++		t.Fatalf("count revoked links: %v", err)
++	}
++	if revoked != 1 {
++		t.Errorf("revoked share links for deleted user = %d, want 1 (revoked, not deleted)", revoked)
++	}
++
++	// Another account's rows and links are untouched.
++	if n := accountRowCount(t, s, kept); n != 6 {
++		t.Errorf("other user's account rows = %d, want 6", n)
++	}
++	if _, err := s.LookupShareLink(ctx, keptToken); err != nil {
++		t.Errorf("other user's share link no longer resolves: %v", err)
++	}
++}
++
++func TestDeleteUser_UnknownIDIsNoOp(t *testing.T) {
++	s := newShareLinksStore(t)
++	if err := s.DeleteUser(context.Background(), 424242); err != nil {
++		t.Fatalf("DeleteUser(unknown): %v", err)
++	}
++}
++
++func TestMigrate_AccountCleanupClearsRowsOfRemovedUsers(t *testing.T) {
++	s := newShareLinksStore(t)
++	ctx := context.Background()
++	gone := insertTestUser(t, s, "removed-earlier")
++	kept := insertTestUser(t, s, "still-here")
++	goneToken := seedAccountRows(t, s, gone, "removed-earlier")
++	keptToken := seedAccountRows(t, s, kept, "still-here")
++
++	// A user row removed on its own, the way user deletes worked before
++	// DeleteUser, leaves its other rows behind.
++	if _, err := s.DB.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, gone); err != nil {
++		t.Fatalf("delete users row: %v", err)
++	}
++
++	// Run the cleanup migration again over that state.
++	const name = "012_account_removal_cleanup.sql"
++	if _, err := s.DB.ExecContext(ctx, `DELETE FROM schema_migrations WHERE version = ?`, name); err != nil {
++		t.Fatalf("unmark migration: %v", err)
++	}
++	if err := s.Migrate(ctx); err != nil {
++		t.Fatalf("migrate: %v", err)
++	}
++
++	if n := accountRowCount(t, s, gone); n != 0 {
++		t.Errorf("removed user still has %d account rows after cleanup", n)
++	}
++	if _, err := s.LookupShareLink(ctx, goneToken); !errors.Is(err, ErrShareLinkInvalid) {
++		t.Errorf("removed user's share link after cleanup: got %v, want ErrShareLinkInvalid", err)
++	}
++	links, err := s.ListShareLinks(ctx, "local", "default", "server-removed-earlier")
++	if err != nil {
++		t.Fatalf("list share links: %v", err)
++	}
++	if len(links) != 1 || links[0].RevokedAt == nil {
++		t.Errorf("removed user's share link should be kept and revoked, got %+v", links)
++	}
++
++	if n := accountRowCount(t, s, kept); n != 6 {
++		t.Errorf("other user's account rows = %d, want 6", n)
++	}
++	if _, err := s.LookupShareLink(ctx, keptToken); err != nil {
++		t.Errorf("other user's share link no longer resolves: %v", err)
++	}
++}
+diff --git a/api/internal/handlers/shares.go b/api/internal/handlers/shares.go
+index 9c68f7e..2e4fea5 100644
+--- a/api/internal/handlers/shares.go
++++ b/api/internal/handlers/shares.go
+@@ -262,7 +262,11 @@ func revokeShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
+ 		}
+ 
+ 		cl, _ := scope.ResolveCluster(req, reg)
+-		if err := store.RevokeShareLink(req.Context(), cl, id); err != nil {
++		if err := store.RevokeShareLink(req.Context(), cl, ns, name, id); err != nil {
++			if errors.Is(err, db.ErrShareLinkNotFound) {
++				http.Error(w, "not found", http.StatusNotFound)
++				return
++			}
+ 			httperr.Write(w, req, err)
+ 			return
+ 		}
+diff --git a/api/internal/handlers/shares_test.go b/api/internal/handlers/shares_test.go
+index 18a7cd1..6e1b4a5 100644
+--- a/api/internal/handlers/shares_test.go
++++ b/api/internal/handlers/shares_test.go
+@@ -295,7 +295,7 @@ func TestShareResolveInvalidToken(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("create link to revoke: %v", err)
+ 	}
+-	if err := store.RevokeShareLink(ctx, "local", revokedLink.ID); err != nil {
++	if err := store.RevokeShareLink(ctx, "local", revokedLink.Namespace, revokedLink.ServerName, revokedLink.ID); err != nil {
+ 		t.Fatalf("revoke link: %v", err)
+ 	}
+ 
+@@ -643,13 +643,13 @@ func TestShareClusterScoping(t *testing.T) {
+ 	}
+ 
+ 	// 4. Revoke on "local" cluster must fail (link belongs to remote-cluster).
+-	err = store.RevokeShareLink(ctx, "local", link.ID)
++	err = store.RevokeShareLink(ctx, "local", link.Namespace, link.ServerName, link.ID)
+ 	if err == nil {
+ 		t.Fatalf("expected error revoking remote link with local cluster, got nil")
+ 	}
+ 
+ 	// 5. Revoke on "remote-cluster" succeeds.
+-	err = store.RevokeShareLink(ctx, "remote-cluster", link.ID)
++	err = store.RevokeShareLink(ctx, "remote-cluster", link.Namespace, link.ServerName, link.ID)
+ 	if err != nil {
+ 		t.Fatalf("revoke with correct cluster failed: %v", err)
+ 	}
+@@ -862,3 +862,106 @@ func TestShareCreateDeprecatedExpiresIn(t *testing.T) {
+ 		t.Fatalf("default expiresAt = %v, want approximately %v (7d default)", gotDefault, wantDefault)
+ 	}
+ }
++
++// TestShareRevokeScopedToPathServer verifies that a revoke is scoped to the
++// server named in the path: a link of another server the caller also owns
++// answers 404 and stays valid.
++func TestShareRevokeScopedToPathServer(t *testing.T) {
++	store := newTestStore(t)
++	ownerID := insertShareTestUser(t, store, "owner-revoke-scope")
++	reg := kube.NewRegistry("local")
++	reg.Set("local", fakeKubeClient(
++		newShareTestServer("srv-scope-a", ownerID),
++		newShareTestServer("srv-scope-b", ownerID),
++	))
++	h := mountSharesRouter(reg, store)
++	owner := &auth.User{ID: ownerID, Username: "owner-revoke-scope", Role: "admin"}
++
++	status, body := shareReq(t, h, "POST", "/servers/srv-scope-a:shares", map[string]any{"canStart": false, "expiresIn": "1h"}, owner, "203.0.113.40:1")
++	if status != http.StatusOK {
++		t.Fatalf("create status = %d, want 200; body=%s", status, body)
++	}
++	var created map[string]any
++	if err := json.Unmarshal(body, &created); err != nil {
++		t.Fatalf("unmarshal create response: %v", err)
++	}
++	token, _ := created["token"].(string)
++	id, _ := created["id"].(string)
++	if token == "" || id == "" {
++		t.Fatalf("create response missing token/id; body=%s", body)
++	}
++
++	status, body = shareReq(t, h, "DELETE", "/servers/srv-scope-b/shares/"+id, nil, owner, "203.0.113.41:1")
++	if status != http.StatusNotFound {
++		t.Fatalf("revoke through another server: status = %d, want 404; body=%s", status, body)
++	}
++	status, _ = shareReq(t, h, "GET", "/shares/"+token, nil, nil, "203.0.113.42:1")
++	if status != http.StatusOK {
++		t.Fatalf("resolve after mismatched revoke: status = %d, want 200", status)
++	}
++
++	status, body = shareReq(t, h, "DELETE", "/servers/srv-scope-a/shares/"+id, nil, owner, "203.0.113.43:1")
++	if status != http.StatusNoContent {
++		t.Fatalf("revoke through its own server: status = %d, want 204; body=%s", status, body)
++	}
++}
++
++// TestShareRevokeUnknownIDReturns404 verifies that revoking an id that does
++// not exist answers 404, not a server error.
++func TestShareRevokeUnknownIDReturns404(t *testing.T) {
++	store := newTestStore(t)
++	ownerID := insertShareTestUser(t, store, "owner-revoke-unknown")
++	reg := kube.NewRegistry("local")
++	reg.Set("local", fakeKubeClient(newShareTestServer("srv-revoke-unknown", ownerID)))
++	h := mountSharesRouter(reg, store)
++	owner := &auth.User{ID: ownerID, Username: "owner-revoke-unknown", Role: "admin"}
++
++	status, body := shareReq(t, h, "DELETE", "/servers/srv-revoke-unknown/shares/no-such-id", nil, owner, "203.0.113.44:1")
++	if status != http.StatusNotFound {
++		t.Fatalf("revoke unknown id: status = %d, want 404; body=%s", status, body)
++	}
++}
++
++// TestShareLinkStopsResolvingWhenCreatorDeleted verifies that deleting a
++// user revokes the share links that user created: the token then gets the
++// same uniform 404 as any other invalid token.
++func TestShareLinkStopsResolvingWhenCreatorDeleted(t *testing.T) {
++	store := newTestStore(t)
++	ownerID := insertShareTestUser(t, store, "owner-deleted")
++	reg := kube.NewRegistry("local")
++	reg.Set("local", fakeKubeClient(newShareTestServer("srv-owner-deleted", ownerID)))
++	h := mountSharesRouter(reg, store)
++	owner := &auth.User{ID: ownerID, Username: "owner-deleted", Role: "admin"}
++
++	status, body := shareReq(t, h, "POST", "/servers/srv-owner-deleted:shares", map[string]any{"canStart": true, "neverExpires": true}, owner, "203.0.113.45:1")
++	if status != http.StatusOK {
++		t.Fatalf("create status = %d, want 200; body=%s", status, body)
++	}
++	var created map[string]any
++	if err := json.Unmarshal(body, &created); err != nil {
++		t.Fatalf("unmarshal create response: %v", err)
++	}
++	token, _ := created["token"].(string)
++	if token == "" {
++		t.Fatalf("missing token; body=%s", body)
++	}
++	if status, _ := shareReq(t, h, "GET", "/shares/"+token, nil, nil, "203.0.113.46:1"); status != http.StatusOK {
++		t.Fatalf("resolve before delete: status = %d, want 200", status)
++	}
++
++	if err := store.DeleteUser(t.Context(), ownerID); err != nil {
++		t.Fatalf("DeleteUser: %v", err)
++	}
++
++	status, body = shareReq(t, h, "GET", "/shares/"+token, nil, nil, "203.0.113.47:1")
++	if status != http.StatusNotFound {
++		t.Fatalf("resolve after creator delete: status = %d, want 404; body=%s", status, body)
++	}
++	if !bytes.Equal(body, wantShareNotFoundBody) {
++		t.Fatalf("resolve after creator delete: body = %q, want %q", body, wantShareNotFoundBody)
++	}
++	status, body = shareReq(t, h, "POST", "/shares/"+token+"/start", nil, nil, "203.0.113.48:1")
++	if status != http.StatusNotFound {
++		t.Fatalf("start after creator delete: status = %d, want 404; body=%s", status, body)
++	}
++}
+diff --git a/api/internal/handlers/users.go b/api/internal/handlers/users.go
+index ad3d46e..7801b7c 100644
+--- a/api/internal/handlers/users.go
++++ b/api/internal/handlers/users.go
+@@ -461,14 +461,13 @@ func (h *userHandler) del(w http.ResponseWriter, req *http.Request) {
+ 			return
+ 		}
+ 	}
+-	if _, err := h.db.DB.ExecContext(req.Context(), `DELETE FROM users WHERE id = ?`, id); err != nil {
++	// One transaction removes the account and every row tied to it (SSO
++	// links, preferences, sessions, bindings) and revokes its share links:
++	// sqlite runs without FK cascade, so nothing else would.
++	if err := h.db.DeleteUser(req.Context(), id); err != nil {
+ 		httperr.Write(w, req, err)
+ 		return
+ 	}
+-	// sqlite runs without FK cascade, so clear the user's bindings too.
+-	if err := h.db.DeleteUserBindings(req.Context(), nil, id); err != nil {
+-		slog.Warn("delete user bindings", "err", err, "user", id)
+-	}
+ 	w.WriteHeader(http.StatusNoContent)
+ }
+ 
+diff --git a/api/internal/handlers/users_test.go b/api/internal/handlers/users_test.go
+index fe74740..02fe52c 100644
+--- a/api/internal/handlers/users_test.go
++++ b/api/internal/handlers/users_test.go
+@@ -3,6 +3,7 @@ package handlers
+ import (
+ 	"context"
+ 	"encoding/json"
++	"errors"
+ 	"net/http"
+ 	"net/http/httptest"
+ 	"strconv"
+@@ -547,3 +548,50 @@ func TestDeleteBinding_DefaultsAndDeletesCluster(t *testing.T) {
+ 		t.Fatalf("binding should be deleted, got count=%d err=%v", n, err)
+ 	}
+ }
++
++// TestUsers_DeleteRemovesAccountRows verifies that DELETE /users/{id}
++// removes the account's SSO link, preferences, sessions and bindings, and
++// revokes the share links it created.
++func TestUsers_DeleteRemovesAccountRows(t *testing.T) {
++	srv, store, _ := newUsersServer(t, &auth.User{ID: 999, Role: "admin"})
++	id := seedUser(t, store, "leaving-user", "viewer", "longenoughpw1")
++	ctx := t.Context()
++	for _, stmt := range []string{
++		`INSERT INTO oidc_links(user_id, issuer, subject, email) VALUES (?, 'https://idp.example', 'sub-leaving', 'leaving@example.com')`,
++		`INSERT INTO user_preferences(user_id) VALUES (?)`,
++		`INSERT INTO sessions(token, user_id, csrf_token, expires_at) VALUES ('sess-leaving', ?, 'csrf-leaving', '2999-01-01T00:00:00Z')`,
++		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, 'viewer', 'local', '*')`,
++	} {
++		if _, err := store.DB.ExecContext(ctx, stmt, id); err != nil {
++			t.Fatalf("seed %q: %v", stmt, err)
++		}
++	}
++	token, _, err := store.CreateShareLink(ctx, "local", "gameplane-games", "srv-leaving", id, false, nil)
++	if err != nil {
++		t.Fatalf("create share link: %v", err)
++	}
++
++	status, body := doReq(t, "DELETE", srv.URL+"/users/"+strconv.FormatInt(id, 10), nil)
++	if status != http.StatusNoContent {
++		t.Fatalf("delete user: status=%d body=%s", status, body)
++	}
++
++	for _, q := range []string{
++		`SELECT COUNT(*) FROM users WHERE id = ?`,
++		`SELECT COUNT(*) FROM oidc_links WHERE user_id = ?`,
++		`SELECT COUNT(*) FROM user_preferences WHERE user_id = ?`,
++		`SELECT COUNT(*) FROM sessions WHERE user_id = ?`,
++		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ?`,
++	} {
++		var n int
++		if err := store.DB.QueryRowContext(ctx, q, id).Scan(&n); err != nil {
++			t.Fatalf("%s: %v", q, err)
++		}
++		if n != 0 {
++			t.Errorf("%s = %d after delete, want 0", q, n)
++		}
++	}
++	if _, err := store.LookupShareLink(ctx, token); !errors.Is(err, db.ErrShareLinkInvalid) {
++		t.Errorf("share link after creator delete: got %v, want ErrShareLinkInvalid", err)
++	}
++}
+diff --git a/api/specs.md b/api/specs.md
+index 49ce1c1..38a8bdb 100644
+--- a/api/specs.md
++++ b/api/specs.md
+@@ -134,7 +134,7 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
+ - `/users/me/servers` — GET: own GameServers (owner/collaborator)
+ - `/users/me/preferences` — GET/PUT: own theme/styling preferences (feature 016)
+ - `/users/me/preferences/reset` — POST: reset own theme preferences to defaults (feature 016)
+-- `/users/{id}` — CRUD for users (admin only)
++- `/users/{id}` — CRUD for users (admin only). DELETE runs `db.Store.DeleteUser`: one transaction deletes the user's `oidc_links`, `user_preferences`, `sessions`, `api_tokens` and role bindings, revokes the share links the user created (sets `revoked_at`), then deletes the `users` row. It does not rely on FK cascades (off on SQLite). An SSO subject whose user was deleted is provisioned as a new user on its next login
+ - `/users/{id}/role-bindings` — PATCH: role assignments (per namespace + cluster)
+ - `/roles` — GET catalog and custom roles; POST/PATCH/DELETE custom roles
+ - `/admin/audit` — GET: audit log (searchable, hash-chain verifiable)
+@@ -481,6 +481,7 @@ Verify from `/api/go.mod`.
+ **006_share_links.sql:** (unauthenticated server access tokens)
+ - Creates `share_links` table: signed, revocable tokens for unauthenticated access to a single GameServer's status and connection address, optionally with start capability
+ - Token never stored; only SHA-256 hash persisted and indexed for O(1) lookup
++- Revocation (`DELETE /servers/{name}/shares/{id}`, `db.Store.RevokeShareLink`) matches the link's cluster, namespace, server name and id; no match returns `db.ErrShareLinkNotFound`, which the handler answers with 404
+ - Pre-existing; not part of the Phase 2 Foundational feature scope
+ 
+ **007_audit_reason.sql:** (Phase 2 Foundational: capture operation auditing)
+@@ -507,6 +508,9 @@ Verify from `/api/go.mod`.
+ - Backfills every pre-existing user with the legacy preset (`preset_id = 'legacy'`, dark-preserving upgrade per FR-003); accounts created later default to pink via column defaults + `db.DefaultUserPreferences()`
+ - Retention rule (FR-012): the custom columns are nulled only by the reset endpoint, never by ordinary updates (see "User theme preferences" under External interface / contracts)
+ 
++**012_account_removal_cleanup.sql:** (account removal cleanup)
++- One-off pass that deletes `oidc_links`, `user_preferences`, `sessions`, `api_tokens` and `user_role_bindings` rows whose user no longer exists, and revokes (sets `revoked_at`, RFC3339 UTC) active `share_links` whose creator no longer exists. Clears rows left by user deletes made before `db.Store.DeleteUser` removed them explicitly; forward-only, so a rollback needs the pre-upgrade DB snapshot
++
+ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF); API layer is authoritative.
+ 
+ ## Security considerations
+diff --git a/docs/security.md b/docs/security.md
+index b01eefd..1545039 100644
+--- a/docs/security.md
++++ b/docs/security.md
+@@ -120,6 +120,12 @@ named set of permissions, and a user is bound to roles **per namespace**.
+   closed.
+ - **Lockout guards.** The API refuses to demote or delete the last user who
+   can manage users, and refuses self-demotion below `users:manage`.
++- **Account removal.** `DELETE /users/{id}` removes the account and every row
++  tied to it in one transaction (SSO links, preferences, sessions, API
++  tokens, role bindings) and revokes the share links the account created.
++  The API does this itself rather than relying on foreign-key cascades,
++  which the shipped SQLite DSN leaves off. An SSO user who is deleted and
++  signs in again is provisioned as a new user.
+ 
+ ### Per-GameServer access (owner + collaborators)
+ 
+@@ -152,7 +158,7 @@ Share links (`api/internal/db/shares.go`, schema in `api/internal/db/migrations/
+ 
+ **Expiry.** Every share link either has an expiry timestamp or is explicitly created with no expiry (owner's choice; see `specs/done_017-share-link-expiry/`). There is no platform-enforced maximum lifetime: a non-expiring or long-lived link is exactly as hard to guess on any given day as a short-lived one, because guessing difficulty comes from the token's entropy, not from its age. The tradeoff of a long-lived or non-expiring link is operational — a forgotten link stays live until the owner revokes it — not cryptographic, which is why the create-link UI warns the owner explicitly ("This link works until you revoke it." for no expiry; a long-lived-token warning for a custom date a year or more out) rather than the system silently capping the choice.
+ 
+-**Revocation.** Revocation sets `revoked_at` (never a delete, preserving the audit trail) and is checked independently of, and prior to, any expiry check, so it applies uniformly regardless of whether the link expires, expires far in the future, or never expires.
++**Revocation.** Revocation sets `revoked_at` (never a delete, preserving the audit trail) and is checked independently of, and prior to, any expiry check, so it applies uniformly regardless of whether the link expires, expires far in the future, or never expires. `DELETE /servers/{name}/shares/{id}` revokes a link only when it belongs to that server (cluster, namespace and name); any other id answers 404. Deleting a user revokes every share link that user created.
+ 
+ **Rate limiting.** The public resolve/start endpoints are rate-limited (`auth.ShareLimiter`) specifically because tokens are guessable-by-brute-force in principle (just computationally infeasible in practice); the rate limit is defense in depth against automated probing, not a substitute for token entropy.
+ 
+diff --git a/test/e2e/api_account_removal_e2e_test.go b/test/e2e/api_account_removal_e2e_test.go
+new file mode 100644
+index 0000000..9e04264
+--- /dev/null
++++ b/test/e2e/api_account_removal_e2e_test.go
+@@ -0,0 +1,235 @@
++//go:build e2e
++
++package e2e
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"io"
++	"net/http"
++	"net/url"
++	"strconv"
++	"strings"
++	"testing"
++	"time"
++
++	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
++	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
++)
++
++// oidcHelmSession drives one OIDC login against the Helm-seeded "helm"
++// provider, like oidcHelmLogin, and returns an APIClient for the resulting
++// session (CSRF token taken from the gameplane_csrf cookie) plus the user id
++// GET /users/me reports. The client reuses the caller's port-forward, so its
++// Close is a no-op.
++func oidcHelmSession(t *testing.T, apiBase, idpBase, sub, email string, groups []string) (*APIClient, int64) {
++	t.Helper()
++	jar := newInsecureCookieJar()
++	cli := &http.Client{Jar: jar, Timeout: 30 * time.Second, CheckRedirect: oidcNoRedirect}
++
++	startResp := oidcDo(t, cli, http.MethodGet, apiBase+"/auth/oidc/helm/start", nil)
++	_ = startResp.Body.Close()
++	if startResp.StatusCode != http.StatusFound {
++		t.Fatalf("oidc start status = %d, want 302", startResp.StatusCode)
++	}
++	authorizeURL, err := url.Parse(startResp.Header.Get("Location"))
++	if err != nil {
++		t.Fatalf("parse start Location: %v", err)
++	}
++	idpURL, err := url.Parse(idpBase)
++	if err != nil {
++		t.Fatalf("parse idp base: %v", err)
++	}
++	authorizeURL.Scheme = idpURL.Scheme
++	authorizeURL.Host = idpURL.Host
++	q := authorizeURL.Query()
++	q.Set("sub", sub)
++	q.Set("email", email)
++	q.Set("groups", strings.Join(groups, ","))
++	authorizeURL.RawQuery = q.Encode()
++
++	authorizeResp := oidcDo(t, cli, http.MethodGet, authorizeURL.String(), nil)
++	_ = authorizeResp.Body.Close()
++	if authorizeResp.StatusCode != http.StatusFound {
++		t.Fatalf("fake idp authorize status = %d, want 302", authorizeResp.StatusCode)
++	}
++	callbackLoc, err := url.Parse(authorizeResp.Header.Get("Location"))
++	if err != nil {
++		t.Fatalf("parse authorize Location: %v", err)
++	}
++
++	callbackResp := oidcDo(t, cli, http.MethodGet, apiBase+"/auth/oidc/helm/callback?"+callbackLoc.RawQuery, nil)
++	cbBody, _ := io.ReadAll(callbackResp.Body)
++	_ = callbackResp.Body.Close()
++	if callbackResp.StatusCode != http.StatusFound {
++		t.Fatalf("oidc callback status = %d, want 302: %s", callbackResp.StatusCode, string(cbBody))
++	}
++
++	meResp := oidcDo(t, cli, http.MethodGet, apiBase+"/users/me", nil)
++	meBody, _ := io.ReadAll(meResp.Body)
++	_ = meResp.Body.Close()
++	if meResp.StatusCode != http.StatusOK {
++		t.Fatalf("/users/me %d: %s", meResp.StatusCode, string(meBody))
++	}
++	var me struct {
++		ID int64 `json:"id"`
++	}
++	if err := json.Unmarshal(meBody, &me); err != nil || me.ID == 0 {
++		t.Fatalf("decode /users/me id: %v\n%s", err, string(meBody))
++	}
++
++	csrf := ""
++	for _, c := range jar.Cookies(nil) {
++		if c.Name == "gameplane_csrf" {
++			csrf = c.Value
++		}
++	}
++	if csrf == "" {
++		t.Fatal("oidc login set no gameplane_csrf cookie")
++	}
++	return &APIClient{BaseURL: apiBase, CSRF: csrf, HTTP: cli}, me.ID
++}
++
++// publicShareGet resolves a share token anonymously and returns the status
++// and body.
++func publicShareGet(t *testing.T, apiBase, token string) (int, []byte) {
++	t.Helper()
++	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBase+"/shares/"+token, nil)
++	if err != nil {
++		t.Fatalf("build share request: %v", err)
++	}
++	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
++	if err != nil {
++		t.Fatalf("GET /shares/<token>: %v", err)
++	}
++	defer func() { _ = resp.Body.Close() }()
++	body, _ := io.ReadAll(resp.Body)
++	return resp.StatusCode, body
++}
++
++// TestAPI_AccountRemoval_RevokesSharesAndAllowsSSOReprovision checks what
++// deleting a user account removes: a share link the user created stops
++// resolving, and the same IdP subject can sign in again afterwards, as a
++// fresh user.
++//
++// Budget: one e2e-admin login (APIClient) and two OIDC callbacks
++// (auth.OIDCCallbackLimiter, burst 10/min). The SSO user is put in the
++// Helm-seeded admin group so it can create a share link; e2e-admin remains
++// a user manager, so the delete passes the lockout guard. Writes no auth
++// config and no roleMappings.
++func TestAPI_AccountRemoval_RevokesSharesAndAllowsSSOReprovision(t *testing.T) {
++	t.Parallel()
++
++	const ns = "gameplane-games"
++	ctx := context.Background()
++	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
++	sub := "e2e-account-removal-" + suffix
++	email := sub + "@e2e.example"
++
++	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
++	admin := envInstance.APIClient(t, adminUsername, adminPassword)
++	defer admin.Close()
++
++	apiBase, idpBase := oidcHelmPorts(t)
++
++	// --- An SSO user who owns a GameServer and shares it ------------------
++	sso, firstID := oidcHelmSession(t, apiBase, idpBase, sub, email, []string{oidcHelmAdminGroup})
++	t.Cleanup(func() {
++		r, _, _ := admin.Delete("/users/" + strconv.FormatInt(firstID, 10))
++		if r != nil {
++			_ = r.Body.Close()
++		}
++	})
++
++	tmplName := "e2e-acct-rm-tmpl-" + suffix
++	tmpl := &unstructured.Unstructured{Object: map[string]any{
++		"apiVersion": "gameplane.local/v1alpha1",
++		"kind":       "GameTemplate",
++		"metadata":   map[string]any{"name": tmplName},
++		"spec": map[string]any{
++			"displayName": "E2E busybox (account removal)",
++			"game":        "busybox",
++			"version":     "1",
++			"image":       "busybox:1.36",
++			"command":     []any{"sh", "-c", "sleep 100000"},
++			"ports": []any{
++				map[string]any{"name": "noop", "containerPort": int64(12345), "advertise": true, "protocol": "TCP"},
++			},
++		},
++	}}
++	if _, err := envInstance.Dyn.Resource(gameTemplateGVR).Create(ctx, tmpl, metav1.CreateOptions{}); err != nil {
++		t.Fatalf("create template %s: %v", tmplName, err)
++	}
++	t.Cleanup(func() {
++		_ = envInstance.Dyn.Resource(gameTemplateGVR).Delete(context.Background(), tmplName, metav1.DeleteOptions{})
++	})
++
++	gsName := "e2e-acct-rm-gs-" + suffix
++	gs := &unstructured.Unstructured{Object: map[string]any{
++		"apiVersion": "gameplane.local/v1alpha1",
++		"kind":       "GameServer",
++		"metadata": map[string]any{
++			"name":      gsName,
++			"namespace": ns,
++			"annotations": map[string]any{
++				"gameplane.local/owner-id": strconv.FormatInt(firstID, 10),
++				"gameplane.local/owner":    email,
++			},
++		},
++		"spec": map[string]any{"templateRef": map[string]any{"name": tmplName}},
++	}}
++	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).Create(ctx, gs, metav1.CreateOptions{}); err != nil {
++		t.Fatalf("create gameserver %s/%s: %v", ns, gsName, err)
++	}
++	t.Cleanup(func() {
++		_ = envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).Delete(context.Background(), gsName, metav1.DeleteOptions{})
++	})
++
++	resp, body, err := sso.Post("/servers/"+gsName+":shares", map[string]any{"canStart": false, "neverExpires": true})
++	if err != nil {
++		t.Fatalf("POST /servers/%s:shares: %v", gsName, err)
++	}
++	if resp.StatusCode != http.StatusOK {
++		t.Fatalf("POST /servers/%s:shares: status=%d body=%s", gsName, resp.StatusCode, string(body))
++	}
++	var created struct {
++		Token string `json:"token"`
++	}
++	if err := json.Unmarshal(body, &created); err != nil || created.Token == "" {
++		t.Fatalf("decode share token: %v body=%s", err, string(body))
++	}
++	if status, b := publicShareGet(t, apiBase, created.Token); status != http.StatusOK {
++		t.Fatalf("GET /shares/<token> before account removal: status=%d body=%s", status, string(b))
++	}
++
++	// --- Remove the account ------------------------------------------------
++	resp, body, err = admin.Delete("/users/" + strconv.FormatInt(firstID, 10))
++	if err != nil {
++		t.Fatalf("DELETE /users/%d: %v", firstID, err)
++	}
++	if resp.StatusCode != http.StatusNoContent {
++		t.Fatalf("DELETE /users/%d: status=%d body=%s", firstID, resp.StatusCode, string(body))
++	}
++
++	// The share link stops resolving, with the uniform not-found body.
++	status, b := publicShareGet(t, apiBase, created.Token)
++	if status != http.StatusNotFound {
++		t.Errorf("GET /shares/<token> after account removal: status=%d want=%d body=%s", status, http.StatusNotFound, string(b))
++	}
++	if !bytes.Equal(b, []byte(`{"error":"not found"}`+"\n")) {
++		t.Errorf("GET /shares/<token> after account removal: body=%q, want the uniform not-found body", string(b))
++	}
++
++	// --- The same IdP subject signs in again, as a fresh user --------------
++	_, secondID := oidcHelmSession(t, apiBase, idpBase, sub, email, []string{"some-unmapped-group"})
++	t.Cleanup(func() {
++		r, _, _ := admin.Delete("/users/" + strconv.FormatInt(secondID, 10))
++		if r != nil {
++			_ = r.Body.Close()
++		}
++	})
++	if secondID == firstID {
++		t.Fatalf("sign-in after account removal returned the removed user id %d", firstID)
++	}
++}
+diff --git a/test/e2e/buckets.sh b/test/e2e/buckets.sh
+index 4ba3368..538a980 100755
+--- a/test/e2e/buckets.sh
++++ b/test/e2e/buckets.sh
+@@ -176,6 +176,7 @@ TestAPI_ModUpload
+ TestAPI_ModArchiveConfinement_PathTraversalRejected
+ TestAPI_ModArchiveConfinement_SymlinkEscapeRejected
+ TestAPI_ModArchiveConfinement_ValidArchiveExtracts
++TestAPI_AccountRemoval_RevokesSharesAndAllowsSSOReprovision
+ EOF
+ }
+ 

@@ -1,0 +1,82 @@
+[
+  {
+    "name": "mc-fabric-data",
+    "namespace": "gameplane-games",
+    "uid": "a2bb32e6-335f-4db5-8567-4c296913e2e4",
+    "capacity": "20Gi",
+    "volumeName": "pvc-a2bb32e6-335f-4db5-8567-4c296913e2e4",
+    "phase": "Bound"
+  },
+  {
+    "name": "mc-fabric-mods-latest-fabric",
+    "namespace": "gameplane-games",
+    "uid": "92b2d353-2dee-48fa-902a-25c9e9038d08",
+    "capacity": "5Gi",
+    "volumeName": "pvc-92b2d353-2dee-48fa-902a-25c9e9038d08",
+    "phase": "Bound"
+  },
+  {
+    "name": "soak-bogus-pool-data",
+    "namespace": "gameplane-games",
+    "uid": "37e71cca-faf6-4af0-ae6a-1e4ffac63db6",
+    "capacity": "5Gi",
+    "volumeName": "pvc-37e71cca-faf6-4af0-ae6a-1e4ffac63db6",
+    "phase": "Bound"
+  },
+  {
+    "name": "soak-bogus-pool-mods-stable",
+    "namespace": "gameplane-games",
+    "uid": "665e7433-b931-4926-9479-4ca8f4af2c50",
+    "capacity": "5Gi",
+    "volumeName": "pvc-665e7433-b931-4926-9479-4ca8f4af2c50",
+    "phase": "Bound"
+  },
+  {
+    "name": "soak-no-preference-data",
+    "namespace": "gameplane-games",
+    "uid": "336782b9-afe0-44de-9ee0-e63bf7414b15",
+    "capacity": "5Gi",
+    "volumeName": "pvc-336782b9-afe0-44de-9ee0-e63bf7414b15",
+    "phase": "Bound"
+  },
+  {
+    "name": "soak-no-preference-mods-stable",
+    "namespace": "gameplane-games",
+    "uid": "c4d50e19-80c2-4fcf-83dc-7176fe9f4564",
+    "capacity": "5Gi",
+    "volumeName": "pvc-c4d50e19-80c2-4fcf-83dc-7176fe9f4564",
+    "phase": "Bound"
+  },
+  {
+    "name": "soak-pool-west-data",
+    "namespace": "gameplane-games",
+    "uid": "cdf7a519-6889-4b25-942a-a73de295234d",
+    "capacity": "5Gi",
+    "volumeName": "pvc-cdf7a519-6889-4b25-942a-a73de295234d",
+    "phase": "Bound"
+  },
+  {
+    "name": "soak-pool-west-mods-stable",
+    "namespace": "gameplane-games",
+    "uid": "4c011378-ec8b-44f7-996b-78647fcdc9da",
+    "capacity": "5Gi",
+    "volumeName": "pvc-4c011378-ec8b-44f7-996b-78647fcdc9da",
+    "phase": "Bound"
+  },
+  {
+    "name": "squad-data",
+    "namespace": "gameplane-games",
+    "uid": "e6bbd3cb-140f-46be-8fd1-70b654a93876",
+    "capacity": "20Gi",
+    "volumeName": "pvc-e6bbd3cb-140f-46be-8fd1-70b654a93876",
+    "phase": "Bound"
+  },
+  {
+    "name": "gameplane-api-data",
+    "namespace": "gameplane-system",
+    "uid": "dca5b64a-3f45-4ead-b702-6f3e9d6b62e7",
+    "capacity": "2Gi",
+    "volumeName": "pvc-dca5b64a-3f45-4ead-b702-6f3e9d6b62e7",
+    "phase": "Bound"
+  }
+]

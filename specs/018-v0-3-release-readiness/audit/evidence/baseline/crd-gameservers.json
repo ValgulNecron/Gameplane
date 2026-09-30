@@ -1,0 +1,42 @@
+[
+  {
+    "kind": "GameServer",
+    "name": "mc-fabric",
+    "namespace": "gameplane-games",
+    "uid": "2d67c5ad-ff8f-4e26-a188-be5ea9b6ad0b",
+    "generation": 4,
+    "phase": "Running"
+  },
+  {
+    "kind": "GameServer",
+    "name": "soak-bogus-pool",
+    "namespace": "gameplane-games",
+    "uid": "e12cb363-e632-4433-9bec-deae2e9d5a57",
+    "generation": 1,
+    "phase": "Running"
+  },
+  {
+    "kind": "GameServer",
+    "name": "soak-no-preference",
+    "namespace": "gameplane-games",
+    "uid": "62412014-b54a-4da4-b232-4e5543a80c90",
+    "generation": 1,
+    "phase": "Running"
+  },
+  {
+    "kind": "GameServer",
+    "name": "soak-pool-west",
+    "namespace": "gameplane-games",
+    "uid": "65e25ef6-3eda-4eb4-935a-1f2e45389a77",
+    "generation": 1,
+    "phase": "Running"
+  },
+  {
+    "kind": "GameServer",
+    "name": "squad",
+    "namespace": "gameplane-games",
+    "uid": "a86ae4e2-ef35-4463-8202-657daff52236",
+    "generation": 1,
+    "phase": "Failed"
+  }
+]

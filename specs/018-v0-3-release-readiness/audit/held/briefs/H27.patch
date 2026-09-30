@@ -1,0 +1,532 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e1344c2..9631a4b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -147,6 +147,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
+   #334, #344, #354, #355, #356, #357, #358, #359, #379, #380, #381, #382, #387,
+   #399, #400, #401, #402, #403, #404, #405, #406, #412).
+ 
++### Security hardening
++
++- **api:** hardened cluster registration removal.
++
+ ## [0.3.0-rc.1] — 2026-09-23
+ 
+ The first release candidate for v0.3.0, the first Gameplane release without a
+diff --git a/api/internal/handlers/clusters.go b/api/internal/handlers/clusters.go
+index d312f2a..33f64bb 100644
+--- a/api/internal/handlers/clusters.go
++++ b/api/internal/handlers/clusters.go
+@@ -9,6 +9,7 @@ package handlers
+ import (
+ 	"encoding/json"
+ 	"errors"
++	"log/slog"
+ 	"net/http"
+ 
+ 	"github.com/go-chi/chi/v5"
+@@ -127,7 +128,9 @@ func (h clustersHandler) create(w http.ResponseWriter, req *http.Request) {
+ 		return
+ 	}
+ 
+-	// Create the kubeconfig Secret in the control-plane namespace.
++	// Create the kubeconfig Secret in the control-plane namespace. The
++	// managed-by label marks it as created by the API, which is what lets
++	// DELETE /clusters/{name} remove it again.
+ 	secretName := "cluster-" + in.Name + "-kubeconfig"
+ 	secret := &corev1.Secret{
+ 		ObjectMeta: metav1.ObjectMeta{
+@@ -135,6 +138,7 @@ func (h clustersHandler) create(w http.ResponseWriter, req *http.Request) {
+ 			Namespace: h.namespace,
+ 			Labels: map[string]string{
+ 				kube.ClusterKubeconfigLabel: "true",
++				ManagedByLabel:              managedByValue,
+ 			},
+ 		},
+ 		Type: corev1.SecretTypeOpaque,
+@@ -227,9 +231,18 @@ func (h clustersHandler) delete(w http.ResponseWriter, req *http.Request) {
+ 		}
+ 	}
+ 
+-	// Clean up the kubeconfig Secret.
++	// Drop the cluster's client now instead of waiting for the cluster
++	// watch, so no request is dispatched through a removed registration.
++	h.reg.Remove(name)
++
++	// Clean up the kubeconfig Secret, but only one the API created itself
++	// (kubeconfig label plus managed-by=gameplane-api). A Secret created with
++	// kubectl or GitOps, or any other control-plane Secret the Cluster
++	// names, is left in place.
+ 	if secretName != "" {
+-		_ = h.k.Typed.CoreV1().Secrets(h.namespace).Delete(req.Context(), secretName, metav1.DeleteOptions{})
++		if err := deleteManagedSecret(req.Context(), h.k, h.namespace, secretName, kube.ClusterKubeconfigLabel); err != nil && !apierrors.IsNotFound(err) {
++			slog.Warn("cluster delete: kubeconfig secret cleanup failed", "cluster", name, "err", err)
++		}
+ 	}
+ 
+ 	w.WriteHeader(http.StatusNoContent)
+diff --git a/api/internal/handlers/clusters_test.go b/api/internal/handlers/clusters_test.go
+index 0b05d86..904a7e3 100644
+--- a/api/internal/handlers/clusters_test.go
++++ b/api/internal/handlers/clusters_test.go
+@@ -19,6 +19,7 @@ import (
+ 	"k8s.io/client-go/kubernetes/scheme"
+ 
+ 	corev1 "k8s.io/api/core/v1"
++	apierrors "k8s.io/apimachinery/pkg/api/errors"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 
+ 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+@@ -316,3 +317,147 @@ func TestMountClusters_DeleteSuccess(t *testing.T) {
+ 		t.Fatalf("delete remote: expected 204, got %d %s", rr.Code, rr.Body)
+ 	}
+ }
++
++// createClusterTestSecret stores a kubeconfig-shaped Secret with the given
++// labels in the control-plane namespace the clusters router is mounted with.
++func createClusterTestSecret(t *testing.T, k *kube.Client, name string, labels map[string]string) {
++	t.Helper()
++	secret := &corev1.Secret{
++		ObjectMeta: metav1.ObjectMeta{
++			Name:      name,
++			Namespace: "gameplane-system",
++			Labels:    labels,
++		},
++		Type: corev1.SecretTypeOpaque,
++		Data: map[string][]byte{"kubeconfig": []byte("fake")},
++	}
++	if _, err := k.Typed.CoreV1().Secrets("gameplane-system").Create(t.Context(), secret, metav1.CreateOptions{}); err != nil {
++		t.Fatalf("create secret %s: %v", name, err)
++	}
++}
++
++func TestMountClusters_CreateMarksKubeconfigSecretAsAPIManaged(t *testing.T) {
++	reg := kube.NewRegistry("local")
++	k := fakeKubeClientWithClusters()
++	reg.Set("local", k)
++	r := mountClustersRouter(k, reg)
++
++	kubeconfig := `apiVersion: v1
++kind: Config
++clusters:
++- cluster:
++    server: https://remote.example.com:6443
++  name: remote
++contexts:
++- context:
++    cluster: remote
++    user: admin
++  name: remote
++current-context: remote
++users:
++- name: admin
++  user:
++    token: fake-token`
++
++	rr := doClusters(t, r, "POST", "/clusters/", map[string]any{
++		"name":       "remote",
++		"kubeconfig": kubeconfig,
++	})
++	if rr.Code != http.StatusCreated {
++		t.Fatalf("create: got %d %s, want 201", rr.Code, rr.Body)
++	}
++
++	secret, err := k.Typed.CoreV1().Secrets("gameplane-system").Get(t.Context(), "cluster-remote-kubeconfig", metav1.GetOptions{})
++	if err != nil {
++		t.Fatalf("get kubeconfig secret: %v", err)
++	}
++	if secret.Labels[kube.ClusterKubeconfigLabel] != "true" {
++		t.Errorf("label %s = %q, want true", kube.ClusterKubeconfigLabel, secret.Labels[kube.ClusterKubeconfigLabel])
++	}
++	if secret.Labels[ManagedByLabel] != managedByValue {
++		t.Errorf("label %s = %q, want %s", ManagedByLabel, secret.Labels[ManagedByLabel], managedByValue)
++	}
++}
++
++func TestMountClusters_DeleteRemovesAPIManagedKubeconfigSecret(t *testing.T) {
++	reg := kube.NewRegistry("local")
++	k := fakeKubeClientWithClusters(
++		newCluster("remote", map[string]any{
++			"kubeconfigSecret": map[string]any{"name": "cluster-remote-kubeconfig"},
++		}, nil),
++	)
++	reg.Set("local", k)
++	createClusterTestSecret(t, k, "cluster-remote-kubeconfig", map[string]string{
++		kube.ClusterKubeconfigLabel: "true",
++		ManagedByLabel:              managedByValue,
++	})
++	r := mountClustersRouter(k, reg)
++
++	rr := doClusters(t, r, "DELETE", "/clusters/remote", nil)
++	if rr.Code != http.StatusNoContent {
++		t.Fatalf("delete remote: expected 204, got %d %s", rr.Code, rr.Body)
++	}
++	_, err := k.Typed.CoreV1().Secrets("gameplane-system").Get(t.Context(), "cluster-remote-kubeconfig", metav1.GetOptions{})
++	if !apierrors.IsNotFound(err) {
++		t.Fatalf("API-managed kubeconfig secret still present after delete (err=%v)", err)
++	}
++}
++
++func TestMountClusters_DeleteKeepsSecretsNotManagedByTheAPI(t *testing.T) {
++	cases := map[string]map[string]string{
++		"no labels":             nil,
++		"kubeconfig label only": {kube.ClusterKubeconfigLabel: "true"},
++		"managed-by only":       {ManagedByLabel: managedByValue},
++		"another feature's managed secret": {
++			"gameplane.local/notification-sink": "true",
++			ManagedByLabel:                      managedByValue,
++		},
++	}
++	for name, labels := range cases {
++		t.Run(name, func(t *testing.T) {
++			reg := kube.NewRegistry("local")
++			k := fakeKubeClientWithClusters(
++				newCluster("remote", map[string]any{
++					"kubeconfigSecret": map[string]any{"name": "control-plane-secret"},
++				}, nil),
++			)
++			reg.Set("local", k)
++			createClusterTestSecret(t, k, "control-plane-secret", labels)
++			r := mountClustersRouter(k, reg)
++
++			rr := doClusters(t, r, "DELETE", "/clusters/remote", nil)
++			if rr.Code != http.StatusNoContent {
++				t.Fatalf("delete remote: expected 204, got %d %s", rr.Code, rr.Body)
++			}
++			if _, err := k.Typed.CoreV1().Secrets("gameplane-system").Get(t.Context(), "control-plane-secret", metav1.GetOptions{}); err != nil {
++				t.Fatalf("secret the API did not create was removed: %v", err)
++			}
++			if _, err := k.Dynamic.Resource(kube.GVRCluster).Get(t.Context(), "remote", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
++				t.Fatalf("cluster registration still present after delete (err=%v)", err)
++			}
++		})
++	}
++}
++
++func TestMountClusters_DeleteDropsClusterClientImmediately(t *testing.T) {
++	reg := kube.NewRegistry("local")
++	k := fakeKubeClientWithClusters(
++		newCluster("remote", map[string]any{
++			"kubeconfigSecret": map[string]any{"name": "cluster-remote-kubeconfig"},
++		}, nil),
++	)
++	reg.Set("local", k)
++	reg.Set("remote", k) // As loaded by the cluster watch.
++	r := mountClustersRouter(k, reg)
++
++	rr := doClusters(t, r, "DELETE", "/clusters/remote", nil)
++	if rr.Code != http.StatusNoContent {
++		t.Fatalf("delete remote: expected 204, got %d %s", rr.Code, rr.Body)
++	}
++	if _, ok := reg.Get("remote"); ok {
++		t.Fatal("cluster client still registered after its registration was deleted")
++	}
++	if _, ok := reg.Get("local"); !ok {
++		t.Fatal("local cluster client removed by a remote cluster delete")
++	}
++}
+diff --git a/api/internal/kube/watch.go b/api/internal/kube/watch.go
+index 77650ad..00c2e82 100644
+--- a/api/internal/kube/watch.go
++++ b/api/internal/kube/watch.go
+@@ -55,17 +55,7 @@ func WatchClusters(ctx context.Context, home *Client, reg *Registry, ns string)
+ 			}
+ 		},
+ 		DeleteFunc: func(obj any) {
+-			u, ok := obj.(*unstructured.Unstructured)
+-			if !ok {
+-				return
+-			}
+-			name := u.GetName()
+-			// Never remove the default cluster.
+-			if name == reg.DefaultID() {
+-				return
+-			}
+-			reg.Remove(name)
+-			slog.Debug("cluster watch: removed cluster", "cluster", name)
++			removeDeletedCluster(reg, obj)
+ 		},
+ 	}); err != nil {
+ 		slog.Warn("cluster watch: register handler failed", "err", err)
+@@ -81,6 +71,30 @@ func WatchClusters(ctx context.Context, home *Client, reg *Registry, ns string)
+ 	slog.Debug("cluster watch: started")
+ }
+ 
++// removeDeletedCluster drops a deleted Cluster's client from the registry.
++// The informer hands over either the Cluster object or, when the watch
++// missed its final state, a cache.DeletedFinalStateUnknown tombstone; both
++// remove the client. The default cluster is never removed.
++func removeDeletedCluster(reg *Registry, obj any) {
++	name := ""
++	switch v := obj.(type) {
++	case *unstructured.Unstructured:
++		name = v.GetName()
++	case cache.DeletedFinalStateUnknown:
++		if u, ok := v.Obj.(*unstructured.Unstructured); ok {
++			name = u.GetName()
++		} else {
++			// Cluster is cluster-scoped, so the tombstone key is its name.
++			name = v.Key
++		}
++	}
++	if name == "" || name == reg.DefaultID() {
++		return
++	}
++	reg.Remove(name)
++	slog.Debug("cluster watch: removed cluster", "cluster", name)
++}
++
+ // loadCluster reads a Cluster CRD, extracts the kubeconfig Secret reference,
+ // loads the secret, creates a client, and registers it in the registry.
+ func loadCluster(ctx context.Context, home *Client, reg *Registry, ns, name string) error {
+diff --git a/api/internal/kube/watch_test.go b/api/internal/kube/watch_test.go
+index bf4e2e1..f518617 100644
+--- a/api/internal/kube/watch_test.go
++++ b/api/internal/kube/watch_test.go
+@@ -13,6 +13,7 @@ import (
+ 	dynamicfake "k8s.io/client-go/dynamic/fake"
+ 	kubefake "k8s.io/client-go/kubernetes/fake"
+ 	"k8s.io/client-go/kubernetes/scheme"
++	"k8s.io/client-go/tools/cache"
+ )
+ 
+ func newTestCluster(name string) *unstructured.Unstructured {
+@@ -191,3 +192,39 @@ func TestWatchClusters_DeletesCluster(t *testing.T) {
+ 	}
+ 	t.Fatal("watcher did not delete remote cluster")
+ }
++
++func TestRemoveDeletedCluster_RemovesClientForObjectAndTombstone(t *testing.T) {
++	cases := map[string]any{
++		"cluster object":           newTestCluster("remote"),
++		"tombstone with object":    cache.DeletedFinalStateUnknown{Key: "remote", Obj: newTestCluster("remote")},
++		"tombstone without object": cache.DeletedFinalStateUnknown{Key: "remote"},
++	}
++	for name, obj := range cases {
++		t.Run(name, func(t *testing.T) {
++			reg := NewRegistry("local")
++			reg.Set("local", &Client{})
++			reg.Set("remote", &Client{})
++
++			removeDeletedCluster(reg, obj)
++
++			if _, ok := reg.Get("remote"); ok {
++				t.Fatal("remote cluster client still registered after delete")
++			}
++			if _, ok := reg.Get("local"); !ok {
++				t.Fatal("local cluster client removed")
++			}
++		})
++	}
++}
++
++func TestRemoveDeletedCluster_KeepsDefaultCluster(t *testing.T) {
++	reg := NewRegistry("local")
++	reg.Set("local", &Client{})
++
++	removeDeletedCluster(reg, newTestCluster("local"))
++	removeDeletedCluster(reg, cache.DeletedFinalStateUnknown{Key: "local", Obj: newTestCluster("local")})
++
++	if _, ok := reg.Get("local"); !ok {
++		t.Fatal("default cluster client removed by a delete event")
++	}
++}
+diff --git a/api/specs.md b/api/specs.md
+index 49ce1c1..a8d72f4 100644
+--- a/api/specs.md
++++ b/api/specs.md
+@@ -127,7 +127,7 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
+ - `/mod-ids/{name}` — PATCH: ID-managed mods (ARK CurseForge IDs, Project Zomboid MOD_IDs, Steam Workshop lists)
+ - `/cluster` — GET: version, nodes, storage; POST: credential-minting (add node, kubeconfig)
+ - `/cluster/actions` — credential-minting ops (cluster ops flag gated)
+-- `/clusters` — multi-cluster: list remote Cluster CRDs; create/delete cluster registrations
++- `/clusters` — multi-cluster: list remote Cluster CRDs; create/delete cluster registrations. POST labels the kubeconfig Secret `gameplane.local/cluster-kubeconfig=true` and `gameplane.local/managed-by=gameplane-api`. DELETE removes the cluster's client from the registry at once, and deletes the referenced Secret only when it carries both labels; any other Secret is left in place
+ - `/events` — SSE: real-time K8s events (multiplexed per namespace + cluster)
+ - `/pod-events` — SSE: pod-level events
+ - `/users/me` — GET: own profile (embeds `preferences`, see below)
+diff --git a/docs/install.md b/docs/install.md
+index feafad2..01da0e5 100644
+--- a/docs/install.md
++++ b/docs/install.md
+@@ -500,6 +500,10 @@ The operator on the control-plane will reconcile the `Cluster` and
+ update `status.phase` (Unknown → Healthy/Unhealthy). When `Healthy`,
+ the API can dispatch requests to that cluster.
+ 
++Removing a cluster registered this way (from the dashboard or with
++`DELETE /clusters/{name}`) deletes the `Cluster` but leaves your Secret
++in place. Delete the Secret with kubectl when you no longer need it.
++
+ ### Path 2: Dashboard API
+ 
+ POST to `/clusters` with permission `cluster:manage` (admin-only):
+@@ -517,7 +521,7 @@ curl -X POST https://<dashboard>/api/clusters \
+ 
+ The API stores the kubeconfig as a labelled Secret and creates the
+ `Cluster` CRD. The kubeconfig is never returned by the API and never
+-logged.
++logged. Removing the cluster deletes both the `Cluster` and that Secret.
+ 
+ ### Helm CRD caveat
+ 
+diff --git a/docs/security.md b/docs/security.md
+index b01eefd..7f34b5d 100644
+--- a/docs/security.md
++++ b/docs/security.md
+@@ -617,6 +617,12 @@ by several layers:
+   via the dashboard or API. This prevents a user from pointing at an
+   arbitrary control-plane Secret (e.g., the OIDC client secret or
+   backup credentials) and using it as a kubeconfig.
++- **Delete guard.** `DELETE /clusters/{name}` drops the cluster's client at
++  once and deletes the referenced Secret only when the API created it: the
++  Secret must carry both `gameplane.local/cluster-kubeconfig=true` and
++  `gameplane.local/managed-by=gameplane-api`, the labels `POST /clusters`
++  sets. A Secret created with kubectl or GitOps is never deleted over HTTP,
++  the same rule the other API-managed Secrets follow.
+ - **Never logged or returned.** The kubeconfig is never logged by the
+   API, never echoed in responses, never visible in audit trails. It
+   exists only to bootstrap the Kubernetes client for that cluster.
+diff --git a/test/e2e/multicluster_e2e_test.go b/test/e2e/multicluster_e2e_test.go
+index 09cf086..190a80e 100644
+--- a/test/e2e/multicluster_e2e_test.go
++++ b/test/e2e/multicluster_e2e_test.go
+@@ -69,11 +69,18 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	corev1 "k8s.io/api/core/v1"
+ 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
++	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
++	"k8s.io/apimachinery/pkg/runtime/schema"
+ 	"k8s.io/client-go/tools/clientcmd"
+ )
+ 
++// clusterGVR is the Cluster CRD (cluster-scoped) the API's registrations
++// are stored as.
++var clusterGVR = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "clusters"}
++
+ // clusterBKindName is the kind cluster name the CI job "e2e-multicluster"
+ // stands up as the second, remote-registered cluster. Overridable via
+ // GAMEPLANE_E2E_CLUSTER_B for local iteration against a differently-named
+@@ -420,4 +427,121 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
+ 		t.Errorf("admin GET /servers?cluster=<unknown>: status=%d want=%d body=%s",
+ 			resp.StatusCode, http.StatusBadRequest, string(body))
+ 	}
++
++	// Last, because it removes cluster B's registration.
++	checkClusterRemoval(t, admin, operatorClient, clusterID, gsName, tmplName)
++}
++
++// checkClusterRemoval removes cluster B's registration over HTTP and checks
++// what cluster removal does and does not touch: the registration stops
++// resolving at once, the kubeconfig Secret the API created goes with it, and
++// a Secret the API did not create stays in place when a Cluster that names
++// it is removed.
++func checkClusterRemoval(t *testing.T, admin, operatorClient *APIClient, clusterID, gsName, tmplName string) {
++	t.Helper()
++	const controlNS = "gameplane-system"
++	ctx := context.Background()
++
++	// The GameServer and GameTemplate on cluster B are reached through the
++	// registration removed below, so delete them first. Their cleanups,
++	// registered earlier, then become no-ops.
++	resp, body, err := operatorClient.Delete("/servers/" + gsName + "?cluster=" + clusterID)
++	if err != nil {
++		t.Fatalf("DELETE /servers/%s?cluster=%s: %v", gsName, clusterID, err)
++	}
++	if resp.StatusCode >= 300 {
++		t.Fatalf("DELETE /servers/%s?cluster=%s: status=%d body=%s", gsName, clusterID, resp.StatusCode, string(body))
++	}
++	resp, body, err = admin.Delete("/templates/" + tmplName + "?cluster=" + clusterID)
++	if err != nil {
++		t.Fatalf("DELETE /templates/%s?cluster=%s: %v", tmplName, clusterID, err)
++	}
++	if resp.StatusCode >= 300 {
++		t.Fatalf("DELETE /templates/%s?cluster=%s: status=%d body=%s", tmplName, clusterID, resp.StatusCode, string(body))
++	}
++
++	// --- Removing the API-created registration ------------------------------
++	resp, body, err = admin.Delete("/clusters/" + clusterID)
++	if err != nil {
++		t.Fatalf("DELETE /clusters/%s: %v", clusterID, err)
++	}
++	if resp.StatusCode != http.StatusNoContent {
++		t.Fatalf("DELETE /clusters/%s: status=%d body=%s", clusterID, resp.StatusCode, string(body))
++	}
++
++	// The registration stops resolving right away: a removed cluster is
++	// an unknown cluster (400), with no wait for the API's cluster watch.
++	resp, body, err = admin.Get("/servers?cluster=" + clusterID)
++	if err != nil {
++		t.Fatalf("GET /servers?cluster=%s after removal: %v", clusterID, err)
++	}
++	if resp.StatusCode != http.StatusBadRequest {
++		t.Errorf("GET /servers?cluster=%s after removal: status=%d want=%d body=%s",
++			clusterID, resp.StatusCode, http.StatusBadRequest, string(body))
++	}
++
++	// The kubeconfig Secret POST /clusters created is removed with it.
++	apiSecret := "cluster-" + clusterID + "-kubeconfig"
++	if _, err := envInstance.K8s.CoreV1().Secrets(controlNS).Get(ctx, apiSecret, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
++		t.Errorf("secret %s/%s still present after DELETE /clusters/%s (err=%v)", controlNS, apiSecret, clusterID, err)
++	}
++
++	// --- Removing a registration made with kubectl --------------------------
++	// A Cluster applied directly (docs/install.md Path 1) names a Secret the
++	// API did not create. Removing the Cluster over HTTP leaves that Secret
++	// in place, labelled as a kubeconfig or not.
++	cases := []struct {
++		name   string
++		labels map[string]string
++	}{
++		{name: "unlabelled", labels: nil},
++		{name: "kubeconfig-label", labels: map[string]string{"gameplane.local/cluster-kubeconfig": "true"}},
++	}
++	for _, tc := range cases {
++		suffix := fmt.Sprintf("%s-%d", tc.name, time.Now().UnixNano())
++		secretName := "e2e-mc-keep-" + suffix
++		crName := "e2e-mc-ref-" + suffix
++
++		secret := &corev1.Secret{
++			ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: controlNS, Labels: tc.labels},
++			Type:       corev1.SecretTypeOpaque,
++			Data:       map[string][]byte{"kubeconfig": []byte("not-a-kubeconfig")},
++		}
++		if _, err := envInstance.K8s.CoreV1().Secrets(controlNS).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
++			t.Fatalf("%s: create secret %s/%s: %v", tc.name, controlNS, secretName, err)
++		}
++		t.Cleanup(func() {
++			_ = envInstance.K8s.CoreV1().Secrets(controlNS).Delete(context.Background(), secretName, metav1.DeleteOptions{})
++		})
++
++		cr := &unstructured.Unstructured{Object: map[string]any{
++			"apiVersion": "gameplane.local/v1alpha1",
++			"kind":       "Cluster",
++			"metadata":   map[string]any{"name": crName},
++			"spec": map[string]any{
++				"displayName":      "E2E kubectl-applied cluster",
++				"kubeconfigSecret": map[string]any{"name": secretName, "key": "kubeconfig"},
++			},
++		}}
++		if _, err := envInstance.Dyn.Resource(clusterGVR).Create(ctx, cr, metav1.CreateOptions{}); err != nil {
++			t.Fatalf("%s: create Cluster %s: %v", tc.name, crName, err)
++		}
++		t.Cleanup(func() {
++			_ = envInstance.Dyn.Resource(clusterGVR).Delete(context.Background(), crName, metav1.DeleteOptions{})
++		})
++
++		resp, body, err := admin.Delete("/clusters/" + crName)
++		if err != nil {
++			t.Fatalf("%s: DELETE /clusters/%s: %v", tc.name, crName, err)
++		}
++		if resp.StatusCode != http.StatusNoContent {
++			t.Fatalf("%s: DELETE /clusters/%s: status=%d body=%s", tc.name, crName, resp.StatusCode, string(body))
++		}
++		if _, err := envInstance.Dyn.Resource(clusterGVR).Get(ctx, crName, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
++			t.Errorf("%s: Cluster %s still present after DELETE /clusters/%s (err=%v)", tc.name, crName, crName, err)
++		}
++		if _, err := envInstance.K8s.CoreV1().Secrets(controlNS).Get(ctx, secretName, metav1.GetOptions{}); err != nil {
++			t.Errorf("%s: secret %s/%s was removed with Cluster %s: %v", tc.name, controlNS, secretName, crName, err)
++		}
++	}
+ }

@@ -1,0 +1,18 @@
+[
+  {
+    "kind": "ModuleSource",
+    "name": "default",
+    "namespace": null,
+    "uid": "7af97f90-c94a-4981-b7a9-53ce894a8810",
+    "generation": 3,
+    "phase": null
+  },
+  {
+    "kind": "ModuleSource",
+    "name": "uploads",
+    "namespace": null,
+    "uid": "e59e60d6-f77b-4814-a1e7-01beb074c43e",
+    "generation": 1,
+    "phase": null
+  }
+]
