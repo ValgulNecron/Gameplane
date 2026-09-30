@@ -289,12 +289,18 @@ api:
       # Example: ["gameplane-viewers", "readonly-users"]
       viewer: []
 
-  # mTLS material the API presents to in-pod agents. When unset, the
-  # chart provisions a self-signed CA + cert via a post-install hook.
+  # mTLS material the API and operator present to in-pod agents. By default
+  # the chart generates a self-signed CA Secret (gameplane-agent-ca) and a
+  # client cert Secret (gameplane-agent-client) at install, and reuses them
+  # on upgrade. To bring your own, pre-create the Secret in the release
+  # namespace and set its name here; the chart then does not generate that
+  # Secret. The CA Secret must hold `ca.crt` and `ca.key`; the client Secret
+  # must hold `tls.crt` and `tls.key`. These data key names are fixed. A
+  # referenced Secret that does not exist fails a live install or upgrade, and
+  # rotating a custom Secret rolls the API and operator.
   agentMTLS:
-    caSecretRef:     { name: gameplane-agent-ca,     key: ca.crt }
-    clientCertRef:   { name: gameplane-agent-client, key: tls.crt }
-    clientKeyRef:    { name: gameplane-agent-client, key: tls.key }
+    caSecretRef:   { name: gameplane-agent-ca }
+    clientCertRef: { name: gameplane-agent-client }
 
 # The dashboard front end: an nginx pod that serves the built SPA and proxies
 # API/WebSocket/SSE traffic to the API. The ingress points at this service, so

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -56,16 +57,7 @@ func (r *GameServerReconciler) reconcileAgentTLS(
 
 	name := agentTLSSecretName(gs)
 
-	var existing corev1.Secret
-	getErr := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: name}, &existing)
-	if getErr == nil {
-		if certValidFor(existing.Data["tls.crt"], agentCertRenewalThreshold, agentDNSNames(gs)) {
-			return nil
-		}
-	} else if !apierrors.IsNotFound(getErr) {
-		return fmt.Errorf("get agent TLS Secret %s/%s: %w", gs.Namespace, name, getErr)
-	}
-
+	// Fetch the active CA first to compute its fingerprint.
 	var caSecret corev1.Secret
 	if err := r.Get(ctx, types.NamespacedName{
 		Namespace: r.AgentCASecretNamespace, Name: r.AgentCASecretName,
@@ -84,6 +76,21 @@ func (r *GameServerReconciler) reconcileAgentTLS(
 	if err != nil {
 		return fmt.Errorf("parse agent CA: %w", err)
 	}
+	caFingerprint := caCertFingerprint(caCertPEM)
+
+	var existing corev1.Secret
+	getErr := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: name}, &existing)
+	if getErr == nil {
+		// Check cert freshness AND that it was signed by the current CA.
+		// If the CA changed, reissue even if the existing cert is still valid.
+		existingCAFingerprint := existing.Annotations["gameplane.local/ca-fingerprint"]
+		if certValidFor(existing.Data["tls.crt"], agentCertRenewalThreshold, agentDNSNames(gs)) &&
+			existingCAFingerprint == caFingerprint {
+			return nil
+		}
+	} else if !apierrors.IsNotFound(getErr) {
+		return fmt.Errorf("get agent TLS Secret %s/%s: %w", gs.Namespace, name, getErr)
+	}
 
 	certPEM, keyPEM, err := signAgentServerCert(caCert, caKey, gs)
 	if err != nil {
@@ -100,6 +107,10 @@ func (r *GameServerReconciler) reconcileAgentTLS(
 			corev1.TLSPrivateKeyKey: keyPEM,
 			"ca.crt":                caCertPEM,
 		}
+		if sec.Annotations == nil {
+			sec.Annotations = make(map[string]string)
+		}
+		sec.Annotations["gameplane.local/ca-fingerprint"] = caFingerprint
 		return controllerutil.SetControllerReference(gs, sec, r.Scheme)
 	})
 	if err != nil {
@@ -165,6 +176,13 @@ func parseAgentCA(certPEM, keyPEM []byte) (*x509.Certificate, *rsa.PrivateKey, e
 		return cert, rsaKey, nil
 	}
 	return nil, nil, errors.New("ca.key: unsupported PEM format")
+}
+
+// caCertFingerprint returns the SHA256 fingerprint of a PEM-encoded certificate.
+// Used to detect CA changes and trigger agent cert reissuance.
+func caCertFingerprint(certPEM []byte) string {
+	h := sha256.Sum256(certPEM)
+	return fmt.Sprintf("%x", h)
 }
 
 func signAgentServerCert(

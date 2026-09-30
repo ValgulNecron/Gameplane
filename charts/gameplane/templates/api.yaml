@@ -232,6 +232,8 @@ spec:
       labels:
         app.kubernetes.io/name: gameplane-api
         {{- include "gameplane.labels" . | nindent 8 }}
+      annotations:
+        checksum/mtls: {{ include "gameplane.mtlsChecksum" . }}
     spec:
       serviceAccountName: gameplane-api
       securityContext:

@@ -90,3 +90,30 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{- /*
+gameplane.liveCluster renders "true" when templates are rendered against a live
+API server (helm install/upgrade, --dry-run=server) and nothing when rendered
+offline (helm template, client dry-run), where lookup always returns empty.
+kube-system exists on every cluster, so an empty lookup of it means offline.
+*/}}
+{{- define "gameplane.liveCluster" -}}
+{{- if lookup "v1" "Namespace" "" "kube-system" -}}true{{- end -}}
+{{- end -}}
+
+{{- /*
+gameplane.mtlsChecksum hashes the rendered mtls.yaml plus the data of any custom
+CA or client Secret it references. mtls.yaml does not render those Secrets, so
+without them rotating a custom Secret would not roll the API and operator.
+*/}}
+{{- define "gameplane.mtlsChecksum" -}}
+{{- $parts := list (include (print .Template.BasePath "/mtls.yaml") .) -}}
+{{- $m := .Values.api.agentMTLS -}}
+{{- range $name := list ($m.caSecretRef.name | default "") ($m.clientCertRef.name | default "") -}}
+{{- if and $name (ne $name "gameplane-agent-ca") (ne $name "gameplane-agent-client") -}}
+{{- $s := lookup "v1" "Secret" $.Release.Namespace $name -}}
+{{- $parts = append $parts (toJson (($s).data | default dict)) -}}
+{{- end -}}
+{{- end -}}
+{{- join "\n---\n" $parts | sha256sum -}}
+{{- end -}}

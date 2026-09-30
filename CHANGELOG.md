@@ -183,6 +183,7 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 - **api:** hardened audit export fields by including reason in webhook, S3 and CSV output.
 - **ci:** hardened the release signing order and the scope of the signing key.
 - **api:** hardened Prometheus metrics serving with a dedicated in-cluster listener.
+- **chart:** hardened agent mTLS Secret configuration to support bring-your-own CA paths; referenced Secrets that do not exist now fail live installs or upgrades, and the API and operator mTLS checksum now covers custom Secret data to roll both on Secret rotation.
 - **operator, api, web:** hardened the module "verified" badge to reflect a recorded signature check instead of a source's current policy.
 - **tunnel:** hardened relay config rendering with escaping and validation.
 - **audit-syslog-bridge:** hardened collector delivery reporting and intake time bounds.
