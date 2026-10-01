@@ -178,12 +178,21 @@ backup` can't drop it silently.
    so files created after the snapshot are removed rather than left
    alongside the restored data), and resumes on completion
 5. For volume-snapshot backups: Operator provisions a new GameServer seeded
-   from the CSI snapshot (no suspend/resume needed)
+   from the CSI snapshot (no suspend/resume needed). If the original server's spec
+   references Secrets or ConfigMaps that it owns (via OwnerReference), the operator
+   copies them to new objects owned by the restored server (with rewritten names),
+   because the restored server cannot inherit ownership of the originals. The references
+   are rewritten in the new server's spec when it is created, and the copies are
+   re-ensured on every reconcile pass. The restore fails before creating the new server
+   if the original server does not own every referenced object; transient errors
+   requeue the restore instead of failing it. The restored server must reach Running phase within 10 minutes;
+   if it is still starting after that, the restore fails with a deadline message.
 
 A Restore to an existing server (restic-snapshot strategy) requires the target
 suspended for the Job's duration — the PVC cannot be overwritten while the game
 is live. Volume-snapshot Restores skip the existing server and provision a fresh
-one from a snapshot instead, preserving the original server's spec.
+one from a snapshot instead, preserving the original server's spec (and handling
+its owned references as described above).
 
 The operator pins the source Backup's `snapshotID` into `Restore.status` the
 first time it observes it, so retention deleting the snapshot mid-restore

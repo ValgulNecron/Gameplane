@@ -417,6 +417,7 @@ func main() {
 	}
 	if err := (&controller.RestoreReconciler{
 		Client:      mgr.GetClient(),
+		APIReader:   mgr.GetAPIReader(),
 		Scheme:      mgr.GetScheme(),
 		ResticImage: resticImage,
 	}).SetupWithManager(mgr); err != nil {

@@ -180,6 +180,7 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 - **api:** hardened OIDC role re-evaluation, role-assignment auditing for every OIDC provider, and the `bootstrap-admin` break-glass reset.
 - **api:** hardened role-edit guards and event-stream authorization.
 - **api:** hardened cluster registration removal.
+- **operator:** hardened ownership checks on restore and cleanup.
 - **api:** hardened audit export fields by including reason in webhook, S3 and CSV output.
 - **ci:** hardened the release signing order and the scope of the signing key.
 - **api:** hardened Prometheus metrics serving with a dedicated in-cluster listener.

@@ -16,7 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
@@ -299,7 +298,7 @@ func (r *GameServerReconciler) reconcileConfigSecret(
 		ObjectMeta: metav1.ObjectMeta{Name: configSecretName(gs), Namespace: gs.Namespace},
 	}
 	if len(mc.secretData) == 0 {
-		return client.IgnoreNotFound(r.Delete(ctx, sec))
+		return r.deleteIfControlledBy(ctx, gs, sec)
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sec, func() error {
 		sec.Type = corev1.SecretTypeOpaque
@@ -322,7 +321,7 @@ func (r *GameServerReconciler) reconcileFilesSecret(
 		ObjectMeta: metav1.ObjectMeta{Name: filesSecretName(gs), Namespace: gs.Namespace},
 	}
 	if len(mc.files) == 0 {
-		return client.IgnoreNotFound(r.Delete(ctx, sec))
+		return r.deleteIfControlledBy(ctx, gs, sec)
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sec, func() error {
 		sec.Type = corev1.SecretTypeOpaque

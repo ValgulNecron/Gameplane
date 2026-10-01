@@ -71,7 +71,11 @@ func withBackupReconciler(opts ...backupReconcilerOpts) setupReconciler {
 
 func withRestoreReconciler() setupReconciler {
 	return func(mgr manager.Manager) error {
-		return (&RestoreReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme()}).SetupWithManager(mgr)
+		return (&RestoreReconciler{
+			Client:    mgr.GetClient(),
+			APIReader: mgr.GetAPIReader(),
+			Scheme:    mgr.GetScheme(),
+		}).SetupWithManager(mgr)
 	}
 }
 

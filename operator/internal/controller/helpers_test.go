@@ -74,3 +74,8 @@ func TestEffectiveConsoleMode(t *testing.T) {
 		t.Errorf("nil template: got %q want \"none\"", got)
 	}
 }
+
+// ownerBoolPtr returns a pointer to a bool value, used in Kubernetes OwnerReference tests.
+func ownerBoolPtr(b bool) *bool {
+	return &b
+}

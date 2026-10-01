@@ -8,7 +8,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
@@ -85,7 +84,7 @@ func (r *GameServerReconciler) reconcileRCONSecret(
 	// Only manage <gs>-rcon ourselves when RCON is enabled, no external
 	// PasswordSecretRef is set, and no game-managed password file is used.
 	if !rc.enabled || rc.secretName != rconSecretName(gs) {
-		return client.IgnoreNotFound(r.Delete(ctx, sec))
+		return r.deleteIfControlledBy(ctx, gs, sec)
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sec, func() error {
 		sec.Type = corev1.SecretTypeOpaque
