@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceAccess, useResourceTarget, resourceKey } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -31,7 +32,7 @@ import {
 } from "@heroui/react";
 import { AlertCircle, Calendar as CalendarIcon, Copy, Link2 } from "lucide-react";
 import type { ShareLink } from "@/types";
-import { Shares, type ShareLinkCreateBody } from "@/lib/api";
+import { type ShareLinkCreateBody } from "@/lib/api";
 import { errorText } from "@/lib/errors";
 
 interface ShareLinksProps {
@@ -164,6 +165,9 @@ function CreateDialog({
   ns,
   onLinkCreated,
 }: CreateDialogProps) {
+  const resourceTarget = useResourceTarget({ name: serverName, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Shares } = resourceClient;
   const [expiryChoice, setExpiryChoice] = useState(DEFAULT_EXPIRY_CHOICE);
   const [customDate, setCustomDate] = useState("");
   const [canStart, setCanStart] = useState(false);
@@ -433,6 +437,9 @@ function RevokeDialog({
   ns,
   onRevoked,
 }: RevokeDialogProps) {
+  const resourceTarget = useResourceTarget({ name: serverName, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Shares } = resourceClient;
   const revoke = useMutation({
     mutationFn: () => (linkId ? Shares.revoke(serverName, linkId, ns) : Promise.reject()),
     onSuccess: () => {
@@ -499,6 +506,9 @@ function RevokeDialog({
 
 // Main component
 export function ShareLinksSection({ name, ns }: ShareLinksProps) {
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
+  const access = useResourceAccess();
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [createdLink, setCreatedLink] = useState<ShareLink | null>(null);
@@ -507,19 +517,19 @@ export function ShareLinksSection({ name, ns }: ShareLinksProps) {
   const [revokeId, setRevokeId] = useState<string | null>(null);
 
   const { data: links, isLoading } = useQuery({
-    queryKey: ["sharelinks", name, ns],
-    queryFn: () => Shares.list(name, ns),
+    queryKey: resourceKey(resourceTarget, "sharelinks", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Shares.list(name, ns),
     enabled: !!name,
   });
 
   const handleLinkCreated = (link: ShareLink) => {
     setCreatedLink(link);
     setCreatedOpen(true);
-    void qc.invalidateQueries({ queryKey: ["sharelinks", name, ns] });
+    void qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "sharelinks", name, ns) });
   };
 
   const handleRevoked = () => {
-    void qc.invalidateQueries({ queryKey: ["sharelinks", name, ns] });
+    void qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "sharelinks", name, ns) });
   };
 
   const empty = !isLoading && (!links || links.length === 0);
@@ -534,7 +544,7 @@ export function ShareLinksSection({ name, ns }: ShareLinksProps) {
             address. Only the owner can create or revoke links.
           </p>
         </div>
-        <Button variant="primary" size="sm" onPress={() => setCreateOpen(true)}>
+        <Button variant="primary" size="sm" isDisabled={!access?.isOwner} onPress={() => setCreateOpen(true)}>
           <Link2 className="h-4 w-4" />
           Create link
         </Button>
@@ -552,7 +562,7 @@ export function ShareLinksSection({ name, ns }: ShareLinksProps) {
             variant="primary"
             size="sm"
             className="mt-4"
-            onPress={() => setCreateOpen(true)}
+            isDisabled={!access?.isOwner} onPress={() => setCreateOpen(true)}
           >
             <Link2 className="h-4 w-4" />
             Create link
@@ -597,6 +607,7 @@ export function ShareLinksSection({ name, ns }: ShareLinksProps) {
                         variant="danger-soft"
                         size="sm"
                         onPress={() => {
+                          if (!access?.isOwner) return;
                           setRevokeId(link.id);
                           setRevokeOpen(true);
                         }}

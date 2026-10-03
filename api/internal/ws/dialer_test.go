@@ -124,8 +124,7 @@ func TestCopyResponseHeaders_DenylistDropped(t *testing.T) {
 }
 
 func TestProxy_AgentHost(t *testing.T) {
-	p := &proxy{}
-	got := p.agentHost("alpha", "gameplane-games")
+	got := agentHostFor("alpha", "gameplane-games")
 	if !strings.Contains(got, "alpha-agent.gameplane-games.svc.cluster.local:8090") {
 		t.Fatalf("got %q", got)
 	}

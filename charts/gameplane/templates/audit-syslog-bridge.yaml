@@ -2,7 +2,7 @@
        no explicit webhook.url (an explicit url points the API elsewhere, so the
        bridge would just sit idle — the API auto-wires to it only when url is
        empty, mirroring this condition in api.yaml). */ -}}
-{{- if and .Values.api.audit.webhook.syslogBridge.enabled (not .Values.api.audit.webhook.url) }}
+{{- if and (eq (include "gameplane.apiEnabled" .) "true") .Values.api.audit.webhook.syslogBridge.enabled (not .Values.api.audit.webhook.url) }}
 {{- $b := .Values.api.audit.webhook.syslogBridge }}
 {{- if not $b.syslog.addr }}
 {{- fail "api.audit.webhook.syslogBridge.enabled=true requires api.audit.webhook.syslogBridge.syslog.addr (your collector host:port)" }}

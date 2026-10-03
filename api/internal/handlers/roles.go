@@ -13,6 +13,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/rbac"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // MountRoles wires the role-management surface: the permission catalog
@@ -188,6 +189,19 @@ func (h *roleHandler) update(w http.ResponseWriter, req *http.Request) {
 		// Lock to serialize with writes so the last-user-manager check can't race.
 		unlock := h.db.LockUserManagement()
 		defer unlock()
+		if !remoteWidePermissionsAllowed(*body.Permissions) {
+			var remoteBindings int
+			if err := h.db.DB.QueryRowContext(req.Context(),
+				`SELECT COUNT(*) FROM user_role_bindings WHERE role_name = ? AND namespace = '*' AND cluster <> ?`,
+				name, scope.DefaultCluster).Scan(&remoteBindings); err != nil {
+				httperr.Write(w, req, err)
+				return
+			}
+			if remoteBindings > 0 {
+				http.Error(w, "remove remote cluster-wide bindings before adding control-plane permissions", http.StatusBadRequest)
+				return
+			}
+		}
 		if msg, err := h.userManagementGuard(req, name, *body.Permissions); err != nil {
 			httperr.Write(w, req, err)
 			return
@@ -249,6 +263,10 @@ func (h *roleHandler) update(w http.ResponseWriter, req *http.Request) {
 
 func (h *roleHandler) del(w http.ResponseWriter, req *http.Request) {
 	name := chi.URLParam(req, "name")
+	// Keep the in-use check and deletion atomic with supplemental grants.
+	// Otherwise deleting/recreating a role could widen an orphaned binding.
+	unlock := h.db.LockUserManagement()
+	defer unlock()
 	builtin, found, err := h.roleBuiltin(req, name)
 	if err != nil {
 		httperr.Write(w, req, err)

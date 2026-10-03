@@ -4,7 +4,7 @@ import { renderWithQuery } from "@/test/render";
 import type { GameTemplate } from "@/types";
 
 const navigate = vi.fn();
-let search: { template?: string } = {};
+let search: { template?: string; cluster?: string; ns?: string } = {};
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
   useSearch: () => search,
@@ -37,6 +37,8 @@ afterEach(() => {
 });
 
 function jsonRes(status: number, body: unknown): Response {
+  const list = body as { items?: GameTemplate[] };
+  if (Array.isArray(list?.items)) body = { items: [{ cluster: "local", namespace: "gameplane-games", templates: list.items }], partial: false, issues: [], totalReturned: 1 };
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
@@ -643,5 +645,25 @@ describe("CreateServerWizard review", () => {
     const body = JSON.parse((postCall[1] as FetchInit).body as string);
     expect(body.spec.networking.addressPool).toBeUndefined();
     expect(body.spec.networking.address).toBeUndefined();
+  });
+});
+
+describe("explicit creation location", () => {
+  it("does not replace an unavailable requested local site with a remote site", async () => {
+    search = { cluster: "local", template: "minecraft-java" };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ items: [{ cluster: "remote", namespace: "games", templates: [template()] }], partial: false, issues: [], totalReturned: 1 }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    renderWithQuery(<CreateServerWizard />);
+    expect(await screen.findByText("No available location")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Continue to Configure/i })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
+  });
+  it("selects the requested namespace's actual template without consulting a global selector", async () => {
+    search = { cluster: "remote", ns: "second" };
+    const first = template({ displayName: "First-site template" });
+    const second = template({ displayName: "Second-site template" });
+    fetchMock.mockImplementation((url: string) => Promise.resolve(new Response(JSON.stringify(url.startsWith("/fleet/placements") ? { items: [{ cluster: "remote", namespace: "first", templates: [first] }, { cluster: "remote", namespace: "second", templates: [second] }], partial: false, issues: [], totalReturned: 2 } : { nodes: [] }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    renderWithQuery(<CreateServerWizard />);
+    expect(await screen.findByRole("button", { name: /Second-site template/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /First-site template/i })).not.toBeInTheDocument();
   });
 });

@@ -1590,7 +1590,7 @@ const captureContainerName = "capture"
 // NetworkCaptureReconciler (idempotent fallback injection at first capture
 // start) so the two paths can never drift apart. image falls back to
 // DefaultCaptureSidecarImage when empty.
-func buildCaptureEphemeralContainer(image string) corev1.EphemeralContainer {
+func buildCaptureEphemeralContainer(image, serverUID string) corev1.EphemeralContainer {
 	if image == "" {
 		image = DefaultCaptureSidecarImage
 	}
@@ -1659,6 +1659,7 @@ func buildCaptureEphemeralContainer(image string) corev1.EphemeralContainer {
 				// refuse a start that would push retained files plus the new
 				// capture past the volume's real limit (F-187).
 				{Name: "CAPTURE_VOLUME_BUDGET_BYTES", Value: strconv.FormatInt(captureVolumeBudgetBytes, 10)},
+				{Name: "GAMEPLANE_SERVER_UID", Value: serverUID},
 			},
 		},
 		// Targets the game container for a shared pid/network/ipc namespace.
@@ -1760,7 +1761,7 @@ func (r *GameServerReconciler) reconcileCapture(ctx context.Context, gs *gamepla
 
 	if !hasCaptureEphemeralContainer(&pod) {
 		image := r.CaptureSidecarImage
-		pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, buildCaptureEphemeralContainer(image))
+		pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, buildCaptureEphemeralContainer(image, string(gs.UID)))
 		if err := r.SubResource("ephemeralcontainers").Update(ctx, &pod); err != nil {
 			// A requeue racing ahead of the manager cache's propagation of
 			// the previous injection can see hasCaptureEphemeralContainer
@@ -2159,6 +2160,7 @@ func buildAgentContainer(
 	}
 	env := []corev1.EnvVar{
 		{Name: "GAMEPLANE_SERVER_NAME", Value: gs.Name},
+		{Name: "GAMEPLANE_SERVER_UID", Value: string(gs.UID)},
 		{Name: "GAMEPLANE_TEMPLATE", Value: tmpl.Name},
 		{Name: "GAMEPLANE_GAME", Value: tmpl.Spec.Game},
 		// Games without RCON (consoleMode pty/none) must not have the

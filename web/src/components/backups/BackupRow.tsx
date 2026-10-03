@@ -1,16 +1,20 @@
+import { useResourcePermissions, resourceCan, type ResourceTarget } from "@/lib/resourceTarget";
 import { Button, Table } from "@heroui/react";
 import { formatRelative } from "@/lib/utils";
 import type { Backup } from "@/types";
 import { PhaseChip } from "@/components/ui/PhaseChip";
 
 interface Props {
+  target?: ResourceTarget;
+  permissions?: string[];
   backup: Backup;
   showServer: boolean;
   onSelect: (b: Backup) => void;
   onRestore: (b: Backup) => void;
 }
 
-export function BackupRow({ backup, showServer, onSelect, onRestore }: Props) {
+export function BackupRow({ backup, showServer, onSelect, onRestore, target, permissions: explicitPermissions }: Props) {
+  const permissions = useResourcePermissions(explicitPermissions);
   const restorable =
     backup.status?.phase === "Succeeded" && Boolean(backup.status.snapshotID);
   return (
@@ -18,7 +22,7 @@ export function BackupRow({ backup, showServer, onSelect, onRestore }: Props) {
       className="cursor-pointer"
       onAction={() => onSelect(backup)}
     >
-      <Table.Cell className="font-mono text-xs">{backup.metadata.name}</Table.Cell>
+      <Table.Cell className="font-mono text-xs">{backup.metadata.name}{target && <div className="text-muted">{target.cluster} / {target.namespace}</div>}</Table.Cell>
       <Table.Cell>
         {showServer && backup.spec.serverRef.name}
       </Table.Cell>
@@ -33,7 +37,7 @@ export function BackupRow({ backup, showServer, onSelect, onRestore }: Props) {
         <Button
           size="sm"
           variant="outline"
-          isDisabled={!restorable}
+          isDisabled={!restorable || !resourceCan(permissions, "backups:restore")}
           onPress={() => onRestore(backup)}
         >
           Restore

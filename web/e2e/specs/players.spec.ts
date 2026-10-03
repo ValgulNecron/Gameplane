@@ -62,7 +62,7 @@ test.describe("players tab", () => {
 
     const kicked = page.waitForRequest(
       (req) =>
-        /\/servers\/alpha\/players\/kick$/.test(req.url()) && req.method() === "POST",
+        new URL(req.url()).pathname === "/servers/alpha/players/kick" && req.method() === "POST",
     );
     await kickBtn.click();
     // The Kick button opens an inline confirm panel (a plain div, not a
@@ -70,6 +70,8 @@ test.describe("players tab", () => {
     // visible text "Kick" — the trigger above is icon-only. Clicking it
     // fires the POST.
     await page.getByRole("button").filter({ hasText: /^Kick$/ }).click();
-    await kicked;
+    const requestURL = new URL((await kicked).url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("gameplane-games");
   });
 });

@@ -14,7 +14,9 @@ import (
 
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/rbac"
 	"github.com/ValgulNecron/gameplane/api/internal/registry"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // AgentModLister fetches JSON from a server's agent sidecar; satisfied by
@@ -24,26 +26,44 @@ type AgentModLister interface {
 	GetJSON(ctx context.Context, name, namespace, path string, out any) error
 }
 
+// ClusterAgentModLister reads from the explicitly selected cluster.
+type ClusterAgentModLister interface {
+	GetJSONForCluster(ctx context.Context, cluster, name, namespace, path string, out any) error
+}
+
 // MountModUpdates wires the batch mod update check. A GET → viewer+ under
 // the standard /servers RBAC rules. One request checks every managed mod on
 // the server against its registry provider, so the dashboard never fans out
 // per-mod requests to upstream registries.
 func MountModUpdates(r chi.Router, k *kube.Client, reg registrySet, agent AgentModLister) {
+	mountModUpdates(r, k, nil, reg, agent)
+}
+
+// MountModUpdatesWithRegistry enables gateway reads and template lookup in the
+// same registered cluster. The original mount remains local-only for callers
+// that have not supplied a registry.
+func MountModUpdatesWithRegistry(r chi.Router, clients *kube.Registry, reg registrySet, agent AgentModLister) {
+	mountModUpdates(r, clients.Default(), clients, reg, agent)
+}
+
+func mountModUpdates(r chi.Router, k *kube.Client, clients *kube.Registry, reg registrySet, agent AgentModLister) {
 	h := &modUpdatesHandler{
-		k:     k,
-		reg:   reg,
-		agent: agent,
-		ttl:   5 * time.Minute,
-		cache: map[modUpdateKey]cachedLatest{},
-		sem:   make(chan struct{}, 4),
+		clients: clients,
+		k:       k,
+		reg:     reg,
+		agent:   agent,
+		ttl:     5 * time.Minute,
+		cache:   map[modUpdateKey]cachedLatest{},
+		sem:     make(chan struct{}, 4),
 	}
 	r.Get("/servers/{name}/mods/updates", h.updates)
 }
 
 type modUpdatesHandler struct {
-	k     *kube.Client
-	reg   registrySet
-	agent AgentModLister
+	clients *kube.Registry
+	k       *kube.Client
+	reg     registrySet
+	agent   AgentModLister
 
 	ttl time.Duration
 	mu  sync.Mutex
@@ -116,7 +136,28 @@ type modUpdatesResponse struct {
 }
 
 func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
-	if rejectRemoteCluster(w, req) {
+	cluster := scope.DefaultCluster
+	k := h.k
+	if h.clients == nil {
+		if rejectRemoteCluster(w, req) {
+			return
+		}
+	} else {
+		var err error
+		cluster, err = scope.ResolveCluster(req, h.clients)
+		if err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		var ok bool
+		k, ok = h.clients.Get(cluster)
+		if !ok || k == nil {
+			httperr.Write(w, req, scope.ErrForbiddenCluster)
+			return
+		}
+	}
+	if configured, ok := h.agent.(interface{ ConfiguredForCluster(string) bool }); ok && !configured.ConfiguredForCluster(cluster) {
+		http.Error(w, "agent mTLS not configured", http.StatusServiceUnavailable)
 		return
 	}
 	if h.agent == nil {
@@ -130,20 +171,33 @@ func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
 	name := chi.URLParam(req, "name")
 
 	var mods []installedMod
-	if err := h.agent.GetJSON(req.Context(), name, ns, "/mods", &mods); err != nil {
+	var agentErr error
+	if cluster == scope.DefaultCluster {
+		agentErr = h.agent.GetJSON(req.Context(), name, ns, "/mods", &mods)
+	} else if scoped, ok := h.agent.(ClusterAgentModLister); ok {
+		agentErr = scoped.GetJSONForCluster(req.Context(), cluster, name, ns, "/mods", &mods)
+	} else {
+		http.Error(w, "agent gateway not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if agentErr != nil {
 		httperr.WriteCode(w, req, http.StatusBadGateway, errors.New("agent unreachable"))
 		return
 	}
 
-	gs, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Get(req.Context(), name, metav1.GetOptions{})
+	gs, err := k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Get(req.Context(), name, metav1.GetOptions{})
 	if err != nil {
 		httperr.Write(w, req, err)
+		return
+	}
+	if err := rbac.ValidateServerIdentity(req.Context(), cluster, ns, name, string(gs.GetUID())); err != nil {
+		http.NotFound(w, req)
 		return
 	}
 	tmplName, _, _ := unstructured.NestedString(gs.Object, "spec", "templateRef", "name")
 	var tmpl *unstructured.Unstructured
 	if tmplName != "" {
-		if tmpl, err = h.k.Dynamic.Resource(kube.GVRs["templates"]).Get(req.Context(), tmplName, metav1.GetOptions{}); err != nil {
+		if tmpl, err = k.Dynamic.Resource(kube.GVRs["templates"]).Get(req.Context(), tmplName, metav1.GetOptions{}); err != nil {
 			httperr.Write(w, req, err)
 			return
 		}

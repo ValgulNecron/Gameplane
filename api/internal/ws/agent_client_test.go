@@ -12,8 +12,10 @@ import (
 // in for the mTLS-dialed sidecar.
 func testAgentClient(srv *httptest.Server) *AgentClient {
 	return &AgentClient{
-		http:   srv.Client(),
-		hostFn: func(_, _ string) string { return strings.TrimPrefix(srv.URL, "https://") },
+		transport: &directAgentTransport{
+			http:   srv.Client(),
+			hostFn: func(_, _ string) string { return strings.TrimPrefix(srv.URL, "https://") },
+		},
 	}
 }
 

@@ -1,6 +1,8 @@
+import { ResourceTargetProvider } from "@/lib/resourceTarget";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
-import { renderWithQuery } from "@/test/render";
+import { renderWithQuery as baseRenderWithQuery } from "@/test/render";
 import { SettingsTab } from "./Settings";
 import type { GameServer } from "@/types";
 
@@ -566,3 +568,8 @@ describe("SettingsTab", () => {
     expect(shareLinksIdx).toBeLessThan(dangerIdx);
   });
 });
+
+function renderWithQuery(ui: ReactElement, options?: Parameters<typeof baseRenderWithQuery>[1]) {
+  const props = ui.props as { name?: string; ns?: string };
+  return baseRenderWithQuery(<ResourceTargetProvider target={{ cluster: "local", name: props.name ?? "alpha", namespace: props.ns }} access={{ canWrite: true, canControl: true, canConsole: true, canDelete: true, isOwner: true, isCollaborator: false, permissions: ["*"] }}>{ui}</ResourceTargetProvider>, options);
+}

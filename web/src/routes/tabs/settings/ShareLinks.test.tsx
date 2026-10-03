@@ -1,3 +1,4 @@
+import { ResourceTargetProvider } from "@/lib/resourceTarget";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { ReactNode } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
@@ -60,7 +61,7 @@ const queryClient = new QueryClient({
 });
 
 const Wrapper = ({ children }: { children: ReactNode }) => (
-  <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  <QueryClientProvider client={queryClient}><ResourceTargetProvider target={{ cluster: "local", name: "mc-survival" }} access={{ canWrite: true, canControl: true, canConsole: true, canDelete: true, isOwner: true, isCollaborator: false, permissions: ["*"] }}>{children}</ResourceTargetProvider></QueryClientProvider>
 );
 
 const server = setupServer(

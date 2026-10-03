@@ -1,9 +1,11 @@
+import { ResourceTargetProvider } from "@/lib/resourceTarget";
+import type { ReactElement } from "react";
 import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
-import { renderWithQuery } from "@/test/render";
+import { renderWithQuery as baseRenderWithQuery } from "@/test/render";
 import { makeBackup, makeRestore, makeDestination, makeSchedule, makeServer } from "@/test/factories";
 import { BackupsTab } from "./Backups";
 
@@ -317,3 +319,8 @@ describe("BackupsTab", () => {
     expect(await screen.findByText(/Total size/i)).toBeInTheDocument();
   });
 });
+
+function renderWithQuery(ui: ReactElement, options?: Parameters<typeof baseRenderWithQuery>[1]) {
+  const props = ui.props as { name?: string; ns?: string };
+  return baseRenderWithQuery(<ResourceTargetProvider target={{ cluster: "local", name: props.name ?? "alpha", namespace: props.ns }} access={{ canWrite: true, canControl: true, canConsole: true, canDelete: true, isOwner: true, isCollaborator: false, permissions: ["*"] }}>{ui}</ResourceTargetProvider>, options);
+}

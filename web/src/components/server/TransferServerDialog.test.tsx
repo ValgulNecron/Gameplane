@@ -27,15 +27,16 @@ const { mockGetServer, mockListUsers, mockTransfer } = vi.hoisted(() => ({
   mockTransfer: vi.fn(),
 }));
 
-vi.mock("@/lib/endpoints", () => ({
-  Servers: {
-    get: mockGetServer,
-    transfer: mockTransfer,
-  },
-  Users: {
-    list: mockListUsers,
-  },
-}));
+vi.mock("@/lib/endpoints", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/endpoints")>();
+  const Servers = { ...actual.Servers, get: mockGetServer, transfer: mockTransfer };
+  const createResourceClient: typeof actual.createResourceClient = vi.fn((...args: Parameters<typeof actual.createResourceClient>) => ({
+    ...actual.createResourceClient(...args),
+    Servers: { ...actual.createResourceClient(...args).Servers, get: mockGetServer, transfer: mockTransfer },
+    withSignal: (signal: AbortSignal) => createResourceClient(args[0], signal),
+  }));
+  return { ...actual, Servers, Users: { ...actual.Users, list: mockListUsers }, createResourceClient };
+});
 
 function renderWithQuery(component: ReactNode) {
   const queryClient = new QueryClient({

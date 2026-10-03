@@ -86,11 +86,9 @@ test.describe("live: servers core (list + detail)", () => {
     // stays visible with the filter applied.
     await expect(row).toBeVisible({ timeout: 10_000 });
 
-    // Clear the filter so it doesn't leak into the next test. Reopen via a
-    // loose name match, not servers.filterButton's exact "^Filter$" — with
-    // two facets applied the button's accessible name grows a count chip
-    // ("Filter 2").
-    await page.getByRole("button", { name: /filter/i }).first().click();
+    // Reopen the facet filter, whose label includes the applied count.
+    // The separate "Filter by location" control must not match this locator.
+    await page.getByRole("button", { name: /^filter(?:\s+\d+)?$/i }).click();
     await page.getByRole("button", { name: /^clear$/i }).click();
     await page.getByRole("button", { name: /^apply$/i }).click();
     await expect(row).toBeVisible({ timeout: 10_000 });

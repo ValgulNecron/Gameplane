@@ -1,33 +1,41 @@
+import { useResourceClient, useResourceTarget, resourceKey, useResourcePermissions, resourceCan, type ResourceTarget } from "@/lib/resourceTarget";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Drawer, Button } from "@heroui/react";
 import { RotateCcw, Trash2 } from "lucide-react";
-import { Backups } from "@/lib/endpoints";
+
 import { formatRelative } from "@/lib/utils";
 import type { Backup } from "@/types";
 import { PhaseChip } from "@/components/ui/PhaseChip";
 import { ErrorBanner } from "./ErrorBanner";
 
 interface Props {
+  target?: ResourceTarget;
+  permissions?: string[];
   name: string | null;
   ns?: string;
   onClose: () => void;
   onRestore: (backup: Backup) => void;
 }
 
-export function BackupDetailDrawer({ name, ns, onClose, onRestore }: Props) {
+export function BackupDetailDrawer({ name, ns, onClose, onRestore, target: explicitTarget, permissions: explicitPermissions }: Props) {
+  const resourceTarget = useResourceTarget({ name: name ?? "", namespace: ns }, explicitTarget);
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Backups } = resourceClient;
+  const permissions = useResourcePermissions(explicitPermissions);
   const qc = useQueryClient();
   const open = name !== null;
   const { data: backup, error } = useQuery({
-    queryKey: ["backup", name, ns],
-    queryFn: () => Backups.get(name!, ns),
+    queryKey: resourceKey(resourceTarget, "backup", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Backups.get(name!, ns),
     enabled: open,
     refetchInterval: 5000,
   });
   const remove = useMutation({
     mutationFn: () => Backups.remove(name!, ns),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["backups", ns] });
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
+      void qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "backups", ns) });
       onClose();
     },
   });
@@ -53,7 +61,7 @@ export function BackupDetailDrawer({ name, ns, onClose, onRestore }: Props) {
               <Button
                 variant="ghost"
                 size="sm"
-                isDisabled={!restorable}
+                isDisabled={!restorable || !resourceCan(permissions, "backups:restore")}
                 onPress={() => backup && onRestore(backup)}
                 className="gap-1.5 shrink-0"
                 aria-label="Restore backup"
@@ -100,7 +108,7 @@ export function BackupDetailDrawer({ name, ns, onClose, onRestore }: Props) {
               <Button
                 variant="danger"
                 size="sm"
-                isDisabled={!backup || remove.isPending}
+                isDisabled={!backup || remove.isPending || !resourceCan(permissions, "backups:write")}
                 onPress={() => remove.mutate()}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -109,7 +117,7 @@ export function BackupDetailDrawer({ name, ns, onClose, onRestore }: Props) {
               <Button
                 variant="primary"
                 size="sm"
-                isDisabled={!restorable}
+                isDisabled={!restorable || !resourceCan(permissions, "backups:restore")}
                 onPress={() => backup && onRestore(backup)}
               >
                 Restore

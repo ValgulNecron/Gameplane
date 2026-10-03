@@ -10,7 +10,11 @@ import (
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
@@ -28,7 +32,7 @@ const podLogPollInterval = time.Second
 // mountPodLogs streams a server's startup-through-runtime output over a
 // WebSocket via the Kubernetes pod-log API. Unlike the agent's /logs/tail
 // — which tails the configured game log file — this surfaces everything
-// the pod prints. Like the PTY attach it uses the API's in-cluster
+// the pod prints. Like PTY attach it uses the selected cluster's
 // kubeconfig, so it works even when agent mTLS isn't configured.
 //
 // from=start (the default, used while a server provisions) stitches the
@@ -40,16 +44,19 @@ const podLogPollInterval = time.Second
 // Each log line is delivered as a text WS frame, matching the agent
 // /logs/tail protocol so the dashboard's Logs tab renders both sources
 // identically.
-func mountPodLogs(r chi.Router, k *kube.Client) {
-	h := &podLogProxy{k: k}
-	// rejectRemoteCluster: this reads pod logs via the API's own in-cluster
-	// kubeconfig, so it can only ever reach the LOCAL cluster — see its
-	// doc comment in dialer.go for why a non-local `?cluster=` must 404.
-	r.Get("/ws/servers/{name}/logs/pod", rejectRemoteCluster(h.handle))
+func mountPodLogs(r chi.Router, reg *kube.Registry) {
+	r.Get("/ws/servers/{name}/logs/pod", func(w http.ResponseWriter, req *http.Request) {
+		k, ok := streamClient(w, req, reg)
+		if !ok {
+			return
+		}
+		(&podLogProxy{k: k}).handle(w, req)
+	})
 }
 
 type podLogProxy struct {
-	k *kube.Client
+	k      *kube.Client
+	podUID types.UID
 }
 
 func (h *podLogProxy) handle(w http.ResponseWriter, req *http.Request) {
@@ -61,6 +68,10 @@ func (h *podLogProxy) handle(w http.ResponseWriter, req *http.Request) {
 	}
 	// StatefulSet replica naming — the operator pins replicas=1, so -0 is
 	// the only pod that ever exists for a given GameServer.
+	if len(validation.IsDNS1123Subdomain(name)) != 0 {
+		http.Error(w, "invalid server name", http.StatusBadRequest)
+		return
+	}
 	podName := name + "-0"
 	fromEnd := req.URL.Query().Get("from") == "end"
 
@@ -84,6 +95,15 @@ func (h *podLogProxy) handle(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
+	// Preserve the provisioning retry protocol: a pod not yet created
+	// accepts the WS, then closes with TryAgainLater instead of an HTTP error.
+	pod, err := serverPod(ctx, h.k, ns, name)
+	if err != nil {
+		_ = conn.Close(websocket.StatusTryAgainLater, "pod unavailable")
+		return
+	}
+	h.podUID = pod.UID
+
 	if fromEnd {
 		// Tail the running game container only — replaying setup logs makes
 		// no sense for "follow a running server".
@@ -100,7 +120,7 @@ func (h *podLogProxy) handle(w http.ResponseWriter, req *http.Request) {
 // streamTimeline streams every init/setup container's logs in pod order,
 // then the game container, over the one connection.
 func (h *podLogProxy) streamTimeline(ctx context.Context, conn *websocket.Conn, ns, podName string) {
-	pod, err := h.k.Typed.CoreV1().Pods(ns).Get(ctx, podName, metav1.GetOptions{})
+	pod, err := h.readPod(ctx, ns, podName)
 	if err != nil {
 		// Pod not created yet / transient API error. The dashboard
 		// reconnects, so close cleanly rather than erroring.
@@ -144,6 +164,9 @@ func (h *podLogProxy) streamTimeline(ctx context.Context, conn *websocket.Conn, 
 // tail streams from the start; a non-nil tail limits to the recent lines
 // before following.
 func (h *podLogProxy) streamContainer(ctx context.Context, conn *websocket.Conn, ns, podName, container string, tail *int64) error {
+	if _, err := h.readPod(ctx, ns, podName); err != nil {
+		return err
+	}
 	opts := &corev1.PodLogOptions{Container: container, Follow: true, TailLines: tail}
 	stream, err := h.k.Typed.CoreV1().Pods(ns).GetLogs(podName, opts).Stream(ctx)
 	if err != nil {
@@ -177,7 +200,7 @@ func (h *podLogProxy) waitForStart(ctx context.Context, ns, podName, container s
 		if ctx.Err() != nil {
 			return false
 		}
-		pod, err := h.k.Typed.CoreV1().Pods(ns).Get(ctx, podName, metav1.GetOptions{})
+		pod, err := h.readPod(ctx, ns, podName)
 		if err != nil {
 			return false
 		}
@@ -195,12 +218,25 @@ func (h *podLogProxy) waitForStart(ctx context.Context, ns, podName, container s
 // containerFailed reports whether the named container has terminated with a
 // non-zero exit code (best-effort; false on read error).
 func (h *podLogProxy) containerFailed(ctx context.Context, ns, podName, container string) bool {
-	pod, err := h.k.Typed.CoreV1().Pods(ns).Get(ctx, podName, metav1.GetOptions{})
+	pod, err := h.readPod(ctx, ns, podName)
 	if err != nil {
 		return false
 	}
 	_, failed := containerLogState(pod, container, true)
 	return failed
+}
+
+// readPod stops a timeline when the pod is replaced. A reconnect verifies
+// the complete owner chain again before opening streams for the new pod.
+func (h *podLogProxy) readPod(ctx context.Context, ns, name string) (*corev1.Pod, error) {
+	pod, err := h.k.Typed.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if pod.UID != h.podUID {
+		return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, name)
+	}
+	return pod, nil
 }
 
 // writeMarker emits a thin section header so the user can tell the setup

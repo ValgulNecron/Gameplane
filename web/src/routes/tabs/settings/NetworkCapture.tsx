@@ -1,3 +1,4 @@
+import { useResourceAccess, useResourcePermissions, resourceCan } from "@/lib/resourceTarget";
 import { useEffect, useState } from "react";
 import {
   Input,
@@ -10,8 +11,6 @@ import {
   TextField,
   Switch,
 } from "@heroui/react";
-import { useMe, can } from "@/lib/auth";
-import { useCurrentCluster } from "@/lib/cluster";
 import type { CaptureConfiguration } from "@/types";
 import type { SectionProps } from "./types";
 
@@ -49,10 +48,10 @@ function bestUnit(seconds: number): RetentionUnit {
 }
 
 export function NetworkCaptureSection({ draft, onChange, onValidityChange }: SectionProps) {
-  const { data: me, isLoading: meLoading } = useMe();
-  const namespace = draft.metadata.namespace ?? "gameplane-games";
-  const cluster = useCurrentCluster();
-  const canManage = can(me, "captures:manage", namespace, cluster);
+  const access = useResourceAccess();
+  const permissionsReady = access?.permissions !== undefined;
+  const permissions = useResourcePermissions();
+  const canManage = permissionsReady && resourceCan(permissions, "captures:manage");
 
   const capture = draft.spec.capture;
   const enabled = capture?.enabled ?? false;
@@ -100,10 +99,10 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
     setCaptureField("retentionSeconds", seconds);
   };
 
-  // Fail-closed: keep the controls disabled until /users/me has resolved, and
-  // only show the permission warning once we actually know the answer — a
-  // loading flash must never read as "you're not allowed".
-  const disabled = meLoading || !canManage;
+  // ServerDetail handles selected-target access loading and errors. Fail closed
+  // if this section has no resolved permissions, without showing a denial
+  // warning before the selected target's permission result is available.
+  const disabled = !canManage;
 
   return (
     <div className="space-y-8">
@@ -142,7 +141,7 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
             Network packet capture requires admin access. Captures contain real player data
             (IP addresses, chat, credentials) and are not redacted.
           </p>
-          {!meLoading && !canManage && (
+          {permissionsReady && !canManage && (
             <p className="text-xs leading-relaxed text-warning">
               You don&apos;t have permission to change capture settings for this server.
             </p>

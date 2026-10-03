@@ -1,9 +1,10 @@
+import { useResourceClient, useResourceTarget, resourceKey } from "@/lib/resourceTarget";
 import { useQuery } from "@tanstack/react-query";
 import { Activity } from "lucide-react";
 import { Card } from "@heroui/react";
 
 import type { GameServer, GameTemplate } from "@/types";
-import { Servers } from "@/lib/endpoints";
+
 import { rconAvailable } from "@/lib/capabilities";
 import { formatUptime } from "@/lib/utils";
 
@@ -31,12 +32,14 @@ export function ServerStatusCard({
   running: boolean;
   gs?: GameServer;
 }) {
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
   const metrics = tmpl?.spec.capabilities?.status?.metrics ?? [];
   const show = metrics.length > 0 && rconAvailable(tmpl);
 
   const { data: readings } = useQuery({
-    queryKey: ["server-status", name, ns],
-    queryFn: () => Servers.status(name, ns),
+    queryKey: resourceKey(resourceTarget, "server-status", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Servers.status(name, ns),
     enabled: show && running,
     refetchInterval: 10_000,
     retry: false,

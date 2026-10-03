@@ -80,6 +80,8 @@ func sidecarURL(namespace, server, path string) string {
 
 // startCaptureRequest is the body sent to POST /captures/{id}/start.
 type startCaptureRequest struct {
+	ServerUID          string  `json:"serverUID"`
+	CaptureUID         string  `json:"captureUID"`
 	Filter             *string `json:"filter,omitempty"`
 	MaxDurationSeconds int64   `json:"maxDurationSeconds"`
 	MaxSizeBytes       int64   `json:"maxSizeBytes"`
@@ -97,7 +99,7 @@ type startCaptureResponse struct {
 // StartCapture calls POST /captures/{id}/start on the sidecar.
 func (c *CaptureClient) StartCapture(
 	ctx context.Context,
-	namespace, server, captureID string,
+	namespace, server, captureID, serverUID, captureUID string,
 	filter *string,
 	maxDurationSeconds, maxSizeBytes int64,
 ) error {
@@ -106,6 +108,8 @@ func (c *CaptureClient) StartCapture(
 	}
 
 	body := startCaptureRequest{
+		ServerUID:          serverUID,
+		CaptureUID:         captureUID,
 		Filter:             filter,
 		MaxDurationSeconds: maxDurationSeconds,
 		MaxSizeBytes:       maxSizeBytes,
@@ -123,6 +127,8 @@ func (c *CaptureClient) StartCapture(
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	req.Header.Set("X-Gameplane-Server-UID", serverUID)
+	req.Header.Set("X-Gameplane-Capture-UID", captureUID)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("capture sidecar: start capture: %w", err)
@@ -153,7 +159,7 @@ type stopCaptureRequest struct {
 // StopCapture calls POST /captures/{id}/stop on the sidecar.
 func (c *CaptureClient) StopCapture(
 	ctx context.Context,
-	namespace, server, captureID string,
+	namespace, server, captureID, serverUID, captureUID string,
 ) error {
 	if c.Disabled {
 		return nil
@@ -172,6 +178,8 @@ func (c *CaptureClient) StopCapture(
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	req.Header.Set("X-Gameplane-Server-UID", serverUID)
+	req.Header.Set("X-Gameplane-Capture-UID", captureUID)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("capture sidecar: stop capture: %w", err)
@@ -202,7 +210,7 @@ type getCaptureStatusResponse struct {
 // Returns the status phase, packet count, byte count, message, and error.
 func (c *CaptureClient) GetCaptureStatus(
 	ctx context.Context,
-	namespace, server, captureID string,
+	namespace, server, captureID, serverUID, captureUID string,
 ) (string, int64, int64, string, error) {
 	if c.Disabled {
 		return "unknown", 0, 0, "", ErrCaptureClientDisabled
@@ -214,6 +222,8 @@ func (c *CaptureClient) GetCaptureStatus(
 		return "", 0, 0, "", fmt.Errorf("capture sidecar: create request: %w", err)
 	}
 
+	req.Header.Set("X-Gameplane-Server-UID", serverUID)
+	req.Header.Set("X-Gameplane-Capture-UID", captureUID)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", 0, 0, "", fmt.Errorf("capture sidecar: get status: %w", err)
@@ -242,7 +252,7 @@ func (c *CaptureClient) GetCaptureStatus(
 // Other status codes return a wrapped error with the status code and response body.
 func (c *CaptureClient) DeleteCaptureFile(
 	ctx context.Context,
-	namespace, server, captureID string,
+	namespace, server, captureID, serverUID, captureUID string,
 ) error {
 	if c.Disabled {
 		return nil
@@ -254,6 +264,8 @@ func (c *CaptureClient) DeleteCaptureFile(
 		return fmt.Errorf("capture sidecar: create request: %w", err)
 	}
 
+	req.Header.Set("X-Gameplane-Server-UID", serverUID)
+	req.Header.Set("X-Gameplane-Capture-UID", captureUID)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("capture sidecar: delete capture %s: %w", captureID, err)

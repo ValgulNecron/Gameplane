@@ -1,3 +1,10 @@
+{{- if not (eq (include "gameplane.apiEnabled" .) "true") }}
+{{- $livePVC := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "gameplane-api-data" }}
+{{- if and $livePVC (ne (index ($livePVC.metadata.annotations | default dict) "helm.sh/resource-policy") "keep") }}
+{{- fail "Before disabling api.enabled on an existing install, annotate gameplane-api-data with helm.sh/resource-policy=keep to preserve the SQLite database" }}
+{{- end }}
+{{- end }}
+{{- if (eq (include "gameplane.apiEnabled" .) "true") }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -80,6 +87,11 @@ rules:
   - apiGroups: ["gameplane.local"]
     resources: [gameservers/status, backups/status, backupschedules/status, restores/status, networkcaptures/status]
     verbs: [get, update, patch]
+  # Verify GameServer -> StatefulSet -> Pod controller ownership before
+  # serving pod logs or accepting terminal input.
+  - apiGroups: ["apps"]
+    resources: [statefulsets]
+    verbs: [get]
   # The PTY console (api/internal/ws/attach.go) attaches to the game
   # container via the pod-attach subresource. SPDY uses POST (create);
   # the websocket transport uses GET.
@@ -436,3 +448,5 @@ spec:
     # In-cluster scrape port for the ServiceMonitor. The Ingress and the web
     # front end route only to the http port.
     - { name: metrics, port: {{ .Values.api.metricsPort | default 9090 }}, targetPort: metrics }
+
+{{- end }}

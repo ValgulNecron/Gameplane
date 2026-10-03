@@ -39,6 +39,7 @@ vi.mock("@/lib/endpoints", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => (
     <a {...rest}>{children}</a>
   ),

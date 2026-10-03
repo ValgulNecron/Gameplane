@@ -1,7 +1,8 @@
-import { ChevronDown, Check, Plus } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, Check, Network } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { setCurrentCluster, useCurrentCluster } from "@/lib/cluster";
+import { useCurrentCluster } from "@/lib/cluster";
+import { useClusterSelection } from "@/lib/useClusterSelection";
 import { Clusters } from "@/lib/endpoints";
 import type { ClusterRegistry } from "@/types";
 import { cn } from "@/lib/utils";
@@ -26,33 +27,29 @@ function getPhaseColor(phase: ClusterRegistry["phase"]): string {
   }
 }
 
-function getDisplayName(cluster: ClusterRegistry | undefined | null): string {
-  if (!cluster) return "local";
+function getDisplayName(cluster: ClusterRegistry | undefined | null, selectedId: string): string {
+  if (!cluster) return selectedId;
   return cluster.displayName || cluster.name || "local";
 }
 
 export function ClusterSelector() {
   const currentClusterId = useCurrentCluster();
-  const qc = useQueryClient();
+  const selectCluster = useClusterSelection();
   const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({
     queryKey: ["clusters"],
     queryFn: () => Clusters.list(),
+    refetchInterval: 30_000,
   });
 
   const clusters = data?.items ?? [];
   const currentCluster = clusters.find((c) => c.name === currentClusterId);
-  const displayName = getDisplayName(currentCluster);
+  const displayName = getDisplayName(currentCluster, currentClusterId);
   const phase = currentCluster?.phase ?? "Unknown";
   const phaseColor = getPhaseColor(phase);
 
-  const handleSelectCluster = (clusterId: string): void => {
-    setCurrentCluster(clusterId);
-    void qc.clear();
-  };
-
-  const handleAddCluster = (): void => {
-    void navigate({ to: "/cluster" });
+  const handleViewClusters = (): void => {
+    void navigate({ to: "/clusters" });
   };
 
   return (
@@ -65,12 +62,13 @@ export function ClusterSelector() {
       <DropdownTrigger
         aria-label="Select cluster"
         className={cn(
-          "flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm",
+          "flex max-w-[42vw] items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm sm:max-w-64",
           "text-fg hover:bg-surface transition-colors cursor-pointer",
         )}
       >
         <>
-          <span className={cn("h-2 w-2 rounded-full", phaseColor)} />
+          <span className={cn("h-2 w-2 shrink-0 rounded-full", phaseColor)} aria-hidden="true" />
+          <span className="hidden text-muted sm:inline">Cluster:</span>
           <span className="truncate">{displayName}</span>
           <ChevronDown className="h-3.5 w-3.5 text-muted shrink-0" />
         </>
@@ -94,7 +92,7 @@ export function ClusterSelector() {
                 {clusters.map((cluster) => (
                   <DropdownItem
                     key={cluster.name}
-                    onPress={() => handleSelectCluster(cluster.name)}
+                    onPress={() => void selectCluster(cluster.name)}
                     textValue={cluster.displayName || cluster.name}
                     className="flex items-center gap-2"
                   >
@@ -113,13 +111,13 @@ export function ClusterSelector() {
 
               <DropdownSection aria-label="Actions">
                 <DropdownItem
-                  key="add-cluster"
-                  onPress={handleAddCluster}
-                  textValue="Add cluster"
+                  key="view-clusters"
+                  onPress={handleViewClusters}
+                  textValue="View all clusters"
                   className="flex items-center gap-2"
                 >
-                  <Plus className="h-3.5 w-3.5 text-muted shrink-0" />
-                  <span>Add cluster</span>
+                  <Network className="h-3.5 w-3.5 text-muted shrink-0" />
+                  <span>View all clusters</span>
                 </DropdownItem>
               </DropdownSection>
             </>

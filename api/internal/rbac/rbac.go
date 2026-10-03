@@ -92,6 +92,11 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 			}
 			ns := ""
 			cl := scope.DefaultCluster
+			if clusterInventoryRead(req.Method, req.URL.Path) {
+				// Authorize before discovery, including registered clusters whose
+				// credentials could not load. The handler validates registration.
+				cl = scope.RequestedCluster(req)
+			}
 			if Namespaced(r.perm) {
 				resolved, err := scope.Resolve(req)
 				if err != nil {
@@ -132,6 +137,8 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 							if role != roleNone {
 								// Grant to owner, or to collaborator if not owner-only.
 								if role == roleOwner || !ownerOnlyOperation(req.Method, verb, isExact) {
+									identity := ServerIdentity{Cluster: cl, Namespace: ns, Name: name, UID: string(obj.GetUID())}
+									req = req.WithContext(context.WithValue(req.Context(), serverIdentityKey{}, identity))
 									next.ServeHTTP(w, req)
 									return
 								}
@@ -172,6 +179,14 @@ type rule struct {
 }
 
 var rules = []rule{
+	// Fleet handlers filter every scope and object themselves, including
+	// owner/collaborator-only servers. No collection-wide grant is inferred.
+	{method: "GET", segment: "fleet", suffix: "/fleet/servers", perm: ""},
+	{method: "GET", segment: "fleet", suffix: "/fleet/backups", perm: ""},
+	{method: "GET", segment: "fleet", suffix: "/fleet/schedules", perm: ""},
+	{method: "GET", segment: "fleet", suffix: "/fleet/restores", perm: ""},
+	{method: "GET", segment: "fleet", suffix: "/fleet/inventory", perm: ""},
+	{method: "GET", segment: "fleet", suffix: "/fleet/placements", perm: ""},
 	// Own profile: every authenticated user reads /users/me and their own
 	// servers (/users/me/servers), and reads/writes/resets their own theme
 	// preferences (feature 016). The rest of /users is gated; must precede
@@ -248,7 +263,9 @@ var rules = []rule{
 
 	// Cluster registration (multi-cluster): list/create/delete remote clusters
 	// (plural /clusters endpoint).
-	{method: "GET", segment: "clusters", perm: "cluster:read"},
+	// Discovery filters each registration by the caller's grants. Namespace
+	// server readers may select their cluster without gaining node inventory.
+	{method: "GET", segment: "clusters", perm: ""},
 	{segment: "clusters", perm: "cluster:manage"},
 
 	// Events SSE is a namespaced, multiplexed read. The route needs
@@ -428,7 +445,16 @@ func allow(u *auth.User, method, path, cluster, ns string) bool {
 	if r.perm == "" {
 		return true
 	}
+	if clusterInventoryRead(method, path) {
+		// Empty namespace allows only cluster-wide grants on this cluster
+		// or the wildcard cluster, never grants scoped to a game namespace.
+		return u.Can(r.perm, true, cluster, "")
+	}
 	return u.Can(r.perm, Namespaced(r.perm), cluster, ns)
+}
+
+func clusterInventoryRead(method, path string) bool {
+	return method == http.MethodGet && (path == "/cluster" || path == "/cluster/info" || path == "/cluster/stats")
 }
 
 // ReadPermission returns the permission the rule table requires for a GET

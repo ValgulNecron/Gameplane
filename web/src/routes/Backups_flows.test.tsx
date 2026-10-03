@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { useTestLocation, navigateTestSearch, resetTestSearch } from "@/test/routerSearch";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -8,6 +9,8 @@ import { renderWithQuery } from "@/test/render";
 import { makeBackup, makeSchedule, makeServer, makeRestore } from "@/test/factories";
 
 vi.mock("@tanstack/react-router", () => ({
+  useLocation: () => useTestLocation(),
+  useNavigate: () => navigateTestSearch,
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
     <a href={to} {...rest}>{children}</a>
   ),
@@ -32,6 +35,7 @@ function serverSelect(): HTMLElement {
 }
 
 describe("BackupsPage flows", () => {
+  beforeEach(() => resetTestSearch());
   it("disables 'Run snapshot' and explains when no destination is configured", async () => {
     server.use(http.get("/backup-destinations", () => HttpResponse.json({ items: [] })));
     renderWithQuery(<BackupsPage />);
@@ -54,7 +58,7 @@ describe("BackupsPage flows", () => {
     await screen.findByText("alpha-2026-05-07"); // default backup row
     await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
     await userEvent.click(serverSelect());
-    const option = await screen.findByRole("option", { name: "alpha" });
+    const option = await screen.findByRole("option", { name: /^alpha · local \/ gameplane-games$/ });
     await userEvent.click(option);
     const run = screen.getByRole("button", { name: /Run snapshot/i });
     await waitFor(() => expect(run).toBeEnabled());
@@ -110,7 +114,7 @@ describe("BackupsPage flows", () => {
     await userEvent.click(screen.getByRole("tab", { name: /^Schedules$/i }));
     const select = serverSelect();
     await userEvent.click(select);
-    const alphaOption = await screen.findByRole("option", { name: "alpha" });
+    const alphaOption = await screen.findByRole("option", { name: /^alpha · local \/ gameplane-games$/ });
     await userEvent.click(alphaOption);
     expect(await screen.findByText(/Schedule \(cron\)/i)).toBeInTheDocument();
   });

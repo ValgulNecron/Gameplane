@@ -100,6 +100,43 @@ spec:
               app.kubernetes.io/name: gameplane-operator
       ports:
         - { protocol: TCP, port: 8090 }
+{{- $capture := .Values.capture | default dict }}
+{{- if $capture.enabled }}
+---
+# Capture control and local file access use the sidecar's separate mTLS port.
+# Keep this allowance independent of the agent and kubelet probe ports.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-to-capture
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-game
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- if (eq (include "gameplane.apiEnabled" .) "true") }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gameplane-api
+              app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- end }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gameplane-operator
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - { protocol: TCP, port: 9091 }
+{{- end }}
 {{- with .Values.serviceMonitors.scrapeNamespaceSelector }}
 {{- if $.Values.serviceMonitors.enabled }}
 ---

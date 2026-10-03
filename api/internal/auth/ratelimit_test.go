@@ -70,6 +70,31 @@ func TestTokenBucket_Middleware_AllowsUnderLimit(t *testing.T) {
 	}
 }
 
+func TestTokenBucket_UserMiddlewareRequiresAuthentication(t *testing.T) {
+	b := newTokenBucket(0, 1)
+	called := 0
+	h := b.UserMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/fleet/servers", nil))
+	if rr.Code != http.StatusUnauthorized || called != 0 {
+		t.Fatalf("unauthenticated status=%d calls=%d", rr.Code, called)
+	}
+	ctx := WithUser(t.Context(), &User{ID: 42})
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequestWithContext(ctx, http.MethodGet, "/fleet/servers", nil))
+	if rr.Code != http.StatusNoContent || called != 1 {
+		t.Fatalf("authenticated status=%d calls=%d", rr.Code, called)
+	}
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequestWithContext(ctx, http.MethodGet, "/fleet/backups", nil))
+	if rr.Code != http.StatusTooManyRequests || called != 1 {
+		t.Fatalf("exhausted budget status=%d calls=%d", rr.Code, called)
+	}
+}
+
 func TestTokenBucket_Middleware_DeniesAtZero(t *testing.T) {
 	b := newTokenBucket(0, 0)
 	h := b.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))

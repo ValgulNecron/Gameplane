@@ -19,6 +19,7 @@ import {
 // DOM contract for what we assert.
 const mockNavigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
+  useLocation: () => ({ search: {} }),
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
     <a href={to} {...rest}>
       {children}
@@ -79,10 +80,10 @@ describe("DashboardPage", () => {
     const failedLink = await screen.findByRole("link", { name: /broken-srv/i });
     expect(failedLink).toHaveAttribute("href", "/servers/$name");
     expect(screen.getByText("Failed 1")).toBeInTheDocument();
-    expect(screen.getByText("Failed — check logs")).toBeInTheDocument();
+    expect(screen.getByText(/Failed — check logs$/)).toBeInTheDocument();
     // Stale agent is flagged even though the phase is Running.
     expect(screen.getByRole("link", { name: /stale-srv/i })).toBeInTheDocument();
-    expect(screen.getByText("Agent heartbeat stale")).toBeInTheDocument();
+    expect(screen.getByText(/Agent heartbeat stale$/)).toBeInTheDocument();
   });
 
   it("shows a healthy state when nothing needs attention", async () => {
@@ -126,7 +127,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Memory")).toBeInTheDocument();
     // "Storage" appears as both a KPI tile and a meter — both are expected.
     expect(screen.getAllByText("Storage").length).toBeGreaterThan(0);
-    expect(await screen.findByText("node-7")).toBeInTheDocument();
+    expect(await screen.findByText("local / node-7")).toBeInTheDocument();
   });
 
   // Regression: nodes with no `used` reading (no metrics-server) used to
@@ -145,7 +146,7 @@ describe("DashboardPage", () => {
     );
     renderWithQuery(<DashboardPage />);
     await screen.findByText("Cluster resources");
-    await screen.findByText("no-metrics-node");
+    await screen.findByText("local / no-metrics-node");
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
 
@@ -244,30 +245,43 @@ describe("DashboardPage", () => {
     );
     renderWithQuery(<DashboardPage />);
     await screen.findByText("Dashboard");
-    // The .catch() fallbacks leave no nodes/backups and an empty fleet.
+    // A successful empty server response remains distinct from failed inventory/backups.
     expect(await screen.findByText(/Everything looks healthy/i)).toBeInTheDocument();
-    expect(screen.getByText("No backups yet.")).toBeInTheDocument();
+    expect(await screen.findByText(/Backups are partial/)).toBeInTheDocument();
+    expect(screen.queryByText("No backups yet.")).not.toBeInTheDocument();
+  });
+
+  it("does not turn a failed server request into a healthy empty cluster", async () => {
+    server.use(http.get("/servers", () => HttpResponse.error()));
+    renderWithQuery(<DashboardPage />);
+    expect(await screen.findByText(/Server totals are partial/)).toBeInTheDocument();
+    expect(await screen.findByText("server status unavailable")).toBeInTheDocument();
+    expect(screen.getByText("player status unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/Everything looks healthy/i)).not.toBeInTheDocument();
   });
 
   it("hides recent activity from users without audit:read", async () => {
-    server.use(http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))));
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))),
+      http.get("/clusters", () => HttpResponse.json({ items: [{ name: "local", displayName: "local", phase: "Healthy", canViewInventory: false }] })),
+    );
     const { client } = renderWithQuery(<DashboardPage />);
     // Wait until the viewer identity has actually loaded before asserting
     // the audit-gated card is absent (otherwise we'd pass during loading).
     await waitFor(() => expect(client.getQueryData(["me"])).toBeTruthy());
     await screen.findByText("Recent backups");
     expect(screen.queryByText("Recent activity")).not.toBeInTheDocument();
-    // Viewer lacks servers:write → no "View cluster" link either.
+    // The registry explicitly denies node inventory for this server-only viewer.
     expect(screen.queryByRole("link", { name: /view cluster/i })).not.toBeInTheDocument();
   });
 
-  it("shows the View cluster link to users with servers:write permission", async () => {
+  it("shows the View cluster link with the registry's inventory capability", async () => {
     server.use(http.get("/users/me", () => HttpResponse.json(makeUser({ role: "operator" }))));
     const { client } = renderWithQuery(<DashboardPage />);
     await waitFor(() => expect(client.getQueryData(["me"])).toBeTruthy());
     await screen.findByText("Cluster resources");
     const viewClusterLink = screen.getByRole("link", { name: /view cluster/i });
-    expect(viewClusterLink).toHaveAttribute("href", "/cluster");
+    expect(viewClusterLink).toHaveAttribute("href", "/clusters");
   });
 
   it("renders vcpus as — when no node data is available", async () => {
@@ -302,8 +316,8 @@ describe("DashboardPage", () => {
       ),
     );
     renderWithQuery(<DashboardPage />);
-    await screen.findByText("ready-node");
-    expect(screen.getByText("not-ready-node")).toBeInTheDocument();
+    await screen.findByText("local / ready-node");
+    expect(screen.getByText("local / not-ready-node")).toBeInTheDocument();
   });
 
   it("handles partially missing node metrics gracefully", async () => {
@@ -319,7 +333,7 @@ describe("DashboardPage", () => {
       ),
     );
     renderWithQuery(<DashboardPage />);
-    await screen.findByText("partial-node");
+    await screen.findByText("local / partial-node");
     // Multiple placeholders can render "—" for missing metrics (vCPUs card,
     // per-node cpu/mem cells); scope to the vCPUs stat card specifically,
     // since a node with no cpu.capacity keeps the cluster-wide vcpus sum

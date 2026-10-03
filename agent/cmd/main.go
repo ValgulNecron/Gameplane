@@ -31,6 +31,7 @@ import (
 	"github.com/ValgulNecron/gameplane/agent/internal/quiesce"
 	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 	"github.com/ValgulNecron/gameplane/agent/internal/status"
+	"github.com/ValgulNecron/gameplane/agent/internal/target"
 	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
@@ -54,6 +55,7 @@ func main() {
 		clientCAFile string
 		apiTokenFile string
 		serverName   string
+		serverUID    string
 		templateName string
 		gameName     string
 		capsJSON     string
@@ -86,6 +88,7 @@ func main() {
 	flag.StringVar(&clientCAFile, "tls-client-ca", "", "CA that signs API client certs")
 	flag.StringVar(&apiTokenFile, "api-token-file", "", "fallback shared-secret auth (used when TLS is not configured)")
 	flag.StringVar(&serverName, "server-name", envOr("GAMEPLANE_SERVER_NAME", ""), "owning GameServer name")
+	flag.StringVar(&serverUID, "server-uid", envOr("GAMEPLANE_SERVER_UID", ""), "immutable owning GameServer UID for versioned routes")
 	flag.StringVar(&templateName, "template", envOr("GAMEPLANE_TEMPLATE", ""), "GameTemplate name")
 	flag.StringVar(&gameName, "game", envOr("GAMEPLANE_GAME", ""), "game identifier")
 	flag.StringVar(&capsJSON, "capabilities", envOr("GAMEPLANE_CAPABILITIES", ""),
@@ -170,8 +173,7 @@ func main() {
 	// and isn't meant to be trusted with the console/files/RCON routes that
 	// cert would also unlock.
 
-	r.Group(func(protected chi.Router) {
-		protected.Use(authCheck.Middleware)
+	mountProtected := func(protected chi.Router) {
 
 		// Console/Logs open long-lived WebSockets and Mods installs can run
 		// well past a short request deadline (a large download bounded by
@@ -183,16 +185,24 @@ func main() {
 		logs.Mount(protected, gameLogPath)
 		console.Mount(protected, rconClient)
 		mods.Mount(protected, dataRoot, modsSpec)
+		files.Mount(protected, dataRoot)
 
 		protected.Group(func(bounded chi.Router) {
 			bounded.Use(middleware.Timeout(30 * time.Second))
-			files.Mount(bounded, dataRoot)
 			players.Mount(bounded, rconClient, gameName, playerActions)
 			quiesce.Mount(bounded, rconClient, gameName, quiesceSpec)
 			lifecycle.Mount(bounded, rconClient, gameName, lifecycleSpec)
 			actions.Mount(bounded, rconClient, gameName, actionSpecs)
 			status.Mount(bounded, rconClient, statusSpec)
 		})
+	}
+	r.Group(func(protected chi.Router) {
+		protected.Use(authCheck.Middleware)
+		mountProtected(protected)
+	})
+	r.Route("/v1/targets/{uid}", func(protected chi.Router) {
+		protected.Use(authCheck.Middleware, target.Guard(serverUID))
+		mountProtected(protected)
 	})
 
 	srv := &http.Server{

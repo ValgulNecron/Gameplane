@@ -1,13 +1,12 @@
+import { useResourceClient, useResourceTarget, resourceKey, useResourceAccess } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import type { GameServer } from "@/types";
 import { Button, Input, Label, Chip, Card, CardContent } from "@heroui/react";
-import { Servers } from "@/lib/endpoints";
+
 import { errorText } from "@/lib/errors";
-import { useMe, can } from "@/lib/auth";
-import { useCurrentCluster } from "@/lib/cluster";
-import { OWNER_ID_ANNOTATION, OWNER_ANNOTATION } from "@/lib/annotations";
+import { OWNER_ANNOTATION } from "@/lib/annotations";
 
 const COLLABORATORS_ANNOTATION = "gameplane.local/collaborators";
 const COLLABORATOR_NAMES_ANNOTATION = "gameplane.local/collaborator-names";
@@ -17,9 +16,11 @@ interface Props {
 }
 
 export function AccessSection({ gs }: Props) {
+  const resourceTarget = useResourceTarget({ name: gs?.metadata.name ?? "", namespace: gs?.metadata.namespace });
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Servers } = resourceClient;
   const qc = useQueryClient();
-  const { data: me } = useMe();
-  const cluster = useCurrentCluster();
+  const access = useResourceAccess();
   const [addInput, setAddInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -30,9 +31,10 @@ export function AccessSection({ gs }: Props) {
       return Servers.setCollaborators(gs.metadata.name, namespace, body);
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       setAddInput("");
       setError(null);
-      return qc.invalidateQueries({ queryKey: ["server", gs?.metadata.name] });
+      return qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "server", gs?.metadata.name) });
     },
     onError: (err) => {
       setError(errMsg(err));
@@ -45,7 +47,6 @@ export function AccessSection({ gs }: Props) {
 
   const ann = gs.metadata.annotations ?? {};
   const ownerName = ann[OWNER_ANNOTATION] ?? "—";
-  const ownerID = ann[OWNER_ID_ANNOTATION];
   const collaboratorIDs = ann[COLLABORATORS_ANNOTATION]
     ? ann[COLLABORATORS_ANNOTATION].split(",").map((s) => s.trim())
     : [];
@@ -53,9 +54,8 @@ export function AccessSection({ gs }: Props) {
     ? ann[COLLABORATOR_NAMES_ANNOTATION].split(",").map((s) => s.trim())
     : [];
 
-  // Permission check: owner or servers:write
-  const namespace = gs.metadata.namespace ?? "gameplane-games";
-  const canManage = ownerID === String(me?.id) || can(me, "servers:write", namespace, cluster);
+  // Collaborator management is restricted to the owner or target administrator.
+  const canManage = access?.canDelete === true;
 
   // Misalignment guard: if the parsed collaborators and collaborator-names
   // have different lengths, the annotations were modified outside the dashboard.

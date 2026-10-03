@@ -73,7 +73,7 @@
           "content": "12"
         },
         "h0n7zo": {
-          "content": "cluster cores"
+          "content": "authorized inventory cores"
         }
       }
     },
@@ -85,7 +85,7 @@
       "width": "fill_container",
       "descendants": {
         "Nd4Wf": {
-          "content": "STORAGE"
+          "content": "STORAGE PROVISIONED"
         },
         "QdcEm": {
           "icon": "hard-drive",

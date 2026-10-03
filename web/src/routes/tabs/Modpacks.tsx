@@ -1,14 +1,13 @@
+import { useResourceClient, useResourceTarget, resourceKey, useResourceAccess } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Package, X } from "lucide-react";
 import { Button, Card, Alert } from "@heroui/react";
 
 import type { GameTemplate, RegistryProject } from "@/types";
-import { Servers } from "@/lib/endpoints";
+
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
-import { useMe, can } from "@/lib/auth";
-import { useCurrentCluster } from "@/lib/cluster";
 import { RegistryBrowser, RegistryIcon, compactNum } from "@/components/registry-browser";
 
 type Banner = { kind: "ok" | "err"; text: string };
@@ -36,10 +35,12 @@ export function ModpacksTab({
   tmpl?: GameTemplate;
   ns?: string;
 }) {
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Servers } = resourceClient;
   const qc = useQueryClient();
-  const { data: me } = useMe();
-  const cluster = useCurrentCluster();
-  const canManage = can(me, "servers:write", ns ?? "gameplane-games", cluster);
+  const access = useResourceAccess();
+  const canManage = access?.canControl === true;
 
   const providers = tmpl?.spec.capabilities?.mods?.registry?.providers ?? [];
   const declFor = (p: string) => providers.find((x) => x.provider === p);
@@ -52,8 +53,9 @@ export function ModpacksTab({
       Servers.installModpack(name, { ref: v.p.slug || v.p.id }, v.provider, ns),
     onMutate: (v) => setBusy(v.p.id),
     onSuccess: (_r, v) => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       setBanner({ kind: "ok", text: `Set modpack ${v.p.title}. The server is restarting to install it.` });
-      return qc.invalidateQueries({ queryKey: ["server", name, ns] });
+      return qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "server", name, ns) });
     },
     onError: (err) => setBanner({ kind: "err", text: errMsg(err) }),
     onSettled: () => setBusy(null),
@@ -69,8 +71,9 @@ export function ModpacksTab({
     },
     onMutate: (v) => setBusy(v.p.id),
     onSuccess: (count, v) => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       setBanner({ kind: "ok", text: `Installed ${v.p.title} — ${count} mod${count === 1 ? "" : "s"}.` });
-      return qc.invalidateQueries({ queryKey: ["mods", name] });
+      return qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "mods", name) });
     },
     onError: (err) => setBanner({ kind: "err", text: errMsg(err) }),
     onSettled: () => setBusy(null),

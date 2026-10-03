@@ -15,7 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { ClusterSelector } from "./ClusterSelector";
-import { setCurrentCluster } from "@/lib/cluster";
+import { getCurrentCluster, setCurrentCluster } from "@/lib/cluster";
 import type { ClusterRegistry } from "@/types";
 
 describe("ClusterSelector", () => {
@@ -118,7 +118,7 @@ describe("ClusterSelector", () => {
     expect(checkSvg).toHaveClass("h-3.5", "w-3.5", "text-primary", "shrink-0");
   });
 
-  it("calls setCurrentCluster and clears the query cache when a cluster is selected", async () => {
+  it("cancels outstanding queries before clearing caches and changing clusters", async () => {
     const clusters: ClusterRegistry[] = [
       { name: "local", displayName: "Local", phase: "Healthy" },
       { name: "prod", displayName: "Production", phase: "Healthy" },
@@ -129,6 +129,7 @@ describe("ClusterSelector", () => {
     );
 
     const { client } = renderWithQuery(<ClusterSelector />);
+    const cancelSpy = vi.spyOn(client, "cancelQueries");
     const clearSpy = vi.spyOn(client, "clear");
 
     const trigger = await screen.findByRole("button", { name: /select cluster/i });
@@ -142,9 +143,19 @@ describe("ClusterSelector", () => {
     await waitFor(() => {
       expect(clearSpy).toHaveBeenCalled();
     });
+    expect(cancelSpy.mock.invocationCallOrder[0]).toBeLessThan(clearSpy.mock.invocationCallOrder[0]);
+    expect(getCurrentCluster()).toBe("prod");
   });
 
-  it("includes an 'Add cluster' option at the bottom of the dropdown", async () => {
+  it("does not label an unavailable selected cluster as local", async () => {
+    setCurrentCluster("removed-site");
+    server.use(http.get("/clusters", () => HttpResponse.json({ items: [{ name: "local", displayName: "Local", phase: "Healthy" }] })));
+    renderWithQuery(<ClusterSelector />);
+    expect(await screen.findByRole("button", { name: /select cluster/i })).toHaveTextContent("removed-site");
+    expect(getCurrentCluster()).toBe("removed-site");
+  });
+
+  it("includes an 'View all clusters' option at the bottom of the dropdown", async () => {
     const clusters: ClusterRegistry[] = [
       { name: "local", displayName: "Local", phase: "Healthy" },
     ];
@@ -158,8 +169,8 @@ describe("ClusterSelector", () => {
     const trigger = await screen.findByRole("button", { name: /select cluster/i });
     await userEvent.click(trigger);
 
-    // Look for the "Add cluster" menu item
-    const addItem = await screen.findByRole("menuitem", { name: /add cluster/i });
+    // Look for the "View all clusters" menu item
+    const addItem = await screen.findByRole("menuitem", { name: /view all clusters/i });
     expect(addItem).toBeInTheDocument();
   });
 
@@ -282,7 +293,7 @@ describe("ClusterSelector", () => {
     });
   });
 
-  it("navigates to /cluster when Add cluster is clicked", async () => {
+  it("navigates to /clusters when View all clusters is clicked", async () => {
     const navigateMock = vi.fn();
     routerMocks.useNavigate = () => navigateMock;
 
@@ -299,10 +310,10 @@ describe("ClusterSelector", () => {
     const trigger = await screen.findByRole("button", { name: /select cluster/i });
     await userEvent.click(trigger);
 
-    const addItem = await screen.findByRole("menuitem", { name: /add cluster/i });
+    const addItem = await screen.findByRole("menuitem", { name: /view all clusters/i });
     await userEvent.click(addItem);
 
-    expect(navigateMock).toHaveBeenCalledWith({ to: "/cluster" });
+    expect(navigateMock).toHaveBeenCalledWith({ to: "/clusters" });
   });
 
   it("renders button with hover styles and chevron", async () => {

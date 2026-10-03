@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
@@ -39,12 +38,20 @@ type registrySet interface {
 // game-version token from the cluster (the operator is authoritative). A
 // game may declare multiple providers; the client picks one via ?provider=.
 //
-// The handlers hold the home-cluster client, so every route serves the home
-// cluster only: each one calls rejectRemoteCluster first, and a non-local
-// `?cluster=` selector answers 501 Not Implemented (no cross-cluster agent
-// yet), as MountModIDs and MountModUpdates do.
+// This legacy mount holds a home-cluster client and rejects remote requests.
+// Production uses MountRegistryWithRegistry for selected-cluster workloads.
 func MountRegistry(r chi.Router, k *kube.Client, reg registrySet) {
-	h := &registryHandler{k: k, reg: reg}
+	mountRegistry(r, &registryHandler{k: k, reg: reg})
+}
+
+// MountRegistryWithRegistry resolves servers and templates in the selected
+// cluster. The provider set and its administrator-managed credentials remain
+// central; selecting a cluster never selects a different credential store.
+func MountRegistryWithRegistry(r chi.Router, clients *kube.Registry, reg registrySet) {
+	mountRegistry(r, &registryHandler{clients: clients, reg: reg})
+}
+
+func mountRegistry(r chi.Router, h *registryHandler) {
 	r.Get("/servers/{name}/mods/registry/providers", h.providers)
 	r.Get("/servers/{name}/mods/registry/search", h.search)
 	r.Get("/servers/{name}/mods/registry/projects/{project}/versions", h.versions)
@@ -53,8 +60,9 @@ func MountRegistry(r chi.Router, k *kube.Client, reg registrySet) {
 }
 
 type registryHandler struct {
-	k   *kube.Client
-	reg registrySet
+	clients *kube.Registry
+	k       *kube.Client
+	reg     registrySet
 }
 
 // providerInfo is one entry of the providers listing the dashboard uses to
@@ -69,19 +77,11 @@ type providerInfo struct {
 // which are usable (engine configured) and which offer modpacks. The
 // dashboard shows a provider switch from this.
 func (h *registryHandler) providers(w http.ResponseWriter, req *http.Request) {
-	if rejectRemoteCluster(w, req) {
-		return
-	}
-	ns, ok := resolveNS(w, req)
+	target, ok := loadModTarget(w, req, h.clients, h.k)
 	if !ok {
 		return
 	}
-	_, tmpl, err := h.loadServerTemplate(req.Context(), ns, chi.URLParam(req, "name"))
-	if err != nil {
-		httperr.Write(w, req, err)
-		return
-	}
-	declared := registryProviders(tmpl)
+	declared := registryProviders(target.template)
 	out := make([]providerInfo, 0, len(declared))
 	for _, p := range declared {
 		out = append(out, providerInfo{
@@ -94,14 +94,11 @@ func (h *registryHandler) providers(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *registryHandler) search(w http.ResponseWriter, req *http.Request) {
-	if rejectRemoteCluster(w, req) {
-		return
-	}
-	ns, ok := resolveNS(w, req)
+	target, ok := loadModTarget(w, req, h.clients, h.k)
 	if !ok {
 		return
 	}
-	p, loader, gameVersion, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"), req.URL.Query().Get("provider"))
+	p, loader, gameVersion, err := h.resolve(req.Context(), target, req.URL.Query().Get("provider"))
 	if err != nil {
 		h.writeResolveErr(w, req, err)
 		return
@@ -134,14 +131,11 @@ func (h *registryHandler) search(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *registryHandler) versions(w http.ResponseWriter, req *http.Request) {
-	if rejectRemoteCluster(w, req) {
-		return
-	}
-	ns, ok := resolveNS(w, req)
+	target, ok := loadModTarget(w, req, h.clients, h.k)
 	if !ok {
 		return
 	}
-	p, loader, gameVersion, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"), req.URL.Query().Get("provider"))
+	p, loader, gameVersion, err := h.resolve(req.Context(), target, req.URL.Query().Get("provider"))
 	if err != nil {
 		h.writeResolveErr(w, req, err)
 		return
@@ -161,14 +155,11 @@ func (h *registryHandler) versions(w http.ResponseWriter, req *http.Request) {
 // then installs one-by-one via /mods/install (deps-mode providers, e.g.
 // Thunderstore).
 func (h *registryHandler) modpackDeps(w http.ResponseWriter, req *http.Request) {
-	if rejectRemoteCluster(w, req) {
-		return
-	}
-	ns, ok := resolveNS(w, req)
+	target, ok := loadModTarget(w, req, h.clients, h.k)
 	if !ok {
 		return
 	}
-	p, _, _, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"), req.URL.Query().Get("provider"))
+	p, _, _, err := h.resolve(req.Context(), target, req.URL.Query().Get("provider"))
 	if err != nil {
 		h.writeResolveErr(w, req, err)
 		return
@@ -186,19 +177,11 @@ func (h *registryHandler) modpackDeps(w http.ResponseWriter, req *http.Request) 
 // rolls out. Deps-mode providers (no refEnv) are installed via modpackDeps
 // + /mods/install instead, so they get a 409 here.
 func (h *registryHandler) installModpack(w http.ResponseWriter, req *http.Request) {
-	if rejectRemoteCluster(w, req) {
-		return
-	}
-	ns, ok := resolveNS(w, req)
+	target, ok := loadModTarget(w, req, h.clients, h.k)
 	if !ok {
 		return
 	}
-	gs, tmpl, err := h.loadServerTemplate(req.Context(), ns, chi.URLParam(req, "name"))
-	if err != nil {
-		httperr.Write(w, req, err)
-		return
-	}
-	prov, ok := pickProvider(tmpl, req.URL.Query().Get("provider"))
+	prov, ok := pickProvider(target.template, req.URL.Query().Get("provider"))
 	if !ok || prov.modpacks == nil {
 		httperr.WriteCode(w, req, http.StatusNotImplemented, errNoRegistry)
 		return
@@ -218,36 +201,19 @@ func (h *registryHandler) installModpack(w http.ResponseWriter, req *http.Reques
 	}
 
 	apply := append([]envKV{{Name: prov.modpacks.refEnv, Value: strings.TrimSpace(body.Ref)}}, prov.modpacks.env...)
-	setEnvVars(gs, apply)
-	if _, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Update(req.Context(), gs, metav1.UpdateOptions{}); err != nil {
+	if _, err := updateModTarget(req.Context(), target, func(current *unstructured.Unstructured) {
+		setEnvVars(current, apply)
+	}); err != nil {
 		httperr.Write(w, req, err)
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-// loadServerTemplate fetches a GameServer and its GameTemplate, treating a
-// missing templateRef as errNoRegistry (no capability without a template).
-func (h *registryHandler) loadServerTemplate(ctx context.Context, ns, name string) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
-	gs, tmpl, err := h.k.LoadServerAndTemplate(ctx, ns, name)
-	if err != nil {
-		return gs, tmpl, err
-	}
-	if tmpl == nil {
-		return gs, nil, errNoRegistry
-	}
-	return gs, tmpl, nil
-}
-
-// resolve loads the server + template, picks the requested provider (or the
-// default), and returns its engine plus the active version's loader and
-// game-version token.
-func (h *registryHandler) resolve(ctx context.Context, ns, name, providerName string) (registry.Provider, string, string, error) {
-	gs, tmpl, err := h.loadServerTemplate(ctx, ns, name)
-	if err != nil {
-		return nil, "", "", err
-	}
-	prov, ok := pickProvider(tmpl, providerName)
+// resolve picks the requested provider from the selected server's template,
+// returning its central engine and the selected server's version filters.
+func (h *registryHandler) resolve(ctx context.Context, target *modTarget, providerName string) (registry.Provider, string, string, error) {
+	prov, ok := pickProvider(target.template, providerName)
 	if !ok {
 		return nil, "", "", errNoRegistry
 	}
@@ -262,8 +228,8 @@ func (h *registryHandler) resolve(ctx context.Context, ns, name, providerName st
 	if !ok {
 		return nil, "", "", errNoRegistry
 	}
-	selected, _, _ := unstructured.NestedString(gs.Object, "spec", "version")
-	loader, gameVersion := activeVersion(tmpl, selected)
+	selected, _, _ := unstructured.NestedString(target.server.Object, "spec", "version")
+	loader, gameVersion := activeVersion(target.template, selected)
 	return p, loader, gameVersion, nil
 }
 

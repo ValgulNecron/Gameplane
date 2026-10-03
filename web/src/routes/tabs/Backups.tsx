@@ -1,10 +1,11 @@
+import { useResourceClient, useResourceTarget, resourceKey, useResourcePermissions, resourceCan } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, CalendarClock, Clock, HardDrive } from "lucide-react";
 import { Button, Chip, Table } from "@heroui/react";
 import { StatCard } from "@/components/ui/StatCard";
 import { PhaseChip } from "@/components/ui/PhaseChip";
-import { Backups, Schedules, Restores } from "@/lib/endpoints";
+
 import { useBackupDestinations } from "@/lib/destinations";
 import { formatBytes, formatRelative, formatRelativeFuture, parseQuantityToBytes } from "@/lib/utils";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
@@ -14,23 +15,27 @@ import { BackupDetailDrawer } from "@/components/backups/BackupDetailDrawer";
 import type { Backup } from "@/types";
 
 export function BackupsTab({ name, ns }: { name: string; ns?: string }) {
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Backups } = resourceClient;
   const qc = useQueryClient();
+  const permissions = useResourcePermissions();
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState<Backup | null>(null);
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
 
-  const { data: backups } = useQuery({
-    queryKey: ["backups", ns],
-    queryFn: () => Backups.list(ns),
+  const { data: backups, error: backupsError } = useQuery({
+    queryKey: resourceKey(resourceTarget, "backups", ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Backups.list(ns),
     refetchInterval: 5000,
   });
-  const { data: schedules } = useQuery({
-    queryKey: ["schedules", ns],
-    queryFn: () => Schedules.list(ns),
+  const { data: schedules, error: schedulesError } = useQuery({
+    queryKey: resourceKey(resourceTarget, "schedules", ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Schedules.list(ns),
   });
-  const { data: restores } = useQuery({
-    queryKey: ["restores", ns],
-    queryFn: () => Restores.list(ns),
+  const { data: restores, error: restoresError } = useQuery({
+    queryKey: resourceKey(resourceTarget, "restores", ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Restores.list(ns),
     refetchInterval: 5000,
   });
   const { data: destinations = [] } = useBackupDestinations();
@@ -48,10 +53,10 @@ export function BackupsTab({ name, ns }: { name: string; ns?: string }) {
         },
         ns,
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["backups", ns] }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "backups", ns) }), qc.invalidateQueries({ queryKey: ["fleet"] })]),
   });
 
-  const backupNowDisabled = !lone || createNow.isPending;
+  const backupNowDisabled = !resourceCan(permissions, "backups:write") || !lone || createNow.isPending;
   const backupNowHint =
     destinations.length === 0
       ? "No backup destination configured. Add one in admin settings."
@@ -80,28 +85,31 @@ export function BackupsTab({ name, ns }: { name: string; ns?: string }) {
 
   return (
     <div className="space-y-6 p-6">
+      {backupsError && <ErrorBanner err={backupsError} />}
+      {schedulesError && <ErrorBanner err={schedulesError} />}
+      {restoresError && <ErrorBanner err={restoresError} />}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           label="Last backup"
-          value={formatRelative(lastBackupAt)}
+          value={backupsError ? "Unavailable" : formatRelative(lastBackupAt)}
           icon={<Clock size={16} />}
           accent="primary"
         />
         <StatCard
           label="Next backup"
-          value={nextBackupAt ? formatRelativeFuture(nextBackupAt) : "—"}
+          value={schedulesError ? "Unavailable" : nextBackupAt ? formatRelativeFuture(nextBackupAt) : "—"}
           icon={<CalendarClock size={16} />}
           accent="success"
         />
         <StatCard
           label="Backups"
-          value={serverBackups.length}
+          value={backups ? serverBackups.length : "—"}
           icon={<Archive size={16} />}
           accent="violet"
         />
         <StatCard
           label="Total size"
-          value={totalBytes ? formatBytes(totalBytes) : "—"}
+          value={backupsError ? "Unavailable" : totalBytes ? formatBytes(totalBytes) : "—"}
           icon={<HardDrive size={16} />}
           accent="warning"
         />
@@ -114,7 +122,7 @@ export function BackupsTab({ name, ns }: { name: string; ns?: string }) {
             size="sm"
             variant="outline"
             onPress={() => setCreatingSchedule(true)}
-            isDisabled={creatingSchedule}
+            isDisabled={creatingSchedule || !resourceCan(permissions, "schedules:write")}
           >
             New schedule
           </Button>
@@ -149,7 +157,7 @@ export function BackupsTab({ name, ns }: { name: string; ns?: string }) {
               </div>
             );
           })}
-          {serverSchedules.length === 0 && !creatingSchedule && (
+          {schedules && serverSchedules.length === 0 && !creatingSchedule && (
             <p className="text-sm text-foreground/60">No schedules yet.</p>
           )}
         </div>
@@ -226,7 +234,7 @@ export function BackupsTab({ name, ns }: { name: string; ns?: string }) {
                           <Button
                             size="sm"
                             variant="outline"
-                            isDisabled={!restorable}
+                            isDisabled={!restorable || !resourceCan(permissions, "backups:restore")}
                             onPress={() => setRestoringBackup(b)}
                           >
                             Restore

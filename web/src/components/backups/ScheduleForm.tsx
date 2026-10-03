@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceTarget, resourceKey, useResourcePermissions, resourceCan, type ResourceTarget } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,20 +12,26 @@ import {
   ListBox,
   ListBoxItem,
 } from "@heroui/react";
-import { Schedules } from "@/lib/endpoints";
+
 import { useBackupDestinations } from "@/lib/destinations";
 import { ErrorBanner } from "./ErrorBanner";
 import { RetentionFields, buildRetention, type RetentionForm } from "./RetentionFields";
 
 interface Props {
+  target?: ResourceTarget;
+  permissions?: string[];
   serverName: string;
   ns?: string;
   onClose: () => void;
 }
 
-export function ScheduleForm({ serverName, ns, onClose }: Props) {
+export function ScheduleForm({ serverName, ns, onClose, target: explicitTarget, permissions: explicitPermissions }: Props) {
+  const resourceTarget = useResourceTarget({ name: serverName, namespace: ns }, explicitTarget);
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Schedules } = resourceClient;
+  const permissions = useResourcePermissions(explicitPermissions);
   const qc = useQueryClient();
-  const { data: destinations = [] } = useBackupDestinations();
+  const { data: destinations = [] } = useBackupDestinations(resourceTarget);
   const [form, setForm] = useState({
     schedule: "0 */6 * * *",
     strategy: "restic-snapshot" as "restic-snapshot" | "volume-snapshot",
@@ -57,7 +64,8 @@ export function ScheduleForm({ serverName, ns, onClose }: Props) {
         ns,
       ),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["schedules", ns] });
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
+      void qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "schedules", ns) });
       onClose();
     },
   });
@@ -159,7 +167,7 @@ export function ScheduleForm({ serverName, ns, onClose }: Props) {
           <Button
             onPress={() => create.mutate()}
             isDisabled={
-              !form.schedule || (!isVolumeSnapshot && !form.repoName) || create.isPending
+              !resourceCan(permissions, "schedules:write") || !form.schedule || (!isVolumeSnapshot && !form.repoName) || create.isPending
             }
             size="sm"
           >

@@ -145,7 +145,7 @@
                   "content": "Backups"
                 },
                 "VbHwU": {
-                  "content": "Snapshots, schedules, and restores across all servers in this cluster."
+                  "content": "Snapshots, schedules, and restores across your authorized locations."
                 },
                 "TgdLz": {
                   "type": "frame",
@@ -179,6 +179,18 @@
               "type": "ref",
               "ref": "oIJGu",
               "name": "tabsBar"
+            },
+            {
+              "id": "pHtg8",
+              "type": "ref",
+              "ref": "wKe4F",
+              "name": "Schedules search and filters",
+              "width": "fill_container",
+              "descendants": {
+                "g9iDB": {
+                  "content": "2 of 2 schedules"
+                }
+              }
             },
             {
               "type": "frame",
@@ -804,7 +816,7 @@
                           "ref": "tDY4O",
                           "name": "Row mc-survival",
                           "width": "fill_container",
-                          "height": "fill_container",
+                          "height": 64,
                           "children": [
                             {
                               "id": "C9rj4",
@@ -927,7 +939,7 @@
                           "ref": "tDY4O",
                           "name": "Row valheim-prod",
                           "width": "fill_container",
-                          "height": "fill_container",
+                          "height": 64,
                           "children": [
                             {
                               "id": "fOnIu",

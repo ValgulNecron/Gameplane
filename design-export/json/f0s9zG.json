@@ -33,6 +33,8 @@
           "id": "ByRyb",
           "name": "warnTitle",
           "fill": "$warning/soft-foreground",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
           "content": "Caution: network packet captures contain real player data",
           "fontFamily": "$typography/font-sans",
           "fontSize": 14,

@@ -917,7 +917,16 @@ func TestBuildCaptureEphemeralContainer_VolumeBudgetMatchesSizeLimit(t *testing.
 		t.Fatalf("captureVolumeSizeLimitBytes = %d, want 1Gi (1073741824)", captureVolumeSizeLimitBytes)
 	}
 
-	ec := buildCaptureEphemeralContainer("")
+	ec := buildCaptureEphemeralContainer("", "server-uid")
+	uidFound := false
+	for _, env := range ec.Env {
+		if env.Name == "GAMEPLANE_SERVER_UID" {
+			uidFound = env.Value == "server-uid"
+		}
+	}
+	if !uidFound {
+		t.Fatal("capture sidecar lacks immutable GameServer UID")
+	}
 
 	var budgetValue string
 	found := false

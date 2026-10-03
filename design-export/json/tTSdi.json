@@ -145,7 +145,7 @@
                   "content": "Backups"
                 },
                 "VbHwU": {
-                  "content": "Snapshots, schedules, and restores across all servers in this cluster."
+                  "content": "Snapshots, schedules, and restores across your authorized locations."
                 },
                 "TgdLz": {
                   "type": "frame",
@@ -290,7 +290,7 @@
                       "name": "Row 1",
                       "width": "fill_container",
                       "alignItems": "center",
-                      "height": "fill_container",
+                      "height": 64,
                       "children": [
                         {
                           "id": "S7BLxW",
@@ -402,7 +402,7 @@
                       "name": "Row 2",
                       "width": "fill_container",
                       "alignItems": "center",
-                      "height": "fill_container",
+                      "height": 64,
                       "children": [
                         {
                           "id": "ao8Gh",

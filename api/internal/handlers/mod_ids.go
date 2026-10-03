@@ -17,7 +17,6 @@ import (
 	"regexp"
 
 	"github.com/go-chi/chi/v5"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
@@ -60,49 +59,43 @@ type ModID struct {
 // mod. The dashboard batches edits locally and saves once, the same as
 // the existing env-vars editor.
 func MountModIDs(r chi.Router, k *kube.Client) {
-	h := &modIDsHandler{k: k}
+	mountModIDs(r, &modIDsHandler{k: k})
+}
+
+// MountModIDsWithRegistry reads and updates the selected cluster's GameServer
+// using that cluster's template. The legacy bare-client mount stays local-only.
+func MountModIDsWithRegistry(r chi.Router, clients *kube.Registry) {
+	mountModIDs(r, &modIDsHandler{clients: clients})
+}
+
+func mountModIDs(r chi.Router, h *modIDsHandler) {
 	r.Get("/servers/{name}/mods/ids", h.get)
 	r.Put("/servers/{name}/mods/ids", h.put)
 }
 
 type modIDsHandler struct {
-	k *kube.Client
+	clients *kube.Registry
+	k       *kube.Client
 }
 
 func (h *modIDsHandler) get(w http.ResponseWriter, req *http.Request) {
-	if rejectRemoteCluster(w, req) {
-		return
-	}
-	ns, ok := resolveNS(w, req)
+	target, ok := loadModTarget(w, req, h.clients, h.k)
 	if !ok {
 		return
 	}
-	gs, tmpl, err := h.k.LoadServerAndTemplate(req.Context(), ns, chi.URLParam(req, "name"))
-	if err != nil {
-		httperr.Write(w, req, err)
-		return
-	}
-	if !declaresIDList(tmpl) {
+	if !declaresIDList(target.template) {
 		httperr.WriteCode(w, req, http.StatusNotImplemented, errNoIDList)
 		return
 	}
-	writeJSON(w, readModIDs(gs))
+	writeJSON(w, readModIDs(target.server))
 }
 
 func (h *modIDsHandler) put(w http.ResponseWriter, req *http.Request) {
-	if rejectRemoteCluster(w, req) {
-		return
-	}
-	ns, ok := resolveNS(w, req)
+	target, ok := loadModTarget(w, req, h.clients, h.k)
 	if !ok {
 		return
 	}
-	gs, tmpl, err := h.k.LoadServerAndTemplate(req.Context(), ns, chi.URLParam(req, "name"))
-	if err != nil {
-		httperr.Write(w, req, err)
-		return
-	}
-	if !declaresIDList(tmpl) {
+	if !declaresIDList(target.template) {
 		httperr.WriteCode(w, req, http.StatusNotImplemented, errNoIDList)
 		return
 	}
@@ -137,8 +130,9 @@ func (h *modIDsHandler) put(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	writeModIDs(gs, ids)
-	updated, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Update(req.Context(), gs, metav1.UpdateOptions{})
+	updated, err := updateModTarget(req.Context(), target, func(current *unstructured.Unstructured) {
+		writeModIDs(current, ids)
+	})
 	if err != nil {
 		httperr.Write(w, req, err)
 		return

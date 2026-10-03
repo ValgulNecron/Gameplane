@@ -11,6 +11,7 @@ import { makeServer, makeClusterStats } from "@/test/factories";
 // Replace it with a plain anchor — same DOM contract for what we assert.
 // Extract search params and build the full href so route-parameter assertions work.
 vi.mock("@tanstack/react-router", () => ({
+  useLocation: () => ({ search: {} }),
   Link: ({ children, to, search, ...rest }: { children: ReactNode; to: string; search?: Record<string, unknown> } & Record<string, unknown>) => {
     let href = to;
     if (search && Object.keys(search).length > 0) {
@@ -207,10 +208,11 @@ describe("ServersPage", () => {
       http.get("/cluster/stats", () => HttpResponse.error()),
     );
     renderWithQuery(<ServersPage />);
-    await screen.findByText(/Servers/i);
+    await screen.findByRole("heading", { name: "Servers" });
+    expect(await screen.findByText(/Inventory are partial/)).toBeInTheDocument();
   });
 
-  it("renders shared servers under a 'Shared with you' header", async () => {
+  it("includes shared servers in the unified list", async () => {
     server.use(
       http.get("/servers", () =>
         HttpResponse.json({
@@ -230,7 +232,7 @@ describe("ServersPage", () => {
     );
     renderWithQuery(<ServersPage />);
     await screen.findByText("owned");
-    expect(screen.getByText(/Shared with you/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Shared with you/i)).not.toBeInTheDocument();
     expect(screen.getByText("shared")).toBeInTheDocument();
   });
 
@@ -273,7 +275,7 @@ describe("ServersPage", () => {
       ),
     );
     renderWithQuery(<ServersPage />);
-    await screen.findByText(/Shared with you/i);
+    await screen.findByText("shared-alpha");
     const search = screen.getByPlaceholderText(/Search/i);
     await userEvent.type(search, "alpha");
     await waitFor(() => expect(screen.queryByText("shared-beta")).not.toBeInTheDocument());
@@ -362,7 +364,7 @@ describe("ServersPage", () => {
     );
     renderWithQuery(<ServersPage />);
     await screen.findByText("alpha");
-    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    const filterButton = screen.getByRole("button", { name: /^Filter(?:\s*\d+)?$/i });
     expect(filterButton).toBeInTheDocument();
     // Badge should not contain a number when no facets are applied
     expect(within(filterButton).queryByText(/\d/)).not.toBeInTheDocument();
@@ -392,7 +394,7 @@ describe("ServersPage", () => {
     renderWithQuery(<ServersPage />);
     await screen.findByText("alpha");
 
-    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    const filterButton = screen.getByRole("button", { name: /^Filter(?:\s*\d+)?$/i });
     await userEvent.click(filterButton);
 
     // HeroUI Popover contains checkboxes with the game and namespace names
@@ -423,7 +425,7 @@ describe("ServersPage", () => {
     await screen.findByText("alpha");
 
     // Open filter
-    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    const filterButton = screen.getByRole("button", { name: /^Filter(?:\s*\d+)?$/i });
     await userEvent.click(filterButton);
 
     // Select minecraft-java
@@ -460,7 +462,7 @@ describe("ServersPage", () => {
     await screen.findByText("alpha");
 
     // Open filter
-    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    const filterButton = screen.getByRole("button", { name: /^Filter(?:\s*\d+)?$/i });
     await userEvent.click(filterButton);
 
     // Select minecraft-java
@@ -496,7 +498,7 @@ describe("ServersPage", () => {
     await screen.findByText("alpha");
 
     // Open filter
-    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    const filterButton = screen.getByRole("button", { name: /^Filter(?:\s*\d+)?$/i });
     await userEvent.click(filterButton);
 
     // Select one game
@@ -546,7 +548,7 @@ describe("ServersPage", () => {
     await screen.findByText("mc-running");
 
     // Apply game filter for minecraft-java
-    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    const filterButton = screen.getByRole("button", { name: /^Filter(?:\s*\d+)?$/i });
     await userEvent.click(filterButton);
     const minecraftCheckbox = screen.getByRole("checkbox", { name: "minecraft-java" });
     await userEvent.click(minecraftCheckbox);
@@ -643,7 +645,7 @@ describe("ServersPage", () => {
       // second-wave query resolves — wait for it before opening the popover.
       await screen.findByText("extra-server");
 
-      const filterButton = screen.getByRole("button", { name: /Filter/i });
+      const filterButton = screen.getByRole("button", { name: /^Filter(?:\s*\d+)?$/i });
       await userEvent.click(filterButton);
       expect(await screen.findByRole("checkbox", { name: "gameplane-games" })).toBeInTheDocument();
       expect(screen.getByRole("checkbox", { name: "extra-ns" })).toBeInTheDocument();
@@ -673,7 +675,7 @@ describe("ServersPage", () => {
       // skipped.
       await waitFor(() => expect(brokenNsHandler).toHaveBeenCalled());
       // ...and the partial failure must surface, naming the broken namespace.
-      expect(await screen.findByText(/Couldn't load servers in: broken-ns/i)).toBeInTheDocument();
+      expect(await screen.findByText(/broken-ns.*servers unavailable/i)).toBeInTheDocument();
     });
 
     // Review finding (F-263 follow-up): {"namespaces": []} is an
@@ -682,7 +684,7 @@ describe("ServersPage", () => {
     // servers — not an error. The page must fan out over nothing (no
     // /servers request at all) and show only the Shared with you list, with
     // no error banner and no stuck "Loading…" state.
-    it("shows only Shared with you, with no error, when /namespaces returns an empty list", async () => {
+    it("includes owner-only servers with no error when namespace access is empty", async () => {
       const serversHandler = vi.fn(() => HttpResponse.json({ items: [] }));
       server.use(
         http.get("/namespaces", () => HttpResponse.json({ namespaces: [] })),
@@ -695,7 +697,7 @@ describe("ServersPage", () => {
       );
       renderWithQuery(<ServersPage />);
       await screen.findByText("shared-only");
-      expect(screen.getByText(/Shared with you/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Shared with you/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/Couldn't load servers in/i)).not.toBeInTheDocument();
       expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
       // Empty namespace list fans out over nothing — no /servers call at all.
@@ -832,7 +834,7 @@ describe("ServersPage mobile layout", () => {
     expect(screen.queryByTitle("Restart")).not.toBeInTheDocument();
   });
 
-  it("shows an empty-state card and a 'Shared with you' section on mobile", async () => {
+  it("includes owner-only servers in the mobile list", async () => {
     setMobileViewport();
     server.use(
       http.get("/servers", () => HttpResponse.json({ items: [] })),
@@ -843,7 +845,7 @@ describe("ServersPage mobile layout", () => {
       ),
     );
     renderWithQuery(<ServersPage />);
-    expect(await screen.findByText(/Shared with you/i)).toBeInTheDocument();
+    expect(await screen.findByText("mobile-shared")).toBeInTheDocument();
     expect(screen.getByText("mobile-shared")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });

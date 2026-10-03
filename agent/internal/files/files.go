@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/httpjson"
 )
@@ -34,13 +35,17 @@ type handler struct {
 func Mount(r chi.Router, root string) {
 	h := &handler{root: filepath.Clean(root)}
 	r.Route("/files", func(r chi.Router) {
-		r.Get("/list", h.list)
-		r.Get("/read", h.read)
+		// Transfers can legitimately outlive the ordinary operation timeout.
 		r.Get("/download", h.download)
-		r.Post("/write", h.write)
 		r.Post("/upload", h.upload)
-		r.Post("/mkdir", h.mkdir)
-		r.Delete("/delete", h.del)
+		r.Group(func(bounded chi.Router) {
+			bounded.Use(middleware.Timeout(30 * time.Second))
+			bounded.Get("/list", h.list)
+			bounded.Get("/read", h.read)
+			bounded.Post("/write", h.write)
+			bounded.Post("/mkdir", h.mkdir)
+			bounded.Delete("/delete", h.del)
+		})
 	})
 }
 

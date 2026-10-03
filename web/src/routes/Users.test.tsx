@@ -19,6 +19,7 @@ const bindings = vi.fn();
 const addBinding = vi.fn();
 const removeBinding = vi.fn();
 const rolesList = vi.fn();
+const clustersList = vi.fn();
 const catalog = vi.fn();
 const rolesCreate = vi.fn();
 const rolesUpdate = vi.fn();
@@ -32,8 +33,9 @@ vi.mock("@/lib/endpoints", () => ({
     create: (body: unknown) => create(body),
     bindings: (id: number) => bindings(id),
     addBinding: (id: number, body: unknown) => addBinding(id, body),
-    removeBinding: (id: number, r: string, ns: string) => removeBinding(id, r, ns),
+    removeBinding: (id: number, r: string, ns: string, cluster: string) => removeBinding(id, r, ns, cluster),
   },
+  Clusters: { list: () => clustersList() },
   Roles: {
     list: () => rolesList(),
     catalog: () => catalog(),
@@ -103,6 +105,10 @@ beforeEach(() => {
   rolesList.mockResolvedValue(ROLE_DEFS);
   catalog.mockResolvedValue(CATALOG);
   bindings.mockResolvedValue([]);
+  clustersList.mockResolvedValue({ items: [
+    { name: "local", displayName: "Local", phase: "Healthy", canViewInventory: true },
+    { name: "remote-1", displayName: "Chicago 2", phase: "Healthy", canViewInventory: false },
+  ] });
   useMeMock.mockReturnValue({ data: ME, error: null, isLoading: false });
 });
 
@@ -771,11 +777,11 @@ describe("NamespaceGrants", () => {
     await user.click(await screen.findByLabelText("Actions for alice"));
     await user.click(await screen.findByText("Edit user"));
 
-    expect(await screen.findByText("Namespace grants")).toBeInTheDocument();
+    expect(await screen.findByText("Cluster & namespace grants")).toBeInTheDocument();
     // "operator" also matches the table's role badge and the two role
     // <select> option lists on this page, so scope to the specific grant
     // row instead of an ambiguous unscoped getByText.
-    const removeBtn = await screen.findByLabelText("Remove operator in gameplane-games");
+    const removeBtn = await screen.findByLabelText("Remove operator in gameplane-games on local");
     const row = removeBtn.closest("li");
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByText("operator")).toBeInTheDocument();
@@ -807,7 +813,7 @@ describe("NamespaceGrants", () => {
     await user.click(await screen.findByLabelText("Actions for alice"));
     await user.click(await screen.findByText("Edit user"));
 
-    expect(await screen.findByText("Namespace grants")).toBeInTheDocument();
+    expect(await screen.findByText("Cluster & namespace grants")).toBeInTheDocument();
     expect(screen.queryByText("No per-namespace grants.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Grant role/i })).toBeInTheDocument();
   });
@@ -830,7 +836,7 @@ describe("NamespaceGrants", () => {
     await user.click(removeBtn);
 
     await waitFor(() =>
-      expect(removeBinding).toHaveBeenCalledWith(2, "operator", "gameplane-games"),
+      expect(removeBinding).toHaveBeenCalledWith(2, "operator", "gameplane-games", "local"),
     );
   });
 
@@ -890,5 +896,104 @@ describe("NamespaceGrants", () => {
     await user.click(addBtn);
 
     expect(await screen.findByText("Namespace not found")).toBeInTheDocument();
+  });
+});
+
+describe("Cluster grants", () => {
+  async function openGrantEditor() {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByLabelText("Actions for alice"));
+    await user.click(await screen.findByText("Edit user"));
+    await screen.findByText("Cluster & namespace grants");
+    return user;
+  }
+
+  async function selectRemote(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole("button", { name: /Grant cluster/ }));
+    await user.click(await screen.findByRole("option", { name: "Chicago 2 (remote-1)" }));
+  }
+
+  it("grants a custom inventory role to all namespaces on the selected remote cluster", async () => {
+    rolesList.mockResolvedValue([...ROLE_DEFS, {
+      name: "cluster-reader", description: "Read one cluster's inventory.", builtin: false,
+      permissions: ["cluster:read"],
+    }]);
+    addBinding.mockResolvedValue({ roleName: "cluster-reader", namespace: "*", cluster: "remote-1" });
+    const user = await openGrantEditor();
+    await selectRemote(user);
+    await user.click(screen.getByRole("button", { name: /Grant role/ }));
+    await user.click(await screen.findByRole("option", { name: "cluster-reader" }));
+    const allNamespaces = screen.getByRole("button", { name: "All namespaces" });
+    await waitFor(() => expect(allNamespaces).toBeEnabled());
+    await user.click(allNamespaces);
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => expect(addBinding).toHaveBeenCalledWith(2, {
+      roleName: "cluster-reader", namespace: "*", cluster: "remote-1",
+    }));
+    expect(rolesCreate).not.toHaveBeenCalled();
+  });
+
+  it("shows and revokes a remote cluster-wide grant without touching the local primary role", async () => {
+    rolesList.mockResolvedValue([...ROLE_DEFS, {
+      name: "cluster-reader", description: "Read inventory.", builtin: false, permissions: ["cluster:read"],
+    }]);
+    bindings.mockResolvedValue([
+      { roleName: "operator", namespace: "*", cluster: "local" },
+      { roleName: "cluster-reader", namespace: "*", cluster: "remote-1" },
+    ]);
+    removeBinding.mockResolvedValue(undefined);
+    const user = await openGrantEditor();
+    const primaryLabel = await screen.findByText("Primary role (managed above)");
+    const primaryRow = primaryLabel.closest("li");
+    expect(primaryRow).not.toBeNull();
+    expect(within(primaryRow as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
+    const revoke = await screen.findByLabelText("Remove cluster-reader in * on remote-1");
+    const remoteRow = revoke.closest("li");
+    expect(remoteRow).not.toBeNull();
+    expect(within(remoteRow as HTMLElement).getByText("all namespaces")).toBeInTheDocument();
+    expect(within(remoteRow as HTMLElement).getByText("remote-1")).toBeInTheDocument();
+    await user.click(revoke);
+    await waitFor(() => expect(removeBinding).toHaveBeenCalledWith(2, "cluster-reader", "*", "remote-1"));
+  });
+
+  it("preserves legacy remote cluster-wide control-plane bindings", async () => {
+    bindings.mockResolvedValue([{ roleName: "admin", namespace: "*", cluster: "remote-1" }]);
+    await openGrantEditor();
+    expect(await screen.findByText("Managed outside this editor")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Remove admin in * on remote-1")).not.toBeInTheDocument();
+    expect(removeBinding).not.toHaveBeenCalled();
+  });
+
+  it("protects a legacy local primary binding and rejects local wildcard grants", async () => {
+    bindings.mockResolvedValue([{ roleName: "operator", namespace: "*" }]);
+    const user = await openGrantEditor();
+    expect(await screen.findByText("Primary role (managed above)")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Remove operator in * on local")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All namespaces" })).toBeDisabled();
+    await user.type(screen.getByLabelText("Grant namespace"), "*");
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(screen.getByText(/local primary role is managed above/)).toBeInTheDocument();
+    expect(addBinding).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "admin", permissions: ["*"] },
+    { name: "inventory-auditor", permissions: ["cluster:read", "audit:read"] },
+  ])("rejects remote wildcard grants for the $name central administration role", async ({ name, permissions }) => {
+    rolesList.mockResolvedValue([
+      ...ROLE_DEFS.filter((role) => role.name !== name),
+      { name, description: "Central permissions.", builtin: false, permissions },
+    ]);
+    const user = await openGrantEditor();
+    await selectRemote(user);
+    await user.click(screen.getByRole("button", { name: /Grant role/ }));
+    await user.click(await screen.findByRole("option", { name: String(name) }));
+    expect(screen.getByRole("button", { name: "All namespaces" })).toBeDisabled();
+    await user.type(screen.getByLabelText("Grant namespace"), "*");
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(screen.getByText(/Central administration permissions are not allowed/)).toBeInTheDocument();
+    expect(addBinding).not.toHaveBeenCalled();
   });
 });

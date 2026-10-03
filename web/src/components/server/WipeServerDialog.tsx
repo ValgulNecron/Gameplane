@@ -1,5 +1,6 @@
+import { useResourceClient, useResourceTarget, type ResourceTarget } from "@/lib/resourceTarget";
 import { useState, type ReactNode } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogBackdrop,
@@ -14,10 +15,11 @@ import {
   Checkbox,
 } from "@heroui/react";
 import { AlertCircle } from "lucide-react";
-import { Servers } from "@/lib/endpoints";
+
 import { errorText } from "@/lib/errors";
 
 interface Props {
+  target?: ResourceTarget;
   name: string;
   ns?: string;
   open: boolean;
@@ -29,7 +31,12 @@ interface Props {
 // WipeServerDialog suspends the server and asks the operator to wipe its data
 // volume. Self-contained (owns its mutation + error) for reuse across the
 // Settings danger zone and the server action menus.
-export function WipeServerDialog({ name, ns, open, onOpenChange, onWiped }: Props) {
+export function WipeServerDialog({
+  target: explicitTarget, name, ns, open, onOpenChange, onWiped }: Props) {
+  const qc = useQueryClient();
+  const resourceTarget = useResourceTarget({ name, namespace: ns }, explicitTarget);
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Servers } = resourceClient;
   const [confirmed, setConfirmed] = useState(false);
   // Track previous open state to reset confirmation when dialog opens
   const [prevOpen, setPrevOpen] = useState(open);
@@ -42,6 +49,7 @@ export function WipeServerDialog({ name, ns, open, onOpenChange, onWiped }: Prop
     // The API's :wipe-data body echoes the server name as a typed confirmation.
     mutationFn: () => Servers.wipeData(name, name, ns),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       onOpenChange(false);
       onWiped?.();
     },

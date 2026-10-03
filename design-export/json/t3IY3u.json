@@ -12,6 +12,7 @@
     "color": "#00000000"
   },
   "theme": {},
+  "context": "Default Edit User state: local grant scope; remote clusters are selectable. All namespaces is disabled for local grants.",
   "descendants": {
     "E7Whx": {
       "content": "Edit user"
@@ -147,11 +148,59 @@
               "id": "VqyMf",
               "name": "Section Label",
               "fill": "$muted",
-              "content": "NAMESPACE GRANTS",
+              "content": "CLUSTER & NAMESPACE GRANTS",
+              "lineHeight": 1.2727272727,
               "fontFamily": "$typography/font-sans",
               "fontSize": 11,
               "fontWeight": "600",
               "letterSpacing": 0.55
+            },
+            {
+              "type": "text",
+              "id": "fon58",
+              "name": "Grant scope explanation",
+              "fill": "$muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "The primary role above manages local access. Additional grants apply only to their named cluster and namespace.",
+              "lineHeight": 1.3333333333,
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "zNtGC",
+              "name": "Cluster and role",
+              "width": "fill_container",
+              "gap": 8,
+              "children": [
+                {
+                  "id": "Y7ZQU",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Grant cluster",
+                  "width": "fill_container",
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "Local cluster"
+                    }
+                  }
+                },
+                {
+                  "id": "Co5v8",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Grant Role Select",
+                  "width": "fill_container",
+                  "height": 36,
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "operator"
+                    }
+                  }
+                }
+              ]
             },
             {
               "type": "frame",
@@ -161,19 +210,6 @@
               "gap": 8,
               "alignItems": "center",
               "children": [
-                {
-                  "id": "Co5v8",
-                  "type": "ref",
-                  "ref": "AT7ya",
-                  "name": "Grant Role Select",
-                  "width": 120,
-                  "height": 32,
-                  "descendants": {
-                    "cFsFk": {
-                      "content": "operator"
-                    }
-                  }
-                },
                 {
                   "id": "L5IzVL",
                   "type": "ref",
@@ -186,6 +222,31 @@
                       "content": "namespace"
                     }
                   }
+                },
+                {
+                  "type": "frame",
+                  "id": "jLdrI",
+                  "name": "All namespaces button",
+                  "opacity": 0.5,
+                  "height": 32,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "I6LAd",
+                      "name": "All namespaces label",
+                      "fill": "$foreground/foreground",
+                      "content": "All namespaces",
+                      "fontFamily": "$typography/font-sans",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
                 },
                 {
                   "id": "s5pUg",
@@ -203,6 +264,19 @@
                   }
                 }
               ]
+            },
+            {
+              "type": "text",
+              "id": "k9DBxb",
+              "name": "Remote inventory grant guidance",
+              "fill": "$muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "For remote node inventory, create a role in the Roles tab with “View nodes, version, and storage”, then grant it to all namespaces on that cluster.",
+              "lineHeight": 1.3333333333,
+              "fontFamily": "$typography/font-sans",
+              "fontSize": 12,
+              "fontWeight": "normal"
             }
           ]
         }

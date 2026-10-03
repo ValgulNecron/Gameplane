@@ -5,7 +5,7 @@ README comparison table. Each product has a section below. Entries are organized
 by row (dimension a–i) and include the source URL, date checked, and what was
 verified.
 
-**Last Updated**: 2026-09-02
+**Last Updated**: 2026-10-02
 
 ---
 
@@ -72,10 +72,14 @@ verified.
 <a id="gameplane-row-g"></a>
 ### Row (g): Multi-tenancy & multi-cluster
 
-**Source ID**: G-g  
-**Evidence**: operator/api/v1alpha1/cluster_types.go:8; docs/architecture.md  
-**Checked on**: 2026-09-02  
-**What was verified**: Cluster CRD for remote cluster registration/monitoring; console and log streaming documented as local-cluster-only due to mTLS and architecture constraints.  
+**Source ID**: G-g
+
+**Evidence**: operator/api/v1alpha1/cluster_types.go; api/internal/gateway/server.go; api/internal/handlers/capture_remote.go; api/internal/handlers/mod_target.go; docs/architecture.md
+
+**Checked on**: 2026-10-02 (source review)
+
+**What was verified**: Cluster CRD for remote registration/monitoring; Pod logs and PTY attach use registered Kubernetes clients. An optional private gateway routes agent operations to UID-aware agents and provides capture downloads/cleanup bound to server and capture identity. Modpack and ID-list configuration use the selected Kubernetes client and template. Direct Kubernetes connectivity and matching component versions remain required. Cluster health reports Kubernetes connectivity, not gateway health.
+
 **Last-known URL**: https://github.com/ValgulNecron/Gameplane/tree/master/operator/api/v1alpha1
 
 <a id="gameplane-row-h"></a>

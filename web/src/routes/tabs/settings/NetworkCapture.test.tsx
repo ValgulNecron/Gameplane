@@ -1,14 +1,25 @@
 import { describe, it, expect, vi } from "vitest";
+import type { ReactElement } from "react";
 import { screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
-import { renderWithQuery } from "@/test/render";
+import { renderWithQuery as renderQuery } from "@/test/render";
+import { ResourceTargetProvider } from "@/lib/resourceTarget";
 import { NetworkCaptureSection } from "./NetworkCapture";
 import { SettingsTab } from "../Settings";
 import { makeServer, makeUser } from "@/test/factories";
 
 const baseDraft = makeServer();
+
+function renderWithQuery(ui: ReactElement, permissions = ["captures:manage", "servers:write"]) {
+  return renderQuery(
+    <ResourceTargetProvider target={{ cluster: "remote", namespace: "gameplane-games", name: "alpha" }}
+      access={{ canWrite: true, canControl: true, canConsole: false, canDelete: false, isOwner: false, isCollaborator: false, permissions }}>
+      {ui}
+    </ResourceTargetProvider>,
+  );
+}
 
 describe("NetworkCaptureSection", () => {
   it("reflects spec.capture.enabled = false as an unchecked switch", async () => {
@@ -175,12 +186,11 @@ describe("NetworkCaptureSection", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables the controls for a session without captures:manage", async () => {
+  it("disables remote controls for a central admin without a target captures:manage grant", async () => {
     server.use(
-      http.get("/users/me", () => HttpResponse.json(makeUser({ role: "operator" }))),
+      http.get("/users/me", () => HttpResponse.json(makeUser({ role: "admin" }))),
     );
-    renderWithQuery(<NetworkCaptureSection draft={baseDraft} onChange={() => {}} />);
-    // Ensure /users/me has resolved by waiting for the permission error text.
+    renderWithQuery(<NetworkCaptureSection draft={baseDraft} onChange={() => {}} />, ["servers:write"]);
     await screen.findByText(/don't have permission to change capture settings/i);
     const sw = screen.getByRole("switch", { name: /Enable Capture/i });
     expect(sw).toBeDisabled();
@@ -189,7 +199,7 @@ describe("NetworkCaptureSection", () => {
     expect(unitTrigger).toBeDisabled();
   });
 
-  it("leaves the controls enabled for an admin session", async () => {
+  it("leaves the controls enabled for an exact capture-management grant", async () => {
     renderWithQuery(<NetworkCaptureSection draft={baseDraft} onChange={() => {}} />);
     const sw = await screen.findByRole("switch", { name: /Enable Capture/i });
     await waitFor(() => expect(sw).not.toBeDisabled());

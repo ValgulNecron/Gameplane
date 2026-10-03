@@ -259,7 +259,8 @@ export const screenshotServers: GameServer[] = [
     metadata: {
       name: "mc-survival",
       namespace: "gameplane-games",
-      annotations: { "gameplane.local/node": "kubelab-control" },
+      // The screenshot session (user 1) owns this server and exercises share-link dialogs.
+      annotations: { "gameplane.local/node": "kubelab-control", "gameplane.local/owner-id": "1", "gameplane.local/owner": "admin" },
     },
     spec: {
       templateRef: { name: "minecraft-java" },

@@ -9,7 +9,7 @@
   },
   "clip": true,
   "width": 1440,
-  "height": 1170,
+  "height": 1270,
   "fill": "$background/background",
   "children": [
     {
@@ -70,7 +70,7 @@
       "y": 0,
       "name": "ModalContainer",
       "width": 1440,
-      "height": 1170,
+      "height": 1270,
       "fill": "#000000B3",
       "layout": "vertical",
       "justifyContent": "center",
@@ -110,6 +110,60 @@
                   "content": "Step 4 of 5 · Network"
                 }
               }
+            },
+            {
+              "type": "frame",
+              "id": "R3xcu0",
+              "name": "Location placement",
+              "context": "Only authorized template/location combinations; changing location starts a fresh draft. Freeze chosen target during submission.",
+              "width": "fill_container",
+              "stroke": "$border/border",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "layout": "vertical",
+              "gap": 5,
+              "padding": [
+                12,
+                24
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "VXTz6",
+                  "name": "Location label",
+                  "fill": "$foreground/foreground",
+                  "content": "Location",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "P7KnGU",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Creation location",
+                  "width": "fill_container",
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "remote-lab / gameplane-games",
+                      "fill": "$foreground/foreground"
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "pmqTD",
+                  "name": "Changing location help",
+                  "fill": "$muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Changing location starts a fresh draft. The chosen location handles all creation steps.",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
             },
             {
               "id": "MWASm",
@@ -412,7 +466,7 @@
                           "y": 22,
                           "name": "PortHeader",
                           "enabled": false,
-                          "width": "fill_container(627)",
+                          "width": 627,
                           "gap": 8,
                           "alignItems": "center",
                           "children": [
@@ -468,7 +522,7 @@
                           "y": 44,
                           "name": "PortRow",
                           "enabled": false,
-                          "width": "fill_container(627)",
+                          "width": 627,
                           "gap": 8,
                           "alignItems": "center",
                           "children": [
@@ -603,7 +657,7 @@
                           "enabled": false,
                           "fill": "$muted",
                           "textGrowth": "fixed-width",
-                          "width": "fill_container(627)",
+                          "width": 627,
                           "content": "Pin a NodePort or override the Service port for a named template port.",
                           "lineHeight": 1.4,
                           "fontFamily": "$typography/font-sans",

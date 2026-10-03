@@ -28,19 +28,19 @@ import (
 // unused by expireCapture and fail loudly if called.
 type alwaysFailDeleteSidecar struct{ deleteCalls int }
 
-func (s *alwaysFailDeleteSidecar) StartCapture(context.Context, string, string, string, *string, int64, int64) error {
+func (s *alwaysFailDeleteSidecar) StartCapture(context.Context, string, string, string, string, string, *string, int64, int64) error {
 	return errors.New("unexpected StartCapture")
 }
 
-func (s *alwaysFailDeleteSidecar) StopCapture(context.Context, string, string, string) error {
+func (s *alwaysFailDeleteSidecar) StopCapture(context.Context, string, string, string, string, string) error {
 	return errors.New("unexpected StopCapture")
 }
 
-func (s *alwaysFailDeleteSidecar) GetCaptureStatus(context.Context, string, string, string) (string, int64, int64, string, error) {
+func (s *alwaysFailDeleteSidecar) GetCaptureStatus(context.Context, string, string, string, string, string) (string, int64, int64, string, error) {
 	return "", 0, 0, "", errors.New("unexpected GetCaptureStatus")
 }
 
-func (s *alwaysFailDeleteSidecar) DeleteCaptureFile(context.Context, string, string, string) error {
+func (s *alwaysFailDeleteSidecar) DeleteCaptureFile(context.Context, string, string, string, string, string) error {
 	s.deleteCalls++
 	return errors.New("dial tcp: connect: connection refused")
 }

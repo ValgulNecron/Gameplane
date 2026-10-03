@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceTarget, type ResourceTarget, serverLink, resourceKey } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -17,12 +18,13 @@ import {
   Description,
   FieldError,
 } from "@heroui/react";
-import { Servers } from "@/lib/endpoints";
+
 import { APIError } from "@/lib/api";
 import { isValidK8sName } from "@/lib/validation";
 import { errorText } from "@/lib/errors";
 
 interface Props {
+  target?: ResourceTarget;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sourceName: string;
@@ -40,12 +42,16 @@ function cloneErrorMessage(err: unknown, name: string): string {
 }
 
 export function CloneServerDialog({
+  target: explicitTarget,
   open,
   onOpenChange,
   sourceName,
   ns,
   onCloned,
 }: Props) {
+  const resourceTarget = useResourceTarget({ name: sourceName, namespace: ns }, explicitTarget);
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Servers } = resourceClient;
   const qc = useQueryClient();
   const nav = useNavigate();
   const [newName, setNewName] = useState("");
@@ -64,11 +70,12 @@ export function CloneServerDialog({
   const clone = useMutation({
     mutationFn: () => Servers.clone(sourceName, newName, ns),
     onSuccess: async (created) => {
-      await qc.invalidateQueries({ queryKey: ["servers"] });
-      await qc.invalidateQueries({ queryKey: ["my-servers"] });
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
+      await qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "servers") });
+      await qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "my-servers") });
       onOpenChange(false);
       onCloned?.();
-      await nav({ to: "/servers/$name", params: { name: created.metadata.name }, search: { ns } });
+      await nav(serverLink({ ...resourceTarget, name: created.metadata.name, namespace: created.metadata.namespace ?? resourceTarget.namespace }));
     },
   });
 

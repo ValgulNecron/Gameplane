@@ -90,6 +90,9 @@ type joinResponse struct {
 }
 
 func (h *clusterActions) addNode(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	if h.notEnabled(w, req) {
 		return
 	}
@@ -186,6 +189,9 @@ func caCertHash(cfg *rest.Config) (string, error) {
 // ---- Download kubeconfig ----------------------------------------------
 
 func (h *clusterActions) kubeconfig(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	if h.notEnabled(w, req) {
 		return
 	}

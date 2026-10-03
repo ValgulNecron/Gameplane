@@ -64,7 +64,7 @@ test.describe("live: login and shell", () => {
   });
 
   test("sidebar navigation renders all main screens for admin", async ({ page }) => {
-    // Admin has access to all nav items: Servers, Modules, Backups, Cluster, Users, Audit log, System logs, Settings
+    // Admin sees both the cluster overview and selected-cluster node inventory.
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
     await loginIfNeeded(page);
@@ -77,10 +77,9 @@ test.describe("live: login and shell", () => {
     const sidebar = page.getByRole("navigation", { name: "Primary" });
     await expect(sidebar).toBeVisible();
 
-    // Check for nav links (case-insensitive, partial match)
-    const expectedLinks = ["Servers", "Modules", "Backups", "Cluster", "Users", "Audit log", "System logs", "Settings"];
+    const expectedLinks = ["Clusters", "Servers", "Modules", "Backups", "Cluster", "Users & RBAC", "Audit log", "System logs", "Settings"];
     for (const link of expectedLinks) {
-      const navLink = page.getByRole("link", { name: new RegExp(link, "i") }).first();
+      const navLink = sidebar.getByRole("link", { name: link, exact: true });
       // Verify the nav link is visible
       await expect(navLink).toBeVisible();
     }
@@ -91,12 +90,14 @@ test.describe("live: login and shell", () => {
     await page.waitForLoadState("domcontentloaded");
     await loginIfNeeded(page);
 
+    const sidebar = page.getByRole("navigation", { name: "Primary" });
     const navigationTests = [
+      { name: "Clusters", path: "/clusters" },
       { name: "Servers", path: "/servers" },
       { name: "Modules", path: "/modules" },
       { name: "Backups", path: "/backups" },
       { name: "Cluster", path: "/cluster" },
-      { name: "Users", path: "/users" },
+      { name: "Users & RBAC", path: "/users" },
       { name: "Audit log", path: "/admin/audit" },
       // The "System logs" nav item links to /admin/logs (AppLayout.tsx),
       // matching the API's admin-wildcard-gated /admin/system-logs route —
@@ -106,7 +107,8 @@ test.describe("live: login and shell", () => {
     ];
 
     for (const { name, path } of navigationTests) {
-      const link = page.getByRole("link", { name: new RegExp(name, "i") }).first();
+      const link = sidebar.getByRole("link", { name, exact: true });
+      await expect(link).toHaveAttribute("href", path);
       await link.click();
       // 5s is enough on the mock dev server but not against the real
       // kind cluster + port-forward round trip this live spec drives —

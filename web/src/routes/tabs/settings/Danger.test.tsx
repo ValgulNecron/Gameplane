@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
+import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
-import { renderWithQuery } from "@/test/render";
+import { renderWithQuery as renderQuery } from "@/test/render";
+import { ResourceTargetProvider } from "@/lib/resourceTarget";
 
 const navigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
@@ -12,7 +14,15 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { DangerSection } from "./Danger";
 
+function renderWithQuery(children: ReactNode, owner = true) {
+  return renderQuery(<ResourceTargetProvider target={{ cluster: "remote", namespace: "gameplane-games", name: "alpha" }} access={{ canWrite: false, canControl: owner, canConsole: owner, canDelete: owner, isOwner: owner, isCollaborator: false, permissions: [] }}>{children}</ResourceTargetProvider>);
+}
+
 describe("DangerSection", () => {
+  it("keeps all destructive controls disabled without owner/admin access", () => {
+    renderWithQuery(<DangerSection name="alpha" />, false);
+    for (const label of ["Delete", "Wipe world…", "Transfer…"]) expect(screen.getByRole("button", { name: label })).toBeDisabled();
+  });
   it("renders the three rows", () => {
     renderWithQuery(<DangerSection name="alpha" />);
     expect(screen.getByText("Wipe world data")).toBeInTheDocument();

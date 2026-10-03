@@ -16,7 +16,7 @@ import {
 } from "@heroui/react";
 
 import type { RegistryProject } from "@/types";
-import { Servers } from "@/lib/endpoints";
+import { useResourceTarget, useResourceClient, resourceKey } from "@/lib/resourceTarget";
 import { errorText } from "@/lib/errors";
 
 const PAGE = 24;
@@ -80,6 +80,8 @@ export function RegistryBrowser({
   renderItem: (project: RegistryProject, provider: string) => ReactNode;
   pillButtons?: boolean;
 }) {
+  const target = useResourceTarget({ name, namespace: ns });
+  const client = useResourceClient(target);
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
   const [sort, setSort] = useState<RegistrySort>("downloads");
@@ -94,8 +96,8 @@ export function RegistryBrowser({
   // Which registries this game offers (and which are usable). For the
   // modpacks browser, only providers that declare modpacks.
   const providersQ = useQuery({
-    queryKey: ["registry-providers", name, ns],
-    queryFn: () => Servers.registryProviders(name, ns),
+    queryKey: resourceKey(target, "registry-providers"),
+    queryFn: ({ signal }) => client.withSignal(signal).Servers.registryProviders(name, ns),
   });
   const available = (providersQ.data ?? []).filter(
     (p) => p.available && (type !== "modpack" || p.modpacks),
@@ -105,7 +107,7 @@ export function RegistryBrowser({
   const provider = picked && available.some((p) => p.provider === picked) ? picked : available[0]?.provider;
 
   const q = useInfiniteQuery({
-    queryKey: ["registry", name, type ?? "mod", provider, debounced, sort, category, ns],
+    queryKey: resourceKey(target, "registry", type ?? "mod", provider, debounced, sort, category),
     initialPageParam: 0,
     enabled: !!provider,
     // Keep the previous results on screen while a new search/sort/category
@@ -113,8 +115,8 @@ export function RegistryBrowser({
     // a pending state that blanks the grid — which unmounts result cards and
     // collapses any the user had expanded mid-browse.
     placeholderData: keepPreviousData,
-    queryFn: ({ pageParam }) =>
-      Servers.searchRegistry(
+    queryFn: ({ pageParam, signal }) =>
+      client.withSignal(signal).Servers.searchRegistry(
         name,
         {
           q: debounced,

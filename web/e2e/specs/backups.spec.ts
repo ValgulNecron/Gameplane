@@ -71,7 +71,7 @@ test.describe("backups page", () => {
     // accessible/visible text is its placeholder until a value is chosen;
     // opening it reveals role="option" items.
     await dialog.getByRole("button", { name: /select a server/i }).click();
-    await page.getByRole("option", { name: "alpha" }).click();
+    await page.getByRole("option", { name: "alpha · local / gameplane-games", exact: true }).click();
 
     // The button only enables once both the server (we just set) AND
     // the backup destination (auto-set by useEffect once destinations
@@ -81,10 +81,13 @@ test.describe("backups page", () => {
     await expect(runBtn).toBeEnabled({ timeout: 10_000 });
 
     const created = page.waitForRequest(
-      (req) => req.url().endsWith("/backups") && req.method() === "POST",
+      (req) => new URL(req.url()).pathname === "/backups" && req.method() === "POST",
     );
     await runBtn.click();
     const req = await created;
+    const requestURL = new URL(req.url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("gameplane-games");
     const body = req.postDataJSON() as {
       kind?: string;
       spec?: { serverRef?: { name?: string } };

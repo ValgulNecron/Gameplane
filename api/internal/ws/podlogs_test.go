@@ -9,9 +9,14 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
@@ -20,8 +25,9 @@ import (
 // container and the given (already-terminated) init containers.
 func newPod(name string, initNames []string, initFailed bool) *corev1.Pod {
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "gameplane-games"},
-		Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "game"}}},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "gameplane-games", UID: "pod-uid",
+			OwnerReferences: []metav1.OwnerReference{{APIVersion: "apps/v1", Kind: "StatefulSet", Name: "alpha", UID: "ss-uid", Controller: boolPtr(true)}}},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "game"}}},
 		Status: corev1.PodStatus{
 			ContainerStatuses: []corev1.ContainerStatus{
 				{Name: "game", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
@@ -45,7 +51,7 @@ func newPod(name string, initNames []string, initFailed bool) *corev1.Pod {
 func dialPodLogs(t *testing.T, k *kube.Client, query string) (string, error) {
 	t.Helper()
 	r := chi.NewRouter()
-	mountPodLogs(r, k)
+	mountPodLogs(r, streamTestRegistry(k))
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
@@ -127,9 +133,9 @@ func TestPodLogs_NoPodYet(t *testing.T) {
 	}
 }
 
-// from=end tails the game container directly, without enumerating the pod.
+// from=end verifies ownership, then tails only the game container.
 func TestPodLogs_TailsFromEnd(t *testing.T) {
-	k := &kube.Client{Typed: fake.NewSimpleClientset()}
+	k := &kube.Client{Typed: fake.NewSimpleClientset(newPod("alpha-0", nil, false))}
 	out, err := dialPodLogs(t, k, "?from=end")
 	if err != nil {
 		t.Fatalf("dial: %v", err)
@@ -137,4 +143,27 @@ func TestPodLogs_TailsFromEnd(t *testing.T) {
 	if !strings.Contains(out, "fake logs") {
 		t.Errorf("out = %q, want fake logs", out)
 	}
+}
+
+func boolPtr(b bool) *bool { return &b }
+
+// streamTestRegistry supplies the real operator ownership chain for stream
+// tests. An absent Pod remains absent to exercise provisioning retries.
+func streamTestRegistry(k *kube.Client) *kube.Registry {
+	gs := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1", "kind": "GameServer",
+		"metadata": map[string]any{"name": "alpha", "namespace": "gameplane-games", "uid": "gs-uid"},
+	}}
+	k.Dynamic = dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), gs)
+	if k.Typed == nil {
+		k.Typed = fake.NewSimpleClientset(newPod("alpha-0", nil, false))
+	}
+	_, _ = k.Typed.AppsV1().StatefulSets("gameplane-games").Create(context.Background(), &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "gameplane-games", UID: "ss-uid",
+			OwnerReferences: []metav1.OwnerReference{{APIVersion: "gameplane.local/v1alpha1", Kind: "GameServer", Name: "alpha", UID: "gs-uid", Controller: boolPtr(true)}}},
+	}, metav1.CreateOptions{})
+	k.Config = &rest.Config{Host: "https://unused.invalid"}
+	reg := kube.NewRegistry("local")
+	reg.Set("local", k)
+	return reg
 }

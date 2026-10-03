@@ -15,7 +15,7 @@ import (
 // TestWSProxy_NoTLSConfigReturns503 covers the early-return when mTLS
 // material is unset (the dev-mode fallback).
 func TestWSProxy_NoTLSConfigReturns503(t *testing.T) {
-	p := &proxy{tls: nil}
+	p := &proxy{}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(t.Context(), "GET", "/ws/servers/alpha/console", nil)
 	p.wsProxy("/console")(rr, req)
@@ -27,7 +27,7 @@ func TestWSProxy_NoTLSConfigReturns503(t *testing.T) {
 // TestHTTPProxy_NoTLSConfigReturns503 covers the matching early-return
 // for the file-browser HTTP proxy.
 func TestHTTPProxy_NoTLSConfigReturns503(t *testing.T) {
-	p := &proxy{tls: nil}
+	p := &proxy{}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha/files/list", nil)
 	p.httpProxy("/files/list")(rr, req)
@@ -40,8 +40,7 @@ func TestHTTPProxy_NoTLSConfigReturns503(t *testing.T) {
 // namespace query param. tls != nil so we reach the scope check.
 func TestHTTPProxy_ScopeError(t *testing.T) {
 	p := &proxy{
-		tls:  &tls.Config{},
-		http: &http.Client{},
+		transport: newDirectAgentTransport(&tls.Config{}, 0),
 	}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha/files/list?namespace=forbidden", nil)
@@ -55,8 +54,7 @@ func TestHTTPProxy_ScopeError(t *testing.T) {
 // upgrade so the Resolve error path is reachable without a real WS.
 func TestWSProxy_ScopeError(t *testing.T) {
 	p := &proxy{
-		tls:  &tls.Config{},
-		http: &http.Client{},
+		transport: newDirectAgentTransport(&tls.Config{}, 0),
 	}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(t.Context(), "GET", "/ws/servers/alpha/logs?namespace=forbidden", nil)
@@ -109,8 +107,7 @@ func TestMount_ActionsAndStatusRouted(t *testing.T) {
 // the agent FQDN constructor must include the standard 8090 port so
 // callers can derive the right URL even without a real client.
 func TestAgentHost_Format(t *testing.T) {
-	p := &proxy{}
-	got := p.agentHost("alpha", "gameplane-games")
+	got := agentHostFor("alpha", "gameplane-games")
 	for _, want := range []string{"alpha-agent.gameplane-games", ":8090"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("got %q, want substring %q", got, want)

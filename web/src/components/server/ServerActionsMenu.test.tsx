@@ -4,13 +4,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { GameServer } from "@/types";
-import { can } from "@/lib/auth";
+import type { ServerAccess, ResourceTarget } from "@/lib/resourceTarget";
 import { ServerActionsMenu } from "./ServerActionsMenu";
 
 // Mock the dialog components
 vi.mock("./CloneServerDialog", () => ({
-  CloneServerDialog: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="clone-dialog">Clone Dialog</div> : null,
+  CloneServerDialog: ({ open, target }: { open: boolean; target: ResourceTarget }) =>
+    open ? <div data-testid="clone-dialog" data-target={JSON.stringify(target)}>Clone Dialog</div> : null,
 }));
 
 vi.mock("./TransferServerDialog", () => ({
@@ -28,26 +28,9 @@ vi.mock("./DeleteServerDialog", () => ({
     open ? <div data-testid="delete-dialog">Delete Dialog</div> : null,
 }));
 
-// Mock the auth module
-vi.mock("@/lib/auth", () => ({
-  useMe: () => ({
-    data: {
-      id: "user-1",
-      name: "test-user",
-      email: "test@example.com",
-    },
-  }),
-  can: vi.fn(defaultCan),
-}));
-
-// Default: admin can write servers. A named function (rather than an inline
-// arrow in the mock factory) so beforeEach can restore it after tests that
-// call `vi.mocked(can).mockReturnValue(false)` — vi.clearAllMocks() clears
-// call history but not a mock's implementation, so without this restore the
-// override would leak into every later test in the file.
-function defaultCan(_me: unknown, action: string, _ns?: string): boolean {
-  return action === "servers:write";
-}
+const administratorAccess: ServerAccess = { canWrite: true, canControl: true, canConsole: true, canDelete: true, isOwner: false, isCollaborator: false };
+const readerAccess: ServerAccess = { canWrite: false, canControl: false, canConsole: false, canDelete: false, isOwner: false, isCollaborator: false };
+let targetAccess: ServerAccess = administratorAccess;
 
 function createGameServer(overrides?: {
   metadata?: Partial<GameServer["metadata"]>;
@@ -92,7 +75,7 @@ function Subject({
 }): ReactNode {
   return (
     <QueryClientProvider client={new QueryClient()}>
-      <ServerActionsMenu gs={gs} onDeleted={onDeleted} onTransferred={onTransferred} />
+      <ServerActionsMenu gs={gs} target={{ cluster: "remote", namespace: gs.metadata.namespace, name: gs.metadata.name, uid: gs.metadata.uid }} access={targetAccess} onDeleted={onDeleted} onTransferred={onTransferred} />
     </QueryClientProvider>
   );
 }
@@ -100,9 +83,7 @@ function Subject({
 describe("ServerActionsMenu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // clearAllMocks only clears call history — restore the default
-    // permission behavior tests below override with mockReturnValue(false).
-    vi.mocked(can).mockImplementation(defaultCan);
+    targetAccess = administratorAccess;
   });
 
   it("renders the menu trigger button", () => {
@@ -182,9 +163,7 @@ describe("ServerActionsMenu", () => {
     const user = userEvent.setup();
     const gs = createGameServer();
 
-    // Mock can() to return false for servers:write
-    const { can } = await import("@/lib/auth");
-    vi.mocked(can).mockReturnValue(false);
+    targetAccess = readerAccess;
 
     render(<Subject gs={gs} />);
     await user.click(screen.getByRole("button", { name: "Server actions" }));
@@ -203,9 +182,7 @@ describe("ServerActionsMenu", () => {
       },
     });
 
-    // Mock can() to return false for servers:write (operator check)
-    const { can } = await import("@/lib/auth");
-    vi.mocked(can).mockReturnValue(false);
+    targetAccess = readerAccess;
 
     render(<Subject gs={gs} />);
     await user.click(screen.getByRole("button", { name: "Server actions" }));
@@ -246,9 +223,7 @@ describe("ServerActionsMenu", () => {
     const user = userEvent.setup();
     const gs = createGameServer();
 
-    // Mock can() to return false for servers:write
-    const { can } = await import("@/lib/auth");
-    vi.mocked(can).mockReturnValue(false);
+    targetAccess = readerAccess;
 
     render(<Subject gs={gs} />);
     await user.click(screen.getByRole("button", { name: "Server actions" }));
@@ -287,6 +262,7 @@ describe("ServerActionsMenu", () => {
     await waitFor(() => {
       expect(screen.getByTestId("clone-dialog")).toBeInTheDocument();
     });
+    expect(JSON.parse(screen.getByTestId("clone-dialog").getAttribute("data-target") ?? "null")).toEqual({ cluster: "remote", namespace: "production", name: "my-server", uid: "uid-123" });
   });
 
   it("calls onDeleted callback when DeleteServerDialog triggers it", async () => {
@@ -323,12 +299,24 @@ describe("ServerActionsMenu", () => {
       },
     });
 
+    targetAccess = { ...readerAccess, isOwner: true, canControl: true, canConsole: true, canDelete: true };
     render(<Subject gs={gs} />);
     await user.click(screen.getByRole("button", { name: "Server actions" }));
 
     // Transfer should be enabled for the owner even without operator role
     const transferItem = screen.getByText("Transfer ownership").closest("[role='menuitem']");
     expect(transferItem).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("namespace write permission does not grant owner-only actions", async () => {
+    targetAccess = { ...readerAccess, canWrite: true, canControl: true };
+    const user = userEvent.setup();
+    render(<Subject gs={createGameServer()} />);
+    await user.click(screen.getByRole("button", { name: "Server actions" }));
+    expect(screen.getByText("Clone server").closest("[role='menuitem']")).not.toHaveAttribute("aria-disabled", "true");
+    for (const label of ["Transfer ownership", "Wipe world data", "Delete server"]) {
+      expect(screen.getByText(label).closest("[role='menuitem']")).toHaveAttribute("aria-disabled", "true");
+    }
   });
 
   it("renders icon buttons with icon-only styling", () => {

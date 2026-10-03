@@ -1,6 +1,8 @@
+import { ResourceTargetProvider, resourceKey, type ResourceTarget } from "@/lib/resourceTarget";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { renderWithQuery } from "@/test/render";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithQuery as baseRenderWithQuery } from "@/test/render";
 import { ModsTab } from "./Mods";
 import type {
   GameServer,
@@ -16,6 +18,7 @@ import type {
 const fetchMock = vi.fn();
 
 beforeEach(() => {
+  scopedControl = true;
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => {
@@ -43,6 +46,7 @@ interface Routes {
 }
 
 function route(r: Routes) {
+  scopedControl = r.role !== "viewer";
   const role = r.role ?? "operator";
   // Mods management is gated on servers:write; mirror that in the mocked
   // permission set so the role still drives what the UI offers.
@@ -1216,15 +1220,92 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     });
     renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
 
-    // "Couldn't load mods" is FileModsTab's static header string (a
-    // different component). idTmpl() declares idList, so this renders
-    // ModsByIdTab, whose error path instead shows errMsg(listError) — the
-    // mocked body's "boom" — next to a "retry" button. The error text and
+    // The API's error text appears next to a retry button. The error text and
     // the retry button are siblings inside the same element ("{errMsg} ·
     // {retryButton}"), so the element's own text is "boom ·", not "boom"
     // alone — match as a substring instead of exact text.
     expect(await screen.findByText(/boom/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "retry" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/paste a mod id/i)).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(screen.queryByText("No mods selected.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(fetchMock.mock.calls.some(([, options]) => options?.method === "PUT")).toBe(false);
+  });
+
+  it("loads and saves a remote ID list without touching a local namesake", async () => {
+    const target: ResourceTarget = { cluster: "remote", namespace: "other-games", name: "s1", uid: "remote-s1" };
+    let saved: ModID[] = [{ id: "remote-existing", name: "Remote mod" }];
+    const requests: { url: URL; method: string; body?: ModID[] }[] = [];
+    fetchMock.mockImplementation((path: string, options?: { method?: string; body?: string }) => {
+      const url = new URL(path, "http://localhost");
+      const method = options?.method ?? "GET";
+      if (url.pathname !== "/servers/s1/mods/ids") return Promise.resolve(jsonRes({}, 404));
+      const body = options?.body ? JSON.parse(options.body) as ModID[] : undefined;
+      requests.push({ url, method, body });
+      if (method === "PUT") saved = body!;
+      return Promise.resolve(jsonRes(saved));
+    });
+    renderWithQuery(<ModsTab name="s1" ns="other-games" tmpl={idTmpl()} />, { target });
+    expect(await screen.findByText("Remote mod")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/paste a mod id/i), { target: { value: "remote-new" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(requests.filter((request) => request.method === "PUT")).toHaveLength(1));
+    expect(requests.find((request) => request.method === "PUT")?.body).toEqual([
+      { id: "remote-existing", name: "Remote mod" }, { id: "remote-new" },
+    ]);
+    expect(await screen.findByText(/Saved — the server will restart/i)).toBeInTheDocument();
+    for (const request of requests) {
+      expect(request.url.searchParams.get("cluster")).toBe("remote");
+      expect(request.url.searchParams.get("namespace")).toBe("other-games");
+    }
+  });
+
+  it("retains remote drafts but blocks Add and Save after a failed refetch", async () => {
+    const target: ResourceTarget = { cluster: "remote", namespace: "gameplane-games", name: "s1", uid: "remote-s1" };
+    let unavailable = false;
+    const puts = vi.fn();
+    fetchMock.mockImplementation((_path: string, options?: { method?: string }) => {
+      if (options?.method === "PUT") puts();
+      return Promise.resolve(unavailable ? jsonRes({ error: "Remote list unavailable" }, 503) : jsonRes([{ id: "existing" }]));
+    });
+    const { client } = renderWithQuery(<ModsTab name="s1" ns="gameplane-games" tmpl={idTmpl()} />, { target });
+    await screen.findByText("existing");
+    fireEvent.change(screen.getByPlaceholderText(/paste a mod id/i), { target: { value: "draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByRole("button", { name: "Save changes" })).not.toBeDisabled();
+    unavailable = true;
+    await act(async () => { await client.refetchQueries({ queryKey: resourceKey(target, "mod-ids", "s1", "gameplane-games") }); });
+    expect(await screen.findByText(/Remote list unavailable/)).toBeInTheDocument();
+    expect(screen.getByText("draft")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(puts).not.toHaveBeenCalled();
+  });
+
+  it("closes remote registry editing when the saved ID list becomes unavailable", async () => {
+    const target: ResourceTarget = { cluster: "remote", namespace: "gameplane-games", name: "s1", uid: "remote-s1" };
+    routeIds({ search: [{ id: "registry-mod", title: "Registry mod", provider: "curseforge" }] });
+    const originalFetch = fetchMock.getMockImplementation()!;
+    let unavailable = false;
+    fetchMock.mockImplementation((path: string, options?: { method?: string; body?: string }) => {
+      if (unavailable && path.includes("/mods/ids")) return Promise.resolve(jsonRes({ error: "List unavailable" }, 503));
+      return originalFetch(path, options);
+    });
+    const { client } = renderWithQuery(<ModsTab name="s1" ns="gameplane-games" tmpl={idTmpl({ registry: true })} />, { target });
+    fireEvent.click(await screen.findByRole("button", { name: /browse curseforge/i }));
+    expect(await screen.findByText("Registry mod")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).not.toBeDisabled();
+    unavailable = true;
+    await act(async () => { await client.refetchQueries({ queryKey: resourceKey(target, "mod-ids", "s1", "gameplane-games") }); });
+    expect(await screen.findByText(/List unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText("Registry mod")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
   });
 
   it("header shows selected count excludes removed rows", async () => {
@@ -1250,27 +1331,18 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     expect(await screen.findByText("ID mod-id")).toBeInTheDocument();
   });
 
-  it("respects namespace-scoped servers:write permission", async () => {
-    // User has servers:write only in test-ns, not in gameplane-games (the
-    // namespace this component renders in, since no ns prop is passed).
+  it("respects selected access that excludes this server namespace", async () => {
+    // The selected server's access response resolves a write grant in test-ns
+    // to no control permission for this server in gameplane-games.
+    scopedControl = false;
     fetchMock.mockImplementation((url: string) => {
-      if (url.endsWith("/users/me")) {
-        return Promise.resolve(jsonRes({
-          id: 1,
-          username: "operator",
-          displayName: "Op",
-          email: "",
-          role: "operator",
-          permissions: { "test-ns": ["servers:read", "servers:write"] },
-        }));
-      }
       if (url.includes("/mods")) {
         return Promise.resolve(jsonRes([]));
       }
       return Promise.resolve(jsonRes({}));
     });
     // Render in gameplane-games namespace (no permission there).
-    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />, { target: { cluster: "remote", namespace: "gameplane-games", name: "s1" } });
 
     expect(await screen.findByText("0 installed")).toBeInTheDocument();
 
@@ -1280,20 +1352,11 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     expect(installBtn).toBeDisabled();
   });
 
-  it("allows mods operations when user has namespace-scoped servers:write permission", async () => {
-    // User has servers:write scoped to gameplane-games, the namespace this
-    // server is rendered in.
+  it("allows mods operations when selected access includes this server namespace", async () => {
+    // The selected server's access response includes servers:write for its
+    // gameplane-games namespace. The component consumes that resolved access.
+    scopedControl = true;
     fetchMock.mockImplementation((url: string) => {
-      if (url.endsWith("/users/me")) {
-        return Promise.resolve(jsonRes({
-          id: 1,
-          username: "operator",
-          displayName: "Op",
-          email: "",
-          role: "operator",
-          permissions: { "gameplane-games": ["servers:read", "servers:write"] },
-        }));
-      }
       if (url.includes("/mods/registry/providers")) {
         return Promise.resolve(jsonRes([{ provider: "modrinth", available: true, modpacks: false }]));
       }
@@ -1302,13 +1365,11 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
       }
       return Promise.resolve(jsonRes({}));
     });
-    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withBrowse)} ns="gameplane-games" />);
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withBrowse)} ns="gameplane-games" />, { target: { cluster: "remote", namespace: "gameplane-games", name: "s1" } });
 
     expect(await screen.findByText("0 installed")).toBeInTheDocument();
 
-    // "Install mod" is enabled because the namespace-scoped grant matches
-    // this server's namespace; a cluster-wide-only check (the pre-fix
-    // behavior) would leave it disabled here.
+    // The selected permission result enables installing into this namespace.
     const installBtn = screen.getByRole("button", { name: /install mod/i });
     await waitFor(() => expect(installBtn).not.toBeDisabled());
     fireEvent.click(installBtn);
@@ -1319,3 +1380,10 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     expect(browseBtn).toBeInTheDocument();
   });
 });
+
+let scopedControl = true;
+function renderWithQuery(ui: ReactElement, options?: Parameters<typeof baseRenderWithQuery>[1] & { target?: ResourceTarget }) {
+  const props = ui.props as { name?: string; ns?: string };
+  const { target = { cluster: "local", name: props.name ?? "s1", namespace: props.ns }, ...renderOptions } = options ?? {};
+  return baseRenderWithQuery(<ResourceTargetProvider target={target} access={{ canWrite: scopedControl, canControl: scopedControl, canConsole: scopedControl, canDelete: false, isOwner: false, isCollaborator: false, permissions: scopedControl ? ["servers:read", "servers:write"] : ["servers:read"] }}>{ui}</ResourceTargetProvider>, renderOptions);
+}

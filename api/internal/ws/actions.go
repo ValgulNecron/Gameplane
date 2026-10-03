@@ -85,9 +85,13 @@ func (p *proxy) runAction(w http.ResponseWriter, req *http.Request) {
 	// leave req.Body drained for that second read.
 	req.Body = io.NopCloser(bytes.NewReader(raw))
 
-	_, tmpl, err := p.k.LoadServerAndTemplate(req.Context(), ns, name)
+	server, tmpl, err := p.k.LoadServerAndTemplate(req.Context(), ns, name)
 	if err != nil {
 		httperr.Write(w, req, err)
+		return
+	}
+	if p.remoteUID != "" && string(server.GetUID()) != p.remoteUID {
+		http.NotFound(w, req)
 		return
 	}
 	if tmpl == nil {
@@ -257,6 +261,14 @@ func (p *proxy) runStdinAction(w http.ResponseWriter, req *http.Request, ns, nam
 	}
 
 	pod := name + "-0"
+	if p.remoteUID != "" {
+		owned, err := serverPodForUID(req.Context(), p.k, ns, name, p.remoteUID)
+		if err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		pod = owned.Name
+	}
 	if err := p.stdin.WriteStdinLines(req.Context(), ns, pod, "game", lines); err != nil {
 		httperr.WriteCode(w, req, http.StatusBadGateway,
 			fmt.Errorf("write stdin to pod %s/%s: %w", ns, pod, err))

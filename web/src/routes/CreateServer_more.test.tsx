@@ -28,6 +28,8 @@ afterEach(() => {
 });
 
 function jsonRes(status: number, body: unknown): Response {
+  const list = body as { items?: GameTemplate[] };
+  if (Array.isArray(list?.items)) body = { items: [{ cluster: "local", namespace: "gameplane-games", templates: list.items }], partial: false, issues: [], totalReturned: 1 };
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sort"
 
 	"github.com/go-chi/chi/v5"
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
@@ -74,12 +76,13 @@ type clustersHandler struct {
 
 // clusterRegistryView is the public projection of a remote cluster. Never includes kubeconfig data.
 type clusterRegistryView struct {
-	Name          string `json:"name"`
-	DisplayName   string `json:"displayName"`
-	Phase         string `json:"phase"`
-	Message       string `json:"message,omitempty"`
-	ServerVersion string `json:"serverVersion,omitempty"`
-	LastCheckTime string `json:"lastCheckTime,omitempty"`
+	CanViewInventory bool   `json:"canViewInventory"`
+	Name             string `json:"name"`
+	DisplayName      string `json:"displayName"`
+	Phase            string `json:"phase"`
+	Message          string `json:"message,omitempty"`
+	ServerVersion    string `json:"serverVersion,omitempty"`
+	LastCheckTime    string `json:"lastCheckTime,omitempty"`
 }
 
 type clusterCreateReq struct {
@@ -93,39 +96,52 @@ type clustersListResp struct {
 }
 
 func (h clustersHandler) list(w http.ResponseWriter, req *http.Request) {
+	u := auth.UserFromContext(req.Context())
+	if u == nil {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
 	out := clustersListResp{Items: make([]clusterRegistryView, 0)}
-
-	for _, id := range h.reg.IDs() {
-		if id == h.reg.DefaultID() {
-			// Synthesize the local cluster without reading from the API.
-			out.Items = append(out.Items, clusterRegistryView{
-				Name:  id,
-				Phase: "Healthy",
-			})
+	local := h.reg.DefaultID()
+	if u.CanDiscoverCluster(local) {
+		out.Items = append(out.Items, clusterRegistryView{Name: local, Phase: "Healthy",
+			CanViewInventory: u.Can("cluster:read", true, local, "")})
+	}
+	// Persisted registrations remain discoverable when a kubeconfig cannot
+	// load; the client registry alone would silently drop those clusters.
+	registrations, err := h.k.Dynamic.Resource(kube.GVRCluster).List(req.Context(), metav1.ListOptions{})
+	if err != nil {
+		// Older single-cluster installations may not have the optional CRD.
+		// Only that absence may degrade to local discovery; permission and
+		// transport failures must remain visible instead of hiding remotes.
+		if apierrors.IsNotFound(err) {
+			writeJSON(w, out)
+			return
+		}
+		httperr.Write(w, req, err)
+		return
+	}
+	sort.Slice(registrations.Items, func(i, j int) bool {
+		return registrations.Items[i].GetName() < registrations.Items[j].GetName()
+	})
+	for _, registration := range registrations.Items {
+		id := registration.GetName()
+		if id == local || registration.GetDeletionTimestamp() != nil || !u.CanDiscoverCluster(id) {
 			continue
 		}
-
-		// Read remote cluster status from the Cluster CRD.
-		u, err := h.k.Dynamic.Resource(kube.GVRCluster).Get(req.Context(), id, metav1.GetOptions{})
-		if err != nil {
-			// Log but continue: a missing CRD doesn't block the list.
-			continue
+		item := clusterRegistryView{Name: id, CanViewInventory: u.Can("cluster:read", true, id, "")}
+		item.DisplayName, _, _ = unstructured.NestedString(registration.Object, "spec", "displayName")
+		item.Phase, _, _ = unstructured.NestedString(registration.Object, "status", "phase")
+		if item.CanViewInventory {
+			item.Message, _, _ = unstructured.NestedString(registration.Object, "status", "message")
+			item.ServerVersion, _, _ = unstructured.NestedString(registration.Object, "status", "serverVersion")
+			item.LastCheckTime, _, _ = unstructured.NestedString(registration.Object, "status", "lastCheckTime")
 		}
-
-		displayName, _, _ := unstructured.NestedString(u.Object, "spec", "displayName")
-		phase, _, _ := unstructured.NestedString(u.Object, "status", "phase")
-		message, _, _ := unstructured.NestedString(u.Object, "status", "message")
-		serverVersion, _, _ := unstructured.NestedString(u.Object, "status", "serverVersion")
-		lastCheckTime, _, _ := unstructured.NestedString(u.Object, "status", "lastCheckTime")
-
-		out.Items = append(out.Items, clusterRegistryView{
-			Name:          id,
-			DisplayName:   displayName,
-			Phase:         phase,
-			Message:       message,
-			ServerVersion: serverVersion,
-			LastCheckTime: lastCheckTime,
-		})
+		if client, ok := h.reg.Get(id); !ok || client == nil || client.Typed == nil {
+			item.Phase = "Unhealthy"
+			item.Message = "Cluster connection is unavailable"
+		}
+		out.Items = append(out.Items, item)
 	}
 
 	writeJSON(w, out)

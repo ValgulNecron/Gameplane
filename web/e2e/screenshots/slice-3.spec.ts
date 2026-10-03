@@ -215,16 +215,32 @@ test.describe("Slice 3: Create Server, Modules, Backups (Desktop — 1440x900) @
     // 2026-07-13T04:12:04Z) floors both to 3h. setFixedTime must run before
     // navigation so the drawer's first render already sees it.
     await page.clock.setFixedTime(new Date("2026-07-13T03:20:00Z"));
+    const listed = page.waitForResponse((response) => new URL(response.url()).pathname === "/fleet/backups");
     await page.goto("/backups");
-    const nameCell = page.getByText("mc-survival-nightly-0713", { exact: true });
-    await expect(nameCell).toBeVisible({ timeout: 10_000 });
-    await nameCell.click();
+    const fleetResponse = await listed;
+    expect(fleetResponse.ok()).toBe(true);
+    const fleet = await fleetResponse.json();
+    expect(fleet.items).toContainEqual(expect.objectContaining({
+      target: expect.objectContaining({ cluster: "local", namespace: "default", name: "mc-survival-nightly-0713" }),
+    }));
+    // The cell now includes its location beside the name. Select the complete
+    // resource identity so the intended populated drawer remains unambiguous.
+    const row = page.getByRole("row").filter({ hasText: "mc-survival-nightly-0713" }).filter({ hasText: "local / default" });
+    await expect(row).toBeVisible({ timeout: 10_000 });
+    const detailLoaded = page.waitForResponse((response) => new URL(response.url()).pathname === "/backups/mc-survival-nightly-0713");
+    await row.getByRole("rowheader").click();
+    const detailResponse = await detailLoaded;
+    expect(detailResponse.ok()).toBe(true);
+    const detailURL = new URL(detailResponse.url());
+    expect(detailURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(detailURL.searchParams.get("namespace")).toBe("default");
     await expect(page.getByText(/backup details/i)).toBeVisible({ timeout: 10_000 });
-    await page.waitForTimeout(200);
     // BackupDetailDrawer.tsx now uses HeroUI's Drawer.Heading (slot="title"),
     // which wires aria-labelledby — enabling accessible-name scoped capture.
     const dialog = page.getByRole("dialog", { name: /backup details/i });
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("a1b2c3d4e5f6", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("1.4 GiB", { exact: true })).toBeVisible();
     await captureLocator(page, "zhLZN", dialog);
   });
 

@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceAccess, useResourceTarget, resourceKey } from "@/lib/resourceTarget";
 import {
   useEffect,
   useRef,
@@ -34,14 +35,18 @@ import {
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { Files, type FileEntry } from "@/lib/endpoints";
+import { type FileEntry } from "@/lib/endpoints";
 import { cn, formatBytes } from "@/lib/utils";
 
 const ROOT = "/";
 
 export function FilesTab({ name, ns }: { name: string; ns?: string }) {
+  const canControl = useResourceAccess()?.canControl === true;
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Files } = resourceClient;
   const qc = useQueryClient();
-  const listKey = (cwd: string) => ["files", name, cwd, ns] as const;
+  const listKey = (cwd: string) => resourceKey(resourceTarget, "files", name, cwd, ns);
 
   const [cwd, setCwd] = useState(ROOT);
   const [selected, setSelected] = useState<FileEntry | null>(null);
@@ -65,7 +70,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
 
   const { data: entries, isFetching, refetch } = useQuery({
     queryKey: listKey(cwd),
-    queryFn: () => Files.list(name, cwd, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Files.list(name, cwd, ns),
   });
 
   // Load file contents when a file is selected (and only then). Folder
@@ -73,11 +78,12 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
   useEffect(() => {
     if (!selected || selected.dir) return;
     let aborted = false;
+    const controller = new AbortController();
     const load = async () => {
       // Clear any stale error as the first step of a fresh load.
       setLoadError(null);
       try {
-        const text = await Files.read(name, selected.path, ns);
+        const text = await resourceClient.withSignal(controller.signal).Files.read(name, selected.path, ns);
         if (aborted) return;
         setServerContent(text);
         setEditorValue(text);
@@ -91,8 +97,9 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
     void load();
     return () => {
       aborted = true;
+      controller.abort();
     };
-  }, [selected, name, ns]);
+  }, [selected, name, ns, resourceClient]);
 
   function navigateTo(path: string) {
     if (dirty && !confirmDiscard()) return;
@@ -125,6 +132,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
       await Files.write(name, selected.path, body, ns);
     },
     onSuccess: async (_data, body) => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       setServerContent(body);
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
       setOpError(null);
@@ -138,6 +146,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
       return entry;
     },
     onSuccess: async (entry) => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       if (selected?.path === entry.path) {
         setSelected(null);
         setServerContent(null);
@@ -155,6 +164,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
     mutationFn: (folderName: string) =>
       Files.mkdir(name, joinPath(cwd, folderName), ns),
     onSuccess: async () => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       setMkdirOpen(false);
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
       setOpError(null);
@@ -169,6 +179,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
       return path;
     },
     onSuccess: async (path) => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       setNewFileOpen(false);
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
       setSelected({
@@ -185,6 +196,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
   const uploadMutation = useMutation({
     mutationFn: (files: FileList) => Files.upload(name, cwd, files, ns),
     onSuccess: async () => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
       setOpError(null);
     },
@@ -193,7 +205,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
 
   function onUploadPicked(e: ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
-    if (files && files.length > 0) uploadMutation.mutate(files);
+    if (canControl && files && files.length > 0) uploadMutation.mutate(files);
     e.target.value = "";
   }
 
@@ -210,14 +222,14 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
           <Button
             variant="secondary"
             size="sm"
-            onPress={() => setNewFileOpen(true)}
+            isDisabled={!canControl} onPress={() => setNewFileOpen(true)}
           >
             <FilePlus className="h-4 w-4" /> New file
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            onPress={() => setMkdirOpen(true)}
+            isDisabled={!canControl} onPress={() => setMkdirOpen(true)}
           >
             <FolderPlus className="h-4 w-4" /> New folder
           </Button>
@@ -225,7 +237,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
             variant="secondary"
             size="sm"
             onPress={() => uploadInputRef.current?.click()}
-            isDisabled={uploadMutation.isPending}
+            isDisabled={!canControl || uploadMutation.isPending}
           >
             {uploadMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -345,13 +357,13 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
                   <Button
                     variant="danger"
                     size="sm"
-                    onPress={() => setConfirmDelete(selected)}
+                    isDisabled={!canControl} onPress={() => setConfirmDelete(selected)}
                   >
                     <Trash2 className="h-3 w-3" /> Delete
                   </Button>
                   <Button
                     size="sm"
-                    isDisabled={!dirty || saveMutation.isPending}
+                    isDisabled={!canControl || !dirty || saveMutation.isPending}
                     onPress={() => saveMutation.mutate(editorValue)}
                     variant="primary"
                   >

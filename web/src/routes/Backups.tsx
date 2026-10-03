@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
-import { Backups, Restores, Schedules, Servers } from "@/lib/endpoints";
-import { useBackupDestinations } from "@/lib/destinations";
+import { createResourceClient } from "@/lib/endpoints";
+import { useFleetLocation, Fleet, located, targetKey, targetLabel, type Located } from "@/lib/fleet";
+import { FleetCoverage } from "@/components/FleetScope";
 import {
   Button,
   Card,
@@ -33,7 +34,7 @@ import { BackupDetailDrawer } from "@/components/backups/BackupDetailDrawer";
 import { BackupRow } from "@/components/backups/BackupRow";
 import { BackupFilters } from "@/components/backups/BackupFilters";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import type { Backup } from "@/types";
+import type { Backup, BackupSchedule } from "@/types";
 
 type TabKey = "backups" | "schedules" | "restores";
 const TABS: { id: TabKey; label: string }[] = [
@@ -45,26 +46,26 @@ const TABS: { id: TabKey; label: string }[] = [
 const BACKUP_PHASES = ["Pending", "Running", "Succeeded", "Failed"];
 const RESTORE_PHASES = ["Pending", "Suspending", "Running", "Resuming", "Succeeded", "Failed"];
 
-function readTab(): TabKey {
-  const v = new URLSearchParams(window.location.search).get("tab");
-  return v === "schedules" || v === "restores" ? v : "backups";
-}
-
 export function BackupsPage() {
-  const [tab, setTab] = useState<TabKey>(() => readTab());
+  const search = useLocation().search;
+  const navigate = useNavigate();
+  const tab: TabKey = search.tab === "schedules" || search.tab === "restores" ? search.tab : "backups";
+  const setTab = (next: TabKey) => {
+    void navigate({ to: "/backups", replace: true, search: (previous) => ({ ...previous, tab: next === "backups" ? undefined : next }) });
+  };
   const [backupNow, setBackupNow] = useState(false);
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (tab === "backups") url.searchParams.delete("tab");
-    else url.searchParams.set("tab", tab);
-    window.history.replaceState(null, "", url);
-  }, [tab]);
+  const [location, setLocation] = useFleetLocation();
+  const { data: serverScopes } = useQuery({ queryKey: ["fleet", "servers", "", ""], queryFn: ({ signal }) => Fleet.servers({}, signal) });
+  const backupScopes = useQueries({ queries: (["backups", "schedules", "restores"] as const).map((kind) => ({
+    queryKey: ["fleet", kind, ""], queryFn: ({ signal }: { signal: AbortSignal }) => Fleet[kind]({}, signal),
+  })) });
+  const locations = [...(serverScopes?.scopes ?? []).map((scope) => scope.cluster), ...(serverScopes?.items ?? []).map((item) => item.target.cluster), ...backupScopes.flatMap((query) => [...(query.data?.scopes ?? []).map((scope) => scope.cluster), ...(query.data?.items ?? []).map((item) => item.target.cluster)])];
 
   return (
     <div className="space-y-5 p-6">
       <PageHeader
         title="Backups"
-        subtitle="Snapshots, schedules, and restores across all servers in this cluster."
+        subtitle="Snapshots, schedules, and restores across your authorized locations."
         actions={
           <Button onPress={() => setBackupNow(true)}>
             <Plus className="h-4 w-4" /> Back up now
@@ -81,35 +82,39 @@ export function BackupsPage() {
           ))}
         </Tabs.List>
       </Tabs>
-      {tab === "backups" && <BackupsTabPanel />}
-      {tab === "schedules" && <SchedulesTabPanel />}
-      {tab === "restores" && <RestoresTabPanel />}
+      {tab === "backups" && <BackupsTabPanel location={location} onLocationChange={setLocation} locations={locations} />}
+      {tab === "schedules" && <SchedulesTabPanel location={location} onLocationChange={setLocation} locations={locations} />}
+      {tab === "restores" && <RestoresTabPanel location={location} onLocationChange={setLocation} locations={locations} />}
     </div>
   );
 }
 
-function BackupsTabPanel() {
+type LocationFilterProps = { location: string; onLocationChange: (location: string) => void; locations: string[] };
+
+function BackupsTabPanel({ location, onLocationChange, locations }: LocationFilterProps) {
   const [search, setSearch] = useState("");
   const [server, setServer] = useState("");
   const [phase, setPhase] = useState("");
-  const [restoringBackup, setRestoringBackup] = useState<Backup | null>(null);
-  const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
+  const [restoringBackup, setRestoringBackup] = useState<Located<Backup> | null>(null);
+  const [selectedBackup, setSelectedBackup] = useState<Located<Backup> | null>(null);
 
-  const { data: backups } = useQuery({
-    queryKey: ["backups"],
-    queryFn: () => Backups.list(),
+  const { data: backupsFleet, error: fleetError, isLoading: fleetLoading } = useQuery({
+    queryKey: ["fleet", "backups", location],
+    queryFn: ({ signal }) => Fleet.backups({ cluster: location || undefined }, signal),
     refetchInterval: 5000,
   });
-  const { data: serversList } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => Servers.list(),
+  const backups = useMemo(() => ({ items: (backupsFleet?.items ?? []).map(located) }), [backupsFleet]);
+  const { data: serversFleet } = useQuery({
+    queryKey: ["fleet", "servers", "", ""],
+    queryFn: ({ signal }) => Fleet.servers({}, signal),
   });
+  const serversList = { items: (serversFleet?.items ?? []).map(located) };
 
   const items = useMemo(() => backups?.items ?? [], [backups]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((b) => {
-      if (server && b.spec.serverRef.name !== server) return false;
+      if (server && !matchesServer(b, server, serversList.items)) return false;
       if (phase && b.status?.phase !== phase) return false;
       if (q) {
         const hay = `${b.metadata.name} ${b.spec.serverRef.name}`.toLowerCase();
@@ -117,11 +122,16 @@ function BackupsTabPanel() {
       }
       return true;
     });
-  }, [items, search, server, phase]);
+  }, [items, search, server, phase, serversList.items]);
 
   return (
     <div className="space-y-4">
+      <FleetCoverage partial={backupsFleet?.partial} issues={backupsFleet?.issues} error={fleetError} label="Backups" />
+      {fleetLoading && <p className="text-sm text-muted">Loading backups…</p>}
       <BackupFilters
+        location={location}
+        onLocationChange={onLocationChange}
+        locations={locations}
         search={search}
         onSearchChange={setSearch}
         server={server}
@@ -151,18 +161,20 @@ function BackupsTabPanel() {
                 renderEmptyState={() => (
                   <>
                     {items.length === 0
-                      ? 'No backups yet. Use "Back up now" to create the first one.'
+                      ? (backupsFleet?.partial || fleetError ? "No backup data available." : 'No backups yet. Use "Back up now" to create the first one.')
                       : "No backups match the current filters."}
                   </>
                 )}
               >
                 {filtered.map((b) => (
                   <BackupRow
-                    key={b.metadata.name}
+                    key={targetKey(b.fleetTarget)}
+                    target={b.fleetTarget}
+                    permissions={b.fleetPermissions}
                     backup={b}
                     showServer
-                    onSelect={(x) => setSelectedBackup(x.metadata.name)}
-                    onRestore={setRestoringBackup}
+                    onSelect={() => setSelectedBackup(b)}
+                    onRestore={() => setRestoringBackup(b)}
                   />
                 ))}
               </Table.Body>
@@ -173,14 +185,18 @@ function BackupsTabPanel() {
 
       <RestoreDialog
         backup={restoringBackup}
+        target={restoringBackup?.fleetTarget}
+        permissions={restoringBackup?.fleetPermissions}
         onClose={() => setRestoringBackup(null)}
       />
       <BackupDetailDrawer
-        name={selectedBackup}
+        name={selectedBackup?.metadata.name ?? null}
+        target={selectedBackup?.fleetTarget}
+        permissions={selectedBackup?.fleetPermissions}
         onClose={() => setSelectedBackup(null)}
         onRestore={(b) => {
+          if (selectedBackup) setRestoringBackup({ ...b, fleetTarget: selectedBackup.fleetTarget, fleetPermissions: selectedBackup.fleetPermissions });
           setSelectedBackup(null);
-          setRestoringBackup(b);
         }}
       />
     </div>
@@ -195,11 +211,18 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
   const [createServer, setCreateServer] = useState("");
   const [createDest, setCreateDest] = useState("");
 
-  const { data: serversList } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => Servers.list(),
+  const { data: serversFleet } = useQuery({
+    queryKey: ["fleet", "servers", "", ""],
+    queryFn: ({ signal }) => Fleet.servers({}, signal),
   });
-  const { data: destinations = [] } = useBackupDestinations();
+  const serversList = { items: (serversFleet?.items ?? []).map(located) };
+  const selectedServer = serversList.items.find((item) => targetKey(item.fleetTarget) === createServer);
+  const { data: destinationData } = useQuery({
+    queryKey: ["backup-destinations", selectedServer?.fleetTarget.cluster, selectedServer?.fleetTarget.namespace],
+    queryFn: () => createResourceClient(selectedServer!.fleetTarget).BackupDestinations.list(),
+    enabled: !!selectedServer,
+  });
+  const destinations = destinationData?.items ?? [];
 
   // When destinations resolve, default to the first one. The user can
   // still pick a different one if more than one exists. Adjusted directly
@@ -210,13 +233,15 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
   }
 
   const createNow = useMutation({
-    mutationFn: () =>
-      Backups.create({
-        serverRef: { name: createServer },
+    mutationFn: () => {
+      if (!selectedServer || !hasPermission(selectedServer.fleetPermissions, "backups:write")) throw new Error("Select a server with backup access.");
+      return createResourceClient(selectedServer.fleetTarget).Backups.create({
+        serverRef: { name: selectedServer.metadata.name },
         repoRef: { name: createDest, key: "repo" },
-      }),
+      }, selectedServer.fleetTarget.namespace);
+    },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["backups"] });
+      void qc.invalidateQueries({ queryKey: ["fleet", "backups"] });
       onClose();
     },
   });
@@ -237,7 +262,7 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
                 <div>
                   <Select
                     value={createServer}
-                    onChange={(v) => setCreateServer(v as string)}
+                    onChange={(v) => { setCreateServer(v as string); setCreateDest(""); }}
                     placeholder="Select a server…"
                     aria-label="Server"
                     className="mt-1"
@@ -248,9 +273,9 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
                     </Select.Trigger>
                     <Select.Popover>
                       <ListBox aria-label="Server options">
-                        {(serversList?.items ?? []).map((s) => (
-                          <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
-                            {s.metadata.name}
+                        {(serversList?.items ?? []).filter((item) => hasPermission(item.fleetPermissions, "backups:write")).map((s) => (
+                          <ListBoxItem key={targetKey(s.fleetTarget)} id={targetKey(s.fleetTarget)} textValue={`${s.metadata.name} · ${targetLabel(s.fleetTarget)}`}>
+                            {s.metadata.name} · {targetLabel(s.fleetTarget)}
                           </ListBoxItem>
                         ))}
                       </ListBox>
@@ -298,7 +323,7 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
               </Button>
               <Button
                 variant="primary"
-                isDisabled={!createServer || !createDest || createNow.isPending || noDestinations}
+                isDisabled={!selectedServer || !createDest || createNow.isPending || noDestinations}
                 onPress={() => createNow.mutate()}
               >
                 {createNow.isPending ? "Starting…" : "Run snapshot"}
@@ -311,39 +336,62 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-function SchedulesTabPanel() {
+function SchedulesTabPanel({ location, onLocationChange, locations }: LocationFilterProps) {
+  const [search, setSearch] = useState("");
+  const [server, setServer] = useState("");
   const qc = useQueryClient();
   const [creatingFor, setCreatingFor] = useState<string>("");
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Located<BackupSchedule> | null>(null);
 
-  const { data: schedules } = useQuery({
-    queryKey: ["schedules"],
-    queryFn: () => Schedules.list(),
+  const { data: schedulesFleet, error: fleetError, isLoading: fleetLoading } = useQuery({
+    queryKey: ["fleet", "schedules", location],
+    queryFn: ({ signal }) => Fleet.schedules({ cluster: location || undefined }, signal),
     refetchInterval: 10000,
   });
-  const { data: serversList } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => Servers.list(),
+  const schedules = useMemo(() => ({ items: (schedulesFleet?.items ?? []).map(located) }), [schedulesFleet]);
+  const { data: serversFleet } = useQuery({
+    queryKey: ["fleet", "servers", "", ""],
+    queryFn: ({ signal }) => Fleet.servers({}, signal),
   });
+  const serversList = { items: (serversFleet?.items ?? []).map(located) };
 
   const items = schedules?.items ?? [];
+  const filtered = items.filter((item) => {
+    if (server && !matchesServer(item, server, serversList.items)) return false;
+    const q = search.trim().toLowerCase();
+    return !q || `${item.metadata.name} ${item.spec.serverRef.name}`.toLowerCase().includes(q);
+  });
+  const selectedServer = serversList.items.find((item) => targetKey(item.fleetTarget) === creatingFor);
 
   const toggleSuspend = useMutation({
-    mutationFn: ({ name, suspend }: { name: string; suspend: boolean }) =>
-      Schedules.patchSpec(name, { suspend }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["schedules"] }),
+    mutationFn: ({ item, suspend }: { item: Located<BackupSchedule>; suspend: boolean }) =>
+      createResourceClient(item.fleetTarget).Schedules.patchSpec(item.metadata.name, { suspend }, item.fleetTarget.namespace),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet", "schedules"] }),
   });
 
   const remove = useMutation({
-    mutationFn: (name: string) => Schedules.remove(name),
+    mutationFn: (item: Located<BackupSchedule>) => createResourceClient(item.fleetTarget).Schedules.remove(item.metadata.name, item.fleetTarget.namespace),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["schedules"] });
+      void qc.invalidateQueries({ queryKey: ["fleet", "schedules"] });
       setDeleting(null);
     },
   });
 
   return (
     <div className="space-y-4">
+      <FleetCoverage partial={schedulesFleet?.partial} issues={schedulesFleet?.issues} error={fleetError} label="Schedules" />
+      {fleetLoading && <p className="text-sm text-muted">Loading schedules…</p>}
+      <BackupFilters
+        location={location}
+        onLocationChange={onLocationChange}
+        locations={locations}
+        search={search}
+        onSearchChange={setSearch}
+        server={server}
+        onServerChange={setServer}
+        servers={serversList.items}
+        trailing={`${filtered.length} of ${items.length} ${items.length === 1 ? "schedule" : "schedules"}`}
+      />
       <Card className="p-4">
         <div className="flex items-end gap-2">
           <div className="flex-1">
@@ -361,9 +409,9 @@ function SchedulesTabPanel() {
               </Select.Trigger>
               <Select.Popover>
                 <ListBox aria-label="Server options">
-                  {(serversList?.items ?? []).map((s) => (
-                    <ListBoxItem key={s.metadata.name} id={s.metadata.name} textValue={s.metadata.name}>
-                      {s.metadata.name}
+                  {(serversList?.items ?? []).filter((item) => hasPermission(item.fleetPermissions, "schedules:write")).map((s) => (
+                    <ListBoxItem key={targetKey(s.fleetTarget)} id={targetKey(s.fleetTarget)} textValue={`${s.metadata.name} · ${targetLabel(s.fleetTarget)}`}>
+                      {s.metadata.name} · {targetLabel(s.fleetTarget)}
                     </ListBoxItem>
                   ))}
                 </ListBox>
@@ -373,8 +421,8 @@ function SchedulesTabPanel() {
         </div>
       </Card>
 
-      {creatingFor && (
-        <ScheduleForm serverName={creatingFor} onClose={() => setCreatingFor("")} />
+      {selectedServer && (
+        <ScheduleForm target={selectedServer.fleetTarget} permissions={selectedServer.fleetPermissions} serverName={selectedServer.metadata.name} onClose={() => setCreatingFor("")} />
       )}
       {toggleSuspend.error && <ErrorBanner err={toggleSuspend.error} />}
       {remove.error && <ErrorBanner err={remove.error} />}
@@ -394,11 +442,11 @@ function SchedulesTabPanel() {
                 <Table.Column key="active">Active</Table.Column>
                 <Table.Column key="actions" className="text-end" />
               </Table.Header>
-              <Table.Body renderEmptyState={() => <>No schedules configured yet.</>}>
-                {items.map((s) => (
-                  <Table.Row key={s.metadata.name}>
+              <Table.Body renderEmptyState={() => <>{items.length > 0 ? "No schedules match the current filters." : schedulesFleet?.partial || fleetError ? "No schedule data available." : "No schedules configured yet."}</>}>
+                {filtered.map((s) => (
+                  <Table.Row key={targetKey(s.fleetTarget)}>
                     <Table.Cell>
-                      <span className="font-mono text-xs">{s.metadata.name}</span>
+                      <span className="font-mono text-xs">{s.metadata.name}</span><div className="text-xs text-muted">{targetLabel(s.fleetTarget)}</div>
                     </Table.Cell>
                     <Table.Cell>{s.spec.serverRef.name}</Table.Cell>
                     <Table.Cell>
@@ -413,8 +461,9 @@ function SchedulesTabPanel() {
                     <Table.Cell>
                       <Switch
                         isSelected={!s.spec.suspend}
+                        isDisabled={!hasPermission(s.fleetPermissions, "schedules:write") || toggleSuspend.isPending}
                         onChange={(isSelected) =>
-                          toggleSuspend.mutate({ name: s.metadata.name, suspend: !isSelected })
+                          toggleSuspend.mutate({ item: s, suspend: !isSelected })
                         }
                         aria-label="Schedule active"
                       >
@@ -429,7 +478,8 @@ function SchedulesTabPanel() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onPress={() => setDeleting(s.metadata.name)}
+                        isDisabled={!hasPermission(s.fleetPermissions, "schedules:write")}
+                        onPress={() => setDeleting(s)}
                       >
                         Delete
                       </Button>
@@ -454,12 +504,12 @@ function SchedulesTabPanel() {
             </p>
             {deleting && (
               <p className="pt-2">
-                Type <span className="font-mono">{deleting}</span> to confirm.
+                Type <span className="font-mono">{deleting.metadata.name}</span> ({targetLabel(deleting.fleetTarget)}) to confirm.
               </p>
             )}
           </>
         }
-        confirmPhrase={deleting ?? undefined}
+        confirmPhrase={deleting?.metadata.name}
         confirmLabel="Delete"
         destructive
         busy={remove.isPending}
@@ -469,26 +519,28 @@ function SchedulesTabPanel() {
   );
 }
 
-function RestoresTabPanel() {
+function RestoresTabPanel({ location, onLocationChange, locations }: LocationFilterProps) {
   const [server, setServer] = useState("");
   const [phase, setPhase] = useState("");
   const [search, setSearch] = useState("");
 
-  const { data: restores } = useQuery({
-    queryKey: ["restores"],
-    queryFn: () => Restores.list(),
+  const { data: restoresFleet, error: fleetError, isLoading: fleetLoading } = useQuery({
+    queryKey: ["fleet", "restores", location],
+    queryFn: ({ signal }) => Fleet.restores({ cluster: location || undefined }, signal),
     refetchInterval: 5000,
   });
-  const { data: serversList } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => Servers.list(),
+  const restores = useMemo(() => ({ items: (restoresFleet?.items ?? []).map(located) }), [restoresFleet]);
+  const { data: serversFleet } = useQuery({
+    queryKey: ["fleet", "servers", "", ""],
+    queryFn: ({ signal }) => Fleet.servers({}, signal),
   });
+  const serversList = { items: (serversFleet?.items ?? []).map(located) };
 
   const items = useMemo(() => restores?.items ?? [], [restores]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((r) => {
-      if (server && r.spec.serverRef.name !== server) return false;
+      if (server && !matchesServer(r, server, serversList.items)) return false;
       if (phase && r.status?.phase !== phase) return false;
       if (q) {
         const hay = `${r.metadata.name} ${r.spec.serverRef.name} ${r.spec.backupRef.name}`.toLowerCase();
@@ -496,11 +548,16 @@ function RestoresTabPanel() {
       }
       return true;
     });
-  }, [items, search, server, phase]);
+  }, [items, search, server, phase, serversList.items]);
 
   return (
     <div className="space-y-4">
+      <FleetCoverage partial={restoresFleet?.partial} issues={restoresFleet?.issues} error={fleetError} label="Restores" />
+      {fleetLoading && <p className="text-sm text-muted">Loading restores…</p>}
       <BackupFilters
+        location={location}
+        onLocationChange={onLocationChange}
+        locations={locations}
         search={search}
         onSearchChange={setSearch}
         server={server}
@@ -529,15 +586,15 @@ function RestoresTabPanel() {
                 renderEmptyState={() => (
                   <>
                     {items.length === 0
-                      ? "No restores have been run."
+                      ? (restoresFleet?.partial || fleetError ? "No restore data available." : "No restores have been run.")
                       : "No restores match the current filters."}
                   </>
                 )}
               >
                 {filtered.map((r) => (
-                  <Table.Row key={r.metadata.name}>
+                  <Table.Row key={targetKey(r.fleetTarget)}>
                     <Table.Cell>
-                      <span className="font-mono text-xs">{r.metadata.name}</span>
+                      <span className="font-mono text-xs">{r.metadata.name}</span><div className="text-xs text-muted">{targetLabel(r.fleetTarget)}</div>
                     </Table.Cell>
                     <Table.Cell>
                       <span className="font-mono text-xs">{r.spec.backupRef.name}</span>
@@ -561,4 +618,13 @@ function RestoresTabPanel() {
       </div>
     </div>
   );
+}
+
+function hasPermission(permissions: string[] | undefined, permission: string): boolean {
+  return permissions?.includes(permission) === true || permissions?.includes("*") === true;
+}
+
+function matchesServer(resource: Located<Backup> | Located<BackupSchedule> | Located<import("@/types").Restore>, key: string, servers: Located<import("@/types").GameServer>[]): boolean {
+  const server = servers.find((item) => targetKey(item.fleetTarget) === key);
+  return !!server && resource.fleetTarget.cluster === server.fleetTarget.cluster && resource.fleetTarget.namespace === server.fleetTarget.namespace && resource.spec.serverRef.name === server.metadata.name;
 }

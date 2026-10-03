@@ -160,7 +160,7 @@
                               "id": "wk2g4",
                               "name": "addr",
                               "fill": "$muted",
-                              "content": "mc.valgul.dev:25565",
+                              "content": "local / gameplane-games",
                               "fontFamily": "$typography/font-mono",
                               "fontSize": 12,
                               "fontWeight": "normal"
@@ -354,7 +354,7 @@
                               "id": "wsfeM",
                               "name": "name",
                               "fill": "$foreground/foreground",
-                              "content": "vh-valheim",
+                              "content": "mc-survival",
                               "fontFamily": "$typography/font-mono",
                               "fontSize": 14,
                               "fontWeight": "500"
@@ -364,7 +364,7 @@
                               "id": "fzrg9",
                               "name": "addr",
                               "fill": "$muted",
-                              "content": "vh.valgul.dev:2456",
+                              "content": "remote-lab / gameplane-games",
                               "fontFamily": "$typography/font-mono",
                               "fontSize": 12,
                               "fontWeight": "normal"
@@ -405,7 +405,7 @@
                   "id": "OVZel",
                   "name": "game",
                   "fill": "$foreground/foreground",
-                  "content": "Valheim",
+                  "content": "minecraft-java",
                   "fontFamily": "$typography/font-mono",
                   "fontSize": 13,
                   "fontWeight": "normal"

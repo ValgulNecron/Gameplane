@@ -15,30 +15,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
-import { useMe, can } from "@/lib/auth";
-import { useCurrentCluster } from "@/lib/cluster";
-import { OWNER_ID_ANNOTATION } from "@/lib/annotations";
+import { useResourceTarget, useResourceAccess, type ResourceTarget, type ServerAccess } from "@/lib/resourceTarget";
+
 import { CloneServerDialog } from "./CloneServerDialog";
 import { DeleteServerDialog } from "./DeleteServerDialog";
 import { TransferServerDialog } from "./TransferServerDialog";
 import { WipeServerDialog } from "./WipeServerDialog";
 
 interface Props {
+  target?: ResourceTarget;
+  access?: ServerAccess;
   gs: GameServer;
   onDeleted?: () => void;
   onTransferred?: () => void;
 }
 
-export function ServerActionsMenu({ gs, onDeleted, onTransferred }: Props) {
-  const { data: me } = useMe();
+export function ServerActionsMenu({ gs, onDeleted, onTransferred, target: explicitTarget, access: explicitAccess }: Props) {
   const ns = gs.metadata.namespace;
-  const ann = gs.metadata.annotations ?? {};
-  const ownerID = ann[OWNER_ID_ANNOTATION];
-  const cluster = useCurrentCluster();
-
-  const canClone = can(me, "servers:write", ns ?? "gameplane-games", cluster);
-  const canManage =
-    ownerID === String(me?.id) || can(me, "servers:write", ns ?? "gameplane-games", cluster);
+  const target = useResourceTarget({ name: gs.metadata.name, namespace: ns }, explicitTarget);
+  const access = useResourceAccess(explicitAccess);
+  const canClone = access?.canWrite === true;
+  const canManage = access?.canDelete === true;
+  const canDelete = access?.canDelete === true;
 
   const [cloneOpen, setCloneOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -82,19 +80,21 @@ export function ServerActionsMenu({ gs, onDeleted, onTransferred }: Props) {
             icon={<Trash2 className="h-4 w-4" />}
             label="Delete server"
             onSelect={() => setDeleteOpen(true)}
-            disabled={!canManage}
+            disabled={!canDelete}
             destructive
           />
         </DropdownMenuContent>
       </DropdownMenu>
 
       <CloneServerDialog
+        target={target}
         open={cloneOpen}
         onOpenChange={setCloneOpen}
         sourceName={gs.metadata.name}
         ns={ns}
       />
       <TransferServerDialog
+        target={target}
         name={gs.metadata.name}
         ns={ns}
         open={transferOpen}
@@ -102,12 +102,14 @@ export function ServerActionsMenu({ gs, onDeleted, onTransferred }: Props) {
         onTransferred={onTransferred}
       />
       <WipeServerDialog
+        target={target}
         name={gs.metadata.name}
         ns={ns}
         open={wipeOpen}
         onOpenChange={setWipeOpen}
       />
       <DeleteServerDialog
+        target={target}
         name={gs.metadata.name}
         ns={ns}
         open={deleteOpen}

@@ -51,6 +51,7 @@ import { useMe, can } from "@/lib/auth";
 import {
   Users as UsersAPI,
   Roles as RolesAPI,
+  Clusters,
   type UserUpdate,
 } from "@/lib/endpoints";
 import { formatRelative } from "@/lib/utils";
@@ -648,13 +649,35 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
   const [roleName, setRoleName] = useState(
     roles.find((r) => r.name === "operator")?.name ?? roles[0]?.name ?? "",
   );
+  const [cluster, setCluster] = useState("local");
   const [namespace, setNamespace] = useState("");
 
-  const { data: bindings = [] } = useQuery({
+  const { data: bindings = [], error: bindingsError } = useQuery({
     queryKey: ["user-bindings", userId],
     queryFn: () => UsersAPI.bindings(userId),
   });
-  const scoped = bindings.filter((b) => b.namespace !== "*");
+  const { data: clusters, error: clustersError } = useQuery({
+    queryKey: ["clusters"],
+    queryFn: () => Clusters.list(),
+  });
+  const { data: catalog, error: catalogError } = useQuery({
+    queryKey: ["permission-catalog"],
+    queryFn: () => RolesAPI.catalog(),
+  });
+  const namespacedPermissions = new Set(
+    catalog?.groups.flatMap((group) => group.permissions.filter((p) => p.namespaced).map((p) => p.key)) ?? [],
+  );
+  const allowsRemoteWideGrant = (name: string) => {
+    const role = roles.find((r) => r.name === name);
+    return !!role && !!catalog &&
+      role.permissions.every((p) => p === "cluster:read" || namespacedPermissions.has(p));
+  };
+  const allNamespacesAllowed = cluster !== "local" && cluster !== "*" && allowsRemoteWideGrant(roleName);
+  const scopeError = namespace.trim() === "*" && !allNamespacesAllowed
+    ? cluster === "local"
+      ? "The local primary role is managed above. Choose a namespace for an additional local grant."
+      : "All namespaces requires a role containing only node inventory and namespace permissions. Central administration permissions are not allowed."
+    : undefined;
   const refresh = () => void qc.invalidateQueries({ queryKey: ["user-bindings", userId] });
 
   const add = useMutation({
@@ -665,59 +688,97 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
     },
   });
   const remove = useMutation({
-    mutationFn: (b: RoleBinding) => UsersAPI.removeBinding(userId, b.roleName, b.namespace),
+    mutationFn: (b: RoleBinding) => UsersAPI.removeBinding(userId, b.roleName, b.namespace, b.cluster ?? "local"),
     onSuccess: refresh,
   });
 
   return (
     <div className="space-y-2">
       <div className="text-[11px] leading-[14px] font-semibold uppercase tracking-wider text-muted">
-        Namespace grants
+        Cluster & namespace grants
       </div>
-      {scoped.length > 0 && (
+      <p className="text-xs text-foreground/60">
+        The primary role above manages local access. Additional grants apply only to their named cluster and namespace.
+      </p>
+      {bindings.length > 0 && (
         <ul className="space-y-1">
-          {scoped.map((b) => (
-            <li key={`${b.roleName}/${b.namespace}`} className="flex items-center gap-2 text-xs">
-              <span className="font-mono">{b.roleName}</span>
-              <span className="text-foreground/60">in</span>
-              <span className="font-mono">{b.namespace}</span>
-              <button
-                className="ml-auto rounded p-1 text-foreground/60 hover:text-danger"
-                aria-label={`Remove ${b.roleName} in ${b.namespace}`}
-                onClick={() => remove.mutate(b)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </li>
-          ))}
+          {bindings.map((b) => {
+            const bindingCluster = b.cluster ?? "local";
+            const primary = bindingCluster === "local" && b.namespace === "*";
+            const managed = primary || bindingCluster === "*" ||
+              (b.namespace === "*" && !allowsRemoteWideGrant(b.roleName));
+            return (
+              <li key={`${bindingCluster}/${b.roleName}/${b.namespace}`} className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-mono">{b.roleName}</span>
+                <span className="text-foreground/60">in</span>
+                <span className="font-mono">{b.namespace === "*" ? "all namespaces" : b.namespace}</span>
+                <span className="text-foreground/60">on</span>
+                <span className="font-mono">{bindingCluster}</span>
+                {managed ? (
+                  <span className="ml-auto text-foreground/60">{primary ? "Primary role (managed above)" : "Managed outside this editor"}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="ml-auto rounded p-1 text-foreground/60 hover:text-danger disabled:opacity-50"
+                    aria-label={`Remove ${b.roleName} in ${b.namespace} on ${bindingCluster}`}
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(b)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
-      <div className="flex items-center gap-2">
-        <div className="w-[120px] shrink-0" data-grant-role>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Select
+          aria-label="Grant cluster"
+          value={cluster}
+          onChange={(v) => {
+            setCluster(String(v));
+            if (String(v) === "local" && namespace.trim() === "*") setNamespace("");
+          }}
+        >
+          <Select.Trigger className="w-full items-center rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
+            <Select.Value className="text-[var(--field-placeholder)]" />
+            <Select.Indicator className="ml-auto h-4 w-4" />
+          </Select.Trigger>
+          <Select.Popover className="rounded border border-border">
+            <ListBox className="p-0" aria-label="Grant cluster">
+              <ListBoxItem id="local">Local cluster</ListBoxItem>
+              {(clusters?.items ?? []).filter((c) => c.name !== "local").map((c) => (
+                <ListBoxItem key={c.name} id={c.name}>
+                  {c.displayName ? `${c.displayName} (${c.name})` : c.name}
+                </ListBoxItem>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
+        <div data-grant-role>
           <Select
             aria-label="Grant role"
             value={roleName}
             onChange={(v) => setRoleName(String(v))}
           >
-            <Select.Trigger
-              className="w-full items-center rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80"
-            >
+            <Select.Trigger className="w-full items-center rounded border border-border bg-surface px-3 py-2 text-sm hover:bg-surface/80">
               <Select.Value className="text-[var(--field-placeholder)]" />
               <Select.Indicator className="ml-auto h-4 w-4" />
             </Select.Trigger>
             <Select.Popover className="rounded border border-border">
               <ListBox className="p-0" aria-label="Grant role">
                 {roles.map((r) => (
-                  <ListBoxItem key={r.name} id={r.name}>
-                    {r.name}
-                  </ListBoxItem>
+                  <ListBoxItem key={r.name} id={r.name}>{r.name}</ListBoxItem>
                 ))}
               </ListBox>
             </Select.Popover>
           </Select>
         </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
         <Input
-          className="flex-1"
+          className="min-w-0 flex-1"
           style={{ height: 32 }}
           value={namespace}
           onChange={(e) => setNamespace(e.target.value)}
@@ -727,14 +788,26 @@ function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
         <Button
           variant="ghost"
           size="sm"
+          isDisabled={!allNamespacesAllowed}
+          onPress={() => setNamespace("*")}
+        >
+          All namespaces
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           className="text-[13px]"
-          isDisabled={!roleName || !namespace || add.isPending}
-          onPress={() => add.mutate({ roleName, namespace })}
+          isDisabled={!roleName || !namespace.trim() || !!scopeError || !!clustersError || add.isPending}
+          onPress={() => add.mutate({ roleName, namespace: namespace.trim(), cluster })}
         >
           Add
         </Button>
       </div>
-      <ErrorLine error={add.error || remove.error} />
+      <p className="text-xs text-foreground/60">
+        For remote node inventory, create a role in the Roles tab with “View nodes, version, and storage”, then grant it to all namespaces on that cluster.
+      </p>
+      {scopeError && <p role="alert" className="text-xs text-danger">{scopeError}</p>}
+      <ErrorLine error={bindingsError || clustersError || catalogError || add.error || remove.error} />
     </div>
   );
 }

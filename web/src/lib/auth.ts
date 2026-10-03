@@ -20,16 +20,18 @@ export function useMe() {
 
 /**
  * can reports whether the current user holds a permission. It mirrors the
- * server's rbac.Can: a cluster-wide ("*") grant of the permission (or the
- * "*" wildcard) suffices anywhere; for a namespaced action, a grant in the
- * target namespace also counts. When permissionsByCluster is present, cluster
- * boundaries are enforced (prevent cross-cluster privilege escalation). The
- * API is always the real enforcer — this only drives what the UI shows.
+ * server's rbac.Can: for a namespaced check, a cluster-wide ("*" namespace)
+ * or exact namespace grant must belong to the explicit target cluster or
+ * the "*" wildcard cluster when permissionsByCluster is present. The API
+ * enforces authorization independently of these UI checks.
  *
  * When permissionsByCluster is absent (older API), falls back to the flat
  * permissions structure (cluster-agnostic).
  *
- * Pass the current cluster (useCurrentCluster()) for namespaced checks; omit both ns and cluster for control-plane permissions.
+ * Pass the explicit target cluster for namespaced checks; omit both ns and
+ * cluster for control-plane permissions. Server resource controls consume
+ * verified target access through resourceCan/canControl; their useMe calls
+ * track identity readiness rather than replacing that permission source.
  */
 export function can(
   me: User | undefined,

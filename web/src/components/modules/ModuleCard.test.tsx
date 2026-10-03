@@ -1,17 +1,18 @@
-import { describe, it, expect, vi } from "vitest";
-import type { ReactNode } from "react";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+const navigate = vi.hoisted(() => vi.fn());
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
-    <a href={to} {...rest}>{children}</a>
-  ),
+  useNavigate: () => navigate,
 }));
 
 import { ModuleCard } from "./ModuleCard";
 import { makeCatalog } from "@/test/factories";
 import { renderWithQuery } from "@/test/render";
+import { getCurrentCluster, setCurrentCluster } from "@/lib/cluster";
+
+afterEach(() => { setCurrentCluster("local"); navigate.mockClear(); });
 
 const handlers = { onInstall: vi.fn(), onUpgrade: vi.fn(), onUninstall: vi.fn() };
 
@@ -30,7 +31,8 @@ describe("ModuleCard", () => {
     expect(onInstall).toHaveBeenCalled();
   });
 
-  it("installed at current version shows Deploy + Uninstall", () => {
+  it("installed current modules deploy explicitly to local without changing the admin selection", async () => {
+    setCurrentCluster("remote-demo");
     renderWithQuery(
       <ModuleCard
         entry={makeCatalog({
@@ -43,9 +45,12 @@ describe("ModuleCard", () => {
         {...handlers}
       />,
     );
-    expect(screen.getByRole("link", { name: /Deploy/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Deploy locally/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Uninstall/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Install$/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Deploy locally/i }));
+    expect(navigate).toHaveBeenCalledWith({ to: "/servers/new", search: { template: "minecraft-vanilla", cluster: "local" } });
+    expect(getCurrentCluster()).toBe("remote-demo");
   });
 
   it("upgrade-available shows Upgrade button", async () => {

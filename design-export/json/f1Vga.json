@@ -9,7 +9,7 @@
   },
   "clip": true,
   "width": 1440,
-  "height": 1170,
+  "height": 1270,
   "fill": "$background/background",
   "children": [
     {
@@ -70,7 +70,7 @@
       "y": 0,
       "name": "ModalContainer",
       "width": 1440,
-      "height": 1170,
+      "height": 1270,
       "fill": "#000000B3",
       "layout": "vertical",
       "justifyContent": "center",
@@ -82,7 +82,7 @@
           "name": "Modal",
           "clip": true,
           "width": 960,
-          "height": 1070,
+          "height": 1170,
           "fill": "$surface/surface",
           "cornerRadius": 12,
           "stroke": "$border/border",
@@ -111,6 +111,60 @@
                   "content": "Step 4 of 5 · Network"
                 }
               }
+            },
+            {
+              "type": "frame",
+              "id": "kvC9W",
+              "name": "Location placement",
+              "context": "Only authorized template/location combinations; changing location starts a fresh draft. Freeze chosen target during submission.",
+              "width": "fill_container",
+              "stroke": "$border/border",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "layout": "vertical",
+              "gap": 5,
+              "padding": [
+                12,
+                24
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Y5o8fo",
+                  "name": "Location label",
+                  "fill": "$foreground/foreground",
+                  "content": "Location",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "lbw66",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Creation location",
+                  "width": "fill_container",
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "remote-lab / gameplane-games",
+                      "fill": "$foreground/foreground"
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "mcLtS",
+                  "name": "Changing location help",
+                  "fill": "$muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Changing location starts a fresh draft. The chosen location handles all creation steps.",
+                  "fontFamily": "$typography/font-sans",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
             },
             {
               "id": "Nubrb",

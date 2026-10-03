@@ -31,6 +31,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/audit"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/ws"
 )
 
 // CaptureConfig holds cluster-wide capture defaults and limits.
@@ -41,6 +42,8 @@ type CaptureConfig struct {
 	// returns 501 rather than patching spec.capture.enabled — a
 	// deliberate operator configuration choice, not a server failure.
 	FeatureEnabled bool
+	// GatewayNamespace is the central namespace containing enrolled gateway credentials.
+	GatewayNamespace string
 
 	DefaultRetentionSeconds int64
 	MaxRetentionSeconds     int64
@@ -64,6 +67,9 @@ func MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg 
 		cfg:       cfg,
 		tlsClient: tlsClient,
 	}
+	if cfg.GatewayNamespace != "" {
+		h.gateway = ws.NewCaptureGatewayClient(reg, cfg.GatewayNamespace)
+	}
 	r.Post("/servers/{name}:capture-enable", h.captureEnable)
 	r.Post("/servers/{name}:capture-disable", h.captureDisable)
 	r.Post("/servers/{name}:capture-start", h.captureStart)
@@ -79,6 +85,7 @@ type captureHandler struct {
 	auditor   *audit.Auditor
 	cfg       CaptureConfig
 	tlsClient *http.Client
+	gateway   captureGateway
 }
 
 // errCaptureNotFound is a sentinel distinguishing "no such capture, or it
@@ -121,6 +128,13 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 	auditPath := fmt.Sprintf("/servers/%s:capture-start", name)
+	cfg := h.cfg
+	if isRemoteCluster(req) {
+		cfg, ok = h.requireCaptureConfig(w, req, ns, name, auditPath)
+		if !ok {
+			return
+		}
+	}
 
 	var body captureStartReq
 	if err := json.NewDecoder(io.LimitReader(req.Body, 1<<16)).Decode(&body); err != nil {
@@ -128,6 +142,14 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	if isRemoteCluster(req) {
+		if body.MaxDurationSeconds == 0 {
+			body.MaxDurationSeconds = cfg.DefaultMaxDurationSecs
+		}
+		if body.MaxSizeBytes == 0 {
+			body.MaxSizeBytes = cfg.DefaultMaxSizeBytes
+		}
+	}
 	// Validate duration range (FR-002). This ceiling is fixed by the
 	// contract (rest-api.md), not by the cluster's configurable default —
 	// the default only informs what a client might pre-fill.
@@ -140,11 +162,11 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// Validate size range (FR-002), capped by the cluster-configured max.
-	if body.MaxSizeBytes < 1 || (h.cfg.DefaultMaxSizeBytes > 0 && body.MaxSizeBytes > h.cfg.DefaultMaxSizeBytes) {
+	if body.MaxSizeBytes < 1 || (cfg.DefaultMaxSizeBytes > 0 && body.MaxSizeBytes > cfg.DefaultMaxSizeBytes) {
 		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "invalid_size", http.StatusBadRequest) {
 			return
 		}
-		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("maxSizeBytes must be 1..%d", h.cfg.DefaultMaxSizeBytes))
+		httperr.WriteCode(w, req, http.StatusBadRequest, fmt.Errorf("maxSizeBytes must be 1..%d", cfg.DefaultMaxSizeBytes))
 		return
 	}
 
@@ -208,7 +230,7 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 	// not a per-server cap.
 	ttl := body.TTLSecondsAfterFinish
 	if ttl <= 0 {
-		ttl = h.cfg.DefaultRetentionSeconds
+		ttl = cfg.DefaultRetentionSeconds
 		if gs.Spec.Capture != nil && gs.Spec.Capture.RetentionSeconds != nil {
 			ttl = int64(*gs.Spec.Capture.RetentionSeconds)
 		}
@@ -223,21 +245,21 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 			return
 		}
 		httperr.WriteCode(w, req, http.StatusBadRequest,
-			fmt.Errorf("ttlSecondsAfterFinished must be 60..%d", h.cfg.MaxRetentionSeconds))
+			fmt.Errorf("ttlSecondsAfterFinished must be 60..%d", cfg.MaxRetentionSeconds))
 		return
 	}
 
-	if ttl > h.cfg.MaxRetentionSeconds {
+	if ttl > cfg.MaxRetentionSeconds {
 		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "ttl_exceeded", http.StatusBadRequest) {
 			return
 		}
 		httperr.WriteCode(w, req, http.StatusBadRequest,
-			fmt.Errorf("requested retention %ds exceeds cluster maximum %ds", ttl, h.cfg.MaxRetentionSeconds))
+			fmt.Errorf("requested retention %ds exceeds cluster maximum %ds", ttl, cfg.MaxRetentionSeconds))
 		return
 	}
 
 	// The NetworkCapture CRD stores this as int32 (kubebuilder
-	// Maximum=604800 on Spec.TTLSecondsAfterFinished). h.cfg.MaxRetentionSeconds
+	// Maximum=604800 on Spec.TTLSecondsAfterFinished). cfg.MaxRetentionSeconds
 	// is an operator-configurable int64 (GAMEPLANE_CAPTURE_MAX_RETENTION) that
 	// isn't statically bounded to int32 range, so guard the narrowing
 	// conversion below explicitly rather than relying on the comparison above
@@ -334,11 +356,7 @@ func (h *captureHandler) captureEnable(w http.ResponseWriter, req *http.Request)
 	// cluster-wide is a configuration state, not a server failure: 501,
 	// mirroring clusterOps.enabled's identical shape
 	// (cluster_actions.go's notEnabled).
-	if !h.cfg.FeatureEnabled {
-		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "feature_disabled", http.StatusNotImplemented) {
-			return
-		}
-		httperr.WriteCode(w, req, http.StatusNotImplemented, errors.New("capture feature is disabled on this cluster"))
+	if !h.requireCaptureEnabled(w, req, ns, name, auditPath) {
 		return
 	}
 
@@ -619,7 +637,8 @@ func (h *captureHandler) captureStop(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if nc.Status.Phase != kube.CapturePhasePending && nc.Status.Phase != kube.CapturePhaseRunning {
+	// A newly created CR has no phase until its first operator status write.
+	if nc.Status.Phase != "" && nc.Status.Phase != kube.CapturePhasePending && nc.Status.Phase != kube.CapturePhaseRunning {
 		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, target, "not_running", http.StatusConflict) {
 			return
 		}
@@ -730,9 +749,10 @@ func (h *captureHandler) captureList(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	view := h.captureRetentionView(req, ns, name)
 	items := make([]captureItem, 0, len(captures))
 	for _, c := range captures {
-		if h.isExpired(c) {
+		if view.isExpired(c) {
 			continue
 		}
 		items = append(items, captureItem{
@@ -745,7 +765,7 @@ func (h *captureHandler) captureList(w http.ResponseWriter, req *http.Request) {
 			CompletedAt:    formatOptionalTime(c.Status.CompletionTime),
 			BytesWritten:   quantityValue(c.Status.BytesWritten),
 			PacketsWritten: c.Status.PacketsWritten,
-			ExpiresAt:      h.expiresAt(c),
+			ExpiresAt:      view.expiresAt(c),
 		})
 	}
 
@@ -818,7 +838,8 @@ func (h *captureHandler) captureGet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if h.isExpired(*nc) {
+	view := h.captureRetentionView(req, ns, name)
+	if view.isExpired(*nc) {
 		httperr.WriteCode(w, req, http.StatusNotFound, fmt.Errorf("capture '%s' not found or has expired", captureID))
 		return
 	}
@@ -836,7 +857,7 @@ func (h *captureHandler) captureGet(w http.ResponseWriter, req *http.Request) {
 		CompletedAt:        formatOptionalTime(nc.Status.CompletionTime),
 		BytesWritten:       quantityValue(nc.Status.BytesWritten),
 		PacketsWritten:     nc.Status.PacketsWritten,
-		ExpiresAt:          h.expiresAt(*nc),
+		ExpiresAt:          view.expiresAt(*nc),
 	})
 }
 
@@ -845,19 +866,9 @@ type captureDeleteResp struct {
 	CaptureID string `json:"captureId"`
 }
 
-// captureDelete deletes a NetworkCapture CR and, best-effort, the sidecar's
-// backing capture file. The CR itself remains the source of truth (rule 10 —
-// the operator is authoritative) and its deletion below is what the response
-// and audit trail report: k.DeleteNetworkCapture is the operation that can
-// fail the request. Removing the sidecar file is a courtesy alongside it —
-// deleteSidecarCaptureFile calls the sidecar's DELETE /captures/{id} route
-// directly (the same newValidatedHost + h.tlsClient path captureDownload
-// already uses for the home cluster), so the file stops counting against
-// the sidecar's volume budget (F-187) as soon as the CR is gone, instead of
-// only at the next pod restart (F-261). It is deliberately best-effort: a
-// pod that is already gone, or a remote cluster with no equivalent path
-// today, has no file left to remove (or no way to reach it), and neither
-// case should block deleting the CR.
+// captureDelete removes a capture CR. Remote files must acknowledge UID-bound
+// cleanup first, retaining the CR for retry on an unavailable gateway. Local
+// cleanup preserves its existing best-effort behavior.
 // DELETE /servers/{name}:capture?id={id}
 func (h *captureHandler) captureDelete(w http.ResponseWriter, req *http.Request) {
 	k, ok := resolveCluster(w, req, h.reg)
@@ -913,11 +924,10 @@ func (h *captureHandler) captureDelete(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	// A running capture must be stopped first (rest-api.md's Delete a
-	// Capture preconditions) — deleting the CR out from under a Running
-	// sidecar would orphan the sidecar's in-progress write with no CR left
-	// to record what it was doing.
-	if nc.Status.Phase == kube.CapturePhasePending || nc.Status.Phase == kube.CapturePhaseRunning {
+	// Require a known terminal phase. An empty phase is an unreconciled Pending
+	// capture: the operator could already be starting its writer, even before
+	// any file exists for a sidecar cleanup request to find.
+	if nc.Status.Phase != kube.CapturePhaseCompleted && nc.Status.Phase != kube.CapturePhaseFailed && nc.Status.Phase != kube.CapturePhaseExpired {
 		if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "capture_running", http.StatusConflict) {
 			return
 		}
@@ -925,19 +935,37 @@ func (h *captureHandler) captureDelete(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	// Best-effort, before the CR is gone: see deleteSidecarCaptureFile's doc
-	// comment. Only reaches the sidecar for the home cluster, matching
-	// captureDownload's isRemoteCluster gate — a remote cluster's agent has
-	// no equivalent direct path today.
-	if !isRemoteCluster(req) {
+	// Remote cleanup must succeed before CR deletion; both retain the identities
+	// observed above so a same-name replacement is never touched. Local cleanup
+	// keeps its existing best-effort behavior.
+	var deleteErr error
+	if isRemoteCluster(req) {
+		bound, err := captureTarget(strings.TrimSpace(req.URL.Query().Get("cluster")), gs, nc)
+		if err != nil {
+			if h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "not_found", http.StatusNotFound) {
+				http.NotFound(w, req)
+			}
+			return
+		}
+		if !captureNeverStarted(nc) {
+			if err := h.remoteCaptureCleanup(req, bound); err != nil {
+				if h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "cleanup_failed", http.StatusServiceUnavailable) {
+					httperr.WriteCode(w, req, http.StatusServiceUnavailable, errors.New("capture file cleanup unavailable; capture retained for retry"))
+				}
+				return
+			}
+		}
+		deleteErr = deleteCaptureWithUID(req.Context(), k, nc)
+	} else {
 		h.deleteSidecarCaptureFile(req.Context(), gs.Name, gs.Namespace, captureID)
+		deleteErr = k.DeleteNetworkCapture(req.Context(), ns, captureID)
 	}
 
-	if err := k.DeleteNetworkCapture(req.Context(), ns, captureID); err != nil {
+	if deleteErr != nil {
 		if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "delete_failed", http.StatusInternalServerError) {
 			return
 		}
-		httperr.Write(w, req, err)
+		httperr.Write(w, req, deleteErr)
 		return
 	}
 
@@ -961,12 +989,8 @@ func (h *captureHandler) captureDelete(w http.ResponseWriter, req *http.Request)
 // captureDownload downloads the capture file from the sidecar.
 // GET /servers/{name}:capture-file?id={id}
 //
-// Unlike the other capture routes, which act on NetworkCapture objects
-// through the cluster registry, the download streams from the sidecar's
-// in-cluster Service using the home cluster's mTLS material, so it is
-// served for the home cluster only. Until a cross-cluster agent exists, a
-// non-local `?cluster=` answers 501 Not Implemented with a readable reason
-// (audited with reason "cluster_not_local"), as rejectRemoteCluster does.
+// Remote files travel through the registered gateway with immutable server
+// and capture identities. The local legacy sidecar path remains supported.
 func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Request) {
 	k, ok := resolveCluster(w, req, h.reg)
 	if !ok {
@@ -980,14 +1004,6 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 	captureID := req.URL.Query().Get("id")
 	auditPath := fmt.Sprintf("/servers/%s:capture-file", name)
 	target := fmt.Sprintf("%s:%s", name, captureID)
-
-	if isRemoteCluster(req) {
-		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "cluster_not_local", http.StatusNotImplemented) {
-			return
-		}
-		httperr.WriteRemoteClusterNotImplemented(w)
-		return
-	}
 
 	if captureID == "" {
 		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "missing_id", http.StatusBadRequest) {
@@ -1049,7 +1065,8 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 	// to Expired. Gating on wall-clock time here, not just phase, closes that
 	// window — the capture is inaccessible the moment it crosses its
 	// retention deadline, not merely after GC catches up.
-	if h.isExpired(*nc) {
+	// The remote gateway applies its own site's retention defaults and maximum.
+	if nc.Status.Phase == kube.CapturePhaseExpired || (!isRemoteCluster(req) && h.isExpired(*nc)) {
 		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "expired", http.StatusNotFound) {
 			return
 		}
@@ -1078,9 +1095,17 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 	// correct the record above with a second row carrying the real status —
 	// the response is already committed by then, so this can only append to
 	// the trail, not gate it (that gate already happened above, per FR-006).
-	status := h.proxyFileDownload(w, req, host, captureID)
-	if status < http.StatusOK || status >= http.StatusMultipleChoices {
-		if err := h.auditor.WriteSync(req.Context(), http.MethodGet, auditPath, target, "download_failed", status); err != nil {
+	var status int
+	if isRemoteCluster(req) {
+		status = h.remoteCaptureDownload(w, req, gs, nc)
+	} else {
+		status = h.proxyFileDownload(w, req, host, captureID)
+	}
+	if status < http.StatusOK || (status >= http.StatusMultipleChoices && status != http.StatusNotModified) {
+		// A disconnect must not also erase the corrective audit outcome.
+		auditCtx, cancel := context.WithTimeout(context.WithoutCancel(req.Context()), 5*time.Second)
+		defer cancel()
+		if err := h.auditor.WriteSync(auditCtx, http.MethodGet, auditPath, target, "download_failed", status); err != nil {
 			slog.Error("capture download: corrective audit write failed", "capture", target, "status", status, "err", err)
 		}
 	}
@@ -1143,27 +1168,7 @@ func (h *captureHandler) proxyFileDownload(w http.ResponseWriter, req *http.Requ
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// A non-2xx from the sidecar is an error response (plain text, e.g.
-	// "capture not found"), not a pcap payload — labeling it with the
-	// download's Content-Type/Content-Disposition would make a browser
-	// save an error message as "capture-<id>.pcapng". Route it through
-	// httperr like any other handler error instead, and never touch the
-	// download-specific headers on this path.
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		httperr.WriteCode(w, req, resp.StatusCode, fmt.Errorf("capture sidecar returned %s", http.StatusText(resp.StatusCode)))
-		return resp.StatusCode
-	}
-
-	// Copy response headers (with denylist), then the fixed
-	// download-specific headers, then stream the body straight through —
-	// never buffer the whole file in memory.
-	copyResponseHeaders(w.Header(), resp.Header)
-	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"capture-%s.pcapng\"", captureID))
-
-	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, resp.Body)
-	return resp.StatusCode
+	return streamCaptureResponse(w, req, resp, captureID)
 }
 
 // deleteSidecarCaptureFile calls the capture sidecar's DELETE /captures/{id}
@@ -1369,7 +1374,7 @@ func (h *captureHandler) effectiveTTL(nc kube.NetworkCapture) int64 {
 // Time if the capture has not completed yet (a Pending/Running capture has
 // no expiry).
 func (h *captureHandler) expiryDeadline(nc kube.NetworkCapture) time.Time {
-	if nc.Status.CompletionTime == nil {
+	if nc.Status.CompletionTime == nil || h.effectiveTTL(nc) <= 0 {
 		return time.Time{}
 	}
 	return nc.Status.CompletionTime.Add(time.Duration(h.effectiveTTL(nc)) * time.Second)

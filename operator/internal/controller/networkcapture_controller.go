@@ -33,17 +33,17 @@ import (
 type SidecarCaptureClient interface {
 	// StartCapture instructs the sidecar to begin capturing.
 	// Returns error on failure.
-	StartCapture(ctx context.Context, namespace, serverName, captureID string, filter *string, maxDurationSeconds, maxSizeBytes int64) error
+	StartCapture(ctx context.Context, namespace, serverName, captureID, serverUID, captureUID string, filter *string, maxDurationSeconds, maxSizeBytes int64) error
 
 	// StopCapture instructs the sidecar to stop an active capture.
-	StopCapture(ctx context.Context, namespace, serverName, captureID string) error
+	StopCapture(ctx context.Context, namespace, serverName, captureID, serverUID, captureUID string) error
 
 	// GetCaptureStatus polls the sidecar for a capture's current status.
 	// Returns the phase, packets written, bytes written, message, and error.
 	// A non-nil error also signals "the sidecar has no record of this capture ID"
 	// (e.g. it was never started, or the sidecar restarted) — the reconciler
 	// relies on this to decide whether StartCapture still needs to be called.
-	GetCaptureStatus(ctx context.Context, namespace, serverName, captureID string) (phase string, packetsWritten int64, bytesWritten int64, message string, err error)
+	GetCaptureStatus(ctx context.Context, namespace, serverName, captureID, serverUID, captureUID string) (phase string, packetsWritten int64, bytesWritten int64, message string, err error)
 
 	// DeleteCaptureFile instructs the sidecar to remove a capture's backing
 	// PCAPNG file from its emptyDir, without altering the NetworkCapture CRD
@@ -51,7 +51,7 @@ type SidecarCaptureClient interface {
 	// once a capture's TTL has elapsed (FR-007). Treated as best-effort by
 	// callers: an error here (e.g. the sidecar/pod is already gone, so there
 	// is no file left to remove) does not block the CR from being deleted.
-	DeleteCaptureFile(ctx context.Context, namespace, serverName, captureID string) error
+	DeleteCaptureFile(ctx context.Context, namespace, serverName, captureID, serverUID, captureUID string) error
 }
 
 // SidecarStoppedCondition marks that the reconciler has already told the
@@ -187,7 +187,7 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// Best-effort: the sidecar may already be gone (pod restarted), in which
 		// case there is nothing left to stop. Record the failure as a condition
 		// but continue to release the lock and transition to retention.
-		if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
+		if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name, captureOwnerUID(nc.OwnerReferences, nc.Spec.ServerRef.Name), string(nc.UID)); err != nil {
 			meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
 				Type:               "SidecarStopFailed",
 				Status:             metav1.ConditionTrue,
@@ -352,7 +352,7 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if !hasCaptureEphemeralContainer(&pod) {
 			// Fallback injection — see injectCaptureContainer's doc comment
 			// for why this is normally already done by the time we get here.
-			if err := r.injectCaptureContainer(ctx, &pod); err != nil {
+			if err := r.injectCaptureContainer(ctx, &pod, string(gs.UID)); err != nil {
 				// The Pod read above comes from the manager's cache, which can
 				// lag a subresource write. A requeue that races ahead of cache
 				// propagation would see hasCaptureEphemeralContainer == false
@@ -388,8 +388,7 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// before issuing another :start — a duplicate start against an
 		// already-running capture would restart the pcap and lose packets.
 		_, existingPackets, existingBytes, _, statusErr := r.SidecarClient.GetCaptureStatus(
-			ctx, nc.Namespace, gs.Name, nc.Name,
-		)
+			ctx, nc.Namespace, gs.Name, nc.Name, captureOwnerUID(nc.OwnerReferences, nc.Spec.ServerRef.Name), string(nc.UID))
 		if statusErr != nil {
 			// The sidecar has no record of this capture yet; start it. With
 			// no spec.filter, the filter is built from the template's
@@ -407,6 +406,8 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				nc.Namespace,
 				gs.Name,
 				nc.Name,
+				string(gs.UID),
+				string(nc.UID),
 				filter,
 				maxDurationSeconds,
 				maxSizeBytes,
@@ -500,8 +501,7 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			ctx,
 			nc.Namespace,
 			gs.Name,
-			nc.Name,
-		)
+			nc.Name, captureOwnerUID(nc.OwnerReferences, nc.Spec.ServerRef.Name), string(nc.UID))
 		if err != nil {
 			// Sidecar unreachable; maybe it crashed. Fail the capture.
 			return r.fail(ctx, &nc, fmt.Sprintf("sidecar unreachable: %v", err))
@@ -610,7 +610,7 @@ func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc
 	if neverStarted {
 		stopped.Reason = "never_started"
 		stopped.Message = "stop requested before the sidecar started capturing"
-	} else if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, serverName, nc.Name); err != nil && !isCaptureAlreadyStoppedError(err) {
+	} else if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, serverName, nc.Name, captureOwnerUID(nc.OwnerReferences, nc.Spec.ServerRef.Name), string(nc.UID)); err != nil && !isCaptureAlreadyStoppedError(err) {
 		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
 			Type:               "SidecarStopFailed",
 			Status:             metav1.ConditionTrue,
@@ -619,7 +619,7 @@ func (r *NetworkCaptureReconciler) completeRequestedStop(ctx context.Context, nc
 			Message:            err.Error(),
 			LastTransitionTime: now,
 		})
-	} else if _, packets, bytesWritten, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name); statusErr == nil {
+	} else if _, packets, bytesWritten, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name, captureOwnerUID(nc.OwnerReferences, nc.Spec.ServerRef.Name), string(nc.UID)); statusErr == nil {
 		// Best effort: the stop closed the file, so these are the final
 		// counts. A failed status read keeps the last polled values.
 		nc.Status.PacketsWritten = packets
@@ -692,7 +692,7 @@ func (r *NetworkCaptureReconciler) pendingCaptureNeverStarted(ctx context.Contex
 		return true, nil
 	}
 
-	_, _, _, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name)
+	_, _, _, _, statusErr := r.SidecarClient.GetCaptureStatus(ctx, nc.Namespace, serverName, nc.Name, captureOwnerUID(nc.OwnerReferences, nc.Spec.ServerRef.Name), string(nc.UID))
 	if statusErr == nil {
 		return false, nil
 	}
@@ -892,7 +892,7 @@ func (r *NetworkCaptureReconciler) expireStuckRunningCapture(
 
 	// Best-effort: the sidecar may already be gone (pod restarted), in which
 	// case there is nothing left to stop.
-	if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
+	if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name, captureOwnerUID(nc.OwnerReferences, nc.Spec.ServerRef.Name), string(nc.UID)); err != nil {
 		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
 			Type:               "RetentionStopFailed",
 			Status:             metav1.ConditionTrue,
@@ -934,7 +934,7 @@ func (r *NetworkCaptureReconciler) expireCapture(ctx context.Context, nc *gamepl
 		}
 	}
 
-	if err := r.SidecarClient.DeleteCaptureFile(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
+	if err := r.SidecarClient.DeleteCaptureFile(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name, captureOwnerUID(nc.OwnerReferences, nc.Spec.ServerRef.Name), string(nc.UID)); err != nil {
 		firstFailure := metav1.Now()
 		if existing := meta.FindStatusCondition(nc.Status.Conditions, "FileCleanupFailed"); existing != nil {
 			firstFailure = existing.LastTransitionTime
@@ -986,8 +986,8 @@ func (r *NetworkCaptureReconciler) expireCapture(ctx context.Context, nc *gamepl
 // of the GameServer reconciler's write). Uses the same
 // buildCaptureEphemeralContainer definition GameServerReconciler does, so
 // the two injection paths can never produce different container specs.
-func (r *NetworkCaptureReconciler) injectCaptureContainer(ctx context.Context, pod *corev1.Pod) error {
-	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, buildCaptureEphemeralContainer(r.CaptureSidecarImage))
+func (r *NetworkCaptureReconciler) injectCaptureContainer(ctx context.Context, pod *corev1.Pod, serverUID string) error {
+	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, buildCaptureEphemeralContainer(r.CaptureSidecarImage, serverUID))
 
 	// spec.ephemeralContainers is only mutable through the pods/ephemeralcontainers
 	// subresource — a plain Update on the main pod resource is rejected by the
@@ -1122,4 +1122,15 @@ func (r *NetworkCaptureReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // ptrTo returns a pointer to the given value.
 func ptrTo[T any](v T) *T {
 	return &v
+}
+
+// captureOwnerUID binds lifecycle requests to the original owner, including
+// retention cleanup after a same-name GameServer has been replaced.
+func captureOwnerUID(refs []metav1.OwnerReference, name string) string {
+	for _, ref := range refs {
+		if ref.APIVersion == "gameplane.local/v1alpha1" && ref.Kind == "GameServer" && ref.Name == name {
+			return string(ref.UID)
+		}
+	}
+	return ""
 }

@@ -4,6 +4,7 @@
   "x": -15672,
   "y": 25149,
   "name": "Gameplane/Server Detail Header",
+  "context": "Server-scoped identity. Actions follow this server location; never fall back to a local namesake. Mobile actions wrap into rows.",
   "reusable": true,
   "width": 1096,
   "fill": "$background/background",
@@ -86,7 +87,9 @@
               "id": "UpnRk",
               "name": "srvSubtitle",
               "fill": "$muted",
-              "content": "minecraft-java · 1.21.4-fabric · ns: gameplane-games · up 3m",
+              "textGrowth": "fixed-width",
+              "width": 540,
+              "content": "site: remote-lab · minecraft-java · 1.21.4-fabric · ns: gameplane-games",
               "fontFamily": "$typography/font-sans",
               "fontSize": 12,
               "fontWeight": "normal"

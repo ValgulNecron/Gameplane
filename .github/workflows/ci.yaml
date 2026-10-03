@@ -756,6 +756,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       - run: helm template gameplane charts/gameplane > /tmp/rendered.yaml
+      - name: gateway isolation and API-disabled chart renders
+        run: python3 charts/tests/check_gateway.py
       - name: sanity-check rendered manifests
         run: |
           grep -q 'kind: Deployment' /tmp/rendered.yaml
@@ -878,6 +880,17 @@ jobs:
           cp charts/gameplane/values.yaml /tmp/values.yaml.orig
           cp charts/gameplane/testdata/upgrade-from-v0.2.0-beta.8-values.yaml charts/gameplane/values.yaml
           helm template gameplane charts/gameplane > /tmp/rendered-reuse-values.yaml
+          python3 - <<'PY'
+          import yaml
+          docs = [d for d in yaml.safe_load_all(open('/tmp/rendered-reuse-values.yaml')) if d]
+          resources = {(d['kind'], d['metadata']['name']) for d in docs}
+          required = {('Deployment', 'gameplane-api'), ('Deployment', 'gameplane-web'),
+                      ('PersistentVolumeClaim', 'gameplane-api-data')}
+          assert required <= resources, f"reuse-values removed existing resources: {required - resources}"
+          assert ('Deployment', 'gameplane-gateway') not in resources
+          assert ('NetworkPolicy', 'allow-api-to-agent') in resources
+          assert ('NetworkPolicy', 'allow-api-to-capture') not in resources, "legacy values without capture enabled its ingress"
+          PY
       - name: crd-manifests in sync with crds
         # The CRD-apply hook serves CRDs from crd-manifests/ (crds/ isn't
         # readable by Helm .Files). make manifests keeps both in sync; guard
@@ -1244,13 +1257,17 @@ jobs:
         # docker-network IP; see multicluster_e2e_test.go's package doc.
         run: ./deploy/kind/e2e.sh up "$CLUSTER_B" e2e
       - name: run go e2e (multicluster)
+        # GatewayParity installs this checkout's real gateway chart on B with
+        # temporary PKI, exercises agent/capture/Minecraft paths from A, and
+        # rotates trust/endpoints. Missing second-cluster infra fails in CI.
         run: |
           RUN_REGEX="$(./test/e2e/buckets.sh regex multicluster)"
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             GAMEPLANE_E2E_CLUSTER_B="$CLUSTER_B" \
-            go test -tags=e2e -timeout 15m -v -run "$RUN_REGEX" ./...
+            GAMEPLANE_E2E_REQUIRE_GATEWAY=1 \
+            go test -tags=e2e -timeout 45m -v -run "$RUN_REGEX" ./...
       - name: dump cluster state on failure (multicluster A)
         if: failure()
         uses: ./.github/actions/dump-cluster-state

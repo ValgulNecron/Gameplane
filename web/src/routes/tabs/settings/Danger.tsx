@@ -1,3 +1,4 @@
+import { useResourceAccess } from "@/lib/resourceTarget";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Button, Card, CardContent } from "@heroui/react";
@@ -12,6 +13,8 @@ interface Props {
 }
 
 export function DangerSection({ name, ns }: Props) {
+  const access = useResourceAccess();
+  const canManage = access?.canDelete === true;
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [wipeOpen, setWipeOpen] = useState(false);
@@ -23,7 +26,7 @@ export function DangerSection({ name, ns }: Props) {
         title="Wipe world data"
         body="Deletes everything on the data volume and restarts the server on a fresh world. Take a backup first."
         action={
-          <Button variant="ghost" size="sm" onPress={() => setWipeOpen(true)}>
+          <Button variant="ghost" size="sm" isDisabled={!canManage} onPress={() => setWipeOpen(true)}>
             Wipe world…
           </Button>
         }
@@ -32,7 +35,7 @@ export function DangerSection({ name, ns }: Props) {
         title="Transfer ownership"
         body="Hand this server to another user. You keep access only if you stay a collaborator."
         action={
-          <Button variant="ghost" size="sm" onPress={() => setTransferOpen(true)}>
+          <Button variant="ghost" size="sm" isDisabled={!canManage} onPress={() => setTransferOpen(true)}>
             Transfer…
           </Button>
         }
@@ -41,7 +44,7 @@ export function DangerSection({ name, ns }: Props) {
         title="Delete server"
         body="Removes the GameServer and its persistent volume. This cannot be undone."
         action={
-          <Button variant="danger" size="sm" onPress={() => setConfirmOpen(true)}>
+          <Button variant="danger" size="sm" isDisabled={!access?.canDelete} onPress={() => setConfirmOpen(true)}>
             Delete
           </Button>
         }

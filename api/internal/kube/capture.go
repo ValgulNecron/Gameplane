@@ -70,6 +70,8 @@ type NetworkCaptureStatus struct {
 	BytesWritten *resource.Quantity `json:"bytesWritten,omitempty"`
 	// Message is a human-readable status or error message.
 	Message string `json:"message,omitempty"`
+	// Conditions contains the operator's observed lifecycle outcomes.
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // CaptureStopRequestedAnnotation is the annotation StopNetworkCapture sets

@@ -3,7 +3,7 @@
        points the API elsewhere, so the receiver would sit idle — the API
        auto-wires to it only when endpoint is empty, mirroring this
        condition in api.yaml). */ -}}
-{{- if and .Values.api.telemetry.receiver.enabled (not .Values.api.telemetry.endpoint) }}
+{{- if and (eq (include "gameplane.apiEnabled" .) "true") .Values.api.telemetry.receiver.enabled (not .Values.api.telemetry.endpoint) }}
 {{- $r := .Values.api.telemetry.receiver }}
 # Anonymous-usage-telemetry collector. The API POSTs its daily
 # {version, servers, templates} report here; this validates it and

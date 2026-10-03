@@ -252,19 +252,55 @@ a cluster-scoped CRD.
   namespace — the label guard prevents pointing at arbitrary Secrets
   (see "Kubeconfig Secret handling" in `docs/security.md`).
 - The operator health-checks each registered `Cluster` and reconciles
-  `status.phase` (Unknown/Healthy/Unhealthy), so cluster connectivity
-  is visible in the dashboard.
+  `status.phase` (Unknown/Healthy/Unhealthy), so Kubernetes connectivity
+  is visible in the dashboard. This status does not probe an optional gateway.
 
 **Deployment model:**
 
 - The **target cluster** runs its own operator instance (deployed via
   Helm to manage GameServer, Backup, and other CRDs on that cluster).
-  The same agent sidecar image is used in all clusters.
+  Optional remote agent access also runs a private gateway from the API image,
+  with no user database or browser/admin routes. Upgrade the operator and agents
+  for the UID-bound agent protocol before enabling this path.
 - The **control-plane cluster** hosts the API and dashboard; it may or
   may not have game pods itself (if `cluster=local`).
-- A **request** made to the API with `?cluster=<name>` is dispatched to
+- A **resource request** made to the API with `?cluster=<name>` is dispatched to
   the named cluster's Kubernetes client. Omitting the selector targets
-  the built-in "local" cluster.
+  the built-in "local" cluster. Collection reads under `/fleet/*` instead combine
+  authorized scopes by default, with optional cluster and namespace filters.
+  Each returned resource retains its target identity and permissions; partial
+  results report unavailable or truncated scopes. See the
+  [unified dashboard](unified-dashboard.md) for the collection contract.
+
+**Interactive connections:**
+
+- Pod startup/stdout logs and PTY console attach resolve a Kubernetes client
+  from the registry for each connection. Both the API URL and attach credentials
+  come from that client. Unknown or removed clusters fail closed.
+- The API checks the GameServer → StatefulSet → Pod controller owner UIDs before
+  accessing a workload. Pod-log polling stops when the Pod UID changes; reconnects
+  validate the new workload. Kubernetes log/attach APIs address Pods by name and
+  do not support UID preconditions, so this is a preflight check, not an atomic
+  authorization guarantee across deletion/recreation.
+- The browser binds a socket to the open server's cluster and namespace.
+  Reconnects retain that target; leaving the server view closes its streams.
+  Inventory selection and list filters cannot retarget an open server operation.
+  Unsupported remote operations fail instead of reaching a local namesake.
+- RCON, game-file logs, files, players, live status and agent-based mods use the
+  selected cluster's optional gateway. It verifies a dedicated central mTLS peer,
+  target cluster, GameServer UID and owned agent Service, then uses local DNS and
+  agent mTLS. Versioned agent routes verify the UID on the final hop; older agents
+  fail closed. RCON module actions use this path, while stdin actions use the
+  selected Kubernetes client with the same preflight limitations as PTY attach.
+- Existing local installations retain direct agent connections. Remote gateway
+  access requires both private gateway reachability and direct Kubernetes API
+  access; it does not tunnel Kubernetes operations or replicate game storage.
+  Capture downloads and cleanup use a separate gateway route bound to both the
+  GameServer and NetworkCapture UIDs; sidecars verify persisted file identity.
+  Modpack and ID-list configuration use the selected Kubernetes client and
+  template, with provider credentials retained centrally.
+  See [remote agent access](multicluster-agent-gateway.md) and
+  [gateway installation](gateway-install.md) for configuration and boundaries.
 
 **RBAC and permissions:**
 
@@ -279,7 +315,12 @@ for the registration flow.
 ## Security boundaries
 
 - **Browser → API**: HTTPS, session cookie + CSRF header, OIDC or local login.
-- **API → Agent**: mTLS; client cert signed by operator-managed CA mounted into API pod.
+- **API → local Agent**: mTLS; client cert signed by operator-managed CA mounted into API pod.
+- **API → remote Gateway**: dedicated mTLS trust and an exact enrolled central
+  URI SAN. The central API remains the user-authorization authority.
+- **Gateway → Agent**: local agent mTLS and versioned GameServer UID-bound routes;
+  browser credentials are not forwarded. The gateway exposes only allowlisted
+  operations in configured namespaces and bounds active stream lifetimes.
 - **Agent → K8s**: in-pod ServiceAccount, scoped to updating its owning GameServer's status.
 - **Operator → K8s**: cluster-wide CRUD on Gameplane CRDs + workload primitives it manages.
 - **Operator/Agent → external fetches**: a shared dial-time SSRF guard

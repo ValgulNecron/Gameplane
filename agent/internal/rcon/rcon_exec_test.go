@@ -41,12 +41,12 @@ func TestExec_WriteFailsWhenServerGone(t *testing.T) {
 }
 
 // TestExec_ResponseThenCloseReturnsOutput is the regression test for the
-// Minecraft "EOF" bug: Minecraft answers the command and then closes the
-// socket per command. The client (which no longer sends a sentinel) must read
+// response-then-EOF case: a server answers the command and then closes the
+// socket. The client (which no longer sends a sentinel) must read
 // and return the command's output, not surface the close as an error.
 func TestExec_ResponseThenCloseReturnsOutput(t *testing.T) {
 	// Server authenticates, reads the (single) EXEC, answers it echoing the
-	// request id, then closes — mirroring real Minecraft RCON behaviour.
+	// request id, then closes after answering.
 	lc := &net.ListenConfig{}
 	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {

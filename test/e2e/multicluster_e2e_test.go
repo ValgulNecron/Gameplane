@@ -61,6 +61,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,6 +71,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -196,9 +198,8 @@ func exitErr(err error) error {
 //     namespace.
 //  3. `?cluster=<unknown>` is rejected as a bad request (400) for any
 //     caller, before RBAC or the handler ever sees a namespace/name.
-//  4. Routes built on the API's home-cluster client serve the home cluster
-//     only, for a user whose write grant is on cluster B (see
-//     checkHomeClusterOnlyRoutes).
+//  4. A missing remote server never falls back to the home namesake,
+//     including registry, modpack, and capture routes.
 func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	t.Parallel()
 
@@ -236,9 +237,9 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 
 	// The API's cluster watch (kube.WatchClusters) loads a client for the new
 	// Cluster CR asynchronously off an informer Add event; wait for it to
-	// show up in the registry (surfaced via GET /clusters) before dispatching
-	// anything to it, or the create below could race a registry that hasn't
-	// caught up yet.
+	// become healthy before dispatching anything to it. Discovery includes
+	// persisted registrations before a client loads, so presence alone no
+	// longer proves that the registry is ready.
 	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
 		resp, body, err := admin.Get("/clusters")
 		if err != nil {
@@ -248,10 +249,21 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			return false, fmt.Sprintf("GET /clusters: status=%d body=%s", resp.StatusCode, string(body))
 		}
-		if strings.Contains(string(body), clusterID) {
-			return true, ""
+		var discovery struct {
+			Items []struct {
+				Name  string `json:"name"`
+				Phase string `json:"phase"`
+			} `json:"items"`
 		}
-		return false, "cluster not yet listed: " + string(body)
+		if err := json.Unmarshal(body, &discovery); err != nil {
+			return false, err.Error()
+		}
+		for _, item := range discovery.Items {
+			if item.Name == clusterID && item.Phase == "Healthy" {
+				return true, ""
+			}
+		}
+		return false, "cluster not yet healthy: " + string(body)
 	})
 
 	// --- Create a GameTemplate + GameServer directly on cluster B -----------
@@ -265,7 +277,8 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 			"game":        "busybox",
 			"version":     "1",
 			"image":       "busybox:1.36",
-			"command":     []any{"sh", "-c", "sleep 100000"},
+			"command":     []any{"sh", "-c", "echo remote-stream-start; export STREAM_SITE=remote; exec sh"},
+			"consoleMode": "pty",
 			"ports": []any{
 				map[string]any{"name": "noop", "containerPort": int64(12345), "advertise": true, "protocol": "TCP"},
 			},
@@ -391,6 +404,10 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	}
 	resp.Body.Close()
 
+	// Also create a same-named local server with distinguishable output.
+	// Streaming must use B's API URL AND credentials, not the local namesake.
+	exerciseMultiClusterStreams(t, envB, operatorClient, clusterID, tmplName, gsName)
+
 	// --- RBAC: a viewer bound only to "local" cannot see cluster B's server -
 	viewerName, viewerPW, viewerID := envInstance.CreateUser(t, admin, "viewer", "e2e-mc-viewer")
 	t.Cleanup(func() {
@@ -421,6 +438,17 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	}
 	resp.Body.Close()
 
+	for _, route := range []string{"logs/pod", "console-pty"} {
+		resp, body, err := viewer.Get("/ws/servers/" + gsName + "/" + route + "?cluster=" + clusterID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("local viewer remote %s: status=%d body=%s", route, resp.StatusCode, body)
+		}
+	}
+
 	// --- An unregistered cluster is a 400 for any caller, admin included ----
 	resp, body, err = admin.Get("/servers?cluster=e2e-mc-does-not-exist")
 	if err != nil {
@@ -432,24 +460,23 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 			resp.StatusCode, http.StatusBadRequest, string(body))
 	}
 
-	checkHomeClusterOnlyRoutes(t, admin, clusterID)
+	checkMissingRemoteTargetsDoNotReachHome(t, admin, clusterID)
 
 	// Last, because it removes cluster B's registration.
 	checkClusterRemoval(t, admin, operatorClient, clusterID, gsName, tmplName)
 }
 
-// checkHomeClusterOnlyRoutes covers the routes built on the API's home-cluster
-// client: the mod registry browser, modpack install and capture file
-// download. A user whose write grant is on the remote cluster only gets 501
-// from them for ?cluster=<remote>, the home cluster's GameServer keeps its
-// spec, and the capture download refusal is recorded in the audit log.
-func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string) {
+// The registry, modpack, and capture routes now resolve the selected cluster.
+// A name present only at home must return 404 remotely, leave the local server
+// unchanged, and preserve the capture denial audit. Successful remote operations
+// are exercised separately by TestMultiCluster_GatewayParity.
+func checkMissingRemoteTargetsDoNotReachHome(t *testing.T, admin *APIClient, clusterID string) {
 	t.Helper()
 	const (
 		ns          = "gameplane-games"
 		modpackEnv  = "E2E_MC_MODPACK"
 		captureID   = "e2e-mc-capture"
-		notLocalWhy = "cluster_not_local"
+		notFoundWhy = "server_not_found"
 	)
 	ctx := context.Background()
 
@@ -542,7 +569,7 @@ func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string
 			homeGS, resp.StatusCode, http.StatusForbidden, string(body))
 	}
 
-	// With ?cluster=<remote>, the home-cluster-only routes answer 501 (no cross-cluster agent yet).
+	// The remote cluster has no such name: never resolve its home namesake.
 	for _, c := range []struct {
 		method, path string
 		body         any
@@ -556,8 +583,8 @@ func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string
 			t.Fatalf("%s %s: %v", c.method, c.path, err)
 		}
 		resp.Body.Close()
-		if resp.StatusCode != http.StatusNotImplemented {
-			t.Errorf("%s %s: status=%d want=%d body=%s", c.method, c.path, resp.StatusCode, http.StatusNotImplemented, string(body))
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s %s: status=%d want=%d body=%s", c.method, c.path, resp.StatusCode, http.StatusNotFound, string(body))
 		}
 	}
 
@@ -597,13 +624,24 @@ func checkHomeClusterOnlyRoutes(t *testing.T, admin *APIClient, clusterID string
 			continue
 		}
 		found = true
-		if e.Reason != notLocalWhy || e.Status != http.StatusNotImplemented {
+		if e.Reason != notFoundWhy || e.Status != http.StatusNotFound {
 			t.Errorf("audit row for %s: reason=%q status=%d, want reason=%q status=%d",
-				target, e.Reason, e.Status, notLocalWhy, http.StatusNotImplemented)
+				target, e.Reason, e.Status, notFoundWhy, http.StatusNotFound)
 		}
 	}
 	if !found {
 		t.Errorf("no audit row for capture download target %s", target)
+	}
+	// Cluster enrollment and credential issuance remain central-only operations.
+	for _, path := range []string{"/cluster/nodes:join", "/cluster/kubeconfig"} {
+		response, raw, err := admin.Post(path+"?cluster="+clusterID, map[string]any{})
+		if err != nil {
+			t.Fatalf("central-only %s: %v", path, err)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusNotImplemented {
+			t.Errorf("central-only %s: status=%d want=501 body=%s", path, response.StatusCode, raw)
+		}
 	}
 }
 
@@ -723,5 +761,94 @@ func checkClusterRemoval(t *testing.T, admin, operatorClient *APIClient, cluster
 		if _, err := envInstance.K8s.CoreV1().Secrets(controlNS).Get(ctx, secretName, metav1.GetOptions{}); err != nil {
 			t.Errorf("%s: secret %s/%s was removed with Cluster %s: %v", tc.name, controlNS, secretName, crName, err)
 		}
+	}
+}
+
+// This runs inside the existing multicluster bucket test to share cluster
+// registration and sessions rather than consume extra login-rate budget.
+func exerciseMultiClusterStreams(t *testing.T, envB *Env, remote *APIClient, clusterID, templateName, serverName string) {
+	t.Helper()
+	const ns = "gameplane-games"
+	ctx := t.Context()
+	tmpl, err := envB.Dyn.Resource(gameTemplateGVR).Get(ctx, templateName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl.SetResourceVersion("")
+	tmpl.SetUID("")
+	tmpl.SetManagedFields(nil)
+	tmpl.SetCreationTimestamp(metav1.Time{})
+	tmpl.Object["spec"].(map[string]any)["command"] = []any{"sh", "-c", "echo local-stream-start; export STREAM_SITE=local; exec sh"}
+	if _, err := envInstance.Dyn.Resource(gameTemplateGVR).Create(ctx, tmpl, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(gameTemplateGVR).Delete(context.Background(), templateName, metav1.DeleteOptions{})
+	})
+	applyBusyboxGameServer(t, ns, serverName, templateName)
+	for _, env := range []*Env{envInstance, envB} {
+		env.Eventually(t, 3*time.Minute, func() (bool, string) {
+			pod, err := env.K8s.CoreV1().Pods(ns).Get(ctx, serverName+"-0", metav1.GetOptions{})
+			if err != nil {
+				return false, err.Error()
+			}
+			for _, c := range pod.Status.ContainerStatuses {
+				if c.Name == "game" && c.Ready {
+					return true, ""
+				}
+			}
+			return false, "game container not ready"
+		})
+	}
+	for _, route := range []string{"logs/pod?from=end", "logs/pod?from=start", "console-pty?"} {
+		conn, stop := dialAuthedWS(t, remote, "/ws/servers/"+serverName+"/"+route+"&cluster="+clusterID)
+		func() {
+			defer stop()
+			readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			want := "remote-stream-start"
+			if strings.HasPrefix(route, "console") {
+				// The expected remote value is not in the input; seeing terminal echo
+				// alone cannot falsely satisfy the assertion.
+				command := "printf 'SITE:%s\\n' \"$STREAM_SITE\"\n"
+				envelope, err := json.Marshal(ptyEnvelope{Kind: "stdin", Body: base64.StdEncoding.EncodeToString([]byte(command))})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := conn.Write(readCtx, websocket.MessageText, envelope); err != nil {
+					t.Fatal(err)
+				}
+				want = "SITE:remote"
+			}
+			var output strings.Builder
+			for {
+				_, frame, err := conn.Read(readCtx)
+				if err != nil {
+					t.Fatalf("remote %s without marker: %v; output=%q", route, err, output.String())
+				}
+				if strings.HasPrefix(route, "console") {
+					var envelope ptyEnvelope
+					if err := json.Unmarshal(frame, &envelope); err != nil {
+						t.Fatal(err)
+					}
+					if envelope.Kind == "err" {
+						t.Fatalf("remote attach error: %s", envelope.Body)
+					}
+					raw, err := base64.StdEncoding.DecodeString(envelope.Body)
+					if err != nil {
+						t.Fatal(err)
+					}
+					output.Write(raw)
+				} else {
+					output.Write(frame)
+				}
+				if strings.Contains(output.String(), "local-stream-start") || strings.Contains(output.String(), "SITE:local") {
+					t.Fatalf("remote stream reached local namesake: %s", output.String())
+				}
+				if strings.Contains(output.String(), want) {
+					break
+				}
+			}
+		}()
 	}
 }

@@ -4,6 +4,7 @@
   "x": -13350.0544367535,
   "y": 27334.997924316056,
   "name": "Gameplane/Backups Filter Row",
+  "theme": {},
   "reusable": true,
   "width": 1152,
   "gap": 12,
@@ -28,42 +29,41 @@
               "content": "Search by name or server…"
             }
           }
-        },
-        {
-          "id": "OdvSz",
-          "type": "ref",
-          "ref": "AT7ya",
-          "name": "Select",
-          "width": 176,
-          "descendants": {
-            "cFsFk": {
-              "content": "All servers"
-            }
-          }
-        },
-        {
-          "id": "KRDcn",
-          "type": "ref",
-          "ref": "AT7ya",
-          "name": "Select",
-          "width": 144,
-          "descendants": {
-            "cFsFk": {
-              "content": "All phases"
-            }
-          }
         }
       ]
     },
     {
-      "type": "text",
-      "id": "g9iDB",
-      "name": "Result Count",
-      "fill": "$muted",
-      "content": "0 of 0 backups",
-      "fontFamily": "$typography/font-sans",
-      "fontSize": 12,
-      "fontWeight": "normal"
+      "type": "frame",
+      "id": "JcPIY",
+      "name": "Count and filter",
+      "gap": 12,
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "g9iDB",
+          "name": "Result Count",
+          "fill": "$muted",
+          "content": "0 of 0 backups",
+          "fontFamily": "$typography/font-sans",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        },
+        {
+          "id": "cXUof",
+          "type": "ref",
+          "ref": "i6gfu",
+          "name": "Filter button",
+          "descendants": {
+            "FCYQ9": {
+              "icon": "list-filter"
+            },
+            "GqVun": {
+              "content": "Filter"
+            }
+          }
+        }
+      ]
     }
   ]
 }

@@ -401,3 +401,19 @@ func TestBuildAgentContainer_ImagePullPolicy(t *testing.T) {
 		}
 	})
 }
+
+func TestBuildAgentContainerBindsServerUID(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Name = "same-name"
+	gs.UID = "original-server-uid"
+	container := buildAgentContainer(gs, &gameplanev1alpha1.GameTemplate{}, nil, "agent:test", "", "")
+	for _, env := range container.Env {
+		if env.Name == "GAMEPLANE_SERVER_UID" {
+			if env.Value != string(gs.UID) || env.ValueFrom != nil {
+				t.Fatalf("identity env=%+v", env)
+			}
+			return
+		}
+	}
+	t.Fatal("agent must receive the immutable GameServer UID")
+}

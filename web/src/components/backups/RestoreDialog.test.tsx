@@ -10,7 +10,7 @@ import { RestoreDialog } from "./RestoreDialog";
 
 describe("RestoreDialog", () => {
   it("does not render when backup is null", () => {
-    renderWithQuery(<RestoreDialog backup={null} onClose={() => {}} />);
+    renderWithQuery(<RestoreDialog permissions={["*"]} backup={null} onClose={() => {}} />);
     expect(screen.queryByText(/Restore backup/i)).not.toBeInTheDocument();
   });
 
@@ -26,7 +26,7 @@ describe("RestoreDialog", () => {
       ),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({ metadata: { name: "alpha-1" } })}
         onClose={() => {}}
       />,
@@ -44,7 +44,7 @@ describe("RestoreDialog", () => {
     );
     const onClose = vi.fn();
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({ metadata: { name: "alpha-1" } })}
         defaultServer="alpha"
         onClose={onClose}
@@ -72,7 +72,7 @@ describe("RestoreDialog", () => {
     );
     const onClose = vi.fn();
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "alpha-vs" },
           spec: { serverRef: { name: "alpha" }, strategy: "volume-snapshot" },
@@ -103,7 +103,7 @@ describe("RestoreDialog", () => {
       ),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "alpha-vs" },
           spec: { serverRef: { name: "alpha" }, strategy: "volume-snapshot" },
@@ -124,7 +124,7 @@ describe("RestoreDialog", () => {
       http.post("/restores", () => HttpResponse.text("boom", { status: 500 })),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({ metadata: { name: "x" } })}
         defaultServer="alpha"
         onClose={() => {}}
@@ -145,7 +145,7 @@ describe("RestoreDialog", () => {
       ),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "alpha-restic" },
           spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" },
@@ -166,7 +166,7 @@ describe("RestoreDialog", () => {
       ),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({ metadata: { name: "alpha-1" } })}
         onClose={onClose}
       />,
@@ -188,7 +188,7 @@ describe("RestoreDialog", () => {
       }),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({ metadata: { name: "alpha-1" } })}
         defaultServer="alpha"
         onClose={() => {}}
@@ -206,7 +206,7 @@ describe("RestoreDialog", () => {
       ),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "alpha-vs" },
           spec: { serverRef: { name: "prod-server" }, strategy: "volume-snapshot" },
@@ -232,7 +232,7 @@ describe("RestoreDialog", () => {
       ),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "backup-1" },
           spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" as const },
@@ -259,7 +259,7 @@ describe("RestoreDialog", () => {
       ),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "alpha-1" },
           spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" as const },
@@ -281,7 +281,7 @@ describe("RestoreDialog", () => {
       ),
     );
     renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "alpha-vs" },
           spec: { serverRef: { name: "alpha" }, strategy: "volume-snapshot" },
@@ -302,7 +302,7 @@ describe("RestoreDialog", () => {
       ),
     );
     const { client, rerender } = renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "backup-1" },
           spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" },
@@ -319,7 +319,7 @@ describe("RestoreDialog", () => {
     // useQueryClient() call throws.
     rerender(
       <QueryClientProvider client={client}>
-        <RestoreDialog
+        <RestoreDialog permissions={["*"]}
           backup={makeBackup({
             metadata: { name: "backup-2" },
             spec: { serverRef: { name: "beta" }, strategy: "volume-snapshot" },
@@ -345,7 +345,7 @@ describe("RestoreDialog", () => {
       ),
     );
     const { client, rerender } = renderWithQuery(
-      <RestoreDialog
+      <RestoreDialog permissions={["*"]}
         backup={makeBackup({
           metadata: { name: "backup-1" },
           spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" },
@@ -359,7 +359,7 @@ describe("RestoreDialog", () => {
     // reapply the QueryClientProvider wrapper itself.
     rerender(
       <QueryClientProvider client={client}>
-        <RestoreDialog
+        <RestoreDialog permissions={["*"]}
           backup={null}
           defaultServer="alpha"
           onClose={onClose}

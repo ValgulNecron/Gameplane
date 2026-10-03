@@ -40,7 +40,7 @@ Gameplane is currently in **beta** (`v0.2.0-beta.8`). Core workflows — server 
 
 Here are a few items to keep in mind:
 
-- **Multi-cluster streaming**: You can register and manage multiple clusters from a single dashboard, but WebSocket console/log streaming is currently scoped to the local control-plane cluster [local cluster only].
+- **Multi-cluster access**: Pod stdout/startup logs and PTY attach use the selected Kubernetes API. An [optional private gateway](docs/multicluster-agent-gateway.md), updated operator and UID-aware agents add remote RCON, game log files, files, players, module actions and agent-based mods. The central API still needs direct Kubernetes connectivity. Capture downloads and cleanup require an upgraded gateway and sidecar with persisted file identity. Modpack and ID-list configuration use the selected Kubernetes client.
 - **Idle auto-sleep & wake-on-connect**: Sleeping servers require normal game boot time when waking up. Minecraft Java and Terraria support full protocol handshake parsing to hold client connections while waking; other games use packet heuristics where players reconnect once the server is ready.
 - **Relay Tunnels**: Integrated `frp`, `Tailscale`, and `playit` relays run as supervised sidecar pods. For `playit`, port-forward mappings are managed directly through your playit.gg account.
 - **Production readiness**: Automated release upgrade testing runs on every PR. Disaster-recovery runbooks and fine-tuned workload resource guidance are actively being finalized (see [`docs/roadmap.md`](docs/roadmap.md)).
@@ -69,7 +69,7 @@ are feature-complete for the v1 scope and stabilized for external testing.
 | Backup and restore | Restic snapshots to S3-compatible storage; on-demand or cron-scheduled via BackupSchedule; one-click restore. [G-d](docs/comparison-sources.md#gameplane-row-d) | Wings (local, default) or S3-compatible backup drivers; cron scheduling and on-demand backups. [P-d](docs/comparison-sources.md#pterodactyl-row-d) | not publicly documented (checked 2026-09-02) [C-d](docs/comparison-sources.md#cubecoders-row-d) | not applicable (Agones is a Kubernetes operator library) [A-d](docs/comparison-sources.md#agones-row-d) |
 | Access control & authentication | Local argon2id + OIDC (Keycloak/Google/GitHub); three built-in roles (admin/operator/viewer); custom roles supported. [G-e](docs/comparison-sources.md#gameplane-row-e) | 2FA configurable per account or admin-only; subuser management via Artisan CLI. [P-e](docs/comparison-sources.md#pterodactyl-row-e) | Role-based access control; OIDC single-sign-on in Advanced Edition. [C-e](docs/comparison-sources.md#cubecoders-row-e) | not applicable (Agones is a Kubernetes operator library) [A-e](docs/comparison-sources.md#agones-row-e) |
 | Game template distribution | OCI bundles via ModuleSource (git/http/oci/local/upload); optional cosign signature verification per source. 30 ready-to-use templates shipped. [G-f](docs/comparison-sources.md#gameplane-row-f) | Community eggs repository (eggs.pterodactyl.io) with nests and custom egg creation support. [P-f](docs/comparison-sources.md#pterodactyl-row-f) | Customizable templates framework; community-contributed templates available via external repositories. [C-f](docs/comparison-sources.md#cubecoders-row-f) | not applicable (Agones is a Kubernetes operator library) [A-f](docs/comparison-sources.md#agones-row-f) |
-| Multi-tenancy & multi-cluster | Cluster CRD for remote registration/monitoring; console/log streaming local-cluster only. [local cluster only for streaming] [G-g](docs/comparison-sources.md#gameplane-row-g) | Single Panel managing multiple nodes; no documented remote cluster or cross-cluster streaming. [P-g](docs/comparison-sources.md#pterodactyl-row-g) | Multi-server management via controller architecture; multi-tenancy not supported in AMP 2 (planned for AMP 3). [C-g](docs/comparison-sources.md#cubecoders-row-g) | Multi-cluster allocation via GameServerAllocationPolicy; allocator service with mTLS authentication. [A-g](docs/comparison-sources.md#agones-row-g) |
+| Multi-tenancy & multi-cluster | Cluster CRD, remote Pod logs/PTY, and optional private gateway for supported agent operations. UID-bound remote capture downloads/cleanup; modpack and ID-list configuration on the selected cluster. Requires matching gateway, operator, agent and capture-sidecar versions. [G-g](docs/comparison-sources.md#gameplane-row-g) | Single Panel managing multiple nodes; no documented remote cluster or cross-cluster streaming. [P-g](docs/comparison-sources.md#pterodactyl-row-g) | Multi-server management via controller architecture; multi-tenancy not supported in AMP 2 (planned for AMP 3). [C-g](docs/comparison-sources.md#cubecoders-row-g) | Multi-cluster allocation via GameServerAllocationPolicy; allocator service with mTLS authentication. [A-g](docs/comparison-sources.md#agones-row-g) |
 | Licensing | GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). [G-h](docs/comparison-sources.md#gameplane-row-h) | MIT License (Panel and Wings). [P-h](docs/comparison-sources.md#pterodactyl-row-h) | Proprietary; per-instance tiers (Standard/Professional/Advanced/Enterprise). [C-h](docs/comparison-sources.md#cubecoders-row-h) | Apache License 2.0. [A-h](docs/comparison-sources.md#agones-row-h) |
 | Target operator scope (self-hosted vs. managed SaaS) | Self-hosted only; runs on Kubernetes (k3s, kubeadm, managed services); no managed SaaS offering. [G-i](docs/comparison-sources.md#gameplane-row-i) | Self-hosted only; requires Linux system capable of running Docker containers. [P-i](docs/comparison-sources.md#pterodactyl-row-i) | Self-installed on user hardware (Windows or Linux); no managed SaaS version. [C-i](docs/comparison-sources.md#cubecoders-row-i) | Self-hosted operator software; runs anywhere Kubernetes can run. [A-i](docs/comparison-sources.md#agones-row-i) |
 
@@ -104,29 +104,37 @@ Gameplane integrates with **10 mod registries**: Modrinth, CurseForge, Thunderst
 
 ## Architecture
 
+```text
+Dashboard UI (React + TypeScript + Vite + HeroUI v3)
+    │ HTTPS / WSS
+Central API (Go): authentication, RBAC, REST, WebSocket, aggregation
+    │
+    ├── Direct Kubernetes API access ───────────────────────────────┐
+    │   Resource management, Pod logs, PTY attach                   │
+    │                                                              ▼
+    │   ┌── Each registered cluster (local or remote) ──────────────────┐
+    │   │ Kubernetes API ◄── Operator (Go, controller-runtime)          │
+    │   │                      │ reconciles CRDs into local resources  │
+    │   │                      ├── GameServer Pods + Services + PVCs    │
+    │   │                      ├── Backup / restore Jobs               │
+    │   │                      ├── Sentinel wake-on-connect Pods       │
+    │   │                      └── Tunnel relay Pods                   │
+    │   │                                                              │
+    └───┼── Private mTLS ──► Optional per-cluster agent gateway         │
+        │                      ├── mTLS ──► Agent sidecars (:8090)      │
+        │                      │            RCON, logs, files, mods    │
+        │                      └── mTLS ──► Capture sidecars (:9091)    │
+        │                                   Capture downloads/cleanup  │
+        └──────────────────────────────────────────────────────────────┘
 ```
-┌────────────────────────────────────────────────────────────────┐
-│  Dashboard UI: React + TypeScript + Vite + HeroUI v3           │
-└────────────────────────────────────────────────────────────────┘
-                            │  HTTPS / WSS
-┌────────────────────────────────────────────────────────────────┐
-│  API Gateway (Go): REST + WebSocket, Auth, RBAC, State Agg    │
-└────────────────────────────────────────────────────────────────┘
-                            │  Kubernetes API
-┌────────────────────────────────────────────────────────────────────────┐
-│  Operator (Go, controller-runtime):                                    │
-│    Reconciles CRDs (GameServer, GameTemplate, Backup,                  │
-│    BackupSchedule, Restore, Module, ModuleSource, Cluster)             │
-│    into StatefulSets, Services, PVCs, Jobs, & Helper Pods              │
-└────────────────────────────────────────────────────────────────────────┘
-        │                              │                              │
-┌───────┴───────────────┐   ┌──────────┴────────────┐     ┌───────────┴──────────┐
-│ GameServer Pod:       │   │ Sentinel Waker Pod:   │     │ Tunnel Relay Pod:    │
-│ ├── Game Container    │   │ └── Daemon (Go):      │     │ └── Supervisor (Go): │
-│ └── Agent Sidecar     │   │     Wake-on-connect   │     │     frp / Tailscale  │
-│     (Go): RCON, files │   │     handshake listener│     │     / playit relay   │
-└───────────────────────┘   └───────────────────────┘     └──────────────────────┘
-```
+
+The central API connects directly to agents in its local cluster. Remote agent
+operations use the optional gateway, which runs the API image's `gateway`
+subcommand and verifies the selected GameServer identity. Direct Kubernetes
+connectivity is still required for every registered cluster. Each cluster retains
+its own operator and storage; users and authorization stay central. See
+[gateway installation](docs/gateway-install.md) and
+[remote request routing](docs/multicluster-agent-gateway.md).
 
 ### Components
 
@@ -134,6 +142,7 @@ Gameplane integrates with **10 mod registries**: Modrinth, CurseForge, Thunderst
 | ---- | -------- | ----------- |
 | `agent/` | Go | Sidecar running in each game pod for RCON, file ops, PTY console, and metrics. |
 | `api/` | Go | Front-end API gateway handling REST endpoints, WebSocket streaming, auth, and RBAC. |
+| `api/cmd/gateway.go` | Go | Optional private per-cluster gateway (`gateway` subcommand in the API image); proxies authorized agent and capture operations over mTLS. |
 | `operator/` | Go | Kubernetes controller reconciling Gameplane CRDs into K8s workloads and resources. |
 | `sentinel/` | Go | Waker daemon listening on game ports while a server is sleeping to trigger wake-on-connect [optional]. |
 | `capture-sidecar/` | Go | Network packet capture sidecar [optional], opt-in per server, admin-only. |

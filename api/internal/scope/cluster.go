@@ -29,9 +29,9 @@ type ClusterLister interface {
 // targets, validated against the allow-list; per-caller authorization is a
 // separate concern handled by the rbac middleware.
 func ResolveCluster(req *http.Request, reg ClusterLister) (string, error) {
-	requested := strings.TrimSpace(req.URL.Query().Get("cluster"))
-	if requested == "" {
-		return DefaultCluster, nil
+	requested := RequestedCluster(req)
+	if strings.TrimSpace(req.URL.Query().Get("cluster")) == "" {
+		return requested, nil
 	}
 	for _, id := range reg.IDs() {
 		if id == requested {
@@ -39,4 +39,14 @@ func ResolveCluster(req *http.Request, reg ClusterLister) (string, error) {
 		}
 	}
 	return "", ErrForbiddenCluster
+}
+
+// RequestedCluster identifies the authorization target without discovering it.
+// Callers must still validate registration before using a Kubernetes client.
+func RequestedCluster(req *http.Request) string {
+	requested := strings.TrimSpace(req.URL.Query().Get("cluster"))
+	if requested == "" {
+		return DefaultCluster
+	}
+	return requested
 }

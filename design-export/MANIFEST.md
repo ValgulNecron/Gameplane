@@ -2333,3 +2333,76 @@ Frames added to `design.pen` per the held design briefs `specs/018-v0-3-release-
 **Exports (this pass):** `json/akr4I.json`, `json/hlwx3.json`, `json/IMSD5.json`, `json/gWqMD.json`, `json/Dpb9f.json`, `json/XR0f9.json` via `Get(id, {depth: 30, includePathGeometry: true})` — all `json.load`-valid, zero `"..."` elision markers; body-text checks pass ("don't have access to packet capture" only in `akr4I.json`, "Requires server owner or admin" in `hlwx3.json`, "an admin can wipe" in `IMSD5.json`, "an admin can change collaborators" only in `gWqMD.json`, "Identity providers are configured in Admin Settings" and zero "tracked for v1.1" in `Dpb9f.json`, "Wipe world…"/"Transfer…" with "Discard" only on the Form Footer in `XR0f9.json`). `screenshots/*.png` at 2×: `akr4I` 2880×1800, `hlwx3` 1040×440, `IMSD5` 2880×1800, `gWqMD` 2880×1800, `Dpb9f` 2880×1800, `XR0f9` 2880×1800 — all non-empty with real pixel dimensions.
 
 **The human must save the `.pen` file via the Pencil GUI before this change is durable.**
+
+## Design reconciliation 2026-09-30 — Unified locations and remote server parity
+
+The Pencil design was updated to represent the interfaces implemented at
+`8e08a60f9d266dd938836e1f31188b370ca8a2a7` and saved in `design.pen` on
+September 30. Existing Gameplane components and theme tokens were retained.
+
+The scope is the ordinary app shell without a global cluster selector; Clusters
+as administration navigation; combined dashboard statistics, location filtering
+and partial coverage; server location/namespace identity and the Servers Filter
+popover; matching Backups, Schedules and Restores menus; the creation wizard's
+Location strip; the user editor's cluster and namespace grants; selected-site
+Capture states and example limits; and mobile server-detail action wrapping and
+contained tab navigation. Schedules omits Phase. Applied-filter counts and
+draft/Apply behavior are interaction context, not separate visual-state claims.
+
+**Direct export scope: 37 nodes.** Each ID below has its own
+`json/<id>.json` and `screenshots/<id>.png` export from this pass.
+
+| Area | Directly updated and exported node IDs |
+|---|---|
+| Shared shell and filters | `gu5WY` (Top Bar), `kKFX9` (App Sidebar), `FyV6E` (Filter Popover), `wKe4F` (Backups Filter Row), `rCQaM` (Backups Filter Popover) |
+| Shared statistics and server detail | `YF85x` (Dashboard Stats Row), `LKMjc` (Servers Stats Row), `S4k0x` (Server Detail Header), `I9kvlZ` (Server Detail Tabs), `f0s9zG` (Capture Warning Banner) |
+| Scoped user grants | `t3IY3u` (Edit User) |
+| Dashboard and Servers | `j24cXg` (Dashboard), `oyoTs` (Dashboard Light), `F9pUrx` (Servers), `zFiOW` (Servers Light), `tooKB` (Mobile Servers) |
+| Backups | `DPrYX` (Index), `fK8Bi` (Schedules), `tTSdi` (Restores) |
+| Creation location | `W8idqY` (Template), `nNL3E` (Version), `vUqMl` (Configure), `f1Vga` (Network), `UMJli` (Review), `QQtUD` (Network as built) |
+| Capture screens | `Bbnga` (Not enabled), `O08uaD` (Start Capture with selected-site example limits), `w1QYmf` (Access and capability states), `SUtGZ` (Mobile Remote Capture) |
+| Open filters and partial coverage | `UCNBm` (Servers), `pnAbF` (Backups), `Cb3eC` (Schedules), `fbBqA` (Restores), `YPKbV` (Dashboard partial location coverage), `C5Aoe` (Mobile Servers filters), `NKiqf` (Mobile Backups filters) |
+| Infrastructure administration | `iYUWc` (Registered locations) |
+
+All 37 export pairs were checked for JSON validity and node identity, PNG
+signatures and dimensions, and file hashes. Key dark/light desktop and mobile
+views were reviewed through Pencil screenshots; final exported PNGs for the
+user editor (`t3IY3u`), mobile Capture (`SUtGZ`) and mobile Backups filters
+(`NKiqf`) were also inspected for copy, wrapping, centering and clipping.
+This entry does not claim every screen inheriting an updated
+component was re-exported: for example, the Capture list (`m5kOm4`) inherits
+shared header changes but is outside this pass's direct export scope. The
+historical totals and earlier export entries above are not a fresh enumeration
+of the whole document.
+
+This update changed the design, its direct exports and related documentation.
+Application code, tests and comparison thresholds were unchanged. The October 2
+entry below records the subsequent restoration of canonical Pencil comparisons.
+
+## Visual baseline reconciliation 2026-10-02 — Restore canonical Pencil comparisons
+
+In response to upstream PR #542's review, the visual workflow again runs
+`npm run diff:screenshots -- --check-expected` against `design-export/screenshots`.
+No browser captures replace Pencil baselines. The retired browser-reference
+bundles remain available in Git history at `4d7c08bb673e38ccf4a7dba9f3b3deb45dd20474`.
+Thresholds, masks, scaling rules, screenshot fixtures and expected-screen checks
+are unchanged.
+
+The three formerly substituted designs were reconciled through Pencil MCP and
+exported directly as editable-node JSON and 2x PNGs. `design.pen` was saved in
+Pencil on October 2.
+
+| ID | Design reconciliation | PNG dimensions |
+|---|---|---|
+| `Wj0V4` | Central-management notice and branding; registered Clusters and Cluster inventory navigation; registry panel spacing and controls | 2880 × 1800 |
+| `t3IY3u` | Default Local cluster grant selection; disabled All namespaces control; helper line heights and grant-row spacing | 960 × 1116 |
+| `DWztv` | Location/namespace identity under each mobile server name, preserving the compact Search/Filter row | 780 × 1688 |
+
+The PNGs were inspected against the original browser captures from CI run
+`36780352172`. That earlier run's 109 passing comparisons included three browser
+substitutions and therefore did not establish Pencil fidelity for these IDs.
+Only 16 of the September 30 pass's 37 directly exported IDs appeared in that
+run's report, and `t3IY3u` was substituted. The remaining exports include shared
+components and additional screens/states; exporting them is not a claim that
+each has an independent automated comparison. Fresh canonical CI results are
+reported separately on the PR with their exact commit and run IDs.

@@ -2,9 +2,56 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 )
+
+type captureRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f captureRoundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestCaptureClientCarriesImmutableIdentityOnLifecycleRequests(t *testing.T) {
+	calls := 0
+	c := &CaptureClient{http: &http.Client{Transport: captureRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.Header.Get("X-Gameplane-Server-UID") != "server-uid" || r.Header.Get("X-Gameplane-Capture-UID") != "capture-uid" {
+			t.Error("missing capture lifecycle identity")
+		}
+		if strings.HasSuffix(r.URL.Path, "/start") {
+			var body startCaptureRequest
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			if body.ServerUID != "server-uid" || body.CaptureUID != "capture-uid" {
+				t.Error("missing durable start identity")
+			}
+		}
+		status := 200
+		if r.Method == http.MethodDelete {
+			status = 204
+		}
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(`{"status":"completed"}`))}, nil
+	})}}
+	if err := c.StartCapture(t.Context(), "games", "alpha", "cap-one", "server-uid", "capture-uid", nil, 10, 1024); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.StopCapture(t.Context(), "games", "alpha", "cap-one", "server-uid", "capture-uid"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, _, err := c.GetCaptureStatus(t.Context(), "games", "alpha", "cap-one", "server-uid", "capture-uid"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteCaptureFile(t.Context(), "games", "alpha", "cap-one", "server-uid", "capture-uid"); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 4 {
+		t.Fatal(calls)
+	}
+}
 
 // TestHTTPError_Error tests string formatting of HTTPError.
 func TestHTTPError_Error(t *testing.T) {
@@ -82,17 +129,17 @@ func TestCaptureClient_DisabledNoOp(t *testing.T) {
 	c := &CaptureClient{Disabled: true}
 	ctx := context.Background()
 
-	if err := c.StartCapture(ctx, "ns", "server", "cap-1", nil, 60, 1024); err != nil {
+	if err := c.StartCapture(ctx, "ns", "server", "cap-1", "server-uid", "capture-uid", nil, 60, 1024); err != nil {
 		t.Fatalf("StartCapture disabled: %v", err)
 	}
-	if err := c.StopCapture(ctx, "ns", "server", "cap-1"); err != nil {
+	if err := c.StopCapture(ctx, "ns", "server", "cap-1", "server-uid", "capture-uid"); err != nil {
 		t.Fatalf("StopCapture disabled: %v", err)
 	}
-	phase, _, _, _, err := c.GetCaptureStatus(ctx, "ns", "server", "cap-1")
+	phase, _, _, _, err := c.GetCaptureStatus(ctx, "ns", "server", "cap-1", "server-uid", "capture-uid")
 	if err == nil || phase != "unknown" {
 		t.Fatalf("GetCaptureStatus disabled: phase=%s err=%v", phase, err)
 	}
-	if err := c.DeleteCaptureFile(ctx, "ns", "server", "cap-1"); err != nil {
+	if err := c.DeleteCaptureFile(ctx, "ns", "server", "cap-1", "server-uid", "capture-uid"); err != nil {
 		t.Fatalf("DeleteCaptureFile disabled: %v", err)
 	}
 }

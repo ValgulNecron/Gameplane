@@ -84,6 +84,8 @@ var captureIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 type captureState struct {
 	// Immutable after construction; safe to read without the mutex.
 	id              string
+	serverUID       string
+	captureUID      string
 	startedAt       time.Time
 	maxDurationSecs int64
 	maxSizeBytes    int64
@@ -129,12 +131,14 @@ func (c *captureState) snapshot() captureSnapshot {
 
 // Server manages the capture control plane.
 type Server struct {
-	mu             sync.Mutex
-	currentCapture *captureState
-	completed      map[string]*captureState
-	completedOrder []string
+	mu               sync.Mutex
+	currentCapture   *captureState
+	finishingCapture *captureState
+	completed        map[string]*captureState
+	completedOrder   []string
 
 	captureDataDir string
+	serverUID      string
 
 	// budgetBytes is the maximum total bytes (already-retained capture files
 	// on captureDataDir, plus one new capture's own maxSizeBytes) HandleStart
@@ -176,12 +180,15 @@ type Server struct {
 // server's HTTP handling, not a per-request one. budgetBytes is the volume
 // budget HandleStart enforces (see the Server.budgetBytes field doc); pass 0
 // to disable the check.
-func NewServer(ctx context.Context, captureDataDir string, budgetBytes int64) *Server {
+func NewServer(ctx context.Context, captureDataDir string, budgetBytes int64, serverUID ...string) *Server {
 	s := &Server{
 		captureDataDir: filepath.Clean(captureDataDir),
 		budgetBytes:    budgetBytes,
 		completed:      make(map[string]*captureState),
 		baseCtx:        ctx,
+	}
+	if len(serverUID) > 0 {
+		s.serverUID = serverUID[0]
 	}
 	s.newSource = func(iface, filterExpr string) (capture.PacketSource, error) {
 		src, err := capture.NewAFPacketSource(iface, 0, filterExpr)
@@ -212,6 +219,8 @@ func (s *Server) Routes(mw func(http.Handler) http.Handler) *http.ServeMux {
 	mux.Handle("GET /captures/{id}/status", mw(http.HandlerFunc(s.HandleStatus)))
 	mux.Handle("GET /captures/{id}/file", mw(http.HandlerFunc(s.HandleDownload)))
 	mux.Handle("DELETE /captures/{id}", mw(http.HandlerFunc(s.HandleDelete)))
+	mux.Handle("GET /v1/targets/{serverUID}/captures/{id}/uids/{captureUID}/file", mw(http.HandlerFunc(s.HandleBoundDownload)))
+	mux.Handle("DELETE /v1/targets/{serverUID}/captures/{id}/uids/{captureUID}/file", mw(http.HandlerFunc(s.HandleBoundDelete)))
 	return mux
 }
 
@@ -235,6 +244,8 @@ func HandleHealthz(w http.ResponseWriter, _ *http.Request) {
 
 // startRequest represents a POST /captures/{id}/start request body.
 type startRequest struct {
+	ServerUID          string `json:"serverUID,omitempty"`
+	CaptureUID         string `json:"captureUID,omitempty"`
 	Filter             string `json:"filter"`
 	MaxDurationSeconds int64  `json:"maxDurationSeconds"`
 	MaxSizeBytes       int64  `json:"maxSizeBytes"`
@@ -430,6 +441,10 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "maxSizeBytes out of range", http.StatusBadRequest)
 		return
 	}
+	if !s.validStartIdentity(req) {
+		http.Error(w, "capture identity does not match this server", http.StatusBadRequest)
+		return
+	}
 
 	// FR-003 makes the filter optional at the *API* boundary, where an omitted
 	// filter means "restrict the capture to the game server's own advertised
@@ -452,13 +467,17 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	if s.currentCapture != nil {
+	if s.currentCapture != nil || s.finishingCapture != nil {
 		// Name the capture that is actually running (s.currentCapture.id),
 		// not the rejected request's id: they differ whenever a second,
 		// different capture id is requested while one is already in
 		// progress, and naming the rejected id here would describe a
 		// capture that never started as "in progress" (F-192).
-		runningID := s.currentCapture.id
+		active := s.currentCapture
+		if active == nil {
+			active = s.finishingCapture
+		}
+		runningID := active.id
 		s.mu.Unlock()
 		http.Error(w, fmt.Sprintf("capture '%s' already in progress", runningID), http.StatusConflict)
 		return
@@ -512,9 +531,26 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	bound, err := s.prepareCaptureBinding(id, req)
+	if err != nil {
+		_ = source.Close()
+		s.mu.Unlock()
+		if errors.Is(err, fs.ErrExist) {
+			http.Error(w, "capture name is retained; delete it before reuse", http.StatusConflict)
+		} else if errors.Is(err, errCaptureIdentityBudget) {
+			http.Error(w, "capture identity retention budget reached", http.StatusInsufficientStorage)
+		} else {
+			slog.Error("failed to bind capture identity", "id", id, "err", err)
+			http.Error(w, "failed to bind capture identity", http.StatusInternalServerError)
+		}
+		return
+	}
 	filePath := s.captureFilePath(id)
 	writer, err := capture.NewWriter(filePath, req.MaxDurationSeconds, req.MaxSizeBytes, 0, req.Filter)
 	if err != nil {
+		if bound {
+			_ = os.Remove(s.captureIdentityPath(id))
+		}
 		_ = source.Close()
 		s.mu.Unlock()
 		http.Error(w, fmt.Sprintf("failed to open capture file: %v", err), http.StatusInternalServerError)
@@ -527,6 +563,8 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := s.newCaptureContext(r.Context())
 	state := &captureState{
 		id:              id,
+		serverUID:       req.ServerUID,
+		captureUID:      req.CaptureUID,
 		startedAt:       now,
 		maxDurationSecs: req.MaxDurationSeconds,
 		maxSizeBytes:    req.MaxSizeBytes,
@@ -633,6 +671,7 @@ func (s *Server) finish(id string, target *captureState, reason string, failure 
 		return nil, false
 	}
 	s.currentCapture = nil
+	s.finishingCapture = state
 	s.rememberCompletedLocked(state)
 	if state.timer != nil {
 		state.timer.Stop()
@@ -673,6 +712,11 @@ func (s *Server) finish(id string, target *captureState, reason string, failure 
 	state.stoppingReason = reason
 	state.message = message
 	state.mu.Unlock()
+	s.mu.Lock()
+	if s.finishingCapture == state {
+		s.finishingCapture = nil
+	}
+	s.mu.Unlock()
 
 	return state, true
 }
@@ -696,13 +740,21 @@ func (s *Server) HandleStop(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	state, ok := s.finish(id, nil, req.Reason, nil)
+	var target *captureState
+	if hasControlIdentity(r) {
+		target = s.lookup(id)
+		if !s.controlIdentityMatches(r, target) {
+			http.NotFound(w, r)
+			return
+		}
+	}
+	state, ok := s.finish(id, target, req.Reason, nil)
 	if !ok {
 		// Already finished - by the duration timer, the size limit, or an
 		// earlier stop. Replay its stored terminal result instead of a 404, so
 		// the final counters and stopping reason are never lost.
 		state = s.lookup(id)
-		if state == nil {
+		if state == nil || !s.controlIdentityMatches(r, state) {
 			http.Error(w, fmt.Sprintf("capture '%s' not found", id), http.StatusNotFound)
 			return
 		}
@@ -754,7 +806,7 @@ func (s *Server) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := s.lookup(id)
-	if state == nil {
+	if state == nil || !s.controlIdentityMatches(r, state) {
 		http.Error(w, fmt.Sprintf("capture '%s' not found", id), http.StatusNotFound)
 		return
 	}
@@ -809,7 +861,7 @@ func (s *Server) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	running := s.currentCapture != nil && s.currentCapture.id == id
+	running := s.captureBusyLocked(id)
 	s.mu.Unlock()
 
 	if running {
@@ -889,8 +941,16 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	running := s.currentCapture != nil && s.currentCapture.id == id
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	if hasControlIdentity(r) {
+		r.SetPathValue("serverUID", r.Header.Get("X-Gameplane-Server-UID"))
+		r.SetPathValue("captureUID", r.Header.Get("X-Gameplane-Capture-UID"))
+		if !s.matchCaptureIdentity(r) {
+			http.NotFound(w, r)
+			return
+		}
+	}
+	running := s.captureBusyLocked(id)
 
 	if running {
 		http.Error(w, "capture is still running", http.StatusConflict)
@@ -906,5 +966,10 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("capture file deleted", "id", id)
+	if err := os.Remove(s.captureIdentityPath(id)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		slog.Error("failed to delete capture identity", "id", id, "err", err)
+		http.Error(w, "failed to delete capture identity", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

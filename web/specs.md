@@ -15,7 +15,7 @@ The Gameplane dashboard is a React SPA providing a UI layer over the Gameplane A
 - Fetch and cache data via TanStack Query; invalidate caches on Kubernetes watch events (SSE)
 - Stream console input/output (WebSocket) and pod/game logs (WebSocket) to the Console and Logs tabs
 - Wrap the API client in three layers: thin fetch wrapper (`api<T>()`), typed endpoint namespaces (`Servers`, `Templates`, `Cluster`, etc.), and domain helpers (validations, RCON mode resolution, mod/modpack capability detection)
-- Thread multi-cluster context through all API requests via `?cluster=` query params (local cluster omitted for back-compat)
+- Present authorized resources from all locations by default, with optional filters; bind each resource operation to its explicit cluster and namespace rather than an ambient global selection
 - Enforce role-based access control (RBAC) on frontend routes via `<RequirePermission>` middleware
 - Validate form inputs against declared server/template schema before submit
 - Display real-time resource status (CPU, memory, uptime) and live action metrics from RCON/agent
@@ -28,7 +28,24 @@ The Gameplane dashboard is a React SPA providing a UI layer over the Gameplane A
 
 **Pre-auth privacy:** The login page and any unauthenticated screen must not leak internal state: no hostnames, cluster names, server counts, version strings, user lists, or "user not found" errors. See docs/security.md "pre-auth privacy" and CLAUDE.md rule 3.
 
-**Local-cluster WebSocket:** Console and Logs streams currently route only to the local cluster (`?cluster=` param is not threaded through WebSocket paths). Cross-cluster WebSocket support is deferred; see `docs/roadmap.md`.
+**Cluster-bound WebSocket:** Server streams carry the open server's explicit cluster and namespace. Reconnects retain that target; leaving the server view closes its streams. Changing an infrastructure selection cannot retarget a stream. Pod logs and PTY attach use the target Kubernetes client; remote agent streams use the configured authenticated gateway and fail closed when unavailable.
+
+## Unified location views
+
+The [unified dashboard](../docs/unified-dashboard.md) combines authorized
+resources across locations. [Cluster administration](../docs/multicluster-ui.md)
+retains a separate inventory selection. `design.pen` and the
+[design exports](../design-export/MANIFEST.md) define the visual surface.
+
+- Dashboard, Servers, Backups and global Search consume `/fleet/*` envelopes. Exact location/namespace filters request narrower backend results so they can recover resources omitted by the combined result limit. Authorized scope metadata keeps filter options available for empty or unavailable locations.
+- Each row retains `{cluster, namespace, name, uid}`, resource data and exact target permissions. Same-named resources in different locations remain distinct. Server routes carry `cluster` and `ns`; legacy routes without a cluster resolve local, independently of remembered infrastructure selection.
+- `createRequestClient`, `createResourceClient` and `ResourceTargetProvider` bind JSON requests, raw file/download paths, dialogs, chained mutations and WebSocket URLs to the original scope. Detail waits for matching resource/access identity before mounting actionable children. Instance query keys include UID; the current server-object lookup and namespace collections use stable scope keys so a replacement object can be detected and forms remounted.
+- Server controls consume `/servers/{name}/access` capabilities and exact named permissions. Owner/collaborator operations remain distinct from full-object writes, owner/admin management, strictly owner-only share links, backup permissions and capture management. The API remains authoritative.
+- Fleet totals visibly distinguish complete, partial, failed and truncated reads. CPU/memory percentages use summed measured usage divided by matching capacity; missing measurements are unknown. Storage reports provisioned capacity, not actual disk usage. Player totals indicate missing server readings.
+- Cluster registration and node selection remain in infrastructure administration; ordinary pages have no global cluster switcher. Accounts, roles, modules, audit and installation settings retain central ownership.
+- Creation uses eligible placements and templates supplied by `/fleet/placements`. An initial location is captured once, changing location resets the draft, and losing that location does not automatically choose another. All creation follow-ups and success navigation retain the captured target. This adds no cross-cluster scheduler or data migration.
+
+Coverage includes duplicate-name navigation, exact permission boundaries, asynchronous target retention, unavailable and capped responses, weighted metrics, and desktop/mobile filtering. Repository suites run in GitHub Actions.
 
 ## HeroUI Component Layer
 
@@ -83,7 +100,7 @@ The multi-slice rebuild is complete: the previous Radix-based primitives that us
 ### Components Added (T045–T052)
 
 **New composition root:**
-- **`AppLayout.tsx` (T042)** — layout orchestrator: composes `AppShell` (layout), `Sidebar` (fixed or drawer variant), `TopBar` (breadcrumbs + cluster selector + search + notifications), and the authenticated page outlet. Owns `useMe()`, 401-redirect logic, permission gating for nav items (admin/operator/viewer), `useClusterInfo()` (cluster stats cache), and `useTheme()` integration for appearance mode.
+- **`AppLayout.tsx` (T042)** — layout orchestrator: composes `AppShell` (layout), `Sidebar` (fixed or drawer variant), `TopBar` (breadcrumbs + search + notifications), and the authenticated page outlet. Owns identity loading, 401 redirects, permission-aware navigation and appearance integration. The ordinary shell has no global cluster selector; infrastructure navigation uses the registry's inventory capabilities.
 
 **New layout atoms (T045–T048, T050, T052):**
 - **`ui/AppShell.tsx` (T045)** — pure layout wrapper: renders sidebar fixed-width, topbar + main content in flex column. No mobile logic (owned by Sidebar's drawer variant).
@@ -96,9 +113,9 @@ The multi-slice rebuild is complete: the previous Radix-based primitives that us
 
 **Refactored on HeroUI:**
 - **`PageHeader.tsx` (T043)** — route-level page header: thin wrapper around `ui/PageHeader` (slice-0 atom), passing through `title/subtitle/actions/breadcrumbs` unchanged. Called by ~30+ route pages; no changes required in call sites.
-- **`ClusterSelector.tsx` (T044)** — multi-cluster dropdown: refactored from `DropdownMenu` to HeroUI `Select`, keeping all permission/state logic, phase color mapping, and "Add cluster" action.
+- **`ClusterSelector.tsx` (T044)** — HeroUI dropdown on the Cluster inventory page, with authorized registrations, phase colors and a **View all clusters** action. It changes the infrastructure selection without setting a default target for server operations.
 - **`Login.tsx` (T040)** — login form: refactored from raw DOM to HeroUI `TextField`/`Label`/`Input`/`InputGroup`, `Alert` for errors, `Button` for actions. Kept all state, error handling, SSO provider rendering, and marketing panel. Verified compliant with FR-005 (login privacy).
-- **`Dashboard.tsx` (T041)** — landing page: renders full dashboard content (server/cluster summary, stat tiles, recent activity). Keeps the same cache keys and queries introduced in slice 1.
+- **`Dashboard.tsx` (T041)** — landing page: renders fleet server/player summaries and inventory statistics, with optional location filtering and partial-coverage indicators. Missing measurements remain unknown.
 
 ### Design Import Rule (FR-012)
 
@@ -679,9 +696,9 @@ src/
     server/                 # Server-detail helpers: ServerActionsMenu, tab components
     backups/                # Backup-flow components: restore wizard, destination selector
     modules/                # Module catalog, install flow, upload preview
-    AppLayout.tsx           # Main nav shell, cluster selector, user menu, breadcrumbs
+    AppLayout.tsx           # Main nav shell, user menu, breadcrumbs, fleet search
     PageHeader.tsx          # Standardized page title + action buttons
-    ClusterSelector.tsx     # Multi-cluster dropdown; threads ?cluster= through API calls
+    ClusterSelector.tsx     # Infrastructure inventory selection
     RequireRole.tsx         # Permission gate middleware; wraps routes needing specific perms
     registry-browser.tsx    # Shared mod registry search/browse UI (Mods + Modpacks tabs)
   lib/
@@ -692,7 +709,7 @@ src/
                             # ModRegistries, Files, Logs, Modules, ModuleSources
     ws.ts                   # openWS(): reconnecting WebSocket helper, exponential backoff
     sse.ts                  # openEventStream(): Server-Sent Events client for /events watch
-    cluster.ts              # getCurrentCluster() / setCurrentCluster() for multi-cluster state
+    cluster.ts              # getCurrentCluster() / setCurrentCluster() for inventory selection
     auth.ts                 # Local user session, OIDC provider detection, logout
     capabilities.ts         # Server capability resolution: resolveConsoleMode(), serverHasMods(),
                             # serverHasModpacks() — drives tab visibility
@@ -777,9 +794,9 @@ package.json                # @gameplane/web v0.2.0-beta.8; dev: vite, npm scrip
      - **Step 2 (Container & Ports)**: Configure container image ref (with digest pinning verification badge), custom TCP/UDP ports with advertise flags, and persistent volume size and mount path.
      - **Step 3 (Review & Export)**: Dual-pane view with syntax-editable YAML manifests (`module.yaml`, `template.yaml`, `README.md`), live offline validation diagnostics, memory scaling simulation (`autoFromMemoryLimit`), and action buttons to download a `.tar.gz` archive or install directly into a cluster upload `ModuleSource`.
 
-7. **Cluster** (`/cluster`) → `ClusterPage` (gated by `servers:write` permission)
-   - Cluster health, node list, kubeconfig download
-   - Node join credential generation (admin-only, when clusterOps enabled)
+7. **Cluster** (`/cluster`) → `ClusterPage` (gated by `cluster:read` permission)
+   - Selected cluster health and node inventory; **Clusters** (`/clusters`) lists authorized registrations
+   - Kubeconfig download and node join credentials are local-only and require the corresponding cluster-operation permission and enabled configuration
 
 8. **Users** (`/users`) → `UsersPage` (gated by `users:manage` permission)
    - Create/edit/delete users and OIDC links
@@ -899,14 +916,17 @@ Visible tab set depends on server template + active version:
 10. **Capture** — a `CaptureWidget` component driving start/stop of packet captures and a table of past captures for this server, gated on the `captures:manage` permission. Sits between the Backups and Settings tabs per `design-export/json` node `O08uaD`/`b4eaUf` (start-capture modal) and `m5kOm4` (capture list). `CaptureWidget.tsx` with `Captures` client namespace (`web/src/lib/api.ts:127-175`) and router/tab wiring (`ServerDetail.tsx:278`) are implemented in `web/src`.
 11. **Settings** — Grouped form with sub-sections (below); changes are draft-until-save; conflict detection on reload
 
+On narrow screens, server actions wrap and the detail tab strip scrolls inside its navigation container. Selecting a tab keeps that tab visible without horizontally scrolling the page or moving the panel controls off-screen.
+
 ### Permission Gates (Tab Visibility & Control Access)
 
-Each UI gate uses the same permission and namespace as the API:
+ServerDetail verifies the selected server's access response against its cluster,
+namespace, name and UID before providing access through `ResourceTargetProvider`:
 
-- **Capture tab:** Hidden only once `/users/me` confirms the user lacks `captures:manage` in the server's namespace; while identity is loading or unavailable the tab stays visible (`CaptureWidget` keeps the capture controls closed). The `CaptureWidget` component also checks this permission on render and shows an access-denied card if the user lacks it (aligned with all capture endpoints in the API). While `/users/me` is still loading, the widget shows a neutral "Checking access…" state rather than the access-denied card, so an authorized caller never sees a false denial during the fetch (or its retries). If `/users/me` fails after its retries, the widget shows an identity-unavailable state with a retry action instead of the access-denied card.
-- **Mods/Modpacks tab controls:** Install/manage actions require `servers:write` in the server's namespace (aligned with mod endpoints in the API). The `can(me, "servers:write", namespace, cluster)` helper checks both cluster-wide (`*`) and namespace-scoped bindings on the server's cluster.
+- **Capture tab:** Once identity resolves, visibility and controls require `resourceCan` to find `captures:manage` in the verified target's permissions. `/users/me` provides identity readiness, not a replacement permission source. While identity loads, the tab stays visible and the widget shows "Checking access…" with capture queries and controls closed. If identity loading fails, the widget offers a retry through the identity-unavailable state. A resolved identity without the target grant receives the access-denied card. Capture settings use the same target permission and suppress denial text until target permissions resolve.
+- **Mods/Modpacks tab controls:** Install/manage actions use the selected access response's `canControl`, which the API resolves from that server's permissions and allowed ownership/collaborator access. A grant in another cluster or namespace does not enable these controls.
 
-**Implementation:** The `can(me, permission, namespace?, cluster?)` helper (`web/src/lib/auth.ts`) mirrors the server's RBAC logic: a cluster-wide (`*` namespace) grant or a grant in the target namespace suffices. When `/users/me` returns `permissionsByCluster`, a namespaced check (a namespace or cluster is passed) counts only grants on the target cluster or the `*` wildcard cluster, so a grant on one cluster never unlocks controls on another; a control-plane check (neither is passed) accepts a cluster-wide grant on any cluster. When `permissionsByCluster` is absent (an older API), `can` falls back to the flat `permissions` map, which is cluster-agnostic. Callers pass the current cluster (`useCurrentCluster()`) for namespaced checks. UI gates inform user visibility only; the API is always the real enforcer.
+**Other permission checks:** The `can(me, permission, namespace?, cluster?)` helper (`web/src/lib/auth.ts`) mirrors the server's RBAC logic. With `permissionsByCluster`, namespaced callers pass the explicit target cluster; only that cluster or the `*` wildcard cluster can supply a cluster-wide (`*` namespace) or exact namespace grant. Control-plane callers omit both namespace and cluster and accept a cluster-wide grant on any cluster. When `permissionsByCluster` is absent, `can` retains the legacy flat `permissions` fallback. Server resource controls use their verified target access instead of a global cluster selector. The API enforces authorization independently of UI visibility.
 
 ## ServerDetail Settings Sub-sections
 
@@ -942,14 +962,14 @@ api<T>(path: string, opts?: Options): Promise<T>
 
 - Base URL: relative paths (Vite proxy in dev, same-origin in prod)
 - CSRF: reads `gameplane_csrf` cookie, injects `X-Gameplane-CSRF` header on POST/PUT/PATCH
-- Cluster threading: appends `?cluster=<clusterId>` when non-local cluster is selected
+- Cluster threading: uses the explicit `Options.cluster` or existing URL selector; defaults to local. Central endpoints do not inherit a workload cluster. Resource clients bind requests to the open target.
 - Error: throws `APIError(status, body)` on !ok; TanStack Query treats it uniformly
 - 204 No Content: returns `undefined as T`
 - Credentials: `include` (send cookies)
 
 **Helpers:**
 - `csrfHeaders()` — returns `{ "X-Gameplane-CSRF": token }` for raw fetch (multipart, plaintext)
-- `getCurrentCluster()` / `setCurrentCluster()` — global cluster context
+- `withClusterParam(path, clusterId)` — appends an explicit non-local cluster unless the URL is already scoped or the endpoint is centrally managed
 
 ### Layer 2: Typed Endpoint Namespaces (`lib/endpoints.ts`)
 
@@ -959,7 +979,7 @@ Each namespace is an object of typed functions building and fetching URLs:
 
 - **Templates** — `list()`, `get(name)`
 
-- **Namespaces** (F-263) — `list()` → `{ namespaces: string[] }`, the namespaces the caller may read servers in; used by `ServersPage` to fan out `Servers.list(ns)` per namespace.
+- **Namespaces** (F-263) — `list()` → `{ namespaces: string[] }`, the namespaces the caller may read servers in on the requested cluster. The unified server list uses `/fleet/servers` and its authorized scope metadata.
 
 - **Cluster** — `info()`, `stats()`, `view()`, `addNode()` (POST), `kubeconfig()` (blob download)
 
@@ -1001,7 +1021,7 @@ Each namespace is an object of typed functions building and fetching URLs:
 
 - **Captures** (`web/src/lib/api.ts:127-175`) — wraps the 8 REST routes `api/internal/handlers/capture.go` mounts under `MountCapture` (all gated by the `captures:manage` permission, `api/internal/rbac/catalog.go`): `POST /servers/{name}:capture-enable`, `POST /servers/{name}:capture-disable`, `POST /servers/{name}:capture-start`, `POST /servers/{name}:capture-stop`, `GET /servers/{name}:captures` (list), `GET /servers/{name}:capture?id=` (status), `GET /servers/{name}:capture-file?id=` (download), `DELETE /servers/{name}:capture?id=`. Per `specs/done_003-network-capture-sidecar/research.md`'s "Decision 1: Download Path" (T007, resolved): the download handler streams directly from the capture sidecar's `:9091 GET /captures/{id}/file` through the existing `<gs>-agent` ClusterIP Service's second port — not proxied through the agent's general `/files/*` file-browser surface (which is single-rooted at `--data-root` and cannot serve the capture emptyDir). The dashboard API client is expected to call through that one `:capture-file` indirection point rather than reconstructing the sidecar path itself.
 
-**Helper:** `withNS(path, ns?)` appends `?namespace=<ns>` when provided; `withCluster(path)` appends `?cluster=<clusterId>` when non-local.
+**Helpers:** `withNS(path, ns?)` appends `?namespace=<ns>` when provided; `withCluster(path, clusterId)` uses an explicit cluster, defaulting to local. `createRequestClient` binds requests to a cluster and namespace; `createResourceClient` adds the target resource identity.
 
 ### Layer 3: Domain Helpers (`lib/*.ts`)
 
@@ -1012,7 +1032,7 @@ Each namespace is an object of typed functions building and fetching URLs:
 - **auth.ts** — `useMe()` (current-user query hook), `hasRole(me, allowed)`, `can(me, perm, ns?, cluster?)`
 - **config.ts** — admin-config hooks: `useConfig()`, `useUpdateConfigSection(section)`, `useResetRoleMapping()`
 - **errors.ts** — `errorText(err, fallback?)`, `errorTextWithStatus(err, fallback?)`
-- **cluster.ts** — `getCurrentCluster()` / `setCurrentCluster()` (localStorage-backed)
+- **cluster.ts** — `getCurrentCluster()` / `setCurrentCluster()` retain the localStorage-backed infrastructure selection; resource requests use their explicit target instead
 - **validation.ts** — domain, port, K8s resource validation
 - **events.ts** — event severity / reason → display strings
 - **quantity.ts** — parse/format K8s quantities (500m → 0.5, 1Gi → 1073741824 bytes)
@@ -1038,7 +1058,7 @@ openWS(path: string, opts: WSOptions)
 - Console tab: streams RCON/stdin input/output (bidirectional)
 - Logs tab: streams container stdout and/or game log file (read-only)
 
-**Local-cluster limitation:** WebSocket paths (`/ws/servers/{name}/logs`, `/ws/servers/{name}/logs/pod?from=start`) do not thread `?cluster=` param; multi-cluster WebSocket support is deferred.
+**Cluster routing:** WebSocket paths retain the open server's cluster and namespace. Pod startup/stdout logs and PTY attach use that cluster's Kubernetes client; remote RCON and game-file logs use its authenticated gateway. Reconnects retain the original target. Leaving the server view closes its streams; infrastructure selection cannot retarget them.
 
 ### Server-Sent Events (`lib/sse.ts`)
 
@@ -1158,11 +1178,24 @@ openEventStream(opts: EventStreamOptions)
 
 **Execution:** Serial (workers: 1) because login state is shared across tests; retries: 0 local, 1 in CI.
 
+## Remote server feature parity
+
+The existing Mods, Modpacks and Capture screens use their immutable resource
+target for both local and remote servers. ID-list editing stays disabled until
+the target's current list has loaded successfully. Capture controls query
+GET `/servers/{name}/capabilities` and verify the returned target identity.
+Loading, unavailable or unsupported transport states cannot enable actions from
+stale successful data. Capture enable/start and file download capabilities are
+separate: disabling new captures at a site does not hide retained downloads.
+Permission checks remain independent, and an already-open start dialog respects
+subsequent capability loss. See [remote server feature parity](../docs/remote-parity.md)
+for routing, identity and integration coverage.
+
 ## References
 
 - **docs/architecture.md** — component overview, data flow, security boundaries, "operator is authoritative" rationale
 - **docs/security.md** — auth model, RBAC, threat model, pod security, pre-auth privacy rule
-- **docs/installing.md** — Helm values, K8s prerequisites, OIDC setup (for deployment contexts)
+- **docs/install.md** — Helm values, K8s prerequisites, OIDC setup (for deployment contexts)
 - **CLAUDE.md rule 1** — Design-first: visual changes originate in design.pen, not code
 - **CLAUDE.md rule 3** — Pre-auth privacy: login page must not leak internal metrics/hostnames/versions
 - **CLAUDE.md rule 4** — Fix, don't silence: linter/type flags are fixed at source

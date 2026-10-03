@@ -28,6 +28,7 @@ spec:
   endpoints:
     - { port: metrics, interval: 30s }
 ---
+{{- if (eq (include "gameplane.apiEnabled" .) "true") }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -71,6 +72,7 @@ spec:
   endpoints:
     - { port: http, interval: 30s, path: /metrics }
 ---
+{{- end }}
 {{- end }}
 {{- /*
   F-216: scrapes the agent's separate plain-HTTP metrics listener

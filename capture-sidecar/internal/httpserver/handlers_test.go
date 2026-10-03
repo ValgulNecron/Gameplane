@@ -373,29 +373,28 @@ func TestRoutes_MiddlewareWrapsEveryCaptureEndpoint(t *testing.T) {
 			w.WriteHeader(http.StatusTeapot)
 		})
 	})
-	if wrapped != 5 {
-		t.Fatalf("middleware applied to %d handlers, want 5", wrapped)
+	routes := []struct{ method, path string }{
+		{http.MethodPost, "/captures/cap-1/start"},
+		{http.MethodPost, "/captures/cap-1/stop"},
+		{http.MethodGet, "/captures/cap-1/status"},
+		{http.MethodGet, "/captures/cap-1/file"},
+		{http.MethodDelete, "/captures/cap-1"},
+		{http.MethodGet, "/v1/targets/server-uid/captures/cap-1/uids/capture-uid/file"},
+		{http.MethodDelete, "/v1/targets/server-uid/captures/cap-1/uids/capture-uid/file"},
 	}
-
-	for _, path := range []string{
-		"/captures/cap-1/status",
-		"/captures/cap-1/file",
-	} {
+	if wrapped != len(routes) {
+		t.Fatalf("middleware applied to %d handlers, want %d", wrapped, len(routes))
+	}
+	for _, route := range routes {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), route.method, route.path, nil))
 		if rr.Code != http.StatusTeapot {
-			t.Fatalf("%s bypassed the middleware: %d", path, rr.Code)
+			t.Fatalf("%s %s bypassed the middleware: %d", route.method, route.path, rr.Code)
 		}
 	}
 
-	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/captures/cap-1", nil))
-	if rr.Code != http.StatusTeapot {
-		t.Fatalf("DELETE /captures/cap-1 bypassed the middleware: %d", rr.Code)
-	}
-
 	// /healthz must stay unauthenticated.
-	rr = httptest.NewRecorder()
+	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("healthz = %d, want 200 (unauthenticated)", rr.Code)

@@ -4,6 +4,7 @@
 ##   image.*        — registry/tag shared by all component images
 ##   operator.*     — operator Deployment tunables
 ##   api.*          — API Deployment tunables (incl. DB + OIDC)
+##   gateway.*      — optional private multicluster agent gateway
 ##   ingress.*      — dashboard ingress
 ##   gamesNamespace — namespace Gameplane creates GameServers in
 ##   networkPolicies — default-deny policies in gamesNamespace
@@ -113,6 +114,9 @@ operator:
     storageClassName: ""
 
 api:
+  # Disable the central API, its database/RBAC, dashboard, ingress and API-only
+  # integrations on remote operator+gateway installs. Agent mTLS is preserved.
+  enabled: true
   replicas: 1        # Keep at 1. SQLite is single-writer on a RWO volume; with db.driver=postgres the user-management lock and audit hash chain are still per-process
   logLevel: info     # API log verbosity (debug|info|warn|error), passed as GAMEPLANE_LOG_LEVEL
   # Port of the API's Prometheus metrics listener. It is separate from the
@@ -295,6 +299,48 @@ api:
     caSecretRef:     { name: gameplane-agent-ca,     key: ca.crt }
     clientCertRef:   { name: gameplane-agent-client, key: tls.crt }
     clientKeyRef:    { name: gameplane-agent-client, key: tls.key }
+
+# Optional per-cluster agent gateway, using the API image's gateway subcommand.
+# It has no login/database and only read-only, namespace-scoped Kubernetes RBAC.
+# TLS Secrets must already exist in the release namespace; do not reuse the
+# operator's agent CA as the central-management trust root.
+gateway:
+  enabled: false
+  replicas: 1
+  # Must match the Cluster resource name in the central Gameplane installation.
+  clusterID: ""
+  # Exact URI SAN trusted in the central API client certificate.
+  peerURI: ""
+  # Empty selects only gamesNamespace. Additional namespaces must exist already.
+  namespaces: []
+  serverTLSSecret: ""        # tls.crt, tls.key: gateway server identity
+  centralClientCASecret: ""  # ca.crt: CA issuing central API client certificates
+  agentCASecret: gameplane-agent-ca
+  agentClientSecret: gameplane-agent-client
+  # Optional total lifetime for operations/streams. 0s disables this cap;
+  # peer certificate expiry, cancellation and short-operation timeouts still apply.
+  maxRequestDuration: 0s
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+  # The Service is always ClusterIP. Supply private network routing/TLS
+  # passthrough externally; this chart never exposes a public gateway ingress.
+  networkPolicy:
+    # At least one peer CIDR or selector is required when gateway is enabled.
+    # Use the source addresses observed inside this cluster (account for SNAT).
+    peerCIDRs: []
+    # NetworkPolicyPeer selectors, e.g. a namespaceSelector AND podSelector.
+    # These identify an in-cluster private relay or central API pod, not labels
+    # on pods in another cluster (NetworkPolicy selectors are cluster-local).
+    peerSelectors: []
+    # Explicit API endpoint/service CIDRs required. Include post-DNAT endpoint
+    # addresses as needed by your CNI. This controls TCP 443 and 6443 only.
+    apiServerCIDRs: []
+    # Cluster-local DNS. For NodeLocal DNS, add its exact /32 or /128 CIDR.
+    dnsNamespace: kube-system
+    dnsPodLabels:
+      k8s-app: kube-dns
+    dnsCIDRs: []
 
 # The dashboard front end: an nginx pod that serves the built SPA and proxies
 # API/WebSocket/SSE traffic to the API. The ingress points at this service, so

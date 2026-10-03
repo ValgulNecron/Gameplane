@@ -19,6 +19,17 @@ The operator is a Kubernetes controller-runtime-based process that reconciles Ga
 - **Fleet observability:** expose Prometheus metrics summarizing GameServer and Backup phases across the entire fleet.
 - **CRD codegen:** curate operator/api/v1alpha1 type definitions; `make generate && make manifests` regenerates deepcopy, RBAC, and CRD YAML whenever types change.
 
+### Capture identity across remote gateways
+
+The operator injects the GameServer UID into the capture sidecar and sends both
+the server and NetworkCapture UIDs in capture-start requests. Status, stop and
+expiry cleanup carry the same original owner and capture UIDs. This binds retained
+capture bytes to their originating resources for authenticated remote downloads
+and cleanup, even after sidecar restart or history eviction. Capture admission,
+start/stop and expiry remain reconciler responsibilities; the gateway cannot
+bypass them or operate an arbitrary pod. Existing game resources and storage are
+not recreated to enable remote parity.
+
 ## Non-goals / boundaries
 
 The operator **does not** handle:

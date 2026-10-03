@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, APIError, Captures, Shares, type CaptureStartBody } from "./api";
+import { api, APIError, Captures, Shares, createRequestClient, type CaptureStartBody } from "./api";
 import { HttpResponse } from "msw";
 
 // Mock the cluster module to control getCurrentCluster
@@ -38,6 +38,37 @@ function jsonRes(status: number, body: unknown): Response {
 }
 
 describe("api()", () => {
+  it("pins a captured workload target even after the global selection changes", async () => {
+    const { getCurrentCluster } = await import("./cluster");
+    vi.mocked(getCurrentCluster).mockReturnValue("other-cluster");
+    fetchMock.mockResolvedValue(jsonRes(200, { ok: true }));
+    await api("/cluster", { cluster: "intended-cluster" });
+    expect(fetchMock.mock.calls[0][0]).toBe("/cluster?cluster=intended-cluster");
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
+    await api("/servers/same:tunnel-credentials", { method: "PUT", cluster: "local", body: { provider: "frp", values: {} } });
+    expect(fetchMock.mock.calls[1][0]).toBe("/servers/same:tunnel-credentials");
+  });
+
+  it("keeps central management requests independent of the workload selector", async () => {
+    const { getCurrentCluster } = await import("./cluster");
+    vi.mocked(getCurrentCluster).mockReturnValue("remote-prod");
+    const paths = ["/auth/login", "/users/me", "/roles", "/admin/config", "/modules/catalog", "/clusters"];
+    for (const path of paths) {
+      fetchMock.mockResolvedValueOnce(jsonRes(200, {}));
+      await api(path);
+      expect(fetchMock.mock.lastCall?.[0]).toBe(path);
+    }
+    fetchMock.mockResolvedValueOnce(jsonRes(200, {}));
+    await api("/users/2/bindings/reader/*?cluster=assigned-site", { method: "DELETE", cluster: "local" });
+    expect(fetchMock.mock.lastCall?.[0]).toBe("/users/2/bindings/reader/*?cluster=assigned-site");
+    fetchMock.mockResolvedValueOnce(jsonRes(200, {}));
+    await api("/users/me/servers");
+    expect(fetchMock.mock.lastCall?.[0]).toBe("/users/me/servers");
+    fetchMock.mockResolvedValueOnce(jsonRes(200, {}));
+    await api("/modules-extra");
+    expect(fetchMock.mock.lastCall?.[0]).toBe("/modules-extra");
+  });
+
   it("does not send a CSRF header on GET", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
     await api("/users/me");
@@ -90,7 +121,7 @@ describe("api()", () => {
     const { getCurrentCluster } = await import("./cluster");
     vi.mocked(getCurrentCluster).mockReturnValueOnce("remote-prod");
     fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
-    await api("/servers");
+    await api("/servers", { cluster: "remote-prod" });
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("/servers?cluster=remote-prod");
   });
@@ -99,7 +130,7 @@ describe("api()", () => {
     const { getCurrentCluster } = await import("./cluster");
     vi.mocked(getCurrentCluster).mockReturnValueOnce("remote-prod");
     fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
-    await api("/servers?namespace=games");
+    await api("/servers?namespace=games", { cluster: "remote-prod" });
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("/servers?namespace=games&cluster=remote-prod");
   });
@@ -108,7 +139,7 @@ describe("api()", () => {
     const { getCurrentCluster } = await import("./cluster");
     vi.mocked(getCurrentCluster).mockReturnValueOnce("cluster@special");
     fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
-    await api("/servers");
+    await api("/servers", { cluster: "cluster@special" });
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("/servers?cluster=cluster%40special");
   });
@@ -163,7 +194,7 @@ describe("withClusterParam()", () => {
     const { getCurrentCluster } = await import("./cluster");
     vi.mocked(getCurrentCluster).mockReturnValue("remote-prod");
     fetchMock.mockResolvedValueOnce(new HttpResponse(new Blob(["data"]), {}));
-    await Captures.download("alpha", "cap-123");
+    await createRequestClient({ cluster: "remote-prod" }).Captures.download("alpha", "cap-123");
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("/servers/alpha:capture-file?id=cap-123&cluster=remote-prod");
   });
@@ -172,7 +203,7 @@ describe("withClusterParam()", () => {
     const { getCurrentCluster } = await import("./cluster");
     vi.mocked(getCurrentCluster).mockReturnValue("remote-prod");
     fetchMock.mockResolvedValueOnce(new HttpResponse(new Blob(["data"]), {}));
-    await Captures.download("alpha", "cap-123", "game-ns");
+    await createRequestClient({ cluster: "remote-prod" }).Captures.download("alpha", "cap-123", "game-ns");
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe(
       "/servers/alpha:capture-file?id=cap-123&namespace=game-ns&cluster=remote-prod"
@@ -183,7 +214,7 @@ describe("withClusterParam()", () => {
     const { getCurrentCluster } = await import("./cluster");
     vi.mocked(getCurrentCluster).mockReturnValue("cluster@special");
     fetchMock.mockResolvedValueOnce(new HttpResponse(new Blob(["data"]), {}));
-    await Captures.download("alpha", "cap-123");
+    await createRequestClient({ cluster: "cluster@special" }).Captures.download("alpha", "cap-123");
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("/servers/alpha:capture-file?id=cap-123&cluster=cluster%40special");
   });
@@ -539,7 +570,7 @@ describe("Captures.download()", () => {
         headers: { "Content-Type": "application/octet-stream" },
       })
     );
-    await Captures.download("alpha", "cap-12345");
+    await createRequestClient({ cluster: "remote-prod" }).Captures.download("alpha", "cap-12345");
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe("/servers/alpha:capture-file?id=cap-12345&cluster=remote-prod");
   });

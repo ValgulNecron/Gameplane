@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceAccess, useResourceTarget, resourceKey } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,7 +16,7 @@ import { Button, Input } from "@heroui/react";
 import { StatCard } from "@/components/ui/StatCard";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { errorText } from "@/lib/errors";
-import { Players as PlayersAPI } from "@/lib/endpoints";
+
 import { cn } from "@/lib/utils";
 
 interface ModResp {
@@ -26,6 +27,10 @@ interface ModResp {
 type Action = "kick" | "ban";
 
 export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
+  const canControl = useResourceAccess()?.canControl === true;
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Players: PlayersAPI } = resourceClient;
   const qc = useQueryClient();
   const [pending, setPending] = useState<{ player: string; action: Action } | null>(null);
   const [reason, setReason] = useState("");
@@ -35,8 +40,8 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
   const [status, setStatus] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const { data, refetch, isFetching } = useQuery({
-    queryKey: ["players", name, ns],
-    queryFn: () => PlayersAPI.snapshot(name, ns),
+    queryKey: resourceKey(resourceTarget, "players", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Players.snapshot(name, ns),
     refetchInterval: 5_000,
   });
   const caps = data?.capabilities;
@@ -45,13 +50,13 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
   // summary tiles always have counts; the sections below just toggle the
   // list's visibility, not the fetch.
   const { data: banned, isFetching: bannedFetching } = useQuery({
-    queryKey: ["banned", name, ns],
-    queryFn: () => PlayersAPI.banned(name, ns),
+    queryKey: resourceKey(resourceTarget, "banned", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Players.banned(name, ns),
     enabled: caps?.unban ?? false,
   });
   const { data: whitelist, isFetching: whitelistFetching } = useQuery({
-    queryKey: ["whitelist", name, ns],
-    queryFn: () => PlayersAPI.whitelist(name, ns),
+    queryKey: resourceKey(resourceTarget, "whitelist", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Players.whitelist(name, ns),
     enabled: caps?.whitelist ?? false,
   });
 
@@ -62,6 +67,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
         ...(vars.reason ? { reason: vars.reason } : {}),
       }, ns),
     onSuccess: (resp, vars) => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       setPending(null);
       setReason("");
       setStatus({
@@ -69,8 +75,8 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
         text: resp.raw ? truncate(resp.raw, 200) : `${vars.action} ${vars.player} ok`,
       });
       return Promise.all([
-        qc.invalidateQueries({ queryKey: ["players", name, ns] }),
-        qc.invalidateQueries({ queryKey: ["banned", name, ns] }),
+        qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "players", name, ns) }),
+        qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "banned", name, ns) }),
       ]);
     },
     onError: (err) => setStatus({ kind: "err", text: errMsg(err) }),
@@ -82,12 +88,13 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
         ? PlayersAPI.whitelistAdd(name, vars.player, ns)
         : PlayersAPI.whitelistRemove(name, vars.player, ns),
     onSuccess: (resp, vars) => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       setWlName("");
       setStatus({
         kind: "ok",
         text: resp.raw ? truncate(resp.raw, 200) : `whitelist ${vars.op} ${vars.player} ok`,
       });
-      return qc.invalidateQueries({ queryKey: ["whitelist", name, ns] });
+      return qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "whitelist", name, ns) });
     },
     onError: (err) => setStatus({ kind: "err", text: errMsg(err) }),
   });
@@ -167,7 +174,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     isIconOnly
                     variant="ghost"
                     size="sm"
-                    aria-label="Kick"
+                    isDisabled={!canControl} aria-label="Kick"
                     onClick={() => {
                       setPending({ player: p, action: "kick" });
                       setReason("");
@@ -183,7 +190,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     isIconOnly
                     variant="ghost"
                     size="sm"
-                    aria-label={`Ban ${p}`}
+                    isDisabled={!canControl} aria-label={`Ban ${p}`}
                     onClick={() => {
                       setPending({ player: p, action: "ban" });
                       setReason("");
@@ -238,7 +245,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                 onSubmit={(e) => {
                   e.preventDefault();
                   const n = wlName.trim();
-                  if (n) whitelistMut.mutate({ op: "add", player: n });
+                  if (canControl && n) whitelistMut.mutate({ op: "add", player: n });
                 }}
               >
                 <Input
@@ -251,7 +258,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                 <Button
                   size="sm"
                   type="submit"
-                  isDisabled={!wlName.trim() || whitelistMut.isPending}
+                  isDisabled={!canControl || !wlName.trim() || whitelistMut.isPending}
                   variant="primary"
                 >
                   <UserPlus className="h-4 w-4" /> Add
@@ -269,7 +276,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     variant="ghost"
                     size="sm"
                     aria-label={`Remove ${w} from whitelist`}
-                    isDisabled={whitelistMut.isPending}
+                    isDisabled={!canControl || whitelistMut.isPending}
                     onClick={() => whitelistMut.mutate({ op: "remove", player: w })}
                   >
                     <span title="Remove from whitelist">
@@ -315,7 +322,7 @@ export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
                     size="sm"
                     variant="ghost"
                     aria-label={`Unban ${b.name}`}
-                    isDisabled={moderate.isPending}
+                    isDisabled={!canControl || moderate.isPending}
                     onClick={() => moderate.mutate({ action: "unban", player: b.name })}
                   >
                     <span title="Unban">

@@ -61,7 +61,7 @@ export function TopBar({
   };
 
   return (
-    <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-6">
+    <header className="flex h-16 items-center justify-between gap-2 border-b border-border bg-background px-3 sm:gap-4 sm:px-6">
       {/* Left: hamburger + breadcrumbs (desktop only) + mobile title (mobile only) */}
       <div className="flex min-w-0 items-center gap-2">
         <Button
@@ -76,7 +76,7 @@ export function TopBar({
         </Button>
         {/* Mobile title — shown below lg breakpoint */}
         {mobileTitle && (
-          <div className="min-w-0 font-mono text-base font-bold text-foreground lg:hidden">
+          <div className="min-w-0 truncate font-mono text-base font-bold text-foreground lg:hidden">
             {mobileTitle}
           </div>
         )}
@@ -85,9 +85,9 @@ export function TopBar({
       </div>
 
       {/* Right: cluster selector, search, notifications, user menu */}
-      <div className="flex shrink-0 items-center gap-3">
-        {/* Cluster selector — hidden below lg breakpoint */}
-        <div className="hidden lg:flex">{clusterSelector}</div>
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        {/* Cluster context stays reachable on mobile as well as desktop. */}
+        <div className="flex min-w-0">{clusterSelector}</div>
         {/* Search — hidden below lg breakpoint */}
         <div className="hidden lg:flex">{search}</div>
         {/* Notifications — hidden below lg breakpoint */}

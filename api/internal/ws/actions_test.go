@@ -344,7 +344,7 @@ func TestRunAction_WriteStdinLinesErrorIsGatewayAndNonLeaking(t *testing.T) {
 
 // TestRunAction_RconDelegatesToProxy proves an rcon-resolved action takes
 // the existing agent-proxy path (byte-identical to before this handler
-// existed): with p.tls left nil, httpProxy's own mTLS guard fires 503 —
+// existed): with p.transport left nil, httpProxy's own mTLS guard fires 503 —
 // and the panicking stdin writer proves the stdin branch was never
 // reached, which is the regression this test exists to catch.
 func TestRunAction_RconDelegatesToProxy(t *testing.T) {

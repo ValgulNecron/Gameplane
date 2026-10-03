@@ -37,10 +37,12 @@ test.describe("server lifecycle UI", () => {
     await page.waitForLoadState("domcontentloaded");
 
     const restarted = page.waitForRequest(
-      (req) => /\/servers\/alpha:restart$/.test(req.url()) && req.method() === "POST",
+      (req) => new URL(req.url()).pathname === "/servers/alpha:restart" && req.method() === "POST",
     );
     await serverDetail.restartButton.click();
-    await restarted;
+    const requestURL = new URL((await restarted).url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("gameplane-games");
   });
 
   test("Stop button POSTs /servers/{name}:stop", async ({ page }) => {
@@ -54,10 +56,12 @@ test.describe("server lifecycle UI", () => {
     await expect(stopBtn).toBeEnabled({ timeout: 5_000 });
 
     const stopped = page.waitForRequest(
-      (req) => /\/servers\/alpha:stop$/.test(req.url()) && req.method() === "POST",
+      (req) => new URL(req.url()).pathname === "/servers/alpha:stop" && req.method() === "POST",
     );
     await stopBtn.click();
-    await stopped;
+    const requestURL = new URL((await stopped).url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("gameplane-games");
   });
 
   test("Open console button switches to the Console tab", async ({ page }) => {
@@ -74,13 +78,15 @@ test.describe("server lifecycle UI", () => {
     await expect(tabNav.getByRole("tab", { name: /^console$/i })).toBeVisible();
   });
 
-  test("shared row on /servers shows lifecycle actions scoped to its namespace", async ({ page }) => {
+  test("shared row on /servers shows lifecycle actions scoped to its namespace", async ({ page, context }) => {
+    await context.addCookies([{ name: "e2e_shared_server", value: "1", url: "http://localhost:5173" }]);
     await page.goto("/servers");
     await page.waitForLoadState("domcontentloaded");
 
-    await expect(page.getByText("Shared with you")).toBeVisible();
+    await expect(page.getByText("Shared with you")).toHaveCount(0);
     const sharedRow = page.getByRole("row").filter({ hasText: "team-a-shared" });
     await expect(sharedRow).toBeVisible();
+    await expect(sharedRow.getByText("local / team-a", { exact: true })).toBeVisible();
 
     // Fixture seeds phase=Running (makeServer's default), so Stop is the
     // enabled affordance, same as the existing "alpha" row tests above.
@@ -88,10 +94,12 @@ test.describe("server lifecycle UI", () => {
     await expect(stopBtn).toBeEnabled({ timeout: 5_000 });
 
     const stopped = page.waitForRequest(
-      (req) => /\/servers\/team-a-shared:stop\?/.test(req.url()) && req.method() === "POST",
+      (req) => new URL(req.url()).pathname === "/servers/team-a-shared:stop" && req.method() === "POST",
     );
     await stopBtn.click();
     const req = await stopped;
-    expect(req.url()).toContain("namespace=team-a");
+    const requestURL = new URL(req.url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("team-a");
   });
 });

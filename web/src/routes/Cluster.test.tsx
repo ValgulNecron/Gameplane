@@ -1,13 +1,46 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeClusterInfo, makeClusterView, makeUser } from "@/test/factories";
 import { ClusterPage } from "./Cluster";
+import { setCurrentCluster } from "@/lib/cluster";
 
 describe("ClusterPage", () => {
+  beforeEach(() => setCurrentCluster("local"));
+  afterEach(() => setCurrentCluster("local"));
+
+  it("does not paint a late local response over selected remote inventory", async () => {
+    let releaseLocal: () => void = () => {};
+    let localRequested = false;
+    const localResponse = new Promise<void>((resolve) => { releaseLocal = resolve; });
+    server.use(http.get("/cluster", async ({ request }) => {
+      const remote = new URL(request.url).searchParams.get("cluster") === "remote-demo";
+      if (!remote) { localRequested = true; await localResponse; }
+      return HttpResponse.json(makeClusterView({ name: remote ? "remote-demo" : "local", nodes: [{ name: remote ? "remote-node" : "local-node", status: "Ready" }] }));
+    }));
+    const { client } = renderWithQuery(<ClusterPage />);
+    await waitFor(() => expect(localRequested).toBe(true));
+    act(() => setCurrentCluster("remote-demo"));
+    expect(await screen.findByText("remote-node")).toBeInTheDocument();
+    await act(async () => { releaseLocal(); await localResponse; });
+    expect(screen.queryByText("local-node")).not.toBeInTheDocument();
+    expect(client.getQueryData(["cluster", "remote-demo"])).toMatchObject({ name: "remote-demo" });
+  });
+
+  it("discards local join results and suppresses local settings immediately on remote selection", async () => {
+    server.use(http.post("/cluster/nodes:join", () => HttpResponse.json({ command: "local-only-join-command", expiresAt: "later" })));
+    renderWithQuery(<ClusterPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /add node/i }));
+    expect(await screen.findByText("local-only-join-command")).toBeInTheDocument();
+    act(() => setCurrentCluster("remote-demo"));
+    expect(screen.queryByText("local-only-join-command")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add node/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /download kubeconfig/i })).toBeDisabled();
+    expect(screen.queryByText("Game data storage class")).not.toBeInTheDocument();
+  });
   it("renders node cards from /cluster", async () => {
     renderWithQuery(<ClusterPage />);
     await screen.findByText("node-1");
@@ -54,11 +87,10 @@ describe("ClusterPage", () => {
   it("falls back gracefully on API error", async () => {
     server.use(http.get("/cluster", () => HttpResponse.error()));
     renderWithQuery(<ClusterPage />);
-    // The query handler swallows the error to {} so the page renders
-    // its empty-state subtitle.
     await waitFor(() => {
-      expect(screen.getByText(/No node data yet/)).toBeInTheDocument();
+      expect(screen.getByText(/Couldn't load node inventory for local/)).toBeInTheDocument();
     });
+    expect(screen.queryByText(/No node data yet/)).not.toBeInTheDocument();
   });
 
   it("Add node shows the join command on success", async () => {

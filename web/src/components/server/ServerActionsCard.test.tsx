@@ -1,7 +1,9 @@
+import { ResourceTargetProvider } from "@/lib/resourceTarget";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithQuery } from "@/test/render";
+import { renderWithQuery as baseRenderWithQuery } from "@/test/render";
 import { ServerActionsCard } from "./ServerActionsCard";
 import type { GameServer, GameTemplate, ServerActionDecl } from "@/types";
 
@@ -28,6 +30,7 @@ interface RunCall {
 // routeFetch answers /users/me with the given role and records POSTs to
 // the action-run endpoint.
 function routeFetch(role: "operator" | "viewer", runs: RunCall[]) {
+  scopedControl = role === "operator";
   // Running module actions is gated on servers:write; mirror that here.
   const permissions =
     role === "operator" ? { "*": ["servers:read", "servers:write"] } : { "*": ["servers:read"] };
@@ -923,3 +926,9 @@ describe("ServerActionsCard", () => {
     await waitFor(() => expect(screen.queryByText("Must be a whole number")).not.toBeInTheDocument());
   });
 });
+
+let scopedControl = true;
+function renderWithQuery(ui: ReactElement, options?: Parameters<typeof baseRenderWithQuery>[1]) {
+  const props = ui.props as { name?: string; ns?: string };
+  return baseRenderWithQuery(<ResourceTargetProvider target={{ cluster: "local", name: props.name ?? "s1", namespace: props.ns }} access={{ canWrite: scopedControl, canControl: scopedControl, canConsole: scopedControl, canDelete: false, isOwner: false, isCollaborator: false, permissions: scopedControl ? ["servers:read", "servers:write"] : ["servers:read"] }}>{ui}</ResourceTargetProvider>, options);
+}

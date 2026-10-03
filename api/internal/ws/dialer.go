@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,48 +24,55 @@ import (
 )
 
 // Mount attaches the WS/file proxy routes under /ws and /servers/:name/files.
-func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string) {
+func Mount(r chi.Router, reg *kube.Registry, caBundle, clientCert, clientKey string, gatewayOptions ...AgentGatewayOptions) {
+	var k *kube.Client
+	if reg != nil {
+		k = reg.Default()
+	}
 	tlsCfg, err := agentTLSConfig(caBundle, clientCert, clientKey)
 	if err != nil {
 		// Allow startup without mTLS in dev — every request 503s until
 		// the chart's mTLS hook populates the Secrets.
 		tlsCfg = nil
 	}
-	client := &http.Client{
-		Timeout:   0,
-		Transport: &http.Transport{TLSClientConfig: tlsCfg},
+	var transport agentTransport
+	if tlsCfg != nil {
+		transport = newDirectAgentTransport(tlsCfg, 0)
 	}
 
-	p := &proxy{k: k, tls: tlsCfg, http: client, stdin: k}
-	r.Get("/ws/servers/{name}/console", rejectRemoteCluster(p.wsProxy("/console")))
-	r.Get("/ws/servers/{name}/logs", rejectRemoteCluster(p.wsProxy("/logs/tail")))
-	r.Get("/servers/{name}/logs/download", rejectRemoteCluster(p.httpProxy("/logs/download")))
+	p := &proxy{k: k, transport: transport, stdin: k}
+	if len(gatewayOptions) > 0 && gatewayOptions[0].Namespace != "" && reg != nil {
+		p.gateway = &agentGatewayResolver{registry: reg, namespace: gatewayOptions[0].Namespace}
+	}
+	r.Get("/ws/servers/{name}/console", p.agentWS("/console"))
+	r.Get("/ws/servers/{name}/logs", p.agentWS("/logs/tail"))
+	r.Get("/servers/{name}/logs/download", p.agentHTTP("/logs/download"))
 	// PTY console attaches via the Kubernetes API (not the agent), so it
-	// doesn't need mTLS material — it uses the API's existing in-cluster
+	// doesn't need agent mTLS material — it uses the selected cluster's
 	// kubeconfig. Mounted unconditionally.
-	mountAttach(r, k)
+	mountAttach(r, reg)
 	// Startup logs stream the game container's stdout via the pod-log API
 	// (also no agent mTLS needed), so download/config output is visible
 	// before the game's own log file exists. Mounted unconditionally.
-	mountPodLogs(r, k)
+	mountPodLogs(r, reg)
 	r.Route("/servers/{name}/files", func(r chi.Router) {
-		r.Get("/list", rejectRemoteCluster(p.httpProxy("/files/list")))
-		r.Get("/read", rejectRemoteCluster(p.httpProxy("/files/read")))
-		r.Get("/download", rejectRemoteCluster(p.httpProxy("/files/download")))
-		r.Post("/write", rejectRemoteCluster(p.httpProxy("/files/write")))
-		r.Post("/upload", rejectRemoteCluster(p.httpProxy("/files/upload")))
-		r.Post("/mkdir", rejectRemoteCluster(p.httpProxy("/files/mkdir")))
-		r.Delete("/delete", rejectRemoteCluster(p.httpProxy("/files/delete")))
+		r.Get("/list", p.agentHTTP("/files/list"))
+		r.Get("/read", p.agentHTTP("/files/read"))
+		r.Get("/download", p.agentHTTP("/files/download"))
+		r.Post("/write", p.agentHTTP("/files/write"))
+		r.Post("/upload", p.agentHTTP("/files/upload"))
+		r.Post("/mkdir", p.agentHTTP("/files/mkdir"))
+		r.Delete("/delete", p.agentHTTP("/files/delete"))
 	})
 	r.Route("/servers/{name}/players", func(r chi.Router) {
-		r.Get("/", rejectRemoteCluster(p.httpProxy("/players")))
-		r.Get("/banned", rejectRemoteCluster(p.httpProxy("/players/banned")))
-		r.Post("/kick", rejectRemoteCluster(p.httpProxy("/players/kick")))
-		r.Post("/ban", rejectRemoteCluster(p.httpProxy("/players/ban")))
-		r.Post("/unban", rejectRemoteCluster(p.httpProxy("/players/unban")))
-		r.Get("/whitelist", rejectRemoteCluster(p.httpProxy("/players/whitelist")))
-		r.Post("/whitelist/add", rejectRemoteCluster(p.httpProxy("/players/whitelist/add")))
-		r.Post("/whitelist/remove", rejectRemoteCluster(p.httpProxy("/players/whitelist/remove")))
+		r.Get("/", p.agentHTTP("/players"))
+		r.Get("/banned", p.agentHTTP("/players/banned"))
+		r.Post("/kick", p.agentHTTP("/players/kick"))
+		r.Post("/ban", p.agentHTTP("/players/ban"))
+		r.Post("/unban", p.agentHTTP("/players/unban"))
+		r.Get("/whitelist", p.agentHTTP("/players/whitelist"))
+		r.Post("/whitelist/add", p.agentHTTP("/players/whitelist/add"))
+		r.Post("/whitelist/remove", p.agentHTTP("/players/whitelist/remove"))
 	})
 	// Module-declared operator actions and live status metrics. RBAC
 	// (api/internal/rbac) gates these by the same method+segment rules as
@@ -75,17 +81,17 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	// actions/run is not a pure proxy: it fetches the template, resolves
 	// the action's transport, and either proxies to the agent (rcon) or
 	// executes here via pods/attach (stdin) — see actions.go.
-	r.Post("/servers/{name}/actions/run", rejectRemoteCluster(p.runAction))
-	r.Get("/servers/{name}/status", rejectRemoteCluster(p.httpProxy("/status")))
+	r.Post("/servers/{name}/actions/run", p.agentAction())
+	r.Get("/servers/{name}/status", p.agentHTTP("/status"))
 	// Mod/plugin management. Listing is a GET → viewer+; install (POST)
 	// and remove (DELETE) are mutations → operator+, by the same rbac
 	// method+segment rules as the rest of /servers. Upload gets its own
 	// body cap matching the largest module install policy (the agent still
 	// enforces the module's real per-file limit).
-	r.Get("/servers/{name}/mods", rejectRemoteCluster(p.httpProxy("/mods")))
-	r.Post("/servers/{name}/mods/install", rejectRemoteCluster(p.httpProxy("/mods/install")))
-	r.Post("/servers/{name}/mods/upload", rejectRemoteCluster(p.httpProxyLimit("/mods/upload", 512<<20)))
-	r.Delete("/servers/{name}/mods", rejectRemoteCluster(p.httpProxy("/mods")))
+	r.Get("/servers/{name}/mods", p.agentHTTP("/mods"))
+	r.Post("/servers/{name}/mods/install", p.agentHTTP("/mods/install"))
+	r.Post("/servers/{name}/mods/upload", p.agentHTTPLimit("/mods/upload", 512<<20))
+	r.Delete("/servers/{name}/mods", p.agentHTTP("/mods"))
 }
 
 // isDNS1123Label reports whether name is a valid DNS-1123 label (valid
@@ -111,26 +117,9 @@ func isDNS1123Label(name string) bool {
 	return true
 }
 
-// rejectRemoteCluster wraps a handler that can only ever act on the LOCAL
-// cluster. Every route in this package either proxies straight to the
-// agent sidecar (mTLS material is provisioned only for the home cluster)
-// or drives pod-attach/pod-log reads through the API's own in-cluster
-// kubeconfig (mountAttach, mountPodLogs) — neither path ever consults the
-// multi-cluster registry, unlike the cluster-dispatch-aware handlers in
-// api/internal/handlers (Resources, PodEvents, Lifecycle, …).
-//
-// Until a cross-cluster agent exists to serve these routes on a remote
-// cluster, a non-local selector is answered with 501 Not Implemented and a
-// readable reason.
-//
-// The guard must also stay in place for correctness: rbac.Middleware
-// (api/internal/rbac/rbac.go) authorizes namespaced permissions against
-// whatever `?cluster=` the caller supplies (api/internal/scope.ResolveCluster).
-// Without this guard, a user bound only to a registered REMOTE cluster could
-// pass `?cluster=<remote>` to satisfy that check while still reaching the
-// LOCAL cluster's same-named GameServer here — RCON/PTY console, file, and
-// mod access on a server they have no rights to. See
-// handlers.rejectRemoteCluster for the REST-side twin of this guard.
+// rejectRemoteCluster remains a fail-closed guard for consumers without an
+// explicitly configured remote agent resolver. The central API's agentRoute
+// replaces it only after binding a request to a registered remote gateway.
 func rejectRemoteCluster(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if c := strings.TrimSpace(req.URL.Query().Get("cluster")); c != "" && c != scope.DefaultCluster {
@@ -141,41 +130,20 @@ func rejectRemoteCluster(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// validateAndBuildAgentHost validates namespace and pod name are valid
-// DNS-1123 labels, then constructs the in-cluster agent FQDN. Returns the
-// constructed host string if both inputs are valid, or an error if validation
-// fails. The returned host string is guaranteed safe for URL construction
-// since its components are validated DNS-1123 labels.
-func (p *proxy) validateAndBuildAgentHost(name, namespace string) (string, error) {
-	if !isDNS1123Label(namespace) || !isDNS1123Label(name) {
-		return "", errors.New("invalid namespace or pod name")
-	}
-	return p.agentHost(name, namespace), nil
-}
-
 type proxy struct {
-	k    *kube.Client
-	tls  *tls.Config
-	http *http.Client
+	k         *kube.Client
+	transport agentTransport
+	gateway   *agentGatewayResolver
+	remoteUID string
 	// stdin executes the stdin-transport branch of runAction. Defaults to
 	// k (see Mount) but is a separate interface field so tests can inject
 	// a fake that records writes instead of attaching to a real pod.
 	stdin stdinWriter
 }
 
-// agentHost returns the in-cluster DNS + port of the agent sidecar.
-// Kept as a method so tests can override it.
-func (p *proxy) agentHost(name, namespace string) string {
-	// The operator maintains a dedicated ClusterIP Service named
-	// <gs>-agent for the sidecar (the game's own Service may be
-	// NodePort/LoadBalancer and per-pod DNS only resolves under
-	// headless Services). Agent listens on :8090.
-	return agentHostFor(name, namespace)
-}
-
 func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		if p.tls == nil {
+		if p.transport == nil {
 			http.Error(w, "agent mTLS not configured", http.StatusServiceUnavailable)
 			return
 		}
@@ -185,27 +153,19 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 			httperr.Write(w, req, err)
 			return
 		}
-		// Validate namespace and pod name are valid DNS-1123 labels, and construct
-		// the agent host. The returned host is guaranteed safe for URL construction.
-		// CodeQL analysis recognizes this pattern: validation and construction are
-		// unified in validateAndBuildAgentHost, and only its return value is used
-		// in the URL, making the data flow legible to taint analysis.
-		host, err := p.validateAndBuildAgentHost(name, ns)
-		if err != nil {
+		target := agentTarget{name: name, namespace: ns}
+		// Validate before opening an upstream or upgrading the browser connection.
+		if err := target.validate(); err != nil {
 			httperr.WriteCode(w, req, http.StatusBadRequest, err)
 			return
 		}
-		upstream := "wss://" + host + agentPath
-
 		downConn, err := websocket.Accept(w, req, nil)
 		if err != nil {
 			return
 		}
 		defer func() { _ = downConn.Close(websocket.StatusNormalClosure, "") }()
 
-		upConn, upResp, err := websocket.Dial(req.Context(), upstream, &websocket.DialOptions{
-			HTTPClient: p.http,
-		})
+		upConn, upResp, err := p.transport.Dial(req.Context(), target, agentPath)
 		if upResp != nil && upResp.Body != nil {
 			_ = upResp.Body.Close()
 		}
@@ -253,7 +213,7 @@ func (p *proxy) httpProxy(agentPath string) http.HandlerFunc {
 // few routes that legitimately carry more (mod uploads).
 func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		if p.tls == nil {
+		if p.transport == nil {
 			http.Error(w, "agent mTLS not configured", http.StatusServiceUnavailable)
 			return
 		}
@@ -263,31 +223,10 @@ func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc
 			httperr.Write(w, req, err)
 			return
 		}
-		// Validate namespace and pod name are valid DNS-1123 labels, and construct
-		// the agent host. The returned host is guaranteed safe for URL construction.
-		// CodeQL analysis recognizes this pattern: validation and construction are
-		// unified in validateAndBuildAgentHost, and only its return value is used
-		// in the URL, making the data flow legible to taint analysis.
-		host, err := p.validateAndBuildAgentHost(name, ns)
-		if err != nil {
+		target := agentTarget{name: name, namespace: ns}
+		// Validate before opening an upstream or upgrading the browser connection.
+		if err := target.validate(); err != nil {
 			httperr.WriteCode(w, req, http.StatusBadRequest, err)
-			return
-		}
-		// Construct URL using url.URL with validated host to prevent injection.
-		u := &url.URL{
-			Scheme:   "https",
-			Host:     host,
-			Path:     agentPath,
-			RawQuery: req.URL.RawQuery,
-		}
-		upstream := u.String()
-
-		upReq, err := http.NewRequestWithContext(
-			req.Context(), req.Method, upstream,
-			http.MaxBytesReader(w, req.Body, maxBody),
-		)
-		if err != nil {
-			httperr.Write(w, req, err)
 			return
 		}
 		// Forward only headers the agent actually consumes. Never proxy
@@ -295,8 +234,11 @@ func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc
 		// session material and the agent doesn't need them (mTLS is what
 		// it authenticates on). Leaking them to agent logs or a
 		// compromised sidecar would hand over live session tokens.
-		copyProxyHeaders(upReq.Header, req.Header)
-		resp, err := p.http.Do(upReq)
+		resp, err := p.transport.Do(req.Context(), agentRequest{
+			target: target, method: req.Method, path: agentPath,
+			rawQuery: req.URL.RawQuery, header: req.Header,
+			body: http.MaxBytesReader(w, req.Body, maxBody),
+		})
 		if err != nil {
 			writeUpstreamErr(w, req, err)
 			return

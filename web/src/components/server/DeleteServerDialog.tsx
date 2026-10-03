@@ -1,9 +1,11 @@
-import { useMutation } from "@tanstack/react-query";
+import { useResourceClient, useResourceTarget, type ResourceTarget } from "@/lib/resourceTarget";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Servers } from "@/lib/endpoints";
+
 import { errorText } from "@/lib/errors";
 
 interface Props {
+  target?: ResourceTarget;
   name: string;
   ns?: string;
   open: boolean;
@@ -15,10 +17,16 @@ interface Props {
 // DeleteServerDialog is the confirm-to-delete flow, self-contained (owns its
 // mutation + error) so it can be dropped into the Settings danger zone, the
 // server-detail header menu, or a Servers-list row menu alike.
-export function DeleteServerDialog({ name, ns, open, onOpenChange, onDeleted }: Props) {
+export function DeleteServerDialog({
+  target: explicitTarget, name, ns, open, onOpenChange, onDeleted }: Props) {
+  const qc = useQueryClient();
+  const resourceTarget = useResourceTarget({ name, namespace: ns }, explicitTarget);
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Servers } = resourceClient;
   const del = useMutation({
     mutationFn: () => Servers.remove(name, ns),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       onOpenChange(false);
       onDeleted?.();
     },

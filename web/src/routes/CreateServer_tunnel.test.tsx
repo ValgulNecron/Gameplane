@@ -291,7 +291,8 @@ describe("CreateServerWizard tunnel configuration", () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            items: [makeTemplate({ metadata: { name: "minecraft" } })],
+            items: [{ cluster: "local", namespace: "gameplane-games", templates: [makeTemplate({ metadata: { name: "minecraft" } })] }],
+              partial: false, issues: [], totalReturned: 1,
           }),
           {
             status: 200,
@@ -376,7 +377,8 @@ describe("CreateServerWizard tunnel configuration", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              items: [makeTemplate({ metadata: { name: "minecraft" } })],
+              items: [{ cluster: "local", namespace: "gameplane-games", templates: [makeTemplate({ metadata: { name: "minecraft" } })] }],
+              partial: false, issues: [], totalReturned: 1,
             }),
             {
               status: 200,
@@ -477,7 +479,8 @@ describe("CreateServerWizard tunnel configuration", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              items: [makeTemplate({ metadata: { name: "minecraft" } })],
+              items: [{ cluster: "local", namespace: "gameplane-games", templates: [makeTemplate({ metadata: { name: "minecraft" } })] }],
+              partial: false, issues: [], totalReturned: 1,
             }),
             {
               status: 200,
@@ -562,7 +565,8 @@ describe("CreateServerWizard tunnel configuration", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              items: [makeTemplate({ metadata: { name: "minecraft" } })],
+              items: [{ cluster: "local", namespace: "gameplane-games", templates: [makeTemplate({ metadata: { name: "minecraft" } })] }],
+              partial: false, issues: [], totalReturned: 1,
             }),
             {
               status: 200,
@@ -661,7 +665,8 @@ describe("CreateServerWizard tunnel configuration", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              items: [makeTemplate({ metadata: { name: "minecraft" } })],
+              items: [{ cluster: "local", namespace: "gameplane-games", templates: [makeTemplate({ metadata: { name: "minecraft" } })] }],
+              partial: false, issues: [], totalReturned: 1,
             }),
             {
               status: 200,
@@ -751,7 +756,8 @@ describe("CreateServerWizard tunnel configuration", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              items: [makeTemplate({ metadata: { name: "minecraft" } })],
+              items: [{ cluster: "local", namespace: "gameplane-games", templates: [makeTemplate({ metadata: { name: "minecraft" } })] }],
+              partial: false, issues: [], totalReturned: 1,
             }),
             {
               status: 200,

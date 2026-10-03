@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8srest "k8s.io/client-go/rest"
@@ -17,26 +19,84 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // MountCluster exposes read-only cluster observability the dashboard's
 // Cluster page and header rely on. Everything here reads live Kubernetes
-// state via the API's in-cluster client — no caching, no side effects —
+// state via the selected cluster's client — no caching, no side effects —
 // keeping the operator authoritative. All routes are GETs (viewer+ under
 // the RBAC rules in api/internal/rbac).
-func MountCluster(r chi.Router, k *kube.Client, store *db.Store, gameplaneVersion string, clusterOps bool, updateChannel string) {
-	h := &clusterHandler{k: k, store: store, gameplaneVersion: gameplaneVersion, clusterOps: clusterOps, updateChannel: updateChannel}
+func MountCluster(r chi.Router, reg *kube.Registry, store *db.Store, gameplaneVersion string, clusterOps bool, updateChannel string) {
+	h := &clusterHandler{reg: reg, store: store, gameplaneVersion: gameplaneVersion, clusterOps: clusterOps, updateChannel: updateChannel}
 	r.Get("/cluster", h.view)
 	r.Get("/cluster/info", h.info)
 	r.Get("/cluster/stats", h.stats)
 }
 
 type clusterHandler struct {
+	reg              *kube.Registry
 	k                *kube.Client
+	clusterID        string
 	store            *db.Store
 	gameplaneVersion string
 	clusterOps       bool
 	updateChannel    string
+}
+
+func (h *clusterHandler) forRequest(w http.ResponseWriter, req *http.Request) (*clusterHandler, bool) {
+	id := scope.RequestedCluster(req)
+	if !dnsLabelRE.MatchString(id) {
+		httperr.Write(w, req, scope.ErrForbiddenCluster)
+		return nil, false
+	}
+	if h.reg == nil {
+		httperr.WriteCode(w, req, http.StatusServiceUnavailable, errors.New("cluster registry unavailable"))
+		return nil, false
+	}
+	k, ok := h.reg.Get(id)
+	if !ok {
+		// Registration metadata lives centrally, but inventory never does.
+		// Keep a disconnected registration distinguishable from an unknown ID.
+		if id != h.reg.DefaultID() {
+			home := h.reg.Default()
+			if home != nil && home.Dynamic != nil {
+				_, err := home.Dynamic.Resource(kube.GVRCluster).Get(req.Context(), id, metav1.GetOptions{})
+				if apierrors.IsNotFound(err) {
+					httperr.Write(w, req, scope.ErrForbiddenCluster)
+					return nil, false
+				}
+				if err != nil {
+					httperr.WriteCode(w, req, http.StatusServiceUnavailable, err)
+					return nil, false
+				}
+			} else {
+				httperr.Write(w, req, scope.ErrForbiddenCluster)
+				return nil, false
+			}
+		}
+		httperr.WriteCode(w, req, http.StatusServiceUnavailable, errors.New("selected cluster client unavailable"))
+		return nil, false
+	}
+	if k == nil || k.Typed == nil {
+		httperr.WriteCode(w, req, http.StatusServiceUnavailable, errors.New("selected cluster client unavailable"))
+		return nil, false
+	}
+	selected := *h
+	selected.k, selected.clusterID = k, id
+	if id != h.reg.DefaultID() {
+		selected.clusterOps = false
+		selected.updateChannel = ""
+	}
+	return &selected, true
+}
+
+func (h *clusterHandler) writeError(w http.ResponseWriter, req *http.Request, err error) {
+	if h.clusterID != h.reg.DefaultID() && !apierrors.IsForbidden(err) && !apierrors.IsUnauthorized(err) && !apierrors.IsNotFound(err) {
+		httperr.WriteCode(w, req, http.StatusServiceUnavailable, err)
+		return
+	}
+	httperr.Write(w, req, err)
 }
 
 type clusterNode struct {
@@ -106,15 +166,20 @@ type clusterStats struct {
 }
 
 func (h *clusterHandler) view(w http.ResponseWriter, req *http.Request) {
+	h, ok := h.forRequest(w, req)
+	if !ok {
+		return
+	}
 	nodes, err := h.k.Typed.CoreV1().Nodes().List(req.Context(), metav1.ListOptions{})
 	if err != nil {
-		httperr.Write(w, req, err)
+		h.writeError(w, req, err)
 		return
 	}
 	usage := h.fetchNodeUsage(req.Context())
+	version, _ := h.serverVersion()
 	out := clusterView{
 		Nodes:   make([]clusterNode, 0, len(nodes.Items)),
-		Version: h.serverVersion(),
+		Version: version,
 		Name:    h.clusterName(req.Context()),
 		Total:   len(nodes.Items),
 	}
@@ -222,9 +287,18 @@ func (h *clusterHandler) fetchNodeUsage(ctx context.Context) map[string]nodeUsag
 }
 
 func (h *clusterHandler) info(w http.ResponseWriter, req *http.Request) {
+	h, ok := h.forRequest(w, req)
+	if !ok {
+		return
+	}
+	version, err := h.serverVersion()
+	if err != nil && h.clusterID != h.reg.DefaultID() {
+		h.writeError(w, req, err)
+		return
+	}
 	writeJSON(w, clusterInfo{
 		ClusterName:      h.clusterName(req.Context()),
-		Version:          h.serverVersion(),
+		Version:          version,
 		GameplaneVersion: h.gameplaneVersion,
 		ClusterOps:       h.clusterOps,
 		UpdateChannel:    h.updateChannel,
@@ -232,14 +306,18 @@ func (h *clusterHandler) info(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *clusterHandler) stats(w http.ResponseWriter, req *http.Request) {
+	h, ok := h.forRequest(w, req)
+	if !ok {
+		return
+	}
 	nodes, err := h.k.Typed.CoreV1().Nodes().List(req.Context(), metav1.ListOptions{})
 	if err != nil {
-		httperr.Write(w, req, err)
+		h.writeError(w, req, err)
 		return
 	}
 	pvs, err := h.k.Typed.CoreV1().PersistentVolumes().List(req.Context(), metav1.ListOptions{})
 	if err != nil {
-		httperr.Write(w, req, err)
+		h.writeError(w, req, err)
 		return
 	}
 	writeJSON(w, clusterStats{
@@ -283,21 +361,26 @@ func boundVolumeBytes(pvs []corev1.PersistentVolume) int64 {
 	return used
 }
 
-// serverVersion returns the cluster's Kubernetes version (e.g.
-// "v1.31.0"), or "" if discovery fails — the UI tolerates an empty
-// version.
-func (h *clusterHandler) serverVersion() string {
+// serverVersion returns the selected cluster's Kubernetes version. The view
+// tolerates unavailable discovery as partial metadata; remote /cluster/info
+// propagates the failure rather than reporting a healthy-looking empty result.
+func (h *clusterHandler) serverVersion() (string, error) {
 	v, err := h.k.Typed.Discovery().ServerVersion()
-	if err != nil || v == nil {
-		return ""
+	if err != nil {
+		return "", err
 	}
-	return v.GitVersion
+	if v == nil {
+		return "", errors.New("cluster version unavailable")
+	}
+	return v.GitVersion, nil
 }
 
-// clusterName returns the operator-configured instance name from the
-// admin "general" config section, or "" when unset. This is the
-// user-facing cluster label (Kubernetes has no native cluster name).
+// clusterName uses the remote registration ID, or the configured local instance
+// name when reading the home cluster. Remote display labels come from /clusters.
 func (h *clusterHandler) clusterName(ctx context.Context) string {
+	if h.clusterID != h.reg.DefaultID() {
+		return h.clusterID
+	}
 	if h.store == nil {
 		return ""
 	}

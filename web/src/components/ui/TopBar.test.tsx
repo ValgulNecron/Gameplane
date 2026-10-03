@@ -368,7 +368,7 @@ describe("TopBar", () => {
     expect(screen.getByText("Servers")).toBeInTheDocument();
   });
 
-  it("hides breadcrumbs and desktop controls below lg breakpoint", () => {
+  it("keeps cluster selection visible while hiding secondary controls below lg", () => {
     renderWithQuery(
       <TopBar
         breadcrumbs={<div data-testid="breadcrumbs-slot">Breadcrumbs</div>}
@@ -389,10 +389,10 @@ describe("TopBar", () => {
     expect(breadcrumbsDiv).toHaveClass("hidden");
     expect(breadcrumbsDiv).toHaveClass("lg:block");
 
-    // Verify cluster selector, search, and notifications have hidden lg:flex
+    // Cluster selection is a primary control at every viewport width.
     const clusterDiv = screen.getByTestId("cluster-slot").parentElement;
-    expect(clusterDiv).toHaveClass("hidden");
-    expect(clusterDiv).toHaveClass("lg:flex");
+    expect(clusterDiv).toHaveClass("flex");
+    expect(clusterDiv).not.toHaveClass("hidden");
 
     const searchDiv = screen.getByTestId("search-slot").parentElement;
     expect(searchDiv).toHaveClass("hidden");

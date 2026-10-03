@@ -1,5 +1,4 @@
-import { APIError, api, csrfHeaders } from "@/lib/api";
-import { getCurrentCluster } from "@/lib/cluster";
+import { APIError, api, csrfHeaders, withClusterParam, createRequestClient, Captures, Shares, type ResourceScope } from "@/lib/api";
 import type { KeyedRegistryProvider } from "@/lib/config";
 import type {
   AuditEvent,
@@ -63,11 +62,8 @@ function withNS(path: string, ns?: string): string {
 
 // Helper to append cluster query param for multi-cluster support.
 // Only appends when the current cluster is non-local (preserves back-compat).
-export function withCluster(path: string): string {
-  const clusterId = getCurrentCluster();
-  if (clusterId === "local") return path;
-  const sep = path.includes("?") ? "&" : "?";
-  return `${path}${sep}cluster=${encodeURIComponent(clusterId)}`;
+export function withCluster(path: string, clusterId = "local"): string {
+  return withClusterParam(path, clusterId);
 }
 
 export interface ServerCreate {
@@ -105,173 +101,9 @@ function gameServerEnvelope(input: ServerCreate) {
   };
 }
 
-export const Servers = {
-  // A bare list() call defaults to the server's default namespace scope
-  // (scope.DefaultNamespace) exactly as before (F-263); pass ns to target
-  // one of the namespaces from Namespaces.list() explicitly.
-  list: (ns?: string) => api<List<GameServer>>(withNS("/servers", ns)),
-  get: (name: string, ns?: string) => api<GameServer>(withNS(`/servers/${name}`, ns)),
-  create: (body: ServerCreate) =>
-    api<GameServer>("/servers", { method: "POST", body: gameServerEnvelope(body) }),
-  update: (name: string, body: GameServer, ns?: string) =>
-    api<GameServer>(withNS(`/servers/${name}`, ns), { method: "PUT", body }),
-  remove: (name: string, ns?: string) =>
-    api<void>(withNS(`/servers/${name}`, ns), { method: "DELETE" }),
-  lifecycle: (name: string, verb: LifecycleVerb, ns?: string) =>
-    api<void>(withNS(`/servers/${name}:${verb}`, ns), { method: "POST" }),
-  clone: (name: string, newName: string, ns?: string) =>
-    api<GameServer>(withNS(`/servers/${name}:clone`, ns), { method: "POST", body: { newName } }),
-  // Suspends the server and asks the operator to wipe its data volume.
-  // `confirm` must equal the server name.
-  wipeData: (name: string, confirm: string, ns?: string) =>
-    api<void>(withNS(`/servers/${name}:wipe-data`, ns), { method: "POST", body: { confirm } }),
-  // Reassigns the server's (informational) owner to another user.
-  transfer: (name: string, userId: number, ns?: string) =>
-    api<void>(withNS(`/servers/${name}:transfer`, ns), { method: "POST", body: { userId } }),
-  // Updates the collaborators list for a server. userIds and usernames are
-  // merged; either or both can be provided. Empty list clears collaborators.
-  setCollaborators: (name: string, ns: string, body: { userIds?: number[]; usernames?: string[] }) =>
-    api<void>(withNS(`/servers/${name}:collaborators`, ns), { method: "PUT", body }),
-  // Lists all servers where the caller is owner or collaborator (cluster-wide).
-  getMyServers: () => api<List<GameServer>>("/users/me/servers"),
-  // Live module-declared metrics for the Overview tab. The agent returns
-  // [] when the game has no RCON, so the UI hides the panel.
-  status: (name: string, ns?: string) => api<StatusReading[]>(withNS(`/servers/${name}/status`, ns)),
-  // Recent Kubernetes events for the server's pod/StatefulSet/GameServer
-  // (image pull, scheduling, crash-loop) — feeds the Overview events feed,
-  // most useful while a new server is still provisioning.
-  events: (name: string, ns?: string) => api<ServerEvent[]>(withNS(`/servers/${name}/events`, ns)),
-  // Run a module-declared action (spec.capabilities.actions[]). params
-  // are the user-supplied values for the action's declared inputs.
-  runAction: (name: string, body: { id: string; params?: Record<string, string> }, ns?: string) =>
-    api<{ ok: boolean; raw?: string }>(withNS(`/servers/${name}/actions/run`, ns), {
-      method: "POST",
-      body,
-    }),
-  // Mod/plugin management (spec.capabilities.mods). The agent enforces
-  // the install policy (host allowlist, size cap); the dashboard just
-  // lists, installs by URL, and removes by name.
-  mods: (name: string, ns?: string) => api<InstalledMod[]>(withNS(`/servers/${name}/mods`, ns)),
-  // meta records the registry identity in the agent's install manifest;
-  // replaces performs an in-place upgrade (install new → remove old).
-  installMod: (
-    name: string,
-    body: { url: string; name?: string; replaces?: string; meta?: ModMeta },
-    ns?: string,
-  ) => api<InstalledMod>(withNS(`/servers/${name}/mods/install`, ns), { method: "POST", body }),
-  removeMod: (name: string, mod: string, ns?: string) =>
-    api<void>(withNS(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, ns), {
-      method: "DELETE",
-    }),
-  // Batch update check over the install manifest: every managed mod is
-  // checked against its registry provider server-side in one call.
-  modUpdates: (name: string, ns?: string) =>
-    api<ModUpdatesResponse>(withNS(`/servers/${name}/mods/updates`, ns)),
-  // Direct mod upload (multipart) — same name/extension/size checks as a
-  // URL install; the manifest records provider "upload".
-  uploadMod: async (name: string, file: File, ns?: string): Promise<InstalledMod> => {
-    const fd = new FormData();
-    fd.append("file", file, file.name);
-    const res = await filesFetch(withNS(`/servers/${encodeURIComponent(name)}/mods/upload`, ns), {
-      method: "POST",
-      headers: csrfHeaders(),
-      body: fd,
-    });
-    return (await res.json()) as InstalledMod;
-  },
-  // Registries the server's game declares, with availability (e.g.
-  // CurseForge needs an API key) — drives the provider switch.
-  registryProviders: (name: string, ns?: string) =>
-    api<RegistryProviderInfo[]>(withNS(`/servers/${name}/mods/registry/providers`, ns)),
-  // In-app registry browse (spec.capabilities.mods.registry). The API
-  // resolves the active version's loader + game version, so the dashboard
-  // sends only the browse params + which provider. type="modpack" drives
-  // the Modpacks tab; an empty q is a valid browse. Returns 501 when the
-  // game has no browsable registry / unknown provider.
-  searchRegistry: (
-    name: string,
-    opts: {
-      q?: string;
-      provider?: string;
-      type?: "mod" | "modpack";
-      sort?: string;
-      category?: string;
-      limit?: number;
-      offset?: number;
-    } = {},
-    ns?: string,
-  ) => {
-    const p = new URLSearchParams();
-    if (opts.q) p.set("q", opts.q);
-    if (opts.provider) p.set("provider", opts.provider);
-    if (opts.type) p.set("type", opts.type);
-    if (opts.sort) p.set("sort", opts.sort);
-    if (opts.category) p.set("category", opts.category);
-    p.set("limit", String(opts.limit ?? 24));
-    if (opts.offset) p.set("offset", String(opts.offset));
-    return api<RegistryProject[]>(withNS(`/servers/${name}/mods/registry/search?${p.toString()}`, ns));
-  },
-  modVersions: (name: string, project: string, provider?: string, ns?: string) =>
-    api<RegistryVersion[]>(
-      withNS(
-        `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/versions` +
-          (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
-        ns,
-      ),
-    ),
-  // Modpacks: resolve a pack's dependency files (deps-mode, e.g. Valheim) —
-  // the dashboard installs each via installMod.
-  modpackDeps: (name: string, project: string, provider?: string, ns?: string) =>
-    api<RegistryFile[]>(
-      withNS(
-        `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/modpack` +
-          (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
-        ns,
-      ),
-    ),
-  // Apply an env-mode modpack (e.g. Minecraft/itzg): pins the pack on the
-  // server and restarts it.
-  installModpack: (name: string, body: { ref: string }, provider?: string, ns?: string) =>
-    api<{ ok: boolean }>(
-      withNS(`/servers/${name}/modpack` + (provider ? `?provider=${encodeURIComponent(provider)}` : ""), ns),
-      { method: "POST", body },
-    ),
-  // Mods-by-id (spec.capabilities.mods.idList): games whose server
-  // downloads its own mods given a list of ids (ARK CurseForge ids,
-  // Project Zomboid MOD_IDS, generic Steam Workshop lists) rather than the
-  // agent dropping files into a mods directory. PUT replaces the whole
-  // list in one write — every write restarts the server (it changes the
-  // game container's env), so the dashboard batches edits locally and
-  // saves once (see api/internal/handlers/mod_ids.go).
-  modIDs: (name: string, ns?: string) => api<ModID[]>(withNS(`/servers/${name}/mods/ids`, ns)),
-  setModIDs: (name: string, ids: ModID[], ns?: string) =>
-    api<ModID[]>(withNS(`/servers/${name}/mods/ids`, ns), { method: "PUT", body: ids }),
-  // Tunnel credentials management. PUT creates/updates the Secret and sets
-  // credentialsSecretRef on the tunnel config; GET returns configured status
-  // and which Secret holds it (never the value); DELETE clears the ref and
-  // removes the Secret.
-  setTunnelCredentials: (
-    name: string,
-    provider: "frp" | "tailscale" | "playit",
-    values: Record<string, string>,
-    ns?: string,
-  ) =>
-    api<void>(withNS(`/servers/${name}:tunnel-credentials`, ns), {
-      method: "PUT",
-      body: { provider, values },
-    }),
-  getTunnelCredentials: (name: string, ns?: string) =>
-    api<{ configured: boolean; secretName: string; keys: string[] }>(
-      withNS(`/servers/${name}:tunnel-credentials`, ns),
-    ),
-  removeTunnelCredentials: (name: string, ns?: string) =>
-    api<void>(withNS(`/servers/${name}:tunnel-credentials`, ns), { method: "DELETE" }),
-};
 
-export const Templates = {
-  list: () => api<List<GameTemplate>>("/templates"),
-  get: (name: string) => api<GameTemplate>(`/templates/${name}`),
-};
+
+
 
 export interface NamespacesResponse {
   namespaces: string[];
@@ -281,27 +113,9 @@ export interface NamespacesResponse {
 // fans out per namespace instead of relying on scope.Resolve's single
 // default, so GAMEPLANE_EXTRA_NAMESPACES installs show every namespace the
 // viewer actually has servers:read on.
-export const Namespaces = {
-  list: () => api<NamespacesResponse>("/namespaces"),
-};
 
-export const Cluster = {
-  info: () => api<ClusterInfo>("/cluster/info"),
-  stats: () => api<ClusterStats>("/cluster/stats"),
-  view: () => api<ClusterView>("/cluster"),
-  // Credential-minting ops (admin-only; 501 unless clusterOps is enabled).
-  addNode: () => api<NodeJoinInfo>("/cluster/nodes:join", { method: "POST" }),
-  // kubeconfig is a file download, so it bypasses api()'s JSON handling.
-  kubeconfig: async (): Promise<Blob> => {
-    const res = await fetch(withCluster("/cluster/kubeconfig"), {
-      method: "POST",
-      credentials: "include",
-      headers: csrfHeaders(),
-    });
-    if (!res.ok) throw new APIError(res.status, await res.text().catch(() => ""));
-    return res.blob();
-  },
-};
+
+
 
 // Multi-cluster registry operations.
 export const Clusters = {
@@ -335,17 +149,7 @@ export interface BackupCreate {
   generateName?: string;
 }
 
-export const Backups = {
-  list: (ns?: string) => api<List<Backup>>(withNS("/backups", ns)),
-  get: (name: string, ns?: string) => api<Backup>(withNS(`/backups/${name}`, ns)),
-  create: (opts: BackupCreate, ns?: string) => {
-    const { name, generateName, ...spec } = opts;
-    const ident = name ? { name } : { generateName: generateName ?? `${spec.serverRef.name}-manual-` };
-    return api<Backup>(withNS("/backups", ns), { method: "POST", body: envelope("Backup", ident, spec) });
-  },
-  remove: (name: string, ns?: string) =>
-    api<void>(withNS(`/backups/${name}`, ns), { method: "DELETE" }),
-};
+
 
 export interface ScheduleCreate {
   serverRef: { name: string };
@@ -359,26 +163,7 @@ export interface ScheduleCreate {
   generateName?: string;
 }
 
-export const Schedules = {
-  list: (ns?: string) => api<List<BackupSchedule>>(withNS("/schedules", ns)),
-  create: (opts: ScheduleCreate, ns?: string) => {
-    const { name, generateName, ...spec } = opts;
-    const ident = name ? { name } : { generateName: generateName ?? `${spec.serverRef.name}-sched-` };
-    return api<BackupSchedule>(withNS("/schedules", ns), {
-      method: "POST",
-      body: envelope("BackupSchedule", ident, spec),
-    });
-  },
-  // Read-modify-write: fetches the current object, applies changes to its
-  // spec, and PUTs the merged result. Used for the suspend toggle.
-  patchSpec: async (name: string, patch: Partial<BackupSchedule["spec"]>, ns?: string) => {
-    const current = await api<BackupSchedule>(withNS(`/schedules/${name}`, ns));
-    const next = { ...current, spec: { ...current.spec, ...patch } };
-    return api<BackupSchedule>(withNS(`/schedules/${name}`, ns), { method: "PUT", body: next });
-  },
-  remove: (name: string, ns?: string) =>
-    api<void>(withNS(`/schedules/${name}`, ns), { method: "DELETE" }),
-};
+
 
 export interface RestoreCreate {
   backupRef: { name: string };
@@ -387,14 +172,7 @@ export interface RestoreCreate {
   generateName?: string;
 }
 
-export const Restores = {
-  list: (ns?: string) => api<List<Restore>>(withNS("/restores", ns)),
-  create: (opts: RestoreCreate, ns?: string) => {
-    const { name, generateName, ...spec } = opts;
-    const ident = name ? { name } : { generateName: generateName ?? "restore-" };
-    return api<Restore>(withNS("/restores", ns), { method: "POST", body: envelope("Restore", ident, spec) });
-  },
-};
+
 
 export interface BackupDestinationCreate {
   name: string;
@@ -402,43 +180,9 @@ export interface BackupDestinationCreate {
   password: string;
 }
 
-export const BackupDestinations = {
-  list: () => api<List<BackupDestination>>("/backup-destinations"),
-  // POST is also used to rotate the password of an existing destination —
-  // the server treats {name} as the upsert key.
-  upsert: (body: BackupDestinationCreate) =>
-    api<BackupDestination>("/backup-destinations", { method: "POST", body }),
-  remove: (name: string) =>
-    api<void>(`/backup-destinations/${name}`, { method: "DELETE" }),
-};
 
-export const Players = {
-  snapshot: (server: string, ns?: string) => api<PlayersResp>(withNS(`/servers/${server}/players`, ns)),
-  banned: (server: string, ns?: string) =>
-    api<BannedPlayer[]>(withNS(`/servers/${server}/players/banned`, ns)),
-  moderate: (
-    server: string,
-    action: ModerateAction,
-    body: { name: string; reason?: string },
-    ns?: string,
-  ) =>
-    api<{ ok: boolean; raw?: string }>(
-      withNS(`/servers/${server}/players/${action}`, ns),
-      { method: "POST", body },
-    ),
-  whitelist: (server: string, ns?: string) =>
-    api<string[]>(withNS(`/servers/${server}/players/whitelist`, ns)),
-  whitelistAdd: (server: string, name: string, ns?: string) =>
-    api<{ ok: boolean; raw?: string }>(
-      withNS(`/servers/${server}/players/whitelist/add`, ns),
-      { method: "POST", body: { name } },
-    ),
-  whitelistRemove: (server: string, name: string, ns?: string) =>
-    api<{ ok: boolean; raw?: string }>(
-      withNS(`/servers/${server}/players/whitelist/remove`, ns),
-      { method: "POST", body: { name } },
-    ),
-};
+
+
 
 export interface UserCreate {
   username: string;
@@ -492,8 +236,8 @@ export const Users = {
   bindings: (id: number) => api<RoleBinding[]>(`/users/${id}/bindings`),
   addBinding: (id: number, body: RoleBinding) =>
     api<RoleBinding>(`/users/${id}/bindings`, { method: "POST", body }),
-  removeBinding: (id: number, roleName: string, namespace: string) =>
-    api<void>(`/users/${id}/bindings/${roleName}/${namespace}`, {
+  removeBinding: (id: number, roleName: string, namespace: string, cluster = "local") =>
+    api<void>(`/users/${id}/bindings/${encodeURIComponent(roleName)}/${encodeURIComponent(namespace)}?cluster=${encodeURIComponent(cluster)}`, {
       method: "DELETE",
     }),
   // Theme preferences (contracts/user-preferences-api.md §1.1–1.3): the
@@ -662,87 +406,14 @@ function filesBase(server: string): string {
 // delete). The agent speaks raw bytes and multipart for these, which the
 // generic api<T>() helper can't express. Errors are still surfaced as
 // APIError so callers and TanStack Query treat them uniformly.
-async function filesFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(withCluster(input), { credentials: "include", ...init });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new APIError(res.status, text);
-  }
-  return res;
-}
 
-export const Files = {
-  list: (server: string, path: string, ns?: string) =>
-    api<FileEntry[]>(withNS(`${filesBase(server)}/list?path=${encodeURIComponent(path)}`, ns)),
-  read: async (server: string, path: string, ns?: string): Promise<string> => {
-    const res = await filesFetch(
-      withNS(`${filesBase(server)}/read?path=${encodeURIComponent(path)}`, ns),
-    );
-    return res.text();
-  },
-  write: async (
-    server: string,
-    path: string,
-    content: string | Blob,
-    ns?: string,
-  ): Promise<void> => {
-    await filesFetch(withNS(`${filesBase(server)}/write?path=${encodeURIComponent(path)}`, ns), {
-      method: "POST",
-      headers: { "Content-Type": "application/octet-stream", ...csrfHeaders() },
-      body: content,
-    });
-  },
-  mkdir: async (server: string, path: string, ns?: string): Promise<void> => {
-    await filesFetch(withNS(`${filesBase(server)}/mkdir?path=${encodeURIComponent(path)}`, ns), {
-      method: "POST",
-      headers: csrfHeaders(),
-    });
-  },
-  remove: async (
-    server: string,
-    path: string,
-    recursive = false,
-    ns?: string,
-  ): Promise<void> => {
-    const qs = `path=${encodeURIComponent(path)}${recursive ? "&recursive=true" : ""}`;
-    await filesFetch(withNS(`${filesBase(server)}/delete?${qs}`, ns), {
-      method: "DELETE",
-      headers: csrfHeaders(),
-    });
-  },
-  upload: async (
-    server: string,
-    dir: string,
-    files: FileList | File[],
-    ns?: string,
-  ): Promise<void> => {
-    const fd = new FormData();
-    for (const f of Array.from(files)) fd.append("files", f, f.name);
-    await filesFetch(withNS(`${filesBase(server)}/upload?path=${encodeURIComponent(dir)}`, ns), {
-      method: "POST",
-      headers: csrfHeaders(),
-      body: fd,
-    });
-  },
-  downloadURL: (server: string, path: string, ns?: string) =>
-    withNS(`${filesBase(server)}/download?path=${encodeURIComponent(path)}`, ns),
-};
+
+
 
 // Historical + live log access. download fetches the whole current log
 // file from the agent as an attachment; the two stream paths are the
 // live WebSocket sources the Logs tab toggles between.
-export const Logs = {
-  downloadURL: (server: string, ns?: string) =>
-    withNS(`/servers/${encodeURIComponent(server)}/logs/download`, ns),
-  // Live tail of the configured game log file, via the agent (mTLS).
-  fileStreamPath: (server: string, ns?: string) =>
-    withNS(`/ws/servers/${encodeURIComponent(server)}/logs`, ns),
-  // Live stream of the game container's stdout via the pod-log API.
-  // Shows download/config output during startup — before the game's own
-  // log file exists — and works even when agent mTLS isn't configured.
-  podStreamPath: (server: string, ns?: string) =>
-    withNS(`/ws/servers/${encodeURIComponent(server)}/logs/pod?from=start`, ns),
-};
+
 
 // Module catalog and install/uninstall surface. The dashboard reads
 // the merged catalog from /modules/catalog and drives installs by
@@ -965,3 +636,381 @@ export const ModuleBuilder = {
     return res.blob();
   },
 };
+
+
+type RequestClient = Pick<ReturnType<typeof createRequestClient>, "api" | "url" | "raw" | "Captures" | "Shares">;
+
+function makeResourceEndpoints(request: RequestClient) {
+  const api = request.api;
+  const withCluster = (path: string, cluster?: string) => request.url(cluster ? withClusterParam(path, cluster) : path);
+  const fetch = request.raw;
+  const Servers = {
+    // A bare list() call defaults to the server's default namespace scope
+    // (scope.DefaultNamespace) exactly as before (F-263); pass ns to target
+    // one of the namespaces from Namespaces.list() explicitly.
+    list: (ns?: string, cluster?: string, signal?: AbortSignal) => api<List<GameServer>>(withNS("/servers", ns), { cluster, signal }),
+    get: (name: string, ns?: string, cluster?: string, signal?: AbortSignal) => api<GameServer>(withNS(`/servers/${name}`, ns), { cluster, signal }),
+    create: (body: ServerCreate, cluster?: string) =>
+      api<GameServer>("/servers", { method: "POST", body: gameServerEnvelope(body), cluster }),
+    update: (name: string, body: GameServer, ns?: string) =>
+      api<GameServer>(withNS(`/servers/${name}`, ns), { method: "PUT", body }),
+    remove: (name: string, ns?: string) =>
+      api<void>(withNS(`/servers/${name}`, ns), { method: "DELETE" }),
+    lifecycle: (name: string, verb: LifecycleVerb, ns?: string, cluster?: string) =>
+      api<void>(withNS(`/servers/${name}:${verb}`, ns), { method: "POST", cluster }),
+    clone: (name: string, newName: string, ns?: string) =>
+      api<GameServer>(withNS(`/servers/${name}:clone`, ns), { method: "POST", body: { newName } }),
+    // Suspends the server and asks the operator to wipe its data volume.
+    // `confirm` must equal the server name.
+    wipeData: (name: string, confirm: string, ns?: string) =>
+      api<void>(withNS(`/servers/${name}:wipe-data`, ns), { method: "POST", body: { confirm } }),
+    // Reassigns the server's (informational) owner to another user.
+    transfer: (name: string, userId: number, ns?: string) =>
+      api<void>(withNS(`/servers/${name}:transfer`, ns), { method: "POST", body: { userId } }),
+    // Updates the collaborators list for a server. userIds and usernames are
+    // merged; either or both can be provided. Empty list clears collaborators.
+    setCollaborators: (name: string, ns: string, body: { userIds?: number[]; usernames?: string[] }) =>
+      api<void>(withNS(`/servers/${name}:collaborators`, ns), { method: "PUT", body }),
+    // Lists all servers where the caller is owner or collaborator (cluster-wide).
+    getMyServers: (cluster?: string, signal?: AbortSignal) => api<List<GameServer>>("/users/me/servers", { cluster, signal }),
+    // Live module-declared metrics for the Overview tab. The agent returns
+    // [] when the game has no RCON, so the UI hides the panel.
+    status: (name: string, ns?: string) => api<StatusReading[]>(withNS(`/servers/${name}/status`, ns)),
+    // Recent Kubernetes events for the server's pod/StatefulSet/GameServer
+    // (image pull, scheduling, crash-loop) — feeds the Overview events feed,
+    // most useful while a new server is still provisioning.
+    events: (name: string, ns?: string) => api<ServerEvent[]>(withNS(`/servers/${name}/events`, ns)),
+    // Run a module-declared action (spec.capabilities.actions[]). params
+    // are the user-supplied values for the action's declared inputs.
+    runAction: (name: string, body: { id: string; params?: Record<string, string> }, ns?: string) =>
+      api<{ ok: boolean; raw?: string }>(withNS(`/servers/${name}/actions/run`, ns), {
+        method: "POST",
+        body,
+      }),
+    // Mod/plugin management (spec.capabilities.mods). The agent enforces
+    // the install policy (host allowlist, size cap); the dashboard just
+    // lists, installs by URL, and removes by name.
+    mods: (name: string, ns?: string) => api<InstalledMod[]>(withNS(`/servers/${name}/mods`, ns)),
+    // meta records the registry identity in the agent's install manifest;
+    // replaces performs an in-place upgrade (install new → remove old).
+    installMod: (
+      name: string,
+      body: { url: string; name?: string; replaces?: string; meta?: ModMeta },
+      ns?: string,
+    ) => api<InstalledMod>(withNS(`/servers/${name}/mods/install`, ns), { method: "POST", body }),
+    removeMod: (name: string, mod: string, ns?: string) =>
+      api<void>(withNS(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, ns), {
+        method: "DELETE",
+      }),
+    // Batch update check over the install manifest: every managed mod is
+    // checked against its registry provider server-side in one call.
+    modUpdates: (name: string, ns?: string) =>
+      api<ModUpdatesResponse>(withNS(`/servers/${name}/mods/updates`, ns)),
+    // Direct mod upload (multipart) — same name/extension/size checks as a
+    // URL install; the manifest records provider "upload".
+    uploadMod: async (name: string, file: File, ns?: string): Promise<InstalledMod> => {
+      const fd = new FormData();
+      fd.append("file", file, file.name);
+      const res = await filesFetch(withNS(`/servers/${encodeURIComponent(name)}/mods/upload`, ns), {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: fd,
+      });
+      return (await res.json()) as InstalledMod;
+    },
+    // Registries the server's game declares, with availability (e.g.
+    // CurseForge needs an API key) — drives the provider switch.
+    registryProviders: (name: string, ns?: string) =>
+      api<RegistryProviderInfo[]>(withNS(`/servers/${name}/mods/registry/providers`, ns)),
+    // In-app registry browse (spec.capabilities.mods.registry). The API
+    // resolves the active version's loader + game version, so the dashboard
+    // sends only the browse params + which provider. type="modpack" drives
+    // the Modpacks tab; an empty q is a valid browse. Returns 501 when the
+    // game has no browsable registry / unknown provider.
+    searchRegistry: (
+      name: string,
+      opts: {
+        q?: string;
+        provider?: string;
+        type?: "mod" | "modpack";
+        sort?: string;
+        category?: string;
+        limit?: number;
+        offset?: number;
+      } = {},
+      ns?: string,
+    ) => {
+      const p = new URLSearchParams();
+      if (opts.q) p.set("q", opts.q);
+      if (opts.provider) p.set("provider", opts.provider);
+      if (opts.type) p.set("type", opts.type);
+      if (opts.sort) p.set("sort", opts.sort);
+      if (opts.category) p.set("category", opts.category);
+      p.set("limit", String(opts.limit ?? 24));
+      if (opts.offset) p.set("offset", String(opts.offset));
+      return api<RegistryProject[]>(withNS(`/servers/${name}/mods/registry/search?${p.toString()}`, ns));
+    },
+    modVersions: (name: string, project: string, provider?: string, ns?: string) =>
+      api<RegistryVersion[]>(
+        withNS(
+          `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/versions` +
+            (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+          ns,
+        ),
+      ),
+    // Modpacks: resolve a pack's dependency files (deps-mode, e.g. Valheim) —
+    // the dashboard installs each via installMod.
+    modpackDeps: (name: string, project: string, provider?: string, ns?: string) =>
+      api<RegistryFile[]>(
+        withNS(
+          `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/modpack` +
+            (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+          ns,
+        ),
+      ),
+    // Apply an env-mode modpack (e.g. Minecraft/itzg): pins the pack on the
+    // server and restarts it.
+    installModpack: (name: string, body: { ref: string }, provider?: string, ns?: string) =>
+      api<{ ok: boolean }>(
+        withNS(`/servers/${name}/modpack` + (provider ? `?provider=${encodeURIComponent(provider)}` : ""), ns),
+        { method: "POST", body },
+      ),
+    // Mods-by-id (spec.capabilities.mods.idList): games whose server
+    // downloads its own mods given a list of ids (ARK CurseForge ids,
+    // Project Zomboid MOD_IDS, generic Steam Workshop lists) rather than the
+    // agent dropping files into a mods directory. PUT replaces the whole
+    // list in one write — every write restarts the server (it changes the
+    // game container's env), so the dashboard batches edits locally and
+    // saves once (see api/internal/handlers/mod_ids.go).
+    modIDs: (name: string, ns?: string) => api<ModID[]>(withNS(`/servers/${name}/mods/ids`, ns)),
+    setModIDs: (name: string, ids: ModID[], ns?: string) =>
+      api<ModID[]>(withNS(`/servers/${name}/mods/ids`, ns), { method: "PUT", body: ids }),
+    // Tunnel credentials management. PUT creates/updates the Secret and sets
+    // credentialsSecretRef on the tunnel config; GET returns configured status
+    // and which Secret holds it (never the value); DELETE clears the ref and
+    // removes the Secret.
+    setTunnelCredentials: (
+      name: string,
+      provider: "frp" | "tailscale" | "playit",
+      values: Record<string, string>,
+      ns?: string,
+      cluster?: string,
+    ) =>
+      api<void>(withNS(`/servers/${name}:tunnel-credentials`, ns), {
+        method: "PUT",
+        body: { provider, values },
+        cluster,
+      }),
+    getTunnelCredentials: (name: string, ns?: string) =>
+      api<{ configured: boolean; secretName: string; keys: string[] }>(
+        withNS(`/servers/${name}:tunnel-credentials`, ns),
+      ),
+    removeTunnelCredentials: (name: string, ns?: string) =>
+      api<void>(withNS(`/servers/${name}:tunnel-credentials`, ns), { method: "DELETE" }),
+  };
+
+  const Templates = {
+    list: (cluster?: string, signal?: AbortSignal) => api<List<GameTemplate>>("/templates", { cluster, signal }),
+    get: (name: string, cluster?: string, signal?: AbortSignal) => api<GameTemplate>(`/templates/${name}`, { cluster, signal }),
+  };
+
+  const Namespaces = {
+    list: (cluster?: string, signal?: AbortSignal) => api<NamespacesResponse>("/namespaces", { cluster, signal }),
+  };
+
+  const Cluster = {
+    info: (cluster?: string, signal?: AbortSignal) => api<ClusterInfo>("/cluster/info", { cluster, signal }),
+    stats: (cluster?: string, signal?: AbortSignal) => api<ClusterStats>("/cluster/stats", { cluster, signal }),
+    view: (cluster?: string, signal?: AbortSignal) => api<ClusterView>("/cluster", { cluster, signal }),
+    // Credential-minting ops (admin-only; 501 unless clusterOps is enabled).
+    addNode: (cluster?: string) => api<NodeJoinInfo>("/cluster/nodes:join", { method: "POST", cluster }),
+    // kubeconfig is a file download, so it bypasses api()'s JSON handling.
+    kubeconfig: async (cluster?: string): Promise<Blob> => {
+      const res = await fetch(withCluster("/cluster/kubeconfig", cluster), {
+        method: "POST",
+        credentials: "include",
+        headers: csrfHeaders(),
+      });
+      if (!res.ok) throw new APIError(res.status, await res.text().catch(() => ""));
+      return res.blob();
+    },
+  };
+
+  const Backups = {
+    list: (ns?: string, cluster?: string, signal?: AbortSignal) => api<List<Backup>>(withNS("/backups", ns), { cluster, signal }),
+    get: (name: string, ns?: string) => api<Backup>(withNS(`/backups/${name}`, ns)),
+    create: (opts: BackupCreate, ns?: string) => {
+      const { name, generateName, ...spec } = opts;
+      const ident = name ? { name } : { generateName: generateName ?? `${spec.serverRef.name}-manual-` };
+      return api<Backup>(withNS("/backups", ns), { method: "POST", body: envelope("Backup", ident, spec) });
+    },
+    remove: (name: string, ns?: string) =>
+      api<void>(withNS(`/backups/${name}`, ns), { method: "DELETE" }),
+  };
+
+  const Schedules = {
+    list: (ns?: string) => api<List<BackupSchedule>>(withNS("/schedules", ns)),
+    create: (opts: ScheduleCreate, ns?: string) => {
+      const { name, generateName, ...spec } = opts;
+      const ident = name ? { name } : { generateName: generateName ?? `${spec.serverRef.name}-sched-` };
+      return api<BackupSchedule>(withNS("/schedules", ns), {
+        method: "POST",
+        body: envelope("BackupSchedule", ident, spec),
+      });
+    },
+    // Read-modify-write: fetches the current object, applies changes to its
+    // spec, and PUTs the merged result. Used for the suspend toggle.
+    patchSpec: async (name: string, patch: Partial<BackupSchedule["spec"]>, ns?: string) => {
+      const current = await api<BackupSchedule>(withNS(`/schedules/${name}`, ns));
+      const next = { ...current, spec: { ...current.spec, ...patch } };
+      return api<BackupSchedule>(withNS(`/schedules/${name}`, ns), { method: "PUT", body: next });
+    },
+    remove: (name: string, ns?: string) =>
+      api<void>(withNS(`/schedules/${name}`, ns), { method: "DELETE" }),
+  };
+
+  const Restores = {
+    list: (ns?: string) => api<List<Restore>>(withNS("/restores", ns)),
+    create: (opts: RestoreCreate, ns?: string) => {
+      const { name, generateName, ...spec } = opts;
+      const ident = name ? { name } : { generateName: generateName ?? "restore-" };
+      return api<Restore>(withNS("/restores", ns), { method: "POST", body: envelope("Restore", ident, spec) });
+    },
+  };
+
+  const BackupDestinations = {
+    list: () => api<List<BackupDestination>>("/backup-destinations"),
+    // POST is also used to rotate the password of an existing destination —
+    // the server treats {name} as the upsert key.
+    upsert: (body: BackupDestinationCreate) =>
+      api<BackupDestination>("/backup-destinations", { method: "POST", body }),
+    remove: (name: string) =>
+      api<void>(`/backup-destinations/${name}`, { method: "DELETE" }),
+  };
+
+  const Players = {
+    snapshot: (server: string, ns?: string) => api<PlayersResp>(withNS(`/servers/${server}/players`, ns)),
+    banned: (server: string, ns?: string) =>
+      api<BannedPlayer[]>(withNS(`/servers/${server}/players/banned`, ns)),
+    moderate: (
+      server: string,
+      action: ModerateAction,
+      body: { name: string; reason?: string },
+      ns?: string,
+    ) =>
+      api<{ ok: boolean; raw?: string }>(
+        withNS(`/servers/${server}/players/${action}`, ns),
+        { method: "POST", body },
+      ),
+    whitelist: (server: string, ns?: string) =>
+      api<string[]>(withNS(`/servers/${server}/players/whitelist`, ns)),
+    whitelistAdd: (server: string, name: string, ns?: string) =>
+      api<{ ok: boolean; raw?: string }>(
+        withNS(`/servers/${server}/players/whitelist/add`, ns),
+        { method: "POST", body: { name } },
+      ),
+    whitelistRemove: (server: string, name: string, ns?: string) =>
+      api<{ ok: boolean; raw?: string }>(
+        withNS(`/servers/${server}/players/whitelist/remove`, ns),
+        { method: "POST", body: { name } },
+      ),
+  };
+
+  async function filesFetch(input: string, init: RequestInit = {}): Promise<Response> {
+    const res = await fetch(withCluster(input), { credentials: "include", ...init });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new APIError(res.status, text);
+    }
+    return res;
+  }
+
+  const Files = {
+    list: (server: string, path: string, ns?: string) =>
+      api<FileEntry[]>(withNS(`${filesBase(server)}/list?path=${encodeURIComponent(path)}`, ns)),
+    read: async (server: string, path: string, ns?: string): Promise<string> => {
+      const res = await filesFetch(
+        withNS(`${filesBase(server)}/read?path=${encodeURIComponent(path)}`, ns),
+      );
+      return res.text();
+    },
+    write: async (
+      server: string,
+      path: string,
+      content: string | Blob,
+      ns?: string,
+    ): Promise<void> => {
+      await filesFetch(withNS(`${filesBase(server)}/write?path=${encodeURIComponent(path)}`, ns), {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream", ...csrfHeaders() },
+        body: content,
+      });
+    },
+    mkdir: async (server: string, path: string, ns?: string): Promise<void> => {
+      await filesFetch(withNS(`${filesBase(server)}/mkdir?path=${encodeURIComponent(path)}`, ns), {
+        method: "POST",
+        headers: csrfHeaders(),
+      });
+    },
+    remove: async (
+      server: string,
+      path: string,
+      recursive = false,
+      ns?: string,
+    ): Promise<void> => {
+      const qs = `path=${encodeURIComponent(path)}${recursive ? "&recursive=true" : ""}`;
+      await filesFetch(withNS(`${filesBase(server)}/delete?${qs}`, ns), {
+        method: "DELETE",
+        headers: csrfHeaders(),
+      });
+    },
+    upload: async (
+      server: string,
+      dir: string,
+      files: FileList | File[],
+      ns?: string,
+    ): Promise<void> => {
+      const fd = new FormData();
+      for (const f of Array.from(files)) fd.append("files", f, f.name);
+      await filesFetch(withNS(`${filesBase(server)}/upload?path=${encodeURIComponent(dir)}`, ns), {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: fd,
+      });
+    },
+    downloadURL: (server: string, path: string, ns?: string) =>
+      withCluster(withNS(`${filesBase(server)}/download?path=${encodeURIComponent(path)}`, ns)),
+  };
+
+  const Logs = {
+    downloadURL: (server: string, ns?: string) =>
+      withCluster(withNS(`/servers/${encodeURIComponent(server)}/logs/download`, ns)),
+    // Live tail of the configured game log file, via the agent (mTLS).
+    fileStreamPath: (server: string, ns?: string) =>
+      withCluster(withNS(`/ws/servers/${encodeURIComponent(server)}/logs`, ns)),
+    // Live stream of the game container's stdout via the pod-log API.
+    // Shows download/config output during startup — before the game's own
+    // log file exists — and works even when agent mTLS isn't configured.
+    podStreamPath: (server: string, ns?: string) =>
+      withCluster(withNS(`/ws/servers/${encodeURIComponent(server)}/logs/pod?from=start`, ns)),
+  };
+  return { Servers, Templates, Namespaces, Cluster, Backups, Schedules, Restores, BackupDestinations, Players, Files, Logs, Captures: request.Captures, Shares: request.Shares };
+}
+
+/** Capture cluster/namespace once before starting any asynchronous operation. */
+export function createResourceClient(scope: ResourceScope, signal?: AbortSignal): ResourceClient {
+  const captured = Object.freeze({ ...scope });
+  return {
+    ...makeResourceEndpoints(createRequestClient(captured, signal)),
+    withSignal: (nextSignal: AbortSignal) => createResourceClient(captured, nextSignal),
+  };
+}
+
+export type ResourceClient = ReturnType<typeof makeResourceEndpoints> & {
+  withSignal: (signal: AbortSignal) => ResourceClient;
+};
+
+// Legacy standalone endpoints are explicitly local unless a method accepts an explicit cluster.
+export const { Servers, Templates, Namespaces, Cluster, Backups, Schedules, Restores, BackupDestinations, Players, Files, Logs } = makeResourceEndpoints({
+  api, url: (path) => withClusterParam(path), raw: (path, init) => fetch(path, init), Captures, Shares,
+});

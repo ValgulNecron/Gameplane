@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceTarget, resourceKey, useResourcePermissions, resourceCan, type ResourceTarget } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,19 +22,25 @@ import {
   Alert,
 } from "@heroui/react";
 import { ChevronDown, AlertCircle } from "lucide-react";
-import { Restores, Servers } from "@/lib/endpoints";
+
 import { errorText } from "@/lib/errors";
 import type { Backup } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface Props {
+  target?: ResourceTarget;
+  permissions?: string[];
   backup: Backup | null;
   defaultServer?: string;
   ns?: string;
   onClose: () => void;
 }
 
-export function RestoreDialog({ backup, defaultServer, ns, onClose }: Props) {
+export function RestoreDialog({ backup, defaultServer, ns, onClose, target: explicitTarget, permissions: explicitPermissions }: Props) {
+  const resourceTarget = useResourceTarget({ name: backup?.metadata.name ?? "", namespace: ns ?? backup?.metadata.namespace }, explicitTarget);
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Restores } = resourceClient;
+  const permissions = useResourcePermissions(explicitPermissions);
   const qc = useQueryClient();
   const open = backup !== null;
   // Volume-snapshot backups can't be restored in place — they provision a
@@ -41,8 +48,8 @@ export function RestoreDialog({ backup, defaultServer, ns, onClose }: Props) {
   // NEW (unused) server name instead of an overwrite target.
   const isVolumeSnapshot = backup?.spec.strategy === "volume-snapshot";
   const { data: servers } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => Servers.list(),
+    queryKey: resourceKey(resourceTarget, "servers"),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Servers.list(),
     enabled: open,
   });
   const [target, setTarget] = useState("");
@@ -77,7 +84,8 @@ export function RestoreDialog({ backup, defaultServer, ns, onClose }: Props) {
         ns,
       ),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["restores", ns] });
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
+      void qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "restores", ns) });
       onClose();
     },
   });
@@ -210,7 +218,7 @@ export function RestoreDialog({ backup, defaultServer, ns, onClose }: Props) {
               size="sm"
               variant={isVolumeSnapshot ? "primary" : "danger"}
               className="text-xs"
-              isDisabled={invalid || create.isPending}
+              isDisabled={invalid || create.isPending || !resourceCan(permissions, "backups:restore")}
               onPress={() => create.mutate()}
             >
               {create.isPending

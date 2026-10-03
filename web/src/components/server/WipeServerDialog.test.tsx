@@ -7,11 +7,16 @@ import { WipeServerDialog } from "./WipeServerDialog";
 import * as ServersAPI from "@/lib/endpoints";
 
 // Mock the Servers API
-vi.mock("@/lib/endpoints", () => ({
-  Servers: {
-    wipeData: vi.fn(),
-  },
-}));
+vi.mock("@/lib/endpoints", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/endpoints")>();
+  const Servers = { ...actual.Servers, wipeData: vi.fn() };
+  const createResourceClient: typeof actual.createResourceClient = vi.fn((...args: Parameters<typeof actual.createResourceClient>) => ({
+    ...actual.createResourceClient(...args),
+    Servers: { ...actual.createResourceClient(...args).Servers, wipeData: Servers.wipeData },
+    withSignal: (signal: AbortSignal) => createResourceClient(args[0], signal),
+  }));
+  return { ...actual, Servers, createResourceClient };
+});
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

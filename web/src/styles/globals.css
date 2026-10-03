@@ -489,6 +489,7 @@ input:-webkit-autofill:focus {
 }
 
 .select__trigger {
+  align-items: center;
   padding: 0 12px;
   font-size: 14px;
   background-color: var(--field-background);

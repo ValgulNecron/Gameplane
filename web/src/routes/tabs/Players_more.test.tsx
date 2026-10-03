@@ -1,9 +1,11 @@
+import { ResourceTargetProvider } from "@/lib/resourceTarget";
+import type { ReactElement } from "react";
 import { describe, it, expect } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
-import { renderWithQuery } from "@/test/render";
+import { renderWithQuery as baseRenderWithQuery } from "@/test/render";
 import { makePlayers } from "@/test/factories";
 import { PlayersTab } from "./Players";
 
@@ -302,3 +304,8 @@ describe("PlayersTab moderation actions", () => {
     expect(await screen.findByText(/rcon error/i)).toBeInTheDocument();
   });
 });
+
+function renderWithQuery(ui: ReactElement, options?: Parameters<typeof baseRenderWithQuery>[1]) {
+  const props = ui.props as { name?: string; ns?: string };
+  return baseRenderWithQuery(<ResourceTargetProvider target={{ cluster: "local", name: props.name ?? "alpha", namespace: props.ns }} access={{ canWrite: false, canControl: true, canConsole: true, canDelete: false, isOwner: false, isCollaborator: true, permissions: ["servers:read"] }}>{ui}</ResourceTargetProvider>, options);
+}

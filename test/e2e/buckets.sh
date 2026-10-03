@@ -329,6 +329,7 @@ bucket_multicluster() { cat <<'EOF'
 TestAPI_AccountRemoval_RevokesSharesAndAllowsSSOReprovision
 TestAPI_ModuleUpload_ExtractionStaysWithinBudget
 TestMultiCluster_ClusterDispatchAndScopedRBAC
+TestMultiCluster_GatewayParity
 EOF
 }
 

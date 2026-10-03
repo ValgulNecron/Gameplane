@@ -10,6 +10,7 @@ import { ServersPage } from "@/routes/Servers";
 import { ServerDetailPage } from "@/routes/ServerDetail";
 import { ModulesPage } from "@/routes/Modules";
 import { ClusterPage } from "@/routes/Cluster";
+import { ClustersPage } from "@/routes/Clusters";
 import { UsersPage } from "@/routes/Users";
 import { AdminSettingsPage } from "@/routes/AdminSettings";
 import { ThemeSettingsPage } from "@/routes/ThemeSettings";
@@ -42,21 +43,30 @@ const dashboardRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/",
   component: DashboardPage,
+  validateSearch: (search: Record<string, unknown>): { cluster?: string } => ({
+    cluster: typeof search.cluster === "string" && search.cluster !== "" ? search.cluster : undefined,
+  }),
 });
 
 const serversRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/servers",
   component: ServersPage,
+  validateSearch: (search: Record<string, unknown>): { cluster?: string } => ({
+    cluster: typeof search.cluster === "string" && search.cluster !== "" ? search.cluster : undefined,
+  }),
 });
 
 const serverDetailRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/servers/$name",
   component: ServerDetailPage,
-  validateSearch: (search: Record<string, unknown>): { ns?: string } => ({
-    ns: typeof search.ns === "string" && search.ns !== "" ? search.ns : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { ns?: string; cluster?: string } => {
+    for (const key of ["cluster", "ns"] as const) {
+      if (search[key] !== undefined && (typeof search[key] !== "string" || !search[key])) throw new Error(`Invalid server ${key}`);
+    }
+    return { ns: search.ns as string | undefined, cluster: search.cluster as string | undefined };
+  },
 });
 
 const createServerRoute = new Route({
@@ -65,9 +75,12 @@ const createServerRoute = new Route({
   component: CreateServerWizard,
   // Lets the Modules catalog "Deploy" link pre-select a template via
   // /servers/new?template=<name>.
-  validateSearch: (search: Record<string, unknown>): { template?: string } => ({
-    template: typeof search.template === "string" ? search.template : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { template?: string; cluster?: string; ns?: string } => {
+    for (const key of ["cluster", "ns"] as const) {
+      if (search[key] !== undefined && (typeof search[key] !== "string" || !search[key])) throw new Error(`Invalid location ${key}`);
+    }
+    return { template: typeof search.template === "string" ? search.template : undefined, cluster: search.cluster as string | undefined, ns: search.ns as string | undefined };
+  },
 });
 
 const modulesRoute = new Route({
@@ -80,10 +93,16 @@ const clusterRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/cluster",
   component: () => (
-    <RequirePermission perm="servers:write">
+    <RequirePermission perm="cluster:read">
       <ClusterPage />
     </RequirePermission>
   ),
+});
+
+const clustersRoute = new Route({
+  getParentRoute: () => appLayoutRoute,
+  path: "/clusters",
+  component: ClustersPage,
 });
 
 const usersRoute = new Route({
@@ -146,6 +165,10 @@ const backupsRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/backups",
   component: BackupsPage,
+  validateSearch: (search: Record<string, unknown>): { cluster?: string; tab?: string } => ({
+    cluster: typeof search.cluster === "string" && search.cluster !== "" ? search.cluster : undefined,
+    tab: typeof search.tab === "string" ? search.tab : undefined,
+  }),
 });
 
 export const routeTree = rootRoute.addChildren([
@@ -158,6 +181,7 @@ export const routeTree = rootRoute.addChildren([
     serverDetailRoute,
     modulesRoute,
     clusterRoute,
+    clustersRoute,
     usersRoute,
     adminRoute,
     themeSettingsRoute,

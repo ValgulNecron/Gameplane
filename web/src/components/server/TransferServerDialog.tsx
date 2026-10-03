@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceTarget, type ResourceTarget, resourceKey } from "@/lib/resourceTarget";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,12 +18,13 @@ import {
   PopoverContent,
 } from "@heroui/react";
 import { ChevronDown } from "lucide-react";
-import { Servers, Users } from "@/lib/endpoints";
+import { Users } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
 import { OWNER_ANNOTATION } from "@/lib/annotations";
 import { cn } from "@/lib/utils";
 
 interface Props {
+  target?: ResourceTarget;
   name: string;
   ns?: string;
   open: boolean;
@@ -34,17 +36,21 @@ interface Props {
 // TransferServerDialog reassigns a server's (informational) owner to another
 // user. Self-contained for reuse across the Settings danger zone and the
 // server action menus.
-export function TransferServerDialog({ name, ns, open, onOpenChange, onTransferred }: Props) {
+export function TransferServerDialog({
+  target: explicitTarget, name, ns, open, onOpenChange, onTransferred }: Props) {
+  const resourceTarget = useResourceTarget({ name, namespace: ns }, explicitTarget);
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Servers } = resourceClient;
   const qc = useQueryClient();
   const [userId, setUserId] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
   const { data: server } = useQuery({
-    queryKey: ["server", name, ns],
-    queryFn: () => Servers.get(name, ns),
+    queryKey: resourceKey(resourceTarget, "server", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Servers.get(name, ns),
     enabled: open,
   });
   const { data: users = [], error: usersError } = useQuery({
-    queryKey: ["users"],
+    queryKey: resourceKey(resourceTarget, "users"),
     queryFn: () => Users.list(),
     enabled: open,
   });
@@ -53,7 +59,8 @@ export function TransferServerDialog({ name, ns, open, onOpenChange, onTransferr
   const transfer = useMutation({
     mutationFn: () => Servers.transfer(name, Number(userId), ns),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["server", name, ns] });
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
+      void qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "server", name, ns) });
       onOpenChange(false);
       onTransferred?.();
     },

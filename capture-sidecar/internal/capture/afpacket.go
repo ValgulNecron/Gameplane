@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/afpacket"
 	"golang.org/x/net/bpf"
 )
@@ -58,11 +59,17 @@ type RawPacket struct {
 // AFPacketSource implements PacketSource using Linux AF_PACKET sockets
 // with an mmap'd TPacket buffer for efficient live capture.
 type AFPacketSource struct {
-	handle  *afpacket.TPacket
-	snaplen uint32
+	handle   packetHandle
+	filterVM *bpf.VM
+	snaplen  uint32
 
 	mu     sync.Mutex
 	closed bool
+}
+
+type packetHandle interface {
+	ReadPacketData() ([]byte, gopacket.CaptureInfo, error)
+	Close()
 }
 
 // NewAFPacketSource creates a new AF_PACKET packet source listening on
@@ -71,6 +78,25 @@ type AFPacketSource struct {
 func NewAFPacketSource(iface string, snaplen uint32, bpfFilter string) (*AFPacketSource, error) {
 	if snaplen == 0 {
 		snaplen = DefaultSnaplen
+	}
+	// Prepare both copies of the same filter before opening a receiving socket.
+	// NewTPacket activates reception before SetBPF is available, so packets
+	// queued during setup must also pass the VM before they can leave ReadPacket.
+	var raw []bpf.RawInstruction
+	var filterVM *bpf.VM
+	if bpfFilter != "" {
+		f, err := CompileFilter(bpfFilter)
+		if err != nil {
+			return nil, fmt.Errorf("compile BPF filter: %w", err)
+		}
+		raw, err = bpf.Assemble(f.Instructions())
+		if err != nil {
+			return nil, fmt.Errorf("assemble BPF filter: %w", err)
+		}
+		filterVM, err = bpf.NewVM(f.Instructions())
+		if err != nil {
+			return nil, fmt.Errorf("prepare BPF output filter: %w", err)
+		}
 	}
 
 	// Open an AF_PACKET TPacket socket bound to the specified interface.
@@ -90,22 +116,9 @@ func NewAFPacketSource(iface string, snaplen uint32, bpfFilter string) (*AFPacke
 		return nil, fmt.Errorf("open AF_PACKET socket on %s: %w", iface, err)
 	}
 
-	// If a BPF filter is provided, compile it and load the resulting program
-	// into the kernel via SetBPF. CompileFilter produces a []bpf.Instruction
-	// (github.com/packetcap/go-pcap/filter's portable representation);
-	// bpf.Assemble converts that into the []bpf.RawInstruction SetBPF wants
-	// (golang.org/x/net/bpf.Assemble, verified against golang.org/x/net@v0.57.0/bpf/asm.go).
-	if bpfFilter != "" {
-		f, err := CompileFilter(bpfFilter)
-		if err != nil {
-			handle.Close()
-			return nil, fmt.Errorf("compile BPF filter: %w", err)
-		}
-		raw, err := bpf.Assemble(f.Instructions())
-		if err != nil {
-			handle.Close()
-			return nil, fmt.Errorf("assemble BPF filter: %w", err)
-		}
+	// Kernel filtering remains the primary filter. It cannot retroactively
+	// remove frames already queued in the ring before this call.
+	if len(raw) > 0 {
 		if err := handle.SetBPF(raw); err != nil {
 			handle.Close()
 			return nil, fmt.Errorf("set BPF filter: %w", err)
@@ -113,8 +126,9 @@ func NewAFPacketSource(iface string, snaplen uint32, bpfFilter string) (*AFPacke
 	}
 
 	return &AFPacketSource{
-		handle:  handle,
-		snaplen: snaplen,
+		handle:   handle,
+		filterVM: filterVM,
+		snaplen:  snaplen,
 	}, nil
 }
 
@@ -151,6 +165,17 @@ func (a *AFPacketSource) ReadPacket(ctx context.Context) (*RawPacket, error) {
 				continue
 			}
 			return nil, fmt.Errorf("read packet: %w", err)
+		}
+		// Evaluate the original frame, before snaplen can remove bytes the
+		// filter examines. This also rejects unfiltered startup-ring packets.
+		if a.filterVM != nil {
+			accepted, err := a.filterVM.Run(data)
+			if err != nil {
+				return nil, fmt.Errorf("evaluate BPF output filter: %w", err)
+			}
+			if accepted == 0 {
+				continue
+			}
 		}
 
 		if a.snaplen > 0 && int64(len(data)) > int64(a.snaplen) {

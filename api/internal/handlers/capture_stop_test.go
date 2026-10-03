@@ -130,3 +130,22 @@ func TestCaptureStop_RepeatIsNoOp(t *testing.T) {
 		t.Errorf("repeat stop changed the annotation: %q -> %q", first, again)
 	}
 }
+
+func TestCaptureStop_UnreconciledRequestsOperatorStop(t *testing.T) {
+	k := fakeCaptureClient(newCaptureServerObj("stopper", true), newCaptureNetworkCapture("cap-new", "stopper", ""))
+	r := mountCaptureTestRouter(k, CaptureConfig{FeatureEnabled: true}, newCaptureAuditor(t))
+	rr := do(t, r, http.MethodPost, "/servers/stopper:capture-stop", map[string]any{"captureId": "cap-new"})
+	if rr.Code != http.StatusOK {
+		t.Fatalf("stop=%d %s", rr.Code, rr.Body)
+	}
+	nc := getCaptureObj(t, k, "cap-new")
+	if nc.GetAnnotations()[kube.CaptureStopRequestedAnnotation] == "" {
+		t.Fatal("operator stop not requested")
+	}
+	if phase, _, _ := unstructured.NestedString(nc.Object, "status", "phase"); phase != "" {
+		t.Fatalf("API changed phase to %q", phase)
+	}
+	if _, found, _ := unstructured.NestedString(nc.Object, "status", "completionTime"); found {
+		t.Fatal("API wrote completion time")
+	}
+}

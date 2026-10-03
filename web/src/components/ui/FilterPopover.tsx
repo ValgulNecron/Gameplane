@@ -15,27 +15,27 @@ interface FilterPopoverProps {
   /**
    * List of distinct games to filter by.
    */
-  games: string[];
+  games?: string[];
   /**
    * Currently selected games in the draft filter state.
    */
-  selectedGames: Set<string>;
+  selectedGames?: Set<string>;
   /**
    * Callback when a game checkbox is toggled.
    */
-  onToggleGame: (game: string) => void;
+  onToggleGame?: (game: string) => void;
   /**
    * List of distinct namespaces to filter by.
    */
-  namespaces: string[];
+  namespaces?: string[];
   /**
    * Currently selected namespaces in the draft filter state.
    */
-  selectedNamespaces: Set<string>;
+  selectedNamespaces?: Set<string>;
   /**
    * Callback when a namespace checkbox is toggled.
    */
-  onToggleNamespace: (ns: string) => void;
+  onToggleNamespace?: (ns: string) => void;
   /**
    * Callback to apply the current draft filters.
    */
@@ -56,6 +56,8 @@ interface FilterPopoverProps {
    * Optional className for the popover content.
    */
   contentClassName?: string;
+  /** Additional draft filter fields, above the optional game/namespace facets. */
+  fields?: ReactNode;
 }
 
 /**
@@ -65,25 +67,28 @@ interface FilterPopoverProps {
  */
 export function FilterPopover({
   children,
-  games,
-  selectedGames,
+  games = [],
+  selectedGames = new Set(),
   onToggleGame,
-  namespaces,
-  selectedNamespaces,
+  namespaces = [],
+  selectedNamespaces = new Set(),
   onToggleNamespace,
   onApply,
   onClear,
   isOpen,
   onOpenChange,
   contentClassName,
+  fields,
 }: FilterPopoverProps) {
   return (
     <Popover isOpen={isOpen} onOpenChange={onOpenChange}>
       <Popover.Trigger>
         {children}
       </Popover.Trigger>
-      <Popover.Content className={cn("w-[240px] bg-surface p-1", contentClassName)}>
+      <Popover.Content className={cn("w-[280px] max-w-[calc(100vw-2rem)] max-h-[min(36rem,80vh)] overflow-y-auto bg-surface p-1", contentClassName)}>
         <div className="space-y-0">
+          {fields && <div className="space-y-3 px-2 py-2">{fields}</div>}
+          {fields && (games.length > 0 || namespaces.length > 0) && <Separator className="my-1" />}
           {/* Game section header */}
           {games.length > 0 && (
             <>
@@ -95,7 +100,7 @@ export function FilterPopover({
                 >
                   <Checkbox
                     isSelected={selectedGames.has(game)}
-                    onChange={() => onToggleGame(game)}
+                    onChange={() => onToggleGame?.(game)}
                     className="flex-row items-center gap-2"
                   >
                     <Checkbox.Control>
@@ -126,7 +131,7 @@ export function FilterPopover({
                 >
                   <Checkbox
                     isSelected={selectedNamespaces.has(ns)}
-                    onChange={() => onToggleNamespace(ns)}
+                    onChange={() => onToggleNamespace?.(ns)}
                     className="flex-row items-center gap-2"
                   >
                     <Checkbox.Control>
@@ -142,7 +147,7 @@ export function FilterPopover({
           )}
 
           {/* Separator before footer buttons */}
-          {(games.length > 0 || namespaces.length > 0) && (
+          {(fields || games.length > 0 || namespaces.length > 0) && (
             <Separator className="my-1" />
           )}
 

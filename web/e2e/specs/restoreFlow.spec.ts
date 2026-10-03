@@ -54,10 +54,13 @@ test.describe("restore from backup", () => {
     await page.getByRole("option", { name: "alpha" }).click();
 
     const created = page.waitForRequest(
-      (req) => /\/restores$/.test(req.url()) && req.method() === "POST",
+      (req) => new URL(req.url()).pathname === "/restores" && req.method() === "POST",
     );
     await dialog.getByRole("button", { name: /^restore$/i }).click();
     const req = await created;
+    const requestURL = new URL(req.url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("gameplane-games");
     const body = req.postDataJSON() as {
       spec?: { backupRef?: { name?: string }; serverRef?: { name?: string } };
     };

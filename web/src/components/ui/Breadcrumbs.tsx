@@ -20,6 +20,7 @@ export function buildCrumbs(pathname: string): Crumb[] {
     servers: "Servers",
     modules: "Modules",
     cluster: "Cluster",
+    clusters: "Clusters",
     users: "Users & RBAC",
     admin: "Settings",
     audit: "Audit log",

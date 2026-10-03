@@ -5,20 +5,29 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeServer } from "@/test/factories";
-import { AccessSection } from "./Access";
+import { AccessSection as AccessSectionView } from "./Access";
+import type { GameServer } from "@/types";
+import { ResourceTargetProvider, type ServerAccess } from "@/lib/resourceTarget";
 
 const useMeMock = vi.fn();
-const canMock = vi.fn();
+const targetAdminMock = vi.fn();
 vi.mock("@/lib/auth", async (orig) => ({
   ...(await orig<typeof import("@/lib/auth")>()),
   useMe: () => useMeMock(),
-  can: (...a: unknown[]) => canMock(...a),
 }));
+
+function AccessSection({ gs, access }: { gs?: GameServer; access?: ServerAccess }) {
+  const user = (useMeMock() as { data?: { id: number } }).data;
+  const owner = !!gs && gs.metadata.annotations?.["gameplane.local/owner-id"] === String(user?.id);
+  const administrator = targetAdminMock() === true;
+  const targetAccess = access ?? { canWrite: administrator, canControl: administrator || owner, canConsole: administrator || owner, canDelete: administrator || owner, isOwner: owner, isCollaborator: false, permissions: administrator ? ["servers:read", "servers:write"] : [] };
+  return <ResourceTargetProvider target={{ cluster: "remote", namespace: gs?.metadata.namespace ?? "gameplane-games", name: gs?.metadata.name ?? "test", uid: gs?.metadata.uid }} access={targetAccess}><AccessSectionView gs={gs} /></ResourceTargetProvider>;
+}
 
 describe("AccessSection", () => {
   beforeEach(() => {
     useMeMock.mockReturnValue({ data: { id: 1, username: "alice", permissions: {} } });
-    canMock.mockReturnValue(false);
+    targetAdminMock.mockReturnValue(false);
   });
 
   it("renders owner and empty collaborators", () => {
@@ -59,8 +68,10 @@ describe("AccessSection", () => {
 
   it("owner can add a collaborator", async () => {
     let requestBody: unknown;
+    let requestURL = "";
     server.use(
       http.put("/servers/test:collaborators", async ({ request }) => {
+        requestURL = request.url;
         requestBody = await request.json();
         return new HttpResponse(null, { status: 204 });
       }),
@@ -86,13 +97,15 @@ describe("AccessSection", () => {
     await waitFor(() =>
       expect(requestBody).toEqual({ userIds: [], usernames: ["bob"] }),
     );
+    expect(new URL(requestURL).searchParams.get("cluster")).toBe("remote");
+    expect(new URL(requestURL).searchParams.get("namespace")).toBe("ns");
   });
 
   it("non-owner without servers:write cannot see add controls", () => {
     useMeMock.mockReturnValue({
       data: { id: 99, username: "viewer", permissions: {} },
     });
-    canMock.mockReturnValue(false);
+    targetAdminMock.mockReturnValue(false);
 
     const gs = makeServer({
       metadata: {
@@ -249,7 +262,7 @@ describe("AccessSection", () => {
     useMeMock.mockReturnValue({
       data: { id: 1, username: "alice", permissions: {} },
     });
-    canMock.mockReturnValue(false);
+    targetAdminMock.mockReturnValue(false);
 
     const gs = makeServer({
       metadata: {
@@ -285,11 +298,11 @@ describe("AccessSection", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("user with servers:write permission can manage collaborators", () => {
+  it("target administrator can manage collaborators without owning the server", () => {
     useMeMock.mockReturnValue({
-      data: { id: 99, username: "operator", permissions: {} },
+      data: { id: 99, username: "administrator", permissions: {} },
     });
-    canMock.mockReturnValue(true); // servers:write permission
+    targetAdminMock.mockReturnValue(true); // exact target administrator projection
 
     const gs = makeServer({
       metadata: {
@@ -307,11 +320,17 @@ describe("AccessSection", () => {
     expect(screen.getByPlaceholderText(/Add collaborator/i)).toBeInTheDocument();
   });
 
+  it("namespace write permission alone cannot change collaborators", () => {
+    const gs = makeServer({ metadata: { name: "test", namespace: "ns", annotations: { "gameplane.local/owner-id": "1", "gameplane.local/owner": "alice" } } });
+    renderWithQuery(<AccessSection gs={gs} access={{ canWrite: true, canControl: true, canConsole: false, canDelete: false, isOwner: false, isCollaborator: false, permissions: ["servers:read", "servers:write"] }} />);
+    expect(screen.queryByPlaceholderText(/Add collaborator/i)).not.toBeInTheDocument();
+  });
+
   it("add button disabled when input is empty", () => {
     useMeMock.mockReturnValue({
       data: { id: 1, username: "alice", permissions: {} },
     });
-    canMock.mockReturnValue(false);
+    targetAdminMock.mockReturnValue(false);
 
     const gs = makeServer({
       metadata: {
@@ -334,7 +353,7 @@ describe("AccessSection", () => {
     useMeMock.mockReturnValue({
       data: { id: 1, username: "alice", permissions: {} },
     });
-    canMock.mockReturnValue(false);
+    targetAdminMock.mockReturnValue(false);
 
     const gs = makeServer({
       metadata: {
@@ -360,7 +379,7 @@ describe("AccessSection", () => {
     useMeMock.mockReturnValue({
       data: { id: 1, username: "alice", permissions: {} },
     });
-    canMock.mockReturnValue(false);
+    targetAdminMock.mockReturnValue(false);
 
     server.use(
       http.put("/servers/test:collaborators", async ({ request }) => {
@@ -407,7 +426,7 @@ describe("AccessSection", () => {
     useMeMock.mockReturnValue({
       data: { id: 1, username: "alice", permissions: {} },
     });
-    canMock.mockReturnValue(false);
+    targetAdminMock.mockReturnValue(false);
 
     const gs = makeServer({
       metadata: {
@@ -453,7 +472,7 @@ describe("AccessSection", () => {
     useMeMock.mockReturnValue({
       data: { id: 99, username: "operator", permissions: {} },
     });
-    canMock.mockReturnValue(false);
+    targetAdminMock.mockReturnValue(false);
 
     const gs = makeServer({
       metadata: {

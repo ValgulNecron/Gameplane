@@ -1,9 +1,10 @@
 {
   "type": "frame",
   "id": "O08uaD",
-  "x": 25760,
-  "y": 10155,
+  "x": 25755,
+  "y": 10375,
   "name": "Screen/Server Detail — Capture — Start capture",
+  "context": "Start Capture for remote-lab. Values illustrate that selected site: defaults and ceilings come from its capability response, independently of central settings.",
   "theme": {
     "semantic": "dark"
   },
@@ -1321,7 +1322,7 @@
                   "fill": "$muted",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "Maximum file size. Capture stops when reached. Cluster max: 5 GB.",
+                  "content": "Maximum file size: 5 GB. Capture stops when reached.",
                   "lineHeight": 1.4,
                   "fontFamily": "$typography/font-sans",
                   "fontSize": 11,
@@ -1387,7 +1388,7 @@
                   "fill": "$muted",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "How long the capture is retained before auto-delete. Cluster allows up to 24 hours.",
+                  "content": "How long the capture is retained before auto-delete. Maximum: 24h.",
                   "lineHeight": 1.4,
                   "fontFamily": "$typography/font-sans",
                   "fontSize": 11,

@@ -90,3 +90,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{- /* Absent on releases predating optional gateway installs (--reuse-values). */}}
+{{- define "gameplane.apiEnabled" -}}
+{{- if hasKey .Values.api "enabled" -}}
+{{- .Values.api.enabled -}}
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}

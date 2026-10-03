@@ -128,6 +128,40 @@ func TestUserCan_ClusterScopedNotGatedByCluster(t *testing.T) {
 	}
 }
 
+func TestUserCan_InventoryAlwaysTargetScoped(t *testing.T) {
+	for _, tc := range []struct {
+		name, bindingCluster, bindingNamespace, permission, target, namespace string
+		namespaced, want                                                      bool
+	}{
+		{"remote denies omitted home", "remote", "*", "cluster:read", "", "", false, false},
+		{"remote denies explicit home", "remote", "*", "cluster:read", "local", "", false, false},
+		{"remote permits selected inventory", "remote", "*", "cluster:read", "remote", "", false, true},
+		{"remote permits scoped caller", "remote", "*", "cluster:read", "remote", "", true, true},
+		{"local permits omitted home", "local", "*", "cluster:read", "", "", false, true},
+		{"local denies remote", "local", "*", "cluster:read", "remote", "", false, false},
+		{"wildcard permits home", "*", "*", "cluster:read", "", "", false, true},
+		{"wildcard permits remote", "*", "*", "cluster:read", "remote", "", true, true},
+		{"namespace inventory cannot grant nodes", "remote", "games", "cluster:read", "remote", "games", true, false},
+		{"namespace wildcard cannot grant nodes", "remote", "games", "*", "remote", "games", true, false},
+		{"remote admin denies home inventory", "remote", "*", "*", "", "", false, false},
+		{"local admin permits home", "local", "*", "*", "", "", false, true},
+		{"wildcard admin permits remote", "*", "*", "*", "remote", "", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &User{Perms: map[string]map[string]map[string]struct{}{
+				tc.bindingCluster: {tc.bindingNamespace: {tc.permission: {}}},
+			}}
+			if got := u.Can("cluster:read", tc.namespaced, tc.target, tc.namespace); got != tc.want {
+				t.Fatalf("inventory permission = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	var missing *User
+	if missing.Can("cluster:read", false, "", "") {
+		t.Fatal("missing user granted inventory")
+	}
+}
+
 func TestUserCan_WildcardClusterGrantsAll(t *testing.T) {
 	// A binding on the "*" wildcard cluster should grant access on any cluster.
 	wildcardBinding := &User{Perms: map[string]map[string]map[string]struct{}{"*": {"*": {"servers:write": {}}}}}

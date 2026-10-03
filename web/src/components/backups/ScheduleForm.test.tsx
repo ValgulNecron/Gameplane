@@ -8,7 +8,7 @@ import { ScheduleForm } from "./ScheduleForm";
 
 describe("ScheduleForm", () => {
   it("renders the form with default schedule, retention, and the lone destination preselected", async () => {
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     expect(screen.getByDisplayValue("0 */6 * * *")).toBeInTheDocument();
     // Retention policy defaults to keepLast: 7
     expect((screen.getByLabelText("Keep last") as HTMLInputElement).value).toBe("7");
@@ -24,13 +24,13 @@ describe("ScheduleForm", () => {
 
   it("Cancel calls onClose", async () => {
     const onClose = vi.fn();
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={onClose} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={onClose} />);
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalled();
   });
 
   it("Create button is disabled while schedule is empty", async () => {
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     const sched = screen.getByDisplayValue("0 */6 * * *");
     await userEvent.clear(sched);
     expect(screen.getByRole("button", { name: /Create schedule/i })).toBeDisabled();
@@ -45,7 +45,7 @@ describe("ScheduleForm", () => {
         return HttpResponse.json({});
       }),
     );
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={onClose} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={onClose} />);
     const create = screen.getByRole("button", { name: /Create schedule/i });
     await waitFor(() => expect(create).toBeEnabled());
     await userEvent.click(create);
@@ -64,7 +64,7 @@ describe("ScheduleForm", () => {
         return HttpResponse.json({});
       }),
     );
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     // HeroUI Select: click trigger to open popover
     const backupTypeButtons = screen.getAllByRole("button");
     const backupTypeButton = backupTypeButtons.find(b => b.textContent?.includes("Restic"));
@@ -87,7 +87,7 @@ describe("ScheduleForm", () => {
         HttpResponse.text("rejected", { status: 422 }),
       ),
     );
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     const create = screen.getByRole("button", { name: /Create schedule/i });
     await waitFor(() => expect(create).toBeEnabled());
     await userEvent.click(create);
@@ -102,14 +102,14 @@ describe("ScheduleForm", () => {
         HttpResponse.json({ items: [] }),
       ),
     );
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     const create = screen.getByRole("button", { name: /Create schedule/i });
     // Should be disabled because no destination is selected
     await waitFor(() => expect(create).toBeDisabled());
   });
 
   it("shows help text for different backup types", async () => {
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     // Initially shows restic help text
     expect(screen.getByText(/restic repository/i)).toBeInTheDocument();
     // Switch to volume-snapshot using HeroUI Select
@@ -124,7 +124,7 @@ describe("ScheduleForm", () => {
   });
 
   it("hides destination and repoKey fields for volume-snapshot", async () => {
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     // Initially visible for restic
     expect(screen.getByLabelText("Destination")).toBeInTheDocument();
     expect(screen.getByLabelText(/Repo secret/i)).toBeInTheDocument();
@@ -141,7 +141,7 @@ describe("ScheduleForm", () => {
   });
 
   it("updates cron schedule", async () => {
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     const schedInput = screen.getByDisplayValue("0 */6 * * *");
     await userEvent.clear(schedInput);
     await userEvent.type(schedInput, "0 3 * * *");
@@ -149,7 +149,7 @@ describe("ScheduleForm", () => {
   });
 
   it("updates repoKey field", async () => {
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     const repoKeyInput = screen.getByDisplayValue("repo") as HTMLInputElement;
     await userEvent.clear(repoKeyInput);
     await userEvent.type(repoKeyInput, "backup-key");
@@ -165,7 +165,7 @@ describe("ScheduleForm", () => {
         return HttpResponse.json({});
       }),
     );
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     // Restic is already the default, so no need to change it
     const create = screen.getByRole("button", { name: /Create schedule/i });
     await waitFor(() => expect(create).toBeEnabled());
@@ -174,7 +174,7 @@ describe("ScheduleForm", () => {
   });
 
   it("renders retention fields", async () => {
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    renderWithQuery(<ScheduleForm permissions={["*"]} serverName="alpha" onClose={() => {}} />);
     expect(screen.getByLabelText("Keep last")).toBeInTheDocument();
     expect(screen.getByText(/Retention policy/i)).toBeInTheDocument();
   });

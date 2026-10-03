@@ -19,6 +19,12 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
+func clusterTestRegistry(k *kube.Client) *kube.Registry {
+	reg := kube.NewRegistry("local")
+	reg.Set("local", k)
+	return reg
+}
+
 func readyNode(name string, ready bool, cpu, mem string) *corev1.Node {
 	cond := corev1.ConditionFalse
 	if ready {
@@ -64,7 +70,7 @@ func TestCluster_View(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", false, "")
+	MountCluster(r, clusterTestRegistry(k), nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cluster", nil))
@@ -107,7 +113,7 @@ func TestCluster_Stats(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", false, "")
+	MountCluster(r, clusterTestRegistry(k), nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cluster/stats", nil))
@@ -168,7 +174,7 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", false, "")
+	MountCluster(r, clusterTestRegistry(k), nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cluster/info", nil))
@@ -201,7 +207,7 @@ func TestCluster_Info_ReportsClusterOpsAndChannel(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", true, "edge")
+	MountCluster(r, clusterTestRegistry(k), nil, "v9.9.9-test", true, "edge")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cluster/info", nil))
@@ -269,7 +275,7 @@ func TestCluster_View_MetricsAvailable(t *testing.T) {
 		})
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", false, "")
+	MountCluster(r, clusterTestRegistry(k), nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cluster", nil))
@@ -313,7 +319,7 @@ func TestCluster_View_MetricsAbsent(t *testing.T) {
 		})
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", false, "")
+	MountCluster(r, clusterTestRegistry(k), nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cluster", nil))

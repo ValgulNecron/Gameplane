@@ -4,6 +4,7 @@
   "x": 1188,
   "y": 22565,
   "name": "Screen/Mobile — Servers (Light)",
+  "context": "Unified mobile server list. Location and namespace identify every card; location selection is inside the Filter popover. Below-fold cards remain scrollable in the app.",
   "theme": {
     "semantic": "light"
   },
@@ -158,6 +159,17 @@
                               "fontFamily": "$typography/font-sans",
                               "fontSize": 14,
                               "fontWeight": "500"
+                            },
+                            {
+                              "type": "text",
+                              "id": "qDSNC",
+                              "name": "Location and namespace",
+                              "fill": "$muted",
+                              "content": "local / gameplane-games",
+                              "lineHeight": 1.3333333333,
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             },
                             {
                               "type": "text",
@@ -381,6 +393,17 @@
                             },
                             {
                               "type": "text",
+                              "id": "yRMR8",
+                              "name": "Location and namespace",
+                              "fill": "$muted",
+                              "content": "local / gameplane-games",
+                              "lineHeight": 1.3333333333,
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
                               "id": "or74C",
                               "name": "addr",
                               "fill": "$muted",
@@ -598,6 +621,17 @@
                               "fontFamily": "$typography/font-sans",
                               "fontSize": 14,
                               "fontWeight": "500"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Ly9zb",
+                              "name": "Location and namespace",
+                              "fill": "$muted",
+                              "content": "local / gameplane-games",
+                              "lineHeight": 1.3333333333,
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             },
                             {
                               "type": "text",
@@ -821,6 +855,17 @@
                             },
                             {
                               "type": "text",
+                              "id": "aCTA6",
+                              "name": "Location and namespace",
+                              "fill": "$muted",
+                              "content": "local / default",
+                              "lineHeight": 1.3333333333,
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
                               "id": "vAFYa",
                               "name": "addr",
                               "fill": "$muted",
@@ -1036,6 +1081,17 @@
                               "fontFamily": "$typography/font-sans",
                               "fontSize": 14,
                               "fontWeight": "500"
+                            },
+                            {
+                              "type": "text",
+                              "id": "PCFOX",
+                              "name": "Location and namespace",
+                              "fill": "$muted",
+                              "content": "local / gameplane-games",
+                              "lineHeight": 1.3333333333,
+                              "fontFamily": "$typography/font-sans",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             },
                             {
                               "type": "text",

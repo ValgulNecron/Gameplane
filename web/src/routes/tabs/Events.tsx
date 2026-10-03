@@ -1,8 +1,9 @@
+import { useResourceClient, useResourceTarget, resourceKey } from "@/lib/resourceTarget";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Card } from "@heroui/react";
 import type { GameServer } from "@/types";
-import { Servers } from "@/lib/endpoints";
+
 import { EventList } from "@/components/server/EventList";
 import { mapServerEvent, type NormalizedServerEvent } from "@/lib/events";
 
@@ -17,11 +18,13 @@ export function EventsTab({
   ns?: string;
   gs?: GameServer;
 }) {
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
   const [filter, setFilter] = useState<FilterType>("all");
 
   const { data: rawEvents } = useQuery({
-    queryKey: ["events", name, ns],
-    queryFn: () => Servers.events(name, ns),
+    queryKey: resourceKey(resourceTarget, "events", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Servers.events(name, ns),
     enabled: !!name,
     refetchInterval: gs?.status?.phase === "Running" ? 30_000 : 5_000,
     retry: false,

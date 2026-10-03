@@ -25,8 +25,8 @@ import { Meter } from "@/components/ui/Meter";
 import { PhaseChip } from "@/components/ui/PhaseChip";
 import { GameIcon } from "@/components/ui/GameIcon";
 import { LoadingCard } from "@/components/ui/LoadingCard";
+import { ErrorCard } from "@/components/ui/ErrorCard";
 import { PageHeader } from "@/components/PageHeader";
-import { useGameCodes } from "@/lib/useGameCodes";
 import {
   cn,
   describeStorageProvisioned,
@@ -36,46 +36,38 @@ import {
   type StorageReading,
 } from "@/lib/utils";
 import { useMe, can } from "@/lib/auth";
-import { Audit, Backups, Cluster, Servers } from "@/lib/endpoints";
+import { Audit } from "@/lib/endpoints";
+import { useFleetLocation, Fleet, inventoryTotals, playerCoverage, templateKey, useFleetGameCodes, located, resourceTarget, sumNodeUsage, targetKey, targetLabel, targetSearch, useFleetPlacements, useFleetServers } from "@/lib/fleet";
+import { FleetCoverage, FleetScopeFilter } from "@/components/FleetScope";
 import { countByState, phaseGroups, type PhaseGroups } from "@/lib/servers";
 import type {
   AuditEvent,
   Backup,
   ClusterNode,
-  ClusterStats,
-  ClusterView,
   GameServer,
   GameTemplate,
 } from "@/types";
 
 export function DashboardPage() {
+  const { data: placements } = useFleetPlacements();
+  const canCreate = (placements?.items.length ?? 0) > 0;
+  const [location, setLocation] = useFleetLocation();
   const navigate = useNavigate();
   const { data: me } = useMe();
   const canAudit = can(me, "audit:read");
-  const canCluster = can(me, "servers:write");
-
-  const { gameCodes, byName } = useGameCodes();
-
-  const { data: serversData, isLoading: serversLoading } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => Servers.list(),
-    refetchInterval: 5_000,
+  const { data: scopes } = useFleetServers();
+  const { data: fleet, isLoading: serversLoading, error: serversError } = useFleetServers({ cluster: location || undefined });
+  const { gameCodes, byName } = useFleetGameCodes(fleet?.items);
+  const { data: inventory, isLoading: clusterLoading, error: clusterError } = useQuery({
+    queryKey: ["fleet", "inventory", location], queryFn: ({ signal }) => Fleet.inventory({ cluster: location || undefined }, signal), staleTime: 30_000,
   });
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["cluster-stats"],
-    queryFn: () => Cluster.stats().catch(() => ({}) as ClusterStats),
-    staleTime: 30_000,
+  const { data: backupsFleet, isLoading: backupsLoading, error: backupsError } = useQuery({
+    queryKey: ["fleet", "backups", location], queryFn: ({ signal }) => Fleet.backups({ cluster: location || undefined }, signal), staleTime: 30_000,
   });
-  const { data: clusterView, isLoading: clusterLoading } = useQuery({
-    queryKey: ["cluster"],
-    queryFn: () => Cluster.view().catch(() => ({}) as ClusterView),
-    staleTime: 30_000,
-  });
-  const { data: backupsData, isLoading: backupsLoading } = useQuery({
-    queryKey: ["backups"],
-    queryFn: () => Backups.list().catch(() => ({ items: [] as Backup[] })),
-    staleTime: 30_000,
-  });
+  const serversData = useMemo(() => ({ items: (fleet?.items ?? []).filter((item) => !location || item.target.cluster === location).map(located) }), [fleet, location]);
+  const backupsData = useMemo(() => ({ items: (backupsFleet?.items ?? []).filter((item) => !location || item.target.cluster === location).map(located) }), [backupsFleet, location]);
+  const clusterView = inventoryTotals((inventory?.items ?? []).filter((item) => !location || item.cluster === location));
+  const canCluster = (inventory?.items.length ?? 0) > 0;
   const { data: audit, isLoading: auditLoading } = useQuery({
     queryKey: ["audit", "dashboard"],
     queryFn: () => Audit.page(8, 0),
@@ -84,42 +76,45 @@ export function DashboardPage() {
   });
 
   const servers = useMemo(() => serversData?.items ?? [], [serversData?.items]);
+  const countsUnavailable = !!serversError || (fleet?.partial === true && servers.length === 0);
   const counts = useMemo(() => countByState(servers), [servers]);
+  const players = playerCoverage(servers);
   const groups = useMemo(() => phaseGroups(servers), [servers]);
   const recentBackups = useMemo(
     () => sortBackups(backupsData?.items ?? []).slice(0, 6),
     [backupsData?.items],
   );
 
-  const nodes = clusterView?.nodes ?? [];
-  const nodesReady = clusterView?.ready ?? nodes.filter((n) => n.status === "Ready").length;
-  const nodesTotal = clusterView?.total ?? stats?.nodes ?? nodes.length;
-  const cpu = sumUsage(nodes, "cpu");
-  const mem = sumUsage(nodes, "memory");
+  const nodes = clusterError ? [] : clusterView.nodes;
+  const nodesReady = clusterView.ready;
+  const nodesTotal = clusterView.total;
+  const cpu = inventory?.partial ? { known: false, pct: 0 } : sumUsage(nodes, "cpu");
+  const mem = inventory?.partial ? { known: false, pct: 0 } : sumUsage(nodes, "memory");
   const vcpus = nodes.reduce((sum, n) => sum + (n.cpu?.capacity ?? 0), 0);
-  const storage = describeStorageProvisioned(stats?.usedStorageBytes, stats?.totalStorageBytes);
-  const storagePct = stats?.totalStorageBytes
-    ? ((stats.usedStorageBytes ?? 0) / stats.totalStorageBytes) * 100
-    : 0;
-
-  const isLoading =
-    serversLoading || statsLoading || clusterLoading || backupsLoading || (canAudit && auditLoading);
+  const storage = clusterView.usedStorageBytes === undefined ? { valueText: "—", subText: "inventory unavailable", overcommitted: false } : describeStorageProvisioned(clusterView.usedStorageBytes, clusterView.totalStorageBytes);
+  const storagePct = clusterView.totalStorageBytes ? ((clusterView.usedStorageBytes ?? 0) / clusterView.totalStorageBytes) * 100 : 0;
+  const isLoading = serversLoading || clusterLoading || backupsLoading || (canAudit && auditLoading);
 
   return (
     <div className="space-y-6 p-6">
       <PageHeader
         title="Dashboard"
-        subtitle="At-a-glance health of your Gameplane cluster."
-        actions={
+        subtitle="Your game servers and resources across authorized locations."
+        actions={canCreate ?
           <Button
             variant="primary"
             className="rounded-full"
             onPress={() => void navigate({ to: "/servers/new" })}
           >
             <Plus className="h-4 w-4" /> Create server
-          </Button>
+          </Button> : undefined
         }
       />
+
+      <FleetScopeFilter value={location} onChange={setLocation} clusters={[...(scopes?.scopes ?? []).map((scope) => scope.cluster), ...(scopes?.items ?? []).map((item) => item.target.cluster), ...(scopes?.issues ?? []).map((issue) => issue.cluster), ...(inventory?.items ?? []).map((item) => item.cluster)]} />
+      <FleetCoverage partial={fleet?.partial} issues={fleet?.issues} error={serversError} label="Server totals" />
+      <FleetCoverage partial={inventory?.partial} issues={inventory?.issues} error={clusterError} label="Inventory" />
+      <FleetCoverage partial={backupsFleet?.partial} issues={backupsFleet?.issues} error={backupsError} label="Backups" />
 
       {isLoading ? (
         <LoadingCard message="Loading dashboard…" />
@@ -129,22 +124,22 @@ export function DashboardPage() {
             <StatCard
               label="Running"
               icon={<Activity className="h-4 w-4" />}
-              value={counts.running}
-              sub={`of ${groups.total} total`}
-              accent="success"
+              value={countsUnavailable ? "—" : counts.running}
+              sub={countsUnavailable ? "server status unavailable" : `of ${groups.total} ${fleet?.partial ? "returned" : "total"}`}
+              accent={countsUnavailable ? "warning" : "success"}
             />
             <StatCard
               label="Players online"
               icon={<UsersIcon className="h-4 w-4" />}
-              value={counts.players}
-              sub={`peak ${counts.playersMax}`}
+              value={countsUnavailable || !players.known ? "—" : counts.players}
+              sub={countsUnavailable || !players.known ? "player status unavailable" : players.unknown ? `${players.unknown} server player counts unavailable` : `peak ${counts.playersMax}`}
               accent="primary"
             />
             <StatCard
               label="vCPUs"
               icon={<Cpu className="h-4 w-4" />}
               value={vcpus > 0 ? vcpus : "—"}
-              sub="cluster cores"
+              sub={inventory?.partial ? "returned inventory cores" : "authorized inventory cores"}
               accent="warning"
             />
             <StatCard
@@ -157,10 +152,14 @@ export function DashboardPage() {
             <StatCard
               label="Nodes ready"
               icon={<ServerIcon className="h-4 w-4" />}
-              value={nodesTotal > 0 ? `${nodesReady}/${nodesTotal}` : "—"}
+              value={!clusterError && nodesTotal > 0 ? `${nodesReady}/${nodesTotal}` : "—"}
               sub={
-                nodesTotal === 0
+                clusterError
+                  ? "inventory unavailable"
+                  : nodesTotal === 0
                   ? "no node data"
+                  : inventory?.partial
+                    ? "returned nodes only"
                   : nodesReady === nodesTotal
                     ? "all healthy"
                     : "needs attention"
@@ -169,8 +168,10 @@ export function DashboardPage() {
             />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <FleetStatusCard groups={groups} gameCodes={gameCodes} byName={byName} />
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+            {countsUnavailable
+              ? <ErrorCard message={"Couldn't load servers. Status and player totals are unavailable."} />
+              : <FleetStatusCard complete={!fleet?.partial} groups={groups} gameCodes={gameCodes} byName={byName} />}
             <ClusterResourcesCard
               cpu={cpu}
               mem={mem}
@@ -183,9 +184,11 @@ export function DashboardPage() {
             />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            {canAudit && <RecentActivityCard events={audit ?? []} />}
-            <RecentBackupsCard backups={recentBackups} gameCodes={gameCodes} byName={byName} servers={serversData?.items} />
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+            {canAudit && <div className="space-y-2"><p className="text-xs text-muted">Central Gameplane audit activity</p><RecentActivityCard events={audit ?? []} /></div>}
+            {backupsError
+              ? <ErrorCard message={"Couldn't load backups. Backup status is unavailable."} />
+              : <RecentBackupsCard complete={!backupsFleet?.partial} backups={recentBackups} gameCodes={gameCodes} byName={byName} servers={serversData?.items} />}
           </div>
         </>
       )}
@@ -194,10 +197,12 @@ export function DashboardPage() {
 }
 
 function FleetStatusCard({
+  complete,
   groups,
   gameCodes,
   byName,
 }: {
+  complete: boolean;
   groups: PhaseGroups;
   gameCodes: Map<string, string>;
   byName: Map<string, GameTemplate>;
@@ -211,10 +216,10 @@ function FleetStatusCard({
   const attention = groups.attention.slice(0, 4);
 
   return (
-    <Card className="space-y-4 p-5">
+    <Card className="min-w-0 space-y-4 p-5">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Fleet status</h3>
-        <span className="text-xs text-muted">{groups.total} servers</span>
+        <span className="text-xs text-muted">{groups.total} {complete ? "servers" : "returned servers"}</span>
       </div>
 
       <div className="flex h-2 overflow-hidden rounded-full bg-surface">
@@ -236,11 +241,11 @@ function FleetStatusCard({
         </div>
         {attention.length === 0 ? (
           <div className="flex items-center gap-2 text-sm text-muted">
-            <CheckCircle2 className="h-4 w-4 text-success" /> Everything looks healthy.
+            <CheckCircle2 className="h-4 w-4 text-success" /> {complete ? "Everything looks healthy." : "No issues among returned servers; some locations are unavailable."}
           </div>
         ) : (
           attention.map((gs) => (
-            <AttentionRow key={gs.metadata.name} gs={gs} gameCodes={gameCodes} byName={byName} />
+            <AttentionRow key={targetKey(resourceTarget(gs))} gs={gs} gameCodes={gameCodes} byName={byName} />
           ))
         )}
       </div>
@@ -266,19 +271,20 @@ function AttentionRow({
     <Link
       to="/servers/$name"
       params={{ name: gs.metadata.name }}
+      search={targetSearch(resourceTarget(gs))}
       className="group flex items-center gap-3"
     >
       <GameIcon
         game={gs.spec.templateRef.name}
-        icon={byName.get(gs.spec.templateRef.name)?.spec.icon}
-        code={gameCodes.get(gs.spec.templateRef.name)}
+        icon={byName.get(templateKey(resourceTarget(gs).cluster, gs.spec.templateRef.name))?.spec.icon}
+        code={gameCodes.get(templateKey(resourceTarget(gs).cluster, gs.spec.templateRef.name))}
         size="sm"
       />
       <div className="min-w-0 flex-1">
         <div className="truncate font-mono text-sm text-foreground group-hover:text-primary">
           {gs.metadata.name}
         </div>
-        <div className="truncate text-[11px] text-muted">{reason}</div>
+        <div className="truncate text-[11px] text-muted">{targetLabel(resourceTarget(gs))} · {reason}</div>
       </div>
       <PhaseChip phase={phase} asleep={gs.status?.idle?.asleep === true} />
     </Link>
@@ -313,12 +319,12 @@ function ClusterResourcesCard({
   canViewCluster: boolean;
 }) {
   return (
-    <Card className="space-y-4 p-5">
+    <Card className="min-w-0 space-y-4 p-5">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Cluster resources</h3>
         {canViewCluster ? (
-          <Link to="/cluster" className="text-xs text-primary hover:underline">
-            View cluster
+          <Link to="/clusters" className="text-xs text-primary hover:underline">
+            View clusters
           </Link>
         ) : (
           <span className="text-xs text-muted">
@@ -334,6 +340,7 @@ function ClusterResourcesCard({
           label="Storage"
           pct={storagePct}
           sub={storage.subText}
+          unknown={storage.valueText === "—"}
           accent={storage.overcommitted ? "warning" : "success"}
         />
       </div>
@@ -361,9 +368,9 @@ function NodeRow({ node }: { node: ClusterNode }) {
     .filter(Boolean)
     .join(" · ");
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex min-w-0 items-center gap-2 text-xs">
       <span className={cn("h-2 w-2 shrink-0 rounded-full", ready ? "bg-success" : "bg-danger")} />
-      <span className="flex-1 truncate font-mono text-foreground">{node.name}</span>
+      <span className="min-w-0 flex-1 break-all font-mono text-foreground">{node.name}</span>
       <span className="shrink-0 text-muted">{meta || "—"}</span>
     </div>
   );
@@ -371,7 +378,7 @@ function NodeRow({ node }: { node: ClusterNode }) {
 
 function RecentActivityCard({ events }: { events: AuditEvent[] }) {
   return (
-    <Card className="space-y-4 p-5">
+    <Card className="min-w-0 space-y-4 p-5">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Recent activity</h3>
         <Link to="/admin/audit" className="text-xs text-primary hover:underline">
@@ -410,18 +417,20 @@ function ActivityRow({ event }: { event: AuditEvent }) {
 }
 
 function RecentBackupsCard({
+  complete,
   backups,
   gameCodes,
   byName,
   servers,
 }: {
+  complete: boolean;
   backups: Backup[];
   gameCodes: Map<string, string>;
   byName: Map<string, GameTemplate>;
   servers?: GameServer[];
 }) {
   return (
-    <Card className="space-y-4 p-5">
+    <Card className="min-w-0 space-y-4 p-5">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Recent backups</h3>
         <Link to="/backups" className="text-xs text-primary hover:underline">
@@ -429,11 +438,11 @@ function RecentBackupsCard({
         </Link>
       </div>
       {backups.length === 0 ? (
-        <div className="py-6 text-center text-sm text-muted">No backups yet.</div>
+        <div className="py-6 text-center text-sm text-muted">{complete ? "No backups yet." : "No backup data available."}</div>
       ) : (
         <div className="space-y-3">
           {backups.map((b) => (
-            <BackupRow key={b.metadata.name} backup={b} gameCodes={gameCodes} byName={byName} servers={servers} />
+            <BackupRow key={targetKey(resourceTarget(b))} backup={b} gameCodes={gameCodes} byName={byName} servers={servers} />
           ))}
         </div>
       )}
@@ -453,20 +462,21 @@ function BackupRow({
   servers?: GameServer[];
 }) {
   // Resolve backup server ref to template ref
-  const server = servers?.find((s) => s.metadata.name === backup.spec.serverRef.name);
+  const target = resourceTarget(backup);
+  const server = servers?.find((s) => s.metadata.name === backup.spec.serverRef.name && resourceTarget(s).cluster === target.cluster && resourceTarget(s).namespace === target.namespace);
   const templateRef = server?.spec.templateRef.name ?? "";
   const when = backup.status?.completionTime ?? backup.status?.startTime;
   return (
     <div className="flex items-center gap-3">
       <GameIcon
         game={templateRef || backup.spec.serverRef.name}
-        icon={byName.get(templateRef)?.spec.icon}
-        code={gameCodes.get(templateRef)}
+        icon={byName.get(templateKey(target.cluster, templateRef))?.spec.icon}
+        code={gameCodes.get(templateKey(target.cluster, templateRef))}
         size="sm"
       />
       <div className="min-w-0 flex-1">
         <div className="truncate font-mono text-sm text-foreground">{backup.spec.serverRef.name}</div>
-        <div className="truncate text-[11px] text-muted">{formatRelative(when)}</div>
+        <div className="truncate text-[11px] text-muted">{targetLabel(target)} · {formatRelative(when)}</div>
       </div>
       {backup.status?.size && (
         <span className="shrink-0 font-mono text-xs text-foreground">{backup.status.size}</span>
@@ -491,22 +501,12 @@ function LegendDot({ cls, label }: { cls: string; label: string }) {
 // (no metrics-server anywhere in the cluster) — callers must render that as
 // "—", not a 0% bar that implies a measured idle cluster.
 function sumUsage(nodes: ClusterNode[], key: "cpu" | "memory"): Usage {
-  let used = 0;
-  let cap = 0;
-  let known = false;
-  for (const n of nodes) {
-    const u = n[key]?.used;
-    if (u !== undefined) known = true;
-    used += u ?? 0;
-    cap += n[key]?.capacity ?? 0;
-  }
-  if (!known || cap === 0) return { pct: 0, known: false };
-  const pct = (used / cap) * 100;
-  const sub =
-    key === "memory"
-      ? `${formatBytes(used)} / ${formatBytes(cap)}`
-      : `${formatCores(used)} / ${formatCores(cap)} cores`;
-  return { pct, sub, known: true };
+  const reading = sumNodeUsage(nodes, key);
+  if (!reading.known) return { pct: 0, known: false };
+  const sub = key === "memory"
+    ? `${formatBytes(reading.used)} / ${formatBytes(reading.capacity)}`
+    : `${formatCores(reading.used)} / ${formatCores(reading.capacity)} cores`;
+  return { pct: reading.pct, sub, known: true };
 }
 
 function pctOf(used?: number, cap?: number): number {

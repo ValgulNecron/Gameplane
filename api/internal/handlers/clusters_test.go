@@ -22,6 +22,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
@@ -68,7 +69,8 @@ func doClusters(t *testing.T, h http.Handler, method, path string, body any) *ht
 		b, _ := json.Marshal(body)
 		buf = bytes.NewReader(b)
 	}
-	req := httptest.NewRequestWithContext(t.Context(), method, path, buf)
+	u := &auth.User{Perms: map[string]map[string]map[string]struct{}{"*": {"*": {"*": {}}}}}
+	req := httptest.NewRequestWithContext(auth.WithUser(t.Context(), u), method, path, buf)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr

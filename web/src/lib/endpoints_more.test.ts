@@ -152,7 +152,8 @@ describe("Users / Roles / Auth", () => {
       "/users/3/bindings",
       "POST",
     );
-    await expectCall(Users.removeBinding(3, "operator", "team-a"), "/users/3/bindings/operator/team-a", "DELETE");
+    await expectCall(Users.removeBinding(3, "operator", "team-a"), "/users/3/bindings/operator/team-a?cluster=local", "DELETE");
+    await expectCall(Users.removeBinding(3, "cluster-reader", "*", "remote-east"), "/users/3/bindings/cluster-reader/*?cluster=remote-east", "DELETE");
   });
   it("Roles list/catalog/create/update/remove", async () => {
     await expectCall(Roles.list(), "/roles");

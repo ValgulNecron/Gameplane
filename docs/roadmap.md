@@ -17,9 +17,21 @@ These items have shipped and are reflected in current `main`.
 
 ### Multi-cluster: dashboard cluster selector (PR #107) (shipped v0.2.0-beta.6) <!-- doc-versions: historical -->
 
-A Topbar cluster selector with per-cluster health, threading `?cluster=` through
-the API client and raw-fetch escape hatches, with `queryClient.clear()` on cluster
-switch. WebSocket streams remain local-cluster-scoped — a documented follow-up.
+The initial dashboard selector routed requests to one cluster at a time. The
+[unified dashboard](unified-dashboard.md) now combines authorized resources with
+optional location filters; selection remains in node inventory administration.
+Server operations retain their own cluster and namespace. Pod logs and PTY
+WebSockets use that cluster's Kubernetes API.
+
+The [optional private agent gateway](multicluster-agent-gateway.md) supports RCON,
+game-file logs, file/player operations, module actions and agent-based mods.
+Remote capture downloads and cleanup bind files to GameServer and NetworkCapture
+UIDs. Registry browsing, modpacks and ID-list configuration use the selected
+Kubernetes client and template. Upgrade the gateway, operator, agents and capture
+sidecars together; direct Kubernetes connectivity remains required.
+
+Dedicated gateway health in the dashboard remains follow-up work. The existing
+cluster-health indicator reports Kubernetes connectivity only.
 
 ### Multi-cluster: dual-cluster e2e coverage (PR #104) (shipped v0.2.0-beta.6) <!-- doc-versions: historical -->
 

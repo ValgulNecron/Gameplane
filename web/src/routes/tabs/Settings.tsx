@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceAccess, useResourceTarget, resourceKey } from "@/lib/resourceTarget";
 import { useEffect, useRef, useState, Suspense, lazy } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Tabs } from "@heroui/react";
@@ -19,7 +20,7 @@ import {
 import type { GameServer } from "@/types";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
-import { Servers, Templates } from "@/lib/endpoints";
+
 
 import { GeneralSection } from "./settings/General";
 import { VersionSection } from "./settings/Version";
@@ -73,6 +74,10 @@ export interface SettingsTabProps {
 }
 
 export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const access = useResourceAccess();
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Servers } = resourceClient;
   const qc = useQueryClient();
   const [section, setSection] = useState<SectionKey>("general");
   const [draft, setDraft] = useState<GameServer | null>(null);
@@ -114,8 +119,8 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
   }, [dirty, onDirtyChange]);
 
   const { data: template } = useQuery({
-    queryKey: ["template", draft?.spec.templateRef.name],
-    queryFn: () => Templates.get(draft!.spec.templateRef.name),
+    queryKey: resourceKey(resourceTarget, "template", draft?.spec.templateRef.name),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Templates.get(draft!.spec.templateRef.name),
     enabled: !!draft?.spec.templateRef.name,
   });
 
@@ -129,6 +134,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
       return Servers.update(name, merged, ns);
     },
     onSuccess: (saved) => {
+      void qc.invalidateQueries({ queryKey: ["fleet"] });
       const clone = structuredClone(saved);
       baselineRef.current = clone;
       setDraft(clone);
@@ -136,7 +142,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
       setConflict(false);
       setError(null);
       setSavedAt(Date.now());
-      return qc.invalidateQueries({ queryKey: ["server", name, ns] });
+      return qc.invalidateQueries({ queryKey: resourceKey(resourceTarget, "server", name, ns) });
     },
     onError: (err) => {
       if (err instanceof APIError && err.status === 409) {
@@ -170,7 +176,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
       setDirty(false);
       setConflict(false);
       setError(null);
-      qc.setQueryData(["server", name, ns], fresh);
+      qc.setQueryData(resourceKey(resourceTarget, "server", name, ns), fresh);
     } catch (err) {
       setError(errMsg(err));
     }
@@ -277,7 +283,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
               <Button
                 size="sm"
                 onPress={() => save.mutate(draft)}
-                isDisabled={!dirty || !sectionValid || save.isPending}
+                isDisabled={!access?.canWrite || !dirty || !sectionValid || save.isPending}
               >
                 {save.isPending ? "Saving…" : "Save changes"}
               </Button>

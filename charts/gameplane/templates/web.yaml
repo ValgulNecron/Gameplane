@@ -1,4 +1,4 @@
-{{- if .Values.web.enabled }}
+{{- if and (eq (include "gameplane.apiEnabled" .) "true") .Values.web.enabled }}
 # The dashboard front end: an nginx pod that serves the built SPA and reverse-
 # proxies API/WebSocket/SSE traffic to gameplane-api. The ingress points at
 # THIS service (not the API), so `helm install` yields a working dashboard

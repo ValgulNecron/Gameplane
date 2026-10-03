@@ -114,7 +114,7 @@
                   "content": "Servers"
                 },
                 "VbHwU": {
-                  "content": "Manage game server workloads across your cluster."
+                  "content": "Manage your game servers across all authorized locations."
                 },
                 "TgdLz": {
                   "children": [
@@ -301,6 +301,7 @@
                       "width": "fill_container",
                       "layout": "horizontal",
                       "alignItems": "center",
+                      "height": 64,
                       "children": [
                         {
                           "id": "NB3Yh",
@@ -362,7 +363,7 @@
                                       "id": "L3v4F",
                                       "name": "Namespace",
                                       "fill": "$muted",
-                                      "content": "gameplane-games",
+                                      "content": "local / gameplane-games",
                                       "fontFamily": "$typography/font-sans",
                                       "fontSize": 11,
                                       "fontWeight": "normal"
@@ -569,6 +570,7 @@
                       "width": "fill_container",
                       "layout": "horizontal",
                       "alignItems": "center",
+                      "height": 64,
                       "children": [
                         {
                           "id": "BrSql",
@@ -620,7 +622,7 @@
                                       "id": "B5kvE",
                                       "name": "Name",
                                       "fill": "$foreground/foreground",
-                                      "content": "mc-test",
+                                      "content": "mc-survival",
                                       "fontFamily": "$typography/font-mono",
                                       "fontSize": 14,
                                       "fontWeight": "normal"
@@ -630,7 +632,7 @@
                                       "id": "C6sPYB",
                                       "name": "Namespace",
                                       "fill": "$muted",
-                                      "content": "gameplane-games",
+                                      "content": "remote-lab / gameplane-games",
                                       "fontFamily": "$typography/font-sans",
                                       "fontSize": 11,
                                       "fontWeight": "normal"
@@ -837,6 +839,7 @@
                       "width": "fill_container",
                       "layout": "horizontal",
                       "alignItems": "center",
+                      "height": 64,
                       "children": [
                         {
                           "id": "v39s34",
@@ -898,7 +901,7 @@
                                       "id": "S6T72F",
                                       "name": "Namespace",
                                       "fill": "$muted",
-                                      "content": "gameplane-games",
+                                      "content": "local / gameplane-games",
                                       "fontFamily": "$typography/font-sans",
                                       "fontSize": 11,
                                       "fontWeight": "normal"

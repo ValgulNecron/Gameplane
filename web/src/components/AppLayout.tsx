@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Archive,
   LayoutDashboard,
+  Network,
   Package,
   ScrollText,
   Server,
@@ -11,11 +12,10 @@ import {
   Users,
 } from "lucide-react";
 import { APIError } from "@/lib/api";
-import { Cluster as ClusterAPI, Auth } from "@/lib/endpoints";
+import { Clusters, Auth } from "@/lib/endpoints";
 import { useMe, can } from "@/lib/auth";
-import type { ClusterInfo, User } from "@/types";
+import type { User } from "@/types";
 import { useEffect, useState } from "react";
-import { ClusterSelector } from "@/components/ClusterSelector";
 import { AppShell } from "@/components/ui/AppShell";
 import { Sidebar, type SidebarNavGroup } from "@/components/ui/Sidebar";
 import { TopBar } from "@/components/ui/TopBar";
@@ -88,18 +88,11 @@ function useAppearance(
   return [theme, setTheme, isCustomColorsActive];
 }
 
-function useClusterInfo() {
-  return useQuery({
-    queryKey: ["cluster-info"],
-    queryFn: () => ClusterAPI.info().catch(() => ({} as ClusterInfo)),
-    retry: false,
-    staleTime: 60_000,
-  });
-}
-
 export function AppLayout() {
   const { data: me, error, isLoading } = useMe();
-  const { data: cluster } = useClusterInfo();
+  const { data: registry } = useQuery({ queryKey: ["clusters"], queryFn: () => Clusters.list() });
+  const canViewInventory = registry?.items.some((item) => item.canViewInventory === true) === true;
+  const canManageInfrastructure = can(me, "cluster:manage") || canViewInventory;
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme, isCustomColorsActive] = useAppearance(me);
@@ -177,7 +170,8 @@ export function AppLayout() {
     {
       label: "Admin",
       items: [
-        ...(can(me, "servers:write")
+        ...(canManageInfrastructure ? [{ to: "/clusters", label: "Clusters", icon: Network }] : []),
+        ...(canViewInventory
           ? [{ to: "/cluster", label: "Cluster", icon: Server }]
           : []),
         ...(can(me, "users:manage")
@@ -201,6 +195,9 @@ export function AppLayout() {
   const crumbs = buildCrumbs(pathname);
   // Extract the last breadcrumb label as the mobile title
   const mobileTitle = crumbs.length > 0 ? crumbs[crumbs.length - 1].label : "";
+  const centralManagement = ["/modules", "/users", "/admin", "/settings"].some(
+    (prefix) => pathname === prefix || pathname.startsWith(prefix + "/"),
+  );
 
   return (
     <>
@@ -219,7 +216,7 @@ export function AppLayout() {
         sidebar={
           <Sidebar
             navItems={navItems}
-            clusterName={cluster?.clusterName}
+            clusterName={centralManagement ? "Central management" : "Gameplane"}
             user={me}
             variant="fixed"
             onLogout={onLogout}
@@ -232,7 +229,7 @@ export function AppLayout() {
         topBar={
           <TopBar
             breadcrumbs={<Breadcrumbs items={crumbs} />}
-            clusterSelector={<ClusterSelector />}
+            clusterSelector={null}
             search={<GlobalSearch />}
             notifications={<NotificationsPanel />}
             mobileTitle={mobileTitle}
@@ -241,6 +238,12 @@ export function AppLayout() {
           />
         }
       >
+        {centralManagement && (
+          <div role="note" className="border-b border-border bg-surface px-4 py-3 text-sm text-muted sm:px-6">
+            <strong className="font-medium text-foreground">Central management.</strong>{" "}
+            This catalog, account or installation setting belongs to the central Gameplane installation. Server actions use each server’s location.
+          </div>
+        )}
         <Outlet />
       </AppShell>
 
@@ -250,7 +253,7 @@ export function AppLayout() {
           confusing the accessibility tree in source order too. */}
       <Sidebar
         navItems={navItems}
-        clusterName={cluster?.clusterName}
+        clusterName={centralManagement ? "Central management" : "Gameplane"}
         user={me}
         variant="drawer"
         isOpen={drawerOpen}

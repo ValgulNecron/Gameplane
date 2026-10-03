@@ -12,10 +12,30 @@ Optional packet capture sidecar injected into game pods to record network traffi
 
 ## Responsibilities (Design)
 
+### Remote capture identity
+
+Remote gateway downloads and cleanup require the GameServer UID and
+NetworkCapture UID, in addition to the capture name. The operator supplies these
+identities when starting a capture and injects the GameServer UID into the
+sidecar. The sidecar persists the capture's identity beside its data so a
+restart or bounded in-memory history eviction cannot lose the binding. A reused
+name, different server identity or legacy unbound capture cannot use the remote
+route. Existing local control routes remain compatible; mTLS, path validation,
+completion checks and file lifetime rules still apply. The gateway exposes only
+the explicit download and cleanup operations, never arbitrary sidecar proxying.
+Bound cleanup retains an identity tombstone after removing the PCAP, so a retry
+for the same UIDs can confirm deletion while another UID remains rejected.
+DELETE returns 204 for this matching binding, including tombstone retries. It
+returns 410 only after validating the route and current server UID, ruling out
+active or flushing writers, and confirming that both identity and PCAP entries
+are absent in the capture directory. Dangling symlinks, inaccessible storage,
+unbound PCAPs and mismatched identities do not count as absence. Downloads keep
+their existing identity requirement; a generic 404 is never cleanup proof.
+
 These are the design responsibilities for the completed sidecar (Phase 2+):
 
 1. Bind an AF_PACKET socket to the pod's primary network interface and enter live capture mode.
-2. Accept a compiled BPF filter expression and apply it at the packet-capture level (kernel-side filtering, not post-processing).
+2. Accept a compiled BPF filter expression and apply it in the kernel and again before a frame can reach the capture writer.
 3. Write captured packets to a PCAPNG file on `/tmp/captures` using standard `gopacket/pcapgo.NgWriter` format, readable by `tcpdump`, Wireshark, and other third-party tools.
 4. Enforce hard duration and size limits: stop capturing when `(now - startTime) >= maxDurationSeconds` or `bytesWritten >= maxSizeBytes`, whichever comes first.
 5. Serve an mTLS-authenticated HTTP control endpoint on `0.0.0.0:9091` with six operations: start a capture (`POST /captures/{id}/start`), stop a capture (`POST /captures/{id}/stop`), poll status (`GET /captures/{id}/status`), download the completed file (`GET /captures/{id}/file`), delete a finished capture's file (`DELETE /captures/{id}`), and an unauthenticated-at-the-mux-level liveness check (`GET /healthz`, see Security Considerations #1 and F-193).
@@ -24,18 +44,18 @@ These are the design responsibilities for the completed sidecar (Phase 2+):
 8. Monitor disk space and gracefully stop a capture if the emptyDir volume fills (`ENOSPC` handling).
 8a. Refuse to *start* a capture that would push the volume's retained (not-yet-expired) files plus the new capture's own `maxSizeBytes` past a configured budget (507 Insufficient Storage), so retained files alone can never accumulate past the emptyDir's `SizeLimit` and trigger a kubelet eviction of the pod (F-187).
 
-    **Deleting a capture through the API frees its budget (F-261).** `api/internal/handlers/capture.go`'s `captureDelete` calls the sidecar's `DELETE /captures/{id}` route directly (the same mTLS client and in-cluster host it already uses for downloads) before removing the `NetworkCapture` CRD, so the file stops counting against the volume-budget check in 8a as soon as the delete request succeeds, not only once the pod is eventually recreated. This call is best-effort: it is logged and swallowed, never returned to the caller, if the sidecar is unreachable (pod already gone, transient network error) or the request targets a non-local cluster (the direct sidecar path only exists for the home cluster today — see `newValidatedHost`/`isRemoteCluster` in `capture.go`). In those cases the pre-existing behavior applies: the orphaned file remains until the pod is recreated, and the 507 refusal in 8a is still correct (it still prevents an eviction) even though its `wait for retained captures to expire` message does not distinguish an orphaned file from a genuinely retained one.
-9. Hold no persistent state; each sidecar instance is independent and does not retry captures or maintain history across restarts.
+    **Deleting a capture through the API frees its budget (F-261).** Local cleanup calls `DELETE /captures/{id}` directly over mTLS and retains its best-effort behavior if the sidecar is unreachable. Remote cleanup uses the gateway's server/capture UID-bound route. It must confirm sidecar cleanup before removing the CR; a failure retains the CR for retry. In either case the volume-budget check still counts any retained PCAP bytes and prevents new captures from exceeding the volume limit.
+9. Keep capture identity metadata beside the PCAP on the Pod's emptyDir. It survives a sidecar process restart, but not Pod deletion. In-memory status history is bounded and does not replace the durable identity check; the sidecar does not automatically retry captures after restarting.
 
 ## Non-goals / boundaries
 
 - Does **not** run the game server itself — that is the operator's and the game container's job.
 - Does **not** authenticate operators or enforce access control — that is the API's job (RBAC applies to the API tier, not the sidecar).
 - Does **not** modify game traffic or the game container — it captures passively via the shared pod network namespace.
-- Does **not** filter packets post-capture — all filtering happens at the kernel level before the packet is copied to userspace.
+- Does **not** rewrite completed captures — kernel filtering and the matching BPF output guard run before any packet is written.
 - Does **not** persist or replicate captures across pod restarts — files live on emptyDir and are lost when the pod is deleted.
 - Does **not** implement protocol parsing or protocol-specific logic — it is protocol-agnostic; filtering is done via generic BPF expressions.
-- Does **not** serve captures through an HTTP proxy or gateway — the sidecar serves its own files directly over the mTLS endpoint.
+- Does **not** implement a general proxy — it serves its own files over mTLS; the optional per-cluster gateway exposes only its explicit bound file operations.
 
 ## Current Implementation (Phase 2 Foundational)
 
@@ -69,7 +89,7 @@ Single Go module; packages organized by responsibility (capture, httpserver, aut
 
 ### Phase 2 Foundational Packages
 
-**`internal/capture/afpacket.go`**: Establishes AF_PACKET socket via gopacket/afpacket.TPacket with MMap'd kernel buffers. Compiles and applies BPF filters for kernel-side packet filtering. Reads packets via blocking poll (respecting context cancellation) and writes to PCAPNG writer. Manages socket lifecycle (Create, Start, Stop, Close) and enforces hard size/duration limits.
+**`internal/capture/afpacket.go`**: Establishes AF_PACKET socket via gopacket/afpacket.TPacket with MMap'd kernel buffers. Compiles the filter and prepares its BPF VM before opening the socket, retains kernel filtering, and checks every received frame against the same program before snaplen truncation or output. Reads packets via blocking poll (respecting context cancellation) and writes to PCAPNG writer. Manages socket lifecycle (Create, Start, Stop, Close) and enforces hard size/duration limits.
 
 **`internal/capture/filter.go`**: Compiles BPF filter expressions via github.com/packetcap/go-pcap/filter into bytecode instructions. Validates filter syntax before capture starts (defense-in-depth, complementing API-tier validation).
 
@@ -142,7 +162,7 @@ All three paths are mounted from the pre-existing `agent-tls` Secret that every 
 
 ### Filtering Guarantee (FR-011)
 
-**At-Capture Filtering (Phase 2)**: The BPF filter will be applied by `gopacket/afpacket.TPacket` at the kernel level. The kernel will drop non-matching packets before they are copied to userspace. This will guarantee:
+**At-Capture Filtering (Phase 2)**: The BPF filter is applied by `gopacket/afpacket.TPacket` at the kernel level. Its socket starts receiving before `SetBPF` can attach the filter, so the same compiled program also evaluates every original frame before snaplen truncation or delivery to the writer. This rejects non-matching frames already queued during socket startup. VM construction or evaluation errors fail closed; rejected frames never reach the PCAP writer. This guarantees:
 - 100% of packets in the file match the filter.
 - 0% of non-matching packets are included.
 - No post-processing or offline filtering.
@@ -186,7 +206,7 @@ All three paths are mounted from the pre-existing `agent-tls` Secret that every 
 
 ## Key Invariants (Design)
 
-1. **Filter validation before capture**. The filter is compiled (via `go-pcap/filter.Compile`) before any AF_PACKET socket is opened. An invalid filter expression is rejected with HTTP 400 before any state is created. This is defense-in-depth; the API tier also validates filters before creating a NetworkCapture CRD.
+1. **Filter validation before capture**. The filter is compiled and its kernel instructions and userspace VM prepared before any AF_PACKET socket is opened. An invalid filter expression is rejected with HTTP 400 before any state is created. Every received frame must pass the same BPF program before output, including frames queued before the kernel filter was installed. This is defense-in-depth; the API tier also validates filters before creating a NetworkCapture CRD.
 
 2. **Hard duration and size limits**. Both are enforced strictly: the capture stops as soon as either limit is reached and no further packets are accepted afterward. For the size limit specifically, the check runs *after* each packet is written (see "Edge Cases" → "Max-size auto-stop and on-disk accounting" below), so the single packet that crosses `maxSizeBytes` is included in the file — every packet after that one is rejected. The PCAPNG file is valid and complete even on a limit-triggered stop.
 

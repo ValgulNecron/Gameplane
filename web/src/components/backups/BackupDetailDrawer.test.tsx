@@ -9,7 +9,7 @@ import { BackupDetailDrawer } from "./BackupDetailDrawer";
 
 describe("BackupDetailDrawer", () => {
   it("does not render content when name is null", () => {
-    renderWithQuery(<BackupDetailDrawer name={null} onClose={() => {}} onRestore={() => {}} />);
+    renderWithQuery(<BackupDetailDrawer permissions={["*"]} name={null} onClose={() => {}} onRestore={() => {}} />);
     expect(screen.queryByText(/Backup details/i)).not.toBeInTheDocument();
   });
 
@@ -20,7 +20,7 @@ describe("BackupDetailDrawer", () => {
       ),
     );
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
     );
     await screen.findByText(/Backup details/i);
     expect(screen.getByRole("dialog", { name: /backup details/i })).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe("BackupDetailDrawer", () => {
       ),
     );
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
     );
     expect(await screen.findByText(/Backup details/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Succeeded")).toBeInTheDocument());
@@ -57,7 +57,7 @@ describe("BackupDetailDrawer", () => {
     );
     const onClose = vi.fn();
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={onClose} onRestore={() => {}} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={onClose} onRestore={() => {}} />,
     );
     await screen.findByText(/Backup details/i);
     await userEvent.click(screen.getByRole("button", { name: /Dismiss/i }));
@@ -68,7 +68,7 @@ describe("BackupDetailDrawer", () => {
     server.use(
       http.get("/backups/x", () => HttpResponse.text("not found", { status: 404 })),
     );
-    renderWithQuery(<BackupDetailDrawer name="x" onClose={() => {}} onRestore={() => {}} />);
+    renderWithQuery(<BackupDetailDrawer permissions={["*"]} name="x" onClose={() => {}} onRestore={() => {}} />);
     await screen.findByText(/Backup details/i);
     await waitFor(() => expect(screen.getByText(/not found/)).toBeInTheDocument());
   });
@@ -89,7 +89,7 @@ describe("BackupDetailDrawer", () => {
       ),
     );
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={onRestore} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={() => {}} onRestore={onRestore} />,
     );
     const restoreBtn = await screen.findByRole("button", { name: /^Restore$/i });
     await userEvent.click(restoreBtn);
@@ -113,7 +113,7 @@ describe("BackupDetailDrawer", () => {
       ),
     );
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
     );
     const restoreBtn = await screen.findByRole("button", { name: /^Restore$/i });
     expect(restoreBtn).toBeDisabled();
@@ -133,7 +133,7 @@ describe("BackupDetailDrawer", () => {
       ),
     );
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
     );
     const restoreBtn = await screen.findByRole("button", { name: /^Restore$/i });
     expect(restoreBtn).toBeDisabled();
@@ -151,7 +151,7 @@ describe("BackupDetailDrawer", () => {
       http.delete("/backups/alpha-1", deleteHandler),
     );
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={onClose} onRestore={() => {}} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={onClose} onRestore={() => {}} />,
     );
     await screen.findByText(/Backup details/i);
     const deleteBtn = screen.getByRole("button", { name: /Delete/i });
@@ -172,7 +172,7 @@ describe("BackupDetailDrawer", () => {
       ),
     );
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
     );
     await screen.findByText(/Backup details/i);
     const deleteBtn = screen.getByRole("button", { name: /Delete/i });
@@ -198,7 +198,7 @@ describe("BackupDetailDrawer", () => {
       ),
     );
     renderWithQuery(
-      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+      <BackupDetailDrawer permissions={["*"]} name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
     );
     await screen.findByText(/Backup details/i);
     await waitFor(() => {

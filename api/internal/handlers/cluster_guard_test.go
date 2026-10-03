@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 
 	"github.com/ValgulNecron/gameplane/api/internal/audit"
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
@@ -148,12 +149,14 @@ func kubeClientCalls(t *testing.T, k *kube.Client) int {
 	return len(dyn.Actions()) + len(typed.Actions())
 }
 
-// registryRoutes is every route MountRegistry registers, with sample path
-// values and a request body where the route takes one.
-var registryRoutes = []struct {
+type modTestRoute struct {
 	method, path string
 	body         any
-}{
+}
+
+// registryRoutes is every route MountRegistry registers, with sample path
+// values and a request body where the route takes one.
+var registryRoutes = []modTestRoute{
 	{http.MethodGet, "/servers/alpha/mods/registry/providers", nil},
 	{http.MethodGet, "/servers/alpha/mods/registry/search", nil},
 	{http.MethodGet, "/servers/alpha/mods/registry/projects/p1/versions", nil},
@@ -206,11 +209,9 @@ func TestRegistry_ServesHomeClusterOnly(t *testing.T) {
 	}
 }
 
-// TestCaptureDownload_ServesHomeClusterOnly checks that the capture file
-// download answers 501 for a non-local ?cluster= selector before any
-// Kubernetes lookup or sidecar request, records that outcome in the audit
-// log, and still serves the home cluster.
-func TestCaptureDownload_ServesHomeClusterOnly(t *testing.T) {
+// TestCaptureDownload_RequiresRemoteGateway verifies fail-closed remote routing
+// when no gateway is configured, with no home namesake fallback.
+func TestCaptureDownload_RequiresRemoteGateway(t *testing.T) {
 	const server, captureID = "dl-home-only", "cap-home-only"
 	fixtures := func() *kube.Client {
 		return fakeCaptureClient(
@@ -228,16 +229,14 @@ func TestCaptureDownload_ServesHomeClusterOnly(t *testing.T) {
 
 	path := "/servers/" + server + ":capture-file?id=" + captureID
 	rr := do(t, r, http.MethodGet, path+"&cluster=remote-1", nil)
-	if rr.Code != http.StatusNotImplemented {
-		t.Fatalf("cluster=remote-1: got %d, want 501: %s", rr.Code, rr.Body)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("cluster=remote-1: got %d, want 503: %s", rr.Code, rr.Body)
 	}
-	if !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
-		t.Errorf("cluster=remote-1: body = %q, want it to contain %q", rr.Body.String(), httperr.RemoteClusterNotImplemented)
+	if n := kubeClientCalls(t, home); n != 0 {
+		t.Fatalf("remote download touched home client: %d", n)
 	}
-	for name, k := range map[string]*kube.Client{"home": home, "remote-1": remote} {
-		if n := kubeClientCalls(t, k); n != 0 {
-			t.Errorf("cluster=remote-1: %s client saw %d API calls, want 0", name, n)
-		}
+	if n := kubeClientCalls(t, remote); n == 0 {
+		t.Fatal("remote client was not resolved")
 	}
 	var (
 		reason string
@@ -248,8 +247,8 @@ func TestCaptureDownload_ServesHomeClusterOnly(t *testing.T) {
 		server+":"+captureID).Scan(&reason, &status); err != nil {
 		t.Fatalf("read audit row: %v", err)
 	}
-	if reason != "cluster_not_local" || status != http.StatusNotImplemented {
-		t.Errorf("audit row = (%q, %d), want (%q, %d)", reason, status, "cluster_not_local", http.StatusNotImplemented)
+	if reason != "download_failed" || status != http.StatusServiceUnavailable {
+		t.Errorf("audit row = (%q, %d), want (%q, %d)", reason, status, "download_failed", http.StatusServiceUnavailable)
 	}
 
 	// The home cluster is still served. With no mTLS client configured in
@@ -272,16 +271,11 @@ func mountHomeClientRoutes(t *testing.T, r chi.Router, home *kube.Client, reg *k
 	store := newTestStore(t)
 	MountNotifications(r, notify.New(store, home, controlNS), home, controlNS)
 	MountAuthProviderSecrets(r, home, controlNS)
-	MountCluster(r, home, store, "test", true, "")
 	MountClusterActions(r, home, true, "")
 	MountClusters(r, reg, home, controlNS)
 	MountSystemLogs(r, home, controlNS)
 	MountModules(r, home, controlNS)
 	MountRegistrySecrets(r, home, controlNS)
-	MountRegistry(r, home, fakeSet{p: &fakeProvider{}})
-	MountModUpdates(r, home, fakeSet{p: &fakeProvider{}}, &fakeModLister{})
-	MountModIDs(r, home)
-	ws.Mount(r, home, "", "", "")
 }
 
 // TestHomeClientMounts_ServeHomeClusterOnly calls every route of the
@@ -289,18 +283,26 @@ func mountHomeClientRoutes(t *testing.T, r chi.Router, home *kube.Client, reg *k
 // as a user whose only grant is on a registered non-local cluster, with
 // ?cluster= naming that cluster. Server-scoped routes pass the namespaced
 // permission check for that cluster and must answer 501 from the handler;
-// the other routes need a cluster-wide grant and answer 403. In every case
-// the home-cluster client sees no API call.
+// the other routes need a cluster-wide grant and answer 403. Registry-backed
+// Pod streams are mounted alongside them and must query only the remote
+// client. Discovery may list central registration metadata; every other request
+// leaves the home-cluster client untouched.
 func TestHomeClientMounts_ServeHomeClusterOnly(t *testing.T) {
 	const remote = "remote-1"
 	home := fakeKubeClient()
 	reg := kube.NewRegistry(scope.DefaultCluster)
 	reg.Set(scope.DefaultCluster, home)
-	reg.Set(remote, fakeKubeClient())
+	remoteClient := fakeKubeClient()
+	remoteClient.Config = &rest.Config{}
+	reg.Set(remote, remoteClient)
 
 	r := chi.NewRouter()
 	r.Use(rbac.Middleware(reg))
 	mountHomeClientRoutes(t, r, home, reg)
+	MountCluster(r, reg, newTestStore(t), "test", true, "")
+	MountRegistryWithRegistry(r, reg, fakeSet{p: &fakeProvider{}})
+	MountModIDsWithRegistry(r, reg)
+	ws.Mount(r, reg, "", "", "")
 
 	remoteOnly := &auth.User{
 		ID:       42,
@@ -315,10 +317,29 @@ func TestHomeClientMounts_ServeHomeClusterOnly(t *testing.T) {
 		routes++
 		path := routeParam.ReplaceAllString(route, "alpha")
 		want := http.StatusForbidden
+		discovery := method == http.MethodGet && strings.TrimSuffix(path, "/") == "/clusters"
+		if discovery {
+			want = http.StatusOK
+		}
 		if strings.HasPrefix(path, "/servers/") || strings.HasPrefix(path, "/ws/servers/") {
 			want = http.StatusNotImplemented
 		}
+		attach := path == "/ws/servers/alpha/console-pty"
+		// Only the registry and ID-list handlers above use the selected client.
+		// ws.Mount has no gateway options here, so install/upload keep their
+		// legacy 501 guard rather than performing a remote target lookup.
+		selectedModRoute := strings.HasPrefix(path, "/servers/alpha/mods/registry/") ||
+			path == "/servers/alpha/mods/ids" || path == "/servers/alpha/modpack"
+		if attach || selectedModRoute {
+			// The registered remote cluster has no alpha GameServer.
+			want = http.StatusNotFound
+		} else if path == "/ws/servers/alpha/logs/pod" {
+			// Pod logs preserve their upgrade-before-lookup retry protocol.
+			// Full remote streaming is covered in ws/multicluster_test.go.
+			want = http.StatusUpgradeRequired
+		}
 		before := kubeClientCalls(t, home)
+		remoteBefore := kubeClientCalls(t, remoteClient)
 
 		req := httptest.NewRequestWithContext(auth.WithUser(t.Context(), remoteOnly), method, path+"?cluster="+remote, nil)
 		rr := httptest.NewRecorder()
@@ -330,8 +351,22 @@ func TestHomeClientMounts_ServeHomeClusterOnly(t *testing.T) {
 		if want == http.StatusNotImplemented && !strings.Contains(rr.Body.String(), httperr.RemoteClusterNotImplemented) {
 			t.Errorf("%s %s?cluster=%s: body = %q, want it to contain %q", method, path, remote, rr.Body.String(), httperr.RemoteClusterNotImplemented)
 		}
-		if n := kubeClientCalls(t, home) - before; n != 0 {
-			t.Errorf("%s %s?cluster=%s: home client saw %d API calls, want 0", method, path, remote, n)
+		wantHomeCalls := 0
+		if discovery {
+			// Discovery may read central registration metadata, never inventory
+			// or credentials. Namespace grants still cannot read node inventory.
+			wantHomeCalls = 1
+			actions := home.Dynamic.(*dynamicfake.FakeDynamicClient).Actions()
+			last := actions[len(actions)-1]
+			if last.GetVerb() != "list" || last.GetResource() != kube.GVRCluster {
+				t.Errorf("discovery accessed %s %s, want only list clusters", last.GetVerb(), last.GetResource())
+			}
+		}
+		if n := kubeClientCalls(t, home) - before; n != wantHomeCalls {
+			t.Errorf("%s %s?cluster=%s: home client saw %d API calls, want %d", method, path, remote, n, wantHomeCalls)
+		}
+		if (attach || selectedModRoute) && kubeClientCalls(t, remoteClient) == remoteBefore {
+			t.Errorf("%s %s?cluster=%s: remote client saw no lookup", method, path, remote)
 		}
 		return nil
 	})

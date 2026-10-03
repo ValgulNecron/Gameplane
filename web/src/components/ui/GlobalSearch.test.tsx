@@ -55,8 +55,8 @@ describe("GlobalSearch", () => {
     await userEvent.type(input, "mc");
 
     await waitFor(() => {
-      expect(screen.getByTestId("search-result-mc-survival")).toBeInTheDocument();
-      expect(screen.getByTestId("search-result-mc-creative")).toBeInTheDocument();
+      expect(screen.getByTestId(searchId("mc-survival"))).toBeInTheDocument();
+      expect(screen.getByTestId(searchId("mc-creative"))).toBeInTheDocument();
     });
   });
 
@@ -85,9 +85,9 @@ describe("GlobalSearch", () => {
     await userEvent.type(input, "creative");
 
     await waitFor(() => {
-      expect(screen.getByTestId("search-result-mc-creative")).toBeInTheDocument();
-      expect(screen.queryByTestId("search-result-mc-survival")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("search-result-rust-server")).not.toBeInTheDocument();
+      expect(screen.getByTestId(searchId("mc-creative"))).toBeInTheDocument();
+      expect(screen.queryByTestId(searchId("mc-survival"))).not.toBeInTheDocument();
+      expect(screen.queryByTestId(searchId("rust-server"))).not.toBeInTheDocument();
     });
   });
 
@@ -162,6 +162,7 @@ describe("GlobalSearch", () => {
       expect(navigateMock).toHaveBeenCalledWith({
         to: "/servers/$name",
         params: { name: "mc-survival" },
+        search: { cluster: "local", ns: "default" },
       });
     });
   });
@@ -188,14 +189,14 @@ describe("GlobalSearch", () => {
     await userEvent.type(input, "mc");
 
     await waitFor(() => {
-      expect(screen.getByTestId("search-result-mc-survival")).toBeInTheDocument();
+      expect(screen.getByTestId(searchId("mc-survival"))).toBeInTheDocument();
     });
 
     // Arrow down to move selection from -1 → 0 (mc-survival) → 1 (mc-creative)
     await userEvent.keyboard("{ArrowDown}{ArrowDown}");
 
     // Verify mc-creative is highlighted via aria-selected
-    const mcCreativeOption = screen.getByTestId("search-result-mc-creative");
+    const mcCreativeOption = screen.getByTestId(searchId("mc-creative"));
     await waitFor(() => {
       expect(mcCreativeOption).toHaveAttribute("aria-selected", "true");
     });
@@ -207,6 +208,7 @@ describe("GlobalSearch", () => {
       expect(navigateMock).toHaveBeenCalledWith({
         to: "/servers/$name",
         params: { name: "mc-creative" },
+        search: { cluster: "local", ns: "default" },
       });
     });
   });
@@ -230,13 +232,13 @@ describe("GlobalSearch", () => {
     await userEvent.type(input, "mc");
 
     await waitFor(() => {
-      expect(screen.getByTestId("search-result-mc-survival")).toBeInTheDocument();
+      expect(screen.getByTestId(searchId("mc-survival"))).toBeInTheDocument();
     });
 
     fireEvent.keyDown(input, { key: "Escape" });
 
     await waitFor(() => {
-      expect(screen.queryByTestId("search-result-mc-survival")).not.toBeInTheDocument();
+      expect(screen.queryByTestId(searchId("mc-survival"))).not.toBeInTheDocument();
     });
   });
 
@@ -258,13 +260,14 @@ describe("GlobalSearch", () => {
 
     await userEvent.type(input, "mc");
 
-    const result = await screen.findByTestId("search-result-mc-survival");
-    await userEvent.click(result);
+    const result = await screen.findByTestId(searchId("mc-survival"));
+    await userEvent.click(result.querySelector("a")!);
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({
         to: "/servers/$name",
         params: { name: "mc-survival" },
+        search: { cluster: "local", ns: "default" },
       });
     });
   });
@@ -287,8 +290,8 @@ describe("GlobalSearch", () => {
 
     await userEvent.type(input, "mc");
 
-    const result = await screen.findByTestId("search-result-mc-survival");
-    await userEvent.click(result);
+    const result = await screen.findByTestId(searchId("mc-survival"));
+    await userEvent.click(result.querySelector("a")!);
 
     await waitFor(() => {
       expect(input.value).toBe("");
@@ -320,7 +323,7 @@ describe("GlobalSearch", () => {
     await userEvent.type(input, "mc");
 
     await waitFor(() => {
-      expect(screen.getByTestId("search-result-mc-survival")).toBeInTheDocument();
+      expect(screen.getByTestId(searchId("mc-survival"))).toBeInTheDocument();
     });
 
     // Arrow down and up should not throw errors
@@ -329,9 +332,9 @@ describe("GlobalSearch", () => {
     await userEvent.keyboard("{ArrowUp}");
 
     // Results should still be visible
-    expect(screen.getByTestId("search-result-mc-survival")).toBeInTheDocument();
-    expect(screen.getByTestId("search-result-mc-creative")).toBeInTheDocument();
-    expect(screen.getByTestId("search-result-mc-adventure")).toBeInTheDocument();
+    expect(screen.getByTestId(searchId("mc-survival"))).toBeInTheDocument();
+    expect(screen.getByTestId(searchId("mc-creative"))).toBeInTheDocument();
+    expect(screen.getByTestId(searchId("mc-adventure"))).toBeInTheDocument();
   });
 
   it("highlights results on mouse enter", async () => {
@@ -355,8 +358,8 @@ describe("GlobalSearch", () => {
 
     await userEvent.type(input, "mc");
 
-    const survival = await screen.findByTestId("search-result-mc-survival");
-    const creative = screen.getByTestId("search-result-mc-creative");
+    const survival = await screen.findByTestId(searchId("mc-survival"));
+    const creative = screen.getByTestId(searchId("mc-creative"));
 
     // Mouse enter should not throw error
     fireEvent.mouseEnter(creative);
@@ -387,7 +390,7 @@ describe("GlobalSearch", () => {
 
     // Dropdown should not be visible for empty query
     expect(screen.queryByText("No servers match.")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("search-result-mc-survival")).not.toBeInTheDocument();
+    expect(screen.queryByTestId(searchId("mc-survival"))).not.toBeInTheDocument();
   });
 
   it("opens dropdown on focus if query is not empty", async () => {
@@ -411,7 +414,11 @@ describe("GlobalSearch", () => {
     await userEvent.click(input); // This also focuses
 
     await waitFor(() => {
-      expect(screen.getByTestId("search-result-mc-survival")).toBeInTheDocument();
+      expect(screen.getByTestId(searchId("mc-survival"))).toBeInTheDocument();
     });
   });
 });
+
+function searchId(name: string): string {
+  return `search-result-${JSON.stringify(["local", "default", name, `local/default/${name}`])}`;
+}

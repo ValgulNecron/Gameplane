@@ -121,11 +121,10 @@ const defaultExecDeadline = 30 * time.Second
 const defaultAuthFailureCooldown = 15 * time.Second
 
 // responseGrace bounds how long Exec waits for additional reply fragments
-// after the first one arrives. Source servers split large replies across
-// back-to-back packets; Minecraft sends a single packet (and typically closes
-// the connection straight after), so without this bound Exec would block on
-// the full execDeadline after every command. It only takes effect once a reply
-// packet has been read.
+// after the first one arrives. Servers may split large replies across packets
+// and keep the connection open after answering, so without this bound Exec
+// would block on the full execDeadline after every command. It only takes
+// effect once a reply packet has been read.
 const responseGrace = 400 * time.Millisecond
 
 // New returns a new lazy RCON client for the given host and port.
@@ -171,7 +170,7 @@ func (c *Client) Exec(cmd string) (string, error) {
 	// answers, so the real reply is lost to the close/RST and every command
 	// surfaced as "EOF". Instead we read the reply packets (which all echo
 	// reqID) and bound the wait for any trailing fragments with a short grace
-	// window: a single-packet reply (Minecraft) returns as soon as the grace
+	// window: a single-packet reply returns as soon as the grace
 	// elapses or the server closes; a fragmented Source reply keeps extending
 	// the window as each fragment arrives.
 	var out bytes.Buffer
@@ -183,7 +182,7 @@ func (c *Client) Exec(cmd string) (string, error) {
 				// We already hold the reply. A timeout means the grace window
 				// elapsed on a still-healthy socket — keep it for reuse. Any
 				// other error (EOF/RST) means the server closed after
-				// answering, as Minecraft does per command — drop it so the
+				// answering — drop it so the
 				// next call re-dials. Either way the reply is complete, so
 				// return it instead of discarding it.
 				if !isTimeout(err) {
@@ -301,13 +300,18 @@ func (c *Client) writePacket(id, kind uint32, body string) error {
 	if n > 4096 {
 		return fmt.Errorf("rcon: payload too large (%d bytes)", n)
 	}
-	hdr := make([]byte, 4)
-	binary.LittleEndian.PutUint32(hdr, uint32(n))
-
-	if _, err := c.conn.Write(hdr); err != nil {
-		return err
+	// Vanilla Minecraft 1.21.4 reads a complete RCON frame in one socket
+	// read and closes on a header-only read. Submit the unchanged header and
+	// payload together instead of forcing an avoidable split across writes.
+	packet := make([]byte, 4+n)
+	binary.LittleEndian.PutUint32(packet, uint32(n))
+	copy(packet[4:], payload)
+	written, err := c.conn.Write(packet)
+	if err == nil && written != len(packet) {
+		// A partial command may already have reached the server. Fail without
+		// resending any bytes; the caller drops this ambiguous connection.
+		err = io.ErrShortWrite
 	}
-	_, err := c.conn.Write(payload)
 	return err
 }
 

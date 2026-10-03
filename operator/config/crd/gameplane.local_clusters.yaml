@@ -52,6 +52,34 @@ spec:
           spec:
             description: ClusterSpec describes a remote Kubernetes cluster.
             properties:
+              agentGateway:
+                description: |-
+                  AgentGateway enables interactive agent operations in this cluster.
+                  Kubernetes configuration and pod streams still use KubeconfigSecret.
+                properties:
+                  tlsSecretRef:
+                    description: |-
+                      TLSSecretRef names credentials in the central API namespace. The Secret
+                      must carry gameplane.local/agent-gateway-credentials=true and contain
+                      ca.crt, tls.crt and tls.key. Values are never returned by the API.
+                    properties:
+                      name:
+                        description: Name is the Secret name in the central API namespace.
+                        minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  url:
+                    description: URL is the HTTPS origin of the gateway, without a
+                      path or query.
+                    maxLength: 2048
+                    pattern: ^https://[^/?#@]+/?$
+                    type: string
+                required:
+                - tlsSecretRef
+                - url
+                type: object
               displayName:
                 description: DisplayName is an optional human-readable name for the
                   cluster.

@@ -42,7 +42,7 @@ test.describe("schedule create", () => {
       .getByText("New schedule for", { exact: true })
       .locator("..");
     await newScheduleCard.getByRole("button").first().click();
-    await page.getByRole("option", { name: "alpha" }).click();
+    await page.getByRole("option", { name: "alpha · local / gameplane-games", exact: true }).click();
 
     // ScheduleForm renders. The cron Input is the first input on the form.
     await expect(page.getByText(/new backup schedule/i)).toBeVisible();
@@ -54,10 +54,13 @@ test.describe("schedule create", () => {
     await page.getByLabel("Keep last").fill("5");
 
     const created = page.waitForRequest(
-      (req) => /\/schedules$/.test(req.url()) && req.method() === "POST",
+      (req) => new URL(req.url()).pathname === "/schedules" && req.method() === "POST",
     );
     await page.getByRole("button", { name: /create schedule/i }).click();
     const req = await created;
+    const requestURL = new URL(req.url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("gameplane-games");
     const body = req.postDataJSON() as {
       spec?: {
         schedule?: string;
@@ -79,7 +82,7 @@ test.describe("schedule create", () => {
       .getByText("New schedule for", { exact: true })
       .locator("..");
     await newScheduleCard.getByRole("button").first().click();
-    await page.getByRole("option", { name: "alpha" }).click();
+    await page.getByRole("option", { name: "alpha · local / gameplane-games", exact: true }).click();
     await expect(page.getByText(/new backup schedule/i)).toBeVisible();
 
     // Wipe the cron input — submit must be disabled.

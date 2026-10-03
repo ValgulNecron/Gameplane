@@ -3,10 +3,15 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // AgentClient makes one-shot JSON GETs against agent sidecars over the same
@@ -14,10 +19,8 @@ import (
 // server-side (e.g. the mod update check reads the installed-mod manifest)
 // instead of proxying a browser request through.
 type AgentClient struct {
-	http *http.Client
-	// hostFn resolves the agent address; a field so tests can point it at
-	// an httptest server.
-	hostFn func(name, namespace string) string
+	transport agentTransport
+	gateway   *agentGatewayResolver
 }
 
 // NewAgentClient builds a client from the agent mTLS flags. It fails when
@@ -29,12 +32,27 @@ func NewAgentClient(caBundle, clientCert, clientKey string) (*AgentClient, error
 		return nil, err
 	}
 	return &AgentClient{
-		http: &http.Client{
-			Timeout:   15 * time.Second,
-			Transport: &http.Transport{TLSClientConfig: tlsCfg},
-		},
-		hostFn: agentHostFor,
+		transport: newDirectAgentTransport(tlsCfg, 15*time.Second),
 	}, nil
+}
+
+// NewClusterAgentClient supports local agents and configured remote gateways.
+// Missing local mTLS does not disable remote clusters with their own credentials.
+func NewClusterAgentClient(reg *kube.Registry, namespace, caBundle, clientCert, clientKey string) *AgentClient {
+	client := &AgentClient{gateway: &agentGatewayResolver{registry: reg, namespace: namespace}}
+	if tlsCfg, err := agentTLSConfig(caBundle, clientCert, clientKey); err == nil {
+		client.transport = newDirectAgentTransport(tlsCfg, 15*time.Second)
+	}
+	return client
+}
+
+// ConfiguredForCluster preserves the local missing-mTLS response while allowing
+// remote-only central deployments to use gateway credentials.
+func (c *AgentClient) ConfiguredForCluster(cluster string) bool {
+	if cluster == "" || cluster == scope.DefaultCluster {
+		return c.transport != nil
+	}
+	return c.gateway != nil && c.gateway.registry != nil
 }
 
 // agentRespCap bounds one-shot agent responses. These are small JSON
@@ -43,13 +61,40 @@ const agentRespCap = 8 << 20 // 8 MiB
 
 // GetJSON fetches an agent endpoint and decodes its JSON body into out.
 func (c *AgentClient) GetJSON(ctx context.Context, name, namespace, path string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://"+c.hostFn(name, namespace)+path, nil)
-	if err != nil {
+	return c.GetJSONForCluster(ctx, scope.DefaultCluster, name, namespace, path, out)
+}
+
+// GetJSONForCluster resolves the same registered cluster as its caller's resource
+// lookup. The remote transport binds the operation to the live server UID.
+func (c *AgentClient) GetJSONForCluster(ctx context.Context, cluster, name, namespace, path string, out any) error {
+	target := agentTarget{name: name, namespace: namespace}
+	if err := target.validate(); err != nil {
 		return err
 	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.http.Do(req)
+	transport := c.transport
+	cluster = strings.TrimSpace(cluster)
+	if cluster != "" && cluster != scope.DefaultCluster {
+		if c.gateway == nil || c.gateway.registry == nil {
+			return errGatewayUnavailable
+		}
+		var err error
+		_, transport, err = c.gateway.resolve(ctx, cluster, target)
+		if err != nil {
+			return err
+		}
+	}
+	if transport == nil {
+		return errors.New("agent mTLS not configured")
+	}
+	// Match the historical bound on internal one-shot reads for gateways too.
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	resp, err := transport.Do(ctx, agentRequest{
+		target: agentTarget{name: name, namespace: namespace},
+		method: http.MethodGet, path: path,
+		header: http.Header{"Accept": {"application/json"}},
+	})
 	if err != nil {
 		return fmt.Errorf("agent GET %s: %w", path, err)
 	}

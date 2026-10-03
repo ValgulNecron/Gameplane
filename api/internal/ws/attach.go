@@ -12,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
 
@@ -38,12 +39,18 @@ import (
 // stderr is intentionally merged into stdout — that's what the kubelet
 // produces under TTY=true, and the xterm.js front end has no use for a
 // separate stream.
-func mountAttach(r chi.Router, k *kube.Client) {
-	a := &attachProxy{k: k}
-	// rejectRemoteCluster: this attaches via the API's own in-cluster
-	// kubeconfig, so it can only ever reach the LOCAL cluster — see its
-	// doc comment in dialer.go for why a non-local `?cluster=` must 404.
-	r.Get("/ws/servers/{name}/console-pty", rejectRemoteCluster(a.handle))
+func mountAttach(r chi.Router, reg *kube.Registry) {
+	r.Get("/ws/servers/{name}/console-pty", func(w http.ResponseWriter, req *http.Request) {
+		k, ok := streamClient(w, req, reg)
+		if !ok {
+			return
+		}
+		if k.Config == nil {
+			http.Error(w, "cluster unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		(&attachProxy{k: k}).handle(w, req)
+	})
 }
 
 type attachProxy struct {
@@ -68,7 +75,16 @@ func (a *attachProxy) handle(w http.ResponseWriter, req *http.Request) {
 	// StatefulSet replica naming. The operator pins replicas=1 for game
 	// servers so the -0 suffix is the only pod that ever exists for a
 	// given GameServer.
-	podName := name + "-0"
+	if len(validation.IsDNS1123Subdomain(name)) != 0 {
+		http.Error(w, "invalid server name", http.StatusBadRequest)
+		return
+	}
+	pod, err := serverPod(req.Context(), a.k, ns, name)
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	podName := pod.Name
 
 	wsConn, err := websocket.Accept(w, req, nil)
 	if err != nil {
@@ -98,7 +114,8 @@ func (a *attachProxy) handle(w http.ResponseWriter, req *http.Request) {
 
 	exec, err := remotecommand.NewSPDYExecutor(a.k.Config, "POST", url)
 	if err != nil {
-		writeEnvErr(ctx, wsConn, "build executor: "+err.Error())
+		slog.Error("build attach executor", "name", name, "ns", ns, "err", err)
+		writeEnvErr(ctx, wsConn, "attach unavailable")
 		return
 	}
 
@@ -128,7 +145,7 @@ func (a *attachProxy) handle(w http.ResponseWriter, req *http.Request) {
 
 	if streamErr != nil && !errors.Is(streamErr, context.Canceled) {
 		slog.Info("attach stream ended", "name", name, "ns", ns, "err", streamErr)
-		writeEnvErr(ctx, wsConn, streamErr.Error())
+		writeEnvErr(ctx, wsConn, "attach stream ended")
 	}
 }
 

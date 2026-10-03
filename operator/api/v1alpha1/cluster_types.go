@@ -13,6 +13,34 @@ type ClusterSpec struct {
 	// KubeconfigSecret references a Secret holding the kubeconfig.
 	// +kubebuilder:validation:Required
 	KubeconfigSecret KubeconfigSecretRef `json:"kubeconfigSecret"`
+
+	// AgentGateway enables interactive agent operations in this cluster.
+	// Kubernetes configuration and pod streams still use KubeconfigSecret.
+	// +optional
+	AgentGateway *AgentGatewaySpec `json:"agentGateway,omitempty"`
+}
+
+// AgentGatewaySpec configures the optional remote agent gateway.
+type AgentGatewaySpec struct {
+	// URL is the HTTPS origin of the gateway, without a path or query.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^https://[^/?#@]+/?$`
+	URL string `json:"url"`
+
+	// TLSSecretRef names credentials in the central API namespace. The Secret
+	// must carry gameplane.local/agent-gateway-credentials=true and contain
+	// ca.crt, tls.crt and tls.key. Values are never returned by the API.
+	// +kubebuilder:validation:Required
+	TLSSecretRef AgentGatewayTLSSecretRef `json:"tlsSecretRef"`
+}
+
+// AgentGatewayTLSSecretRef references an explicitly labeled credential Secret.
+type AgentGatewayTLSSecretRef struct {
+	// Name is the Secret name in the central API namespace.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
 }
 
 // KubeconfigSecretRef names a Secret and the key within it that holds the kubeconfig.

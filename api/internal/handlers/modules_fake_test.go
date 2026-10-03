@@ -27,6 +27,7 @@ import (
 func fakeKubeClient(objs ...runtime.Object) *kube.Client {
 	scheme := runtime.NewScheme()
 	gvkr := map[schema.GroupVersionResource]string{
+		kube.GVRCluster:        "ClusterList",
 		kube.GVRModule:         "ModuleList",
 		kube.GVRModuleSource:   "ModuleSourceList",
 		kube.GVRs["servers"]:   "GameServerList",

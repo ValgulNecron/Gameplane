@@ -1082,28 +1082,28 @@ type StubSidecarClient struct {
 	deleteCaptureFileFn func(ctx context.Context, ns, server, id string) error
 }
 
-func (s *StubSidecarClient) StartCapture(ctx context.Context, namespace, serverName, captureID string, filter *string, maxDurationSeconds, maxSizeBytes int64) error {
+func (s *StubSidecarClient) StartCapture(ctx context.Context, namespace, serverName, captureID, _, _ string, filter *string, maxDurationSeconds, maxSizeBytes int64) error {
 	if s.startCaptureFn != nil {
 		return s.startCaptureFn(ctx, namespace, serverName, captureID, filter, maxDurationSeconds, maxSizeBytes)
 	}
 	return nil
 }
 
-func (s *StubSidecarClient) StopCapture(ctx context.Context, namespace, serverName, captureID string) error {
+func (s *StubSidecarClient) StopCapture(ctx context.Context, namespace, serverName, captureID, _, _ string) error {
 	if s.stopCaptureFn != nil {
 		return s.stopCaptureFn(ctx, namespace, serverName, captureID)
 	}
 	return nil
 }
 
-func (s *StubSidecarClient) GetCaptureStatus(ctx context.Context, namespace, serverName, captureID string) (string, int64, int64, string, error) {
+func (s *StubSidecarClient) GetCaptureStatus(ctx context.Context, namespace, serverName, captureID, _, _ string) (string, int64, int64, string, error) {
 	if s.getCaptureStatusFn != nil {
 		return s.getCaptureStatusFn(ctx, namespace, serverName, captureID)
 	}
 	return "running", 0, 0, "", nil
 }
 
-func (s *StubSidecarClient) DeleteCaptureFile(ctx context.Context, namespace, serverName, captureID string) error {
+func (s *StubSidecarClient) DeleteCaptureFile(ctx context.Context, namespace, serverName, captureID, _, _ string) error {
 	if s.deleteCaptureFileFn != nil {
 		return s.deleteCaptureFileFn(ctx, namespace, serverName, captureID)
 	}

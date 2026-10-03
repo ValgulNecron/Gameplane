@@ -17,17 +17,12 @@ import (
 // through any of its routes.
 var homeClientMounts = []string{
 	"handlers.MountAuthProviderSecrets",
-	"handlers.MountCluster",
 	"handlers.MountClusterActions",
 	"handlers.MountClusters",
-	"handlers.MountModIDs",
-	"handlers.MountModUpdates",
 	"handlers.MountModules",
 	"handlers.MountNotifications",
-	"handlers.MountRegistry",
 	"handlers.MountRegistrySecrets",
 	"handlers.MountSystemLogs",
-	"ws.Mount",
 }
 
 // TestHomeClientMounts_MatchMain parses main.go and checks that the mounts

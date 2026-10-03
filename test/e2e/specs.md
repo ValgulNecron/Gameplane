@@ -19,6 +19,27 @@ It was one of three `go.work` modules without CI lint coverage until this featur
 - Validate multi-cluster dispatch, upgrade-from-previous-release, wake-on-connect, module signing/SSRF rejection, and backup/restore round trips end to end.
 - Enforce, via `buckets.sh`, that every test in the suite is assigned to exactly one CI bucket so nothing silently drops out of coverage.
 
+### Remote gateway parity acceptance
+
+The multicluster bucket runs `TestMultiCluster_GatewayParity` against two real
+clusters. It installs the checked-out gateway chart on the remote cluster with
+temporary, separate server/client trust, then calls it through the central API.
+Same-named servers prove file/mod operations and CR configuration stay at the
+selected site. A real Minecraft fixture verifies RCON console, actions, player
+lists and live status. Captures are compared through the public API, gateway and
+remote sidecar before cleanup is checked against the sidecar and CR directly.
+The test also exercises wrong identities, scoped permission denials, mounted
+certificate rotation, overlapping and revoked roots, changed endpoints and
+missing/malformed credential Secrets. Registry provider metadata and env-mode
+modpack configuration are deterministic; external registry search behavior is
+covered by API provider tests rather than third-party availability in this test.
+
+This scenario is non-parallel because it temporarily changes the shared remote
+Helm release and mounted trust. Its temporary resources and gateway installation
+are removed through test cleanup. CI sets `GAMEPLANE_E2E_REQUIRE_GATEWAY=1`, so a
+missing second cluster fails instead of skipping the scenario. The multicluster
+Go invocation has a 45-minute deadline within the existing 60-minute job budget.
+
 ## Non-goals / boundaries
 
 - Does **not** replace the unit or envtest tiers for any other module — it exercises integration behavior, not the exhaustive branch coverage those tiers own (this module carries no `.testcoverage.yml` coverage gate).
@@ -53,7 +74,7 @@ This is a name-matching contract, not a structural one:
 
 ## Conventions (already normative via `CLAUDE.md`, restated here for the module's own record)
 
-- **`t.Parallel()`**: every e2e test calls it; tests that must run non-parallel (the `ratelimit` bucket, which deliberately drains the shared login limiter) are the documented exception, not the default.
+- **`t.Parallel()`**: tests call it unless shared infrastructure requires serialization. The `ratelimit` bucket deliberately drains the shared login limiter; gateway parity temporarily changes the shared remote Helm release and trust. These are documented exceptions.
 - **Per-test unique resource names**: CRs, namespaces, and users a test creates get a name unique to that test run (commonly time-based, e.g. `CreateUser`'s `fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())`) so parallel tests never collide on a shared cluster.
 - **`ociPushMu`**: a package-level mutex guarding tests that push through the shared, fixed-name `oras-push` Job (`module_e2e_test.go`, `module_verify_e2e_test.go`). Because the Job's name and namespace are fixed fixtures, two tests racing to apply/wait on it would stomp each other; `ociPushMu.Lock()`/`Unlock()` serializes them.
 - **`ensureResticRepo(t)`**: guards tests that run a backup against the shared restic repository fixture (`backup_e2e_test.go`, `backupschedule_e2e_test.go`, `failure_paths_e2e_test.go`) — restic repo initialization is not safe to race.
@@ -90,6 +111,7 @@ This module has no runtime HTTP/RPC surface of its own — its "interface" is th
 | Env var | Purpose |
 |---|---|
 | `GAMEPLANE_E2E_CLUSTER` | kind cluster name (default `gameplane-e2e`) |
+| `GAMEPLANE_E2E_REQUIRE_GATEWAY` | `1` requires the real two-cluster gateway acceptance scenario; missing remote infrastructure is a failure |
 | `GAMEPLANE_E2E_TAG` | image tag the chart is installed with (default `e2e`) |
 | `GAMEPLANE_E2E_CONTEXT` | kubeconfig context to act in; overrides the derived `kind-<cluster>` default — set this (with `GAMEPLANE_E2E_REUSE_CLUSTER=1`-style bring-up) to run the suite against an existing cluster instead of kind |
 | `KUBECONFIG` | standard kubeconfig path override, honored by `newEnvForContext`'s loader |

@@ -2,14 +2,18 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, Megaphone, X } from "lucide-react";
-import { Button, Input, Alert } from "@heroui/react";
+import { Button, Input, Alert, Select, Label, ListBox, ListBoxItem } from "@heroui/react";
 import { GameIcon } from "@/components/ui/GameIcon";
 import { ResourceInput } from "@/components/ui/ResourceInput";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
-import { useGameCodes } from "@/lib/useGameCodes";
+import { assignGameCodesForTemplates } from "@/lib/gameIcon";
+import { useFleetPlacements, type FleetPlacement } from "@/lib/fleet";
+import { serverLink } from "@/lib/resourceTarget";
+import { LoadingCard } from "@/components/ui/LoadingCard";
+import { ErrorCard } from "@/components/ui/ErrorCard";
 import { APIError } from "@/lib/api";
 import { errorText } from "@/lib/errors";
-import { Cluster, Servers, Templates, type ServerCreate } from "@/lib/endpoints";
+import { createResourceClient, type ServerCreate } from "@/lib/endpoints";
 import {
   defaultVersionId,
   isValidK8sName,
@@ -21,6 +25,7 @@ import { parseCpuQuantity, cpuCores, parseMemQuantity, memBytes } from "@/lib/qu
 import { cn, ignoreRejection } from "@/lib/utils";
 import { resolveCategories, categoryFilters, matchesCategory } from "@/lib/games";
 import type { GameTemplate, PortOverride, GameServerTunnel } from "@/types";
+
 
 // Wizard steps are derived per-template: the "version" step only appears when
 // the template declares a version catalog (spec.versions). Templates without
@@ -320,6 +325,27 @@ function errorMessage(err: unknown, name: string): { title: string; body: string
 }
 
 export function CreateServerWizard() {
+  const search = useSearch({ from: "/app-layout/servers/new" });
+  const placements = useFleetPlacements();
+  const [selected, setSelected] = useState<string>();
+  const choices = placements.data?.items ?? [];
+  const key = (p: FleetPlacement) => JSON.stringify([p.cluster, p.namespace]);
+  const requested = choices.filter((p) => (!search.cluster || p.cluster === search.cluster) && (!search.ns || p.namespace === search.ns));
+  const placement = selected ? choices.find((p) => key(p) === selected) : requested.find((p) => p.cluster === "local") ?? requested[0];
+  if (!selected && placement) setSelected(key(placement));
+  if (placements.isPending) return <LoadingCard message="Finding available locations…" />;
+  if (placements.error) return <ErrorCard title="Locations unavailable" message="Unable to load authorized server locations." onRetry={() => void placements.refetch()} />;
+  if (!placement) return <ErrorCard title="No available location" message="The selected location is unavailable or no reachable location permits creation. Restore its access or return to the server list to choose an available location." />;
+  return <PlacedServerWizard key={key(placement)} placement={placement} choices={choices} onPlacementChange={setSelected} partial={placements.data?.partial === true} />;
+}
+
+function PlacedServerWizard({ placement, choices, onPlacementChange, partial }: {
+  placement: FleetPlacement; choices: FleetPlacement[]; onPlacementChange: (key: string) => void; partial: boolean;
+}) {
+  const clusterId = placement.cluster;
+  const namespace = placement.namespace;
+  const client = useMemo(() => createResourceClient({ cluster: clusterId, namespace }), [clusterId, namespace]);
+  const { Servers } = client;
   const [stepIndex, setStepIndex] = useState(0);
   const [state, setState] = useState<WizardState>(initial);
   const nav = useNavigate();
@@ -333,8 +359,9 @@ export function CreateServerWizard() {
   // (/servers/new?template=<name>), pre-select that template once the list
   // loads. One-shot, so manual changes afterwards aren't clobbered.
   const search = useSearch({ from: "/app-layout/servers/new" });
-  const { data: templates } = useQuery({ queryKey: ["templates"], queryFn: () => Templates.list() });
-  const { gameCodes, byName } = useGameCodes();
+  const templates = { items: placement.templates };
+  const gameCodes = useMemo(() => assignGameCodesForTemplates(placement.templates), [placement.templates]);
+  const byName = useMemo(() => new Map(placement.templates.map((t) => [t.metadata.name, t])), [placement.templates]);
   const [presetApplied, setPresetApplied] = useState(false);
   // Adjusted directly during render (not in an effect): re-checks on every
   // render until a match is found (templates may still be loading, or the
@@ -362,7 +389,7 @@ export function CreateServerWizard() {
               ? "authKey"
               : "secretKey";
         try {
-          await Servers.setTunnelCredentials(state.name, state.tunnelProvider, { [key]: state.tunnelCredentialsValue });
+          await Servers.setTunnelCredentials(state.name, state.tunnelProvider, { [key]: state.tunnelCredentialsValue }, placement.namespace);
         } catch (err) {
           // Server was created with tunnel enabled and a ref to the secret, but the credential
           // save (Secret creation) failed. Tell the user the server exists and how to retry.
@@ -377,9 +404,9 @@ export function CreateServerWizard() {
 
       return server;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["servers"] });
-      await nav({ to: "/servers/$name", params: { name: state.name } });
+    onSuccess: async (server) => {
+      await qc.invalidateQueries({ queryKey: ["fleet"] });
+      await nav(serverLink({ cluster: placement.cluster, namespace: server.metadata.namespace ?? placement.namespace, name: server.metadata.name }));
     },
   });
 
@@ -388,8 +415,8 @@ export function CreateServerWizard() {
   const isLast = stepIndex === steps.length - 1;
   // Resource ceilings from the cluster, for the Configure step's cap.
   const { data: clusterView } = useQuery({
-    queryKey: ["cluster-view"],
-    queryFn: () => Cluster.view(),
+    queryKey: ["cluster-view", clusterId],
+    queryFn: ({ signal }) => client.withSignal(signal).Cluster.view(),
     staleTime: 30_000,
   });
   const caps = nodeCaps(clusterView?.nodes ?? []);
@@ -419,23 +446,32 @@ export function CreateServerWizard() {
           <Button
             isIconOnly
             variant="ghost"
-            onPress={closeWizard}
+            isDisabled={create.isPending} onPress={closeWizard}
             aria-label="Close"
           >
             <X className="h-5 w-5" />
           </Button>
         </div>
 
+        <div className="border-b border-border px-6 py-3">
+          <Select aria-label="Location" value={JSON.stringify([placement.cluster, placement.namespace])} isDisabled={create.isPending || choices.length < 2} onChange={(value) => onPlacementChange(String(value))}>
+            <Label>Location</Label><Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+            <Select.Popover><ListBox>{choices.map((p) => <ListBoxItem key={JSON.stringify([p.cluster, p.namespace])} id={JSON.stringify([p.cluster, p.namespace])}>{p.cluster} / {p.namespace}</ListBoxItem>)}</ListBox></Select.Popover>
+          </Select>
+          <p className="mt-1 text-xs text-muted">Changing location starts a fresh draft. The chosen location handles all creation steps.</p>
+          {partial && <p role="status" className="text-xs text-warning">Some locations are unavailable. Available locations are shown.</p>}
+        </div>
         <StepBar steps={steps} stepIndex={stepIndex} />
 
         <div className="grid flex-1 min-h-0 overflow-auto gap-6 px-6 py-6 md:grid-cols-[1fr_260px]">
-          <div className="min-w-0">
-            {currentKey === "template" && <PickTemplate state={state} setState={setState} gameCodes={gameCodes} byName={byName} />}
+          <fieldset disabled={create.isPending} className="min-w-0">
+            {currentKey === "template" && <PickTemplate templates={placement.templates} state={state} setState={setState} gameCodes={gameCodes} byName={byName} />}
             {currentKey === "version" && <PickVersion state={state} setState={setState} />}
-            {currentKey === "configure" && <Configure state={state} setState={setState} />}
+            {currentKey === "configure" && <Configure caps={caps} state={state} setState={setState} />}
             {currentKey === "network" && <Network state={state} setState={setState} />}
             {currentKey === "review" && (
               <Review
+                location={`${placement.cluster} / ${placement.namespace}`}
                 state={state}
                 onEdit={(key) => {
                   const idx = steps.indexOf(key);
@@ -443,7 +479,7 @@ export function CreateServerWizard() {
                 }}
               />
             )}
-          </div>
+          </fieldset>
           <Preview state={state} gameCodes={gameCodes} byName={byName} />
         </div>
 
@@ -468,7 +504,7 @@ export function CreateServerWizard() {
             ) : (
               <Button
                 variant="ghost"
-                onPress={() => setStepIndex((i) => Math.max(0, i - 1))}
+                isDisabled={create.isPending} onPress={() => setStepIndex((i) => Math.max(0, i - 1))}
               >
                 <ArrowLeft className="h-4 w-4" /> Back
               </Button>
@@ -543,6 +579,7 @@ function StepBar({ steps, stepIndex }: { steps: StepKey[]; stepIndex: number }) 
 }
 
 function PickTemplate({
+  templates,
   state,
   setState,
   gameCodes,
@@ -552,11 +589,9 @@ function PickTemplate({
   setState: (s: WizardState) => void;
   gameCodes: Map<string, string>;
   byName: Map<string, GameTemplate>;
+  templates: GameTemplate[];
 }) {
-  const { data } = useQuery({
-    queryKey: ["templates"],
-    queryFn: () => Templates.list(),
-  });
+  const data = { items: templates };
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
 
@@ -686,17 +721,12 @@ function PickVersion({ state, setState }: { state: WizardState; setState: (s: Wi
   );
 }
 
-function Configure({ state, setState }: { state: WizardState; setState: (s: WizardState) => void }) {
+function Configure({ state, setState, caps }: { state: WizardState; setState: (s: WizardState) => void; caps: { maxCpu: number; maxMemGi: number } }) {
   const fields = state.template?.spec.configSchema ?? [];
   // Cap CPU/memory at the largest single node's capacity — the scheduler
   // can never place a pod that requests more than one node provides, so
   // let the user know the ceiling and clamp their input to it.
-  const { data: cluster } = useQuery({
-    queryKey: ["cluster-view"],
-    queryFn: () => Cluster.view(),
-    staleTime: 30_000,
-  });
-  const { maxCpu, maxMemGi } = nodeCaps(cluster?.nodes ?? []);
+  const { maxCpu, maxMemGi } = caps;
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
@@ -1154,7 +1184,7 @@ function TunnelPortMappingsEditor({
   );
 }
 
-function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) => void }) {
+function Review({ state, onEdit, location }: { state: WizardState; onEdit: (key: StepKey) => void; location: string }) {
   const hasVersions = (state.template?.spec.versions?.length ?? 0) > 0;
   const sections = [
     {
@@ -1170,6 +1200,7 @@ function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) 
       title: "Configuration",
       rows: [
         ["Name", state.name || "—"],
+        ["Location", location],
         ["CPU", state.cpuLimit],
         ["Memory", state.memoryLimit],
         ["Storage", state.storageSize],

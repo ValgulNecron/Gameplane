@@ -1,8 +1,9 @@
+import { useResourceClient, useResourceTarget, resourceKey } from "@/lib/resourceTarget";
 import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Cpu, HardDrive, MemoryStick, AlertCircle } from "lucide-react";
 import type { GameServer, GameTemplate, PlayersResp } from "@/types";
-import { Players, Servers } from "@/lib/endpoints";
+
 import { Card, CardHeader, CardContent, Alert } from "@heroui/react";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
@@ -27,9 +28,11 @@ export function OverviewTab({
   onViewAllEvents?: () => void;
   onOpenConsole?: () => void;
 }) {
+  const resourceTarget = useResourceTarget({ name, namespace: ns });
+  const resourceClient = useResourceClient(resourceTarget);
   const { data: roster } = useQuery({
-    queryKey: ["players", name, "overview", ns],
-    queryFn: () => Players.snapshot(name, ns),
+    queryKey: resourceKey(resourceTarget, "players", name, "overview", ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Players.snapshot(name, ns),
     enabled: !!name && (gs?.status?.phase === "Running"),
     refetchInterval: 10_000,
     retry: false,
@@ -39,8 +42,8 @@ export function OverviewTab({
   // scheduling, crash-loops. Poll faster while not Running so provisioning
   // diagnostics stay fresh; back off once the server is up.
   const { data: rawEvents } = useQuery({
-    queryKey: ["events", name, ns],
-    queryFn: () => Servers.events(name, ns),
+    queryKey: resourceKey(resourceTarget, "events", name, ns),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Servers.events(name, ns),
     enabled: !!name,
     refetchInterval: gs?.status?.phase === "Running" ? 30_000 : 5_000,
     retry: false,

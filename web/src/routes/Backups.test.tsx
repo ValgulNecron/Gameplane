@@ -1,3 +1,4 @@
+import { useTestLocation, navigateTestSearch, resetTestSearch } from "@/test/routerSearch";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
@@ -8,6 +9,8 @@ import { renderWithQuery } from "@/test/render";
 import { makeBackup, makeSchedule, makeRestore } from "@/test/factories";
 
 vi.mock("@tanstack/react-router", () => ({
+  useLocation: () => useTestLocation(),
+  useNavigate: () => navigateTestSearch,
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
     <a href={to} {...rest}>{children}</a>
   ),
@@ -16,14 +19,10 @@ vi.mock("@tanstack/react-router", () => ({
 import { BackupsPage } from "./Backups";
 
 describe("BackupsPage", () => {
-  // BackupsPage reads its initial tab from the URL (readTab()) and pushes
-  // the active tab into it via history.replaceState. jsdom's window is
-  // shared across tests in this file, so a prior test that switched tabs
-  // (e.g. "switches to the Restores tab") otherwise leaks its ?tab= param
-  // into the next test's initial render, silently mounting the wrong
-  // panel and starving that test's own MSW handlers.
+  // Each test starts with the default Backups route search.
   beforeEach(() => {
     window.history.replaceState(null, "", "/");
+    resetTestSearch();
   });
 
   it("renders the Backups tab and loads rows", async () => {
@@ -80,7 +79,7 @@ describe("BackupsPage", () => {
     const dialog = await screen.findByRole("dialog");
     const serverButton = within(dialog).getByRole("button", { name: /Server/i });
     await userEvent.click(serverButton);
-    const option = await screen.findByRole("option", { name: "alpha" });
+    const option = await screen.findByRole("option", { name: /^alpha · local \/ gameplane-games$/ });
     await userEvent.click(option);
 
     // Enabled only once the destination auto-selects from the query.
@@ -135,10 +134,12 @@ describe("BackupsPage", () => {
     // BackupFilters' server select defaults to "All servers" (a filter with
     // no selection means "show everything"), unlike the "Back up now" dialog's
     // forced-choice "Select a server…".
+    await userEvent.click(screen.getByRole("button", { name: /^Filter$/ }));
     const serverSelect = screen.getByRole("button", { name: /Filter by server/i });
     await userEvent.click(serverSelect);
-    const betaOption = await screen.findByRole("option", { name: "beta" });
+    const betaOption = await screen.findByRole("option", { name: /^beta · local \/ gameplane-games$/ });
     await userEvent.click(betaOption);
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     // Only beta-1 should be visible
     expect(screen.getByText("beta-1")).toBeInTheDocument();
     expect(screen.queryByText("alpha-1")).not.toBeInTheDocument();
@@ -165,10 +166,12 @@ describe("BackupsPage", () => {
     await screen.findByText("backup-1");
     // Phase select defaults to "All phases" (same "no selection = show
     // everything" convention as the server filter).
+    await userEvent.click(screen.getByRole("button", { name: /^Filter$/ }));
     const phaseSelect = screen.getByRole("button", { name: /Filter by phase/i });
     await userEvent.click(phaseSelect);
     const succeededOption = await screen.findByRole("option", { name: "Succeeded" });
     await userEvent.click(succeededOption);
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(screen.getByText("backup-1")).toBeInTheDocument();
     expect(screen.queryByText("backup-2")).not.toBeInTheDocument();
   });
@@ -223,10 +226,12 @@ describe("BackupsPage", () => {
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-1");
     // Filter to beta server (which has no backups)
+    await userEvent.click(screen.getByRole("button", { name: /^Filter$/ }));
     const serverSelect = screen.getByRole("button", { name: /Filter by server/i });
     await userEvent.click(serverSelect);
-    const betaOption = await screen.findByRole("option", { name: "beta" });
+    const betaOption = await screen.findByRole("option", { name: /^beta · local \/ gameplane-games$/ });
     await userEvent.click(betaOption);
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(screen.getByText(/No backups match the current filters/)).toBeInTheDocument();
   });
 
@@ -241,7 +246,7 @@ describe("BackupsPage", () => {
     const dialog = await screen.findByRole("dialog");
     const serverButton = within(dialog).getByRole("button", { name: /Server/i });
     await userEvent.click(serverButton);
-    const option = await screen.findByRole("option", { name: "alpha" });
+    const option = await screen.findByRole("option", { name: /^alpha · local \/ gameplane-games$/ });
     await userEvent.click(option);
     const run = within(dialog).getByRole("button", { name: /Run snapshot/i });
     await waitFor(() => expect(run).toBeEnabled());
@@ -376,10 +381,12 @@ describe("BackupsPage", () => {
     await screen.findByText("restore-1");
     // Filter by alpha server (RestoresTabPanel reuses BackupFilters, so
     // same "All servers" default as the Backups tab's server filter).
+    await userEvent.click(screen.getByRole("button", { name: /^Filter$/ }));
     const serverSelect = screen.getByRole("button", { name: /Filter by server/i });
     await userEvent.click(serverSelect);
-    const alphaOption = await screen.findByRole("option", { name: "alpha" });
+    const alphaOption = await screen.findByRole("option", { name: /^alpha · local \/ gameplane-games$/ });
     await userEvent.click(alphaOption);
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(screen.getByText("restore-1")).toBeInTheDocument();
     expect(screen.queryByText("restore-2")).not.toBeInTheDocument();
   });

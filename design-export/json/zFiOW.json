@@ -82,7 +82,7 @@
                   "content": "Servers"
                 },
                 "VbHwU": {
-                  "content": "Manage game server workloads across your cluster."
+                  "content": "Manage your game servers across all authorized locations."
                 },
                 "TgdLz": {
                   "type": "frame",
@@ -397,7 +397,7 @@
                               "type": "text",
                               "id": "E88mHn",
                               "fill": "$muted",
-                              "content": "gameplane-games",
+                              "content": "local / gameplane-games",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -699,7 +699,7 @@
                               "type": "text",
                               "id": "zHNXB",
                               "fill": "$foreground/foreground",
-                              "content": "mc-test",
+                              "content": "mc-survival",
                               "fontFamily": "JetBrains Mono",
                               "fontSize": 14,
                               "fontWeight": "normal"
@@ -708,7 +708,7 @@
                               "type": "text",
                               "id": "ikr7K",
                               "fill": "$muted",
-                              "content": "gameplane-games",
+                              "content": "remote-lab / gameplane-games",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -1018,7 +1018,7 @@
                               "type": "text",
                               "id": "vqSCZ",
                               "fill": "$muted",
-                              "content": "gameplane-games",
+                              "content": "local / gameplane-games",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -1330,7 +1330,7 @@
                               "type": "text",
                               "id": "pwQIf",
                               "fill": "$muted",
-                              "content": "default",
+                              "content": "remote-lab / default",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -1952,7 +1952,7 @@
                               "type": "text",
                               "id": "Sdyxp",
                               "fill": "$muted",
-                              "content": "default",
+                              "content": "remote-lab / default",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -2265,7 +2265,7 @@
                               "type": "text",
                               "id": "OkBvA",
                               "fill": "$muted",
-                              "content": "default",
+                              "content": "remote-lab / default",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -2576,7 +2576,7 @@
                               "type": "text",
                               "id": "n2QgsP",
                               "fill": "$muted",
-                              "content": "default",
+                              "content": "remote-lab / default",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -2887,7 +2887,7 @@
                               "type": "text",
                               "id": "FTl73",
                               "fill": "$muted",
-                              "content": "gameplane-demo",
+                              "content": "local / gameplane-demo",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -3197,7 +3197,7 @@
                               "type": "text",
                               "id": "iXZfx",
                               "fill": "$muted",
-                              "content": "gameplane-demo",
+                              "content": "local / gameplane-demo",
                               "fontFamily": "Geist",
                               "fontSize": 11,
                               "fontWeight": "normal"

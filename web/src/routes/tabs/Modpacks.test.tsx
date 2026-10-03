@@ -1,11 +1,13 @@
+import { ResourceTargetProvider } from "@/lib/resourceTarget";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { renderWithQuery } from "@/test/render";
+import { renderWithQuery as baseRenderWithQuery } from "@/test/render";
 import { ModpacksTab } from "./Modpacks";
 import type { GameTemplate, RegistryProject } from "@/types";
 
 const fetchMock = vi.fn();
-beforeEach(() => vi.stubGlobal("fetch", fetchMock));
+beforeEach(() => { scopedControl = true; vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => {
   fetchMock.mockReset();
   vi.unstubAllGlobals();
@@ -33,6 +35,7 @@ interface Routes {
 }
 
 function route(r: Routes) {
+  scopedControl = r.me?.role !== "viewer";
   fetchMock.mockImplementation((url: string, opts?: { method?: string; body?: string }) => {
     const method = opts?.method ?? "GET";
     if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(r.me ?? operator));
@@ -412,3 +415,9 @@ describe("ModpacksTab", () => {
     delayResolve!();
   });
 });
+
+let scopedControl = true;
+function renderWithQuery(ui: ReactElement, options?: Parameters<typeof baseRenderWithQuery>[1]) {
+  const props = ui.props as { name?: string; ns?: string };
+  return baseRenderWithQuery(<ResourceTargetProvider target={{ cluster: "local", name: props.name ?? "s1", namespace: props.ns }} access={{ canWrite: scopedControl, canControl: scopedControl, canConsole: scopedControl, canDelete: false, isOwner: false, isCollaborator: false, permissions: scopedControl ? ["servers:read", "servers:write"] : ["servers:read"] }}>{ui}</ResourceTargetProvider>, options);
+}

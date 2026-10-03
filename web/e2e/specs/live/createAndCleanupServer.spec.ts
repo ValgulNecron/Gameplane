@@ -45,7 +45,7 @@ test.describe("live: create and cleanup a busybox server", () => {
   test("creates a busybox server, sees it on detail, deletes it", async ({ page }) => {
     test.setTimeout(180_000); // pod scheduling + image pull on first run
 
-    await page.goto("/servers/new");
+    await page.goto("/servers/new?cluster=local&ns=gameplane-games");
     await page.waitForLoadState("domcontentloaded");
 
     // Step 1: pick the first available template card. The Go E2E suite
@@ -66,10 +66,17 @@ test.describe("live: create and cleanup a busybox server", () => {
     // Step 2 → 3 → 4 → submit.
     await page.getByRole("button", { name: /continue/i }).click();
     await page.getByRole("button", { name: /continue/i }).click();
+    const created = page.waitForRequest((req) => new URL(req.url()).pathname === "/servers" && req.method() === "POST");
     await page.getByRole("button", { name: /create server/i }).click();
+    const requestURL = new URL((await created).url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("gameplane-games");
 
     // Detail page renders for our new server.
-    await page.waitForURL(new RegExp(`/servers/${serverName}$`), { timeout: 30_000 });
+    await page.waitForURL((url) => url.pathname === `/servers/${serverName}`, { timeout: 30_000 });
+    const detailURL = new URL(page.url());
+    expect(detailURL.searchParams.get("cluster")).toBe("local");
+    expect(detailURL.searchParams.get("ns")).toBe("gameplane-games");
     await expect(page.getByRole("heading", { name: serverName })).toBeVisible({ timeout: 15_000 });
 
     // The phase badge eventually settles on Running (or Stopped / Stopping

@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeServer, makeUser } from "@/test/factories";
+import { setCurrentCluster } from "@/lib/cluster";
 import {
   SAFE_MODE_SESSION_KEY,
   THEME_PREFS_STORAGE_KEY,
@@ -32,6 +33,23 @@ vi.mock("@tanstack/react-router", () => ({
 
 import { AppLayout } from "./AppLayout";
 
+function fleetServers(names: string[]) {
+  return {
+    items: names.map((name) => ({
+      target: { cluster: "local", namespace: "gameplane-games", name, uid: `${name}-uid` },
+      resource: makeServer({ metadata: { name, uid: `${name}-uid` } }),
+      permissions: ["servers:read"],
+    })),
+    partial: false,
+    issues: [],
+    totalReturned: names.length,
+  };
+}
+
+function searchResultID(name: string) {
+  return `search-result-${JSON.stringify(["local", "gameplane-games", name, `${name}-uid`])}`;
+}
+
 // HeroUI's Breadcrumbs.Item always renders `role="link"` — even the
 // disabled, href-less current-page crumb (see Breadcrumbs.tsx) — so a
 // breadcrumb reading "Dashboard" (root path) or a route's own label (e.g.
@@ -51,6 +69,7 @@ describe("AppLayout", () => {
     server.use(
       http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))),
       http.get("/cluster/info", () => HttpResponse.json({ clusterName: "homelab" })),
+      http.get("/clusters", () => HttpResponse.json({ items: [{ name: "east", canViewInventory: false }] })),
     );
     renderWithQuery(<AppLayout />);
     await waitFor(async () =>
@@ -60,18 +79,23 @@ describe("AppLayout", () => {
     expect(nav.getByRole("link", { name: /Servers/i })).toBeInTheDocument();
     expect(nav.getByRole("link", { name: /Modules/i })).toBeInTheDocument();
     expect(nav.getByRole("link", { name: /Backups/i })).toBeInTheDocument();
-    // Viewer-restricted: /cluster, /users, /admin nav not rendered.
+    // Server visibility alone does not expose infrastructure administration.
+    expect(nav.queryByRole("link", { name: "Cluster" })).not.toBeInTheDocument();
+    expect(nav.queryByRole("link", { name: "Clusters" })).not.toBeInTheDocument();
     expect(nav.queryByRole("link", { name: /Audit log/i })).not.toBeInTheDocument();
   });
 
-  it("operator role unlocks the Cluster nav", async () => {
+  it("an explicit inventory capability unlocks the infrastructure navigation", async () => {
     server.use(
       http.get("/users/me", () => HttpResponse.json(makeUser({ role: "operator" }))),
+      http.get("/clusters", () => HttpResponse.json({ items: [{ name: "east", canViewInventory: true }] })),
     );
     renderWithQuery(<AppLayout />);
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: /Cluster/i })).toBeInTheDocument(),
+      expect(screen.getByRole("link", { name: /^Cluster$/i })).toBeInTheDocument(),
     );
+    expect(screen.getByRole("link", { name: "Clusters" })).toHaveAttribute("href", "/clusters");
+    expect(screen.queryByRole("button", { name: "Select cluster" })).not.toBeInTheDocument();
   });
 
   it("admin role unlocks Users / Audit / Settings nav", async () => {
@@ -146,22 +170,21 @@ describe("AppLayout", () => {
 
   it("global search filters servers by name and navigates to detail", async () => {
     server.use(
-      http.get("/servers", () =>
-        HttpResponse.json({
-          items: [makeServer({ metadata: { name: "alpha" } }), makeServer({ metadata: { name: "beta" } })],
-        }),
+      http.get("/fleet/servers", () =>
+        HttpResponse.json(fleetServers(["alpha", "beta"])),
       ),
     );
     renderWithQuery(<AppLayout />);
     const search = await screen.findByLabelText(/search servers/i);
     await userEvent.type(search, "alph");
-    const result = await screen.findByTestId("search-result-alpha");
+    const result = await screen.findByTestId(searchResultID("alpha"));
     expect(result).toBeInTheDocument();
-    expect(screen.queryByTestId("search-result-beta")).not.toBeInTheDocument();
+    expect(within(result).getByRole("link")).toHaveAttribute("href", "/servers/alpha?cluster=local&ns=gameplane-games");
+    expect(screen.queryByTestId(searchResultID("beta"))).not.toBeInTheDocument();
 
-    await userEvent.click(result);
+    await userEvent.click(within(result).getByRole("link"));
     await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith({ to: "/servers/$name", params: { name: "alpha" } }),
+      expect(navigateMock).toHaveBeenCalledWith({ to: "/servers/$name", params: { name: "alpha" }, search: { cluster: "local", ns: "gameplane-games" } }),
     );
   });
 
@@ -203,25 +226,30 @@ describe("AppLayout", () => {
     expect(screen.getByRole("link", { name: /Settings/i })).toBeInTheDocument();
   });
 
-  it("shows cluster name in sidebar", async () => {
+  it("uses stable panel branding rather than a selected infrastructure cluster", async () => {
+    setCurrentCluster("east");
     server.use(
       http.get("/users/me", () => HttpResponse.json(makeUser())),
       http.get("/cluster/info", () => HttpResponse.json({ clusterName: "prod-us-east" })),
     );
-    renderWithQuery(<AppLayout />);
-    expect(await screen.findByText("prod-us-east")).toBeInTheDocument();
+    try {
+      renderWithQuery(<AppLayout />);
+      expect(await (await sidebarRoot()).findByText("Gameplane", { exact: true })).toBeInTheDocument();
+      expect(screen.queryByText("prod-us-east")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Select cluster" })).not.toBeInTheDocument();
+    } finally {
+      setCurrentCluster("local");
+    }
   });
 
-  it("shows dash when cluster name is unavailable", async () => {
+  it("keeps the shell usable when infrastructure name lookup is unavailable", async () => {
     server.use(
       http.get("/users/me", () => HttpResponse.json(makeUser())),
       http.get("/cluster/info", () => new HttpResponse(null, { status: 500 })),
     );
     renderWithQuery(<AppLayout />);
-    // Cluster name fallback in sidebar
-    await waitFor(() => {
-      expect(screen.getByText("—")).toBeInTheDocument();
-    });
+    expect((await sidebarRoot()).getByText("Gameplane", { exact: true })).toBeInTheDocument();
+    expect((await sidebarNav()).getByRole("link", { name: "Servers" })).toHaveAttribute("href", "/servers");
   });
 
   it("shows role in profile footer", async () => {
@@ -279,10 +307,8 @@ describe("AppLayout", () => {
 
   it("search dropdown shows no matches message", async () => {
     server.use(
-      http.get("/servers", () =>
-        HttpResponse.json({
-          items: [makeServer({ metadata: { name: "alpha" } })],
-        }),
+      http.get("/fleet/servers", () =>
+        HttpResponse.json(fleetServers(["alpha"])),
       ),
     );
     renderWithQuery(<AppLayout />);
@@ -293,31 +319,24 @@ describe("AppLayout", () => {
 
   it("search navigates on Enter key with first match", async () => {
     server.use(
-      http.get("/servers", () =>
-        HttpResponse.json({
-          items: [
-            makeServer({ metadata: { name: "alpha" } }),
-            makeServer({ metadata: { name: "beta" } }),
-          ],
-        }),
+      http.get("/fleet/servers", () =>
+        HttpResponse.json(fleetServers(["alpha", "beta"])),
       ),
     );
     renderWithQuery(<AppLayout />);
     const search = await screen.findByLabelText(/search servers/i);
     await userEvent.type(search, "a");
-    await screen.findByTestId("search-result-alpha");
+    await screen.findByTestId(searchResultID("alpha"));
     await userEvent.keyboard("{Enter}");
     await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith({ to: "/servers/$name", params: { name: "alpha" } }),
+      expect(navigateMock).toHaveBeenCalledWith({ to: "/servers/$name", params: { name: "alpha" }, search: { cluster: "local", ns: "gameplane-games" } }),
     );
   });
 
   it("search dropdown closes on blur", async () => {
     server.use(
-      http.get("/servers", () =>
-        HttpResponse.json({
-          items: [makeServer({ metadata: { name: "alpha" } })],
-        }),
+      http.get("/fleet/servers", () =>
+        HttpResponse.json(fleetServers(["alpha"])),
       ),
     );
     renderWithQuery(<AppLayout />);
@@ -326,49 +345,45 @@ describe("AppLayout", () => {
     // The matches dropdown only renders once a query is typed (empty query
     // shows nothing to blur-close), so type before looking for the match.
     await userEvent.type(search, "a");
-    const result = await screen.findByTestId("search-result-alpha");
+    const result = await screen.findByTestId(searchResultID("alpha"));
     expect(result).toBeInTheDocument();
     // Blur closes dropdown after 120ms
     search.blur();
     await waitFor(
-      () => expect(screen.queryByTestId("search-result-alpha")).not.toBeInTheDocument(),
+      () => expect(screen.queryByTestId(searchResultID("alpha"))).not.toBeInTheDocument(),
       { timeout: 200 },
     );
   });
 
   it("search clears when navigating from dropdown", async () => {
     server.use(
-      http.get("/servers", () =>
-        HttpResponse.json({
-          items: [makeServer({ metadata: { name: "alpha" } })],
-        }),
+      http.get("/fleet/servers", () =>
+        HttpResponse.json(fleetServers(["alpha"])),
       ),
     );
     renderWithQuery(<AppLayout />);
     const search = await screen.findByLabelText(/search servers/i) as HTMLInputElement;
     await userEvent.type(search, "alpha");
     expect(search.value).toBe("alpha");
-    const result = await screen.findByTestId("search-result-alpha");
-    await userEvent.click(result);
+    const result = await screen.findByTestId(searchResultID("alpha"));
+    await userEvent.click(within(result).getByRole("link"));
     await waitFor(() => expect(search.value).toBe(""));
   });
 
   it("search escape key closes dropdown", async () => {
     server.use(
-      http.get("/servers", () =>
-        HttpResponse.json({
-          items: [makeServer({ metadata: { name: "alpha" } })],
-        }),
+      http.get("/fleet/servers", () =>
+        HttpResponse.json(fleetServers(["alpha"])),
       ),
     );
     renderWithQuery(<AppLayout />);
     const search = await screen.findByLabelText(/search servers/i);
     await userEvent.type(search, "a");
-    const result = await screen.findByTestId("search-result-alpha");
+    const result = await screen.findByTestId(searchResultID("alpha"));
     expect(result).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
-      expect(screen.queryByTestId("search-result-alpha")).not.toBeInTheDocument();
+      expect(screen.queryByTestId(searchResultID("alpha"))).not.toBeInTheDocument();
     });
   });
 

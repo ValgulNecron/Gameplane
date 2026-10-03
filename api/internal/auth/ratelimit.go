@@ -3,6 +3,7 @@ package auth
 import (
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -132,6 +133,28 @@ var NotifyTestLimiter = newTokenBucket(12.0/60.0, 3)
 // burst — and only exists to keep a single client from pegging the
 // database on a mass create/delete loop.
 var MutationLimiter = newTokenBucket(1.0, 60) // 60/min refill, 60 burst
+
+// NewFleetReadLimiter creates a budget shared by all fleet reads on one router:
+// 60/min sustained, burst 10. It is independent of login and mutation budgets.
+func NewFleetReadLimiter() *TokenBucket { return newTokenBucket(1.0, 10) }
+
+// UserMiddleware enforces a bucket keyed by the authenticated account rather
+// than IP or session, so separate users behind one proxy do not share a budget.
+func (t *TokenBucket) UserMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		u := UserFromContext(req.Context())
+		if u == nil {
+			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			return
+		}
+		if !t.AllowUser(strconv.FormatInt(u.ID, 10)) {
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, req)
+	})
+}
 
 // ShareLimiter guards public (unauthenticated) share link endpoints.
 // Share links are token-guessable, so we need a tighter budget than general

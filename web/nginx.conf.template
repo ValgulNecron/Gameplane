@@ -80,8 +80,21 @@ server {
     # The built SPA lives here (copied from web/dist in the Dockerfile).
     root   /usr/share/nginx/html;
 
-    # Never cache the shell; hashed assets under /assets are content-addressed
-    # and safe to cache hard.
+    # The same URL can return the SPA document or an API response. Caches
+    # must distinguish those representations, including proxy/error replies.
+    # add_header preserves any Vary fields supplied by the API upstream.
+    add_header Vary Accept always;
+
+    # Deep-link navigations rewrite here. Do not store their shell response
+    # under an API URL such as /cluster, or reuse an old shell after upgrades.
+    location = /index.html {
+        add_header Cache-Control "no-store" always;
+        # A location's add_header directives replace inherited ones.
+        add_header Vary Accept always;
+        try_files $uri =404;
+    }
+
+    # Hashed assets are content-addressed and keep their immutable cache.
     location /assets/ {
         try_files $uri =404;
         expires 1y;

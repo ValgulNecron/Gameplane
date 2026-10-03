@@ -1,3 +1,4 @@
+import { useResourceClient, useResourceTarget, resourceKey, serverLink } from "@/lib/resourceTarget";
 import {
   Input,
   Button,
@@ -12,7 +13,7 @@ import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Expose, GameServer, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
-import { Servers } from "@/lib/endpoints";
+
 import { errorText } from "@/lib/errors";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
@@ -31,6 +32,9 @@ const TUNNEL_PROVIDER_OPTIONS: Array<{ value: "frp" | "tailscale" | "playit"; la
 ];
 
 export function NetworkingSection({ draft, onChange, onValidityChange }: SectionProps) {
+  const resourceTarget = useResourceTarget({ name: draft.metadata.name, namespace: draft.metadata.namespace });
+  const resourceClient = useResourceClient(resourceTarget);
+  const { Servers } = resourceClient;
   const net = draft.spec.networking ?? {};
   const tunnel = net.tunnel;
   const serverName = draft.metadata.name;
@@ -42,8 +46,8 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
 
   // Query current tunnel credentials status.
   const { data: credentialStatus, refetch: refetchCredentials } = useQuery({
-    queryKey: ["tunnel-credentials", serverName],
-    queryFn: () => Servers.getTunnelCredentials(serverName, serverNamespace),
+    queryKey: resourceKey(resourceTarget, "tunnel-credentials", serverName),
+    queryFn: ({ signal }) => resourceClient.withSignal(signal).Servers.getTunnelCredentials(serverName, serverNamespace),
     enabled: tunnel?.enabled ?? false,
   });
 
@@ -636,6 +640,7 @@ function AddressStatusField({
   condition?: { reason?: string; message?: string; status?: string };
   serverNamespace?: string;
 }) {
+  const target = useResourceTarget({ name: "", namespace: serverNamespace });
   if (!condition) {
     return null;
   }
@@ -722,11 +727,7 @@ function AddressStatusField({
               <>
                 Requested address {condition.message?.match(/"([^"]+)"/)?.[1]} is already in use by{" "}
                 <Link
-                  to="/servers/$name"
-                  params={{ name: conflictingServer.name }}
-                  search={
-                    conflictingServer.namespace ? { ns: conflictingServer.namespace } : {}
-                  }
+                  {...serverLink({ ...target, name: conflictingServer.name, namespace: conflictingServer.namespace ?? target.namespace })}
                   className="text-primary hover:underline"
                 >
                   GameServer &quot;{conflictingServer.name}&quot;

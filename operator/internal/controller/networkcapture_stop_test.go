@@ -40,16 +40,16 @@ type stopRecordingSidecar struct {
 	statusCalls int
 }
 
-func (s *stopRecordingSidecar) StartCapture(context.Context, string, string, string, *string, int64, int64) error {
+func (s *stopRecordingSidecar) StartCapture(context.Context, string, string, string, string, string, *string, int64, int64) error {
 	return errors.New("unexpected StartCapture")
 }
 
-func (s *stopRecordingSidecar) StopCapture(_ context.Context, _, serverName, captureID string) error {
+func (s *stopRecordingSidecar) StopCapture(_ context.Context, _, serverName, captureID, _, _ string) error {
 	s.stopCalls = append(s.stopCalls, serverName+"/"+captureID)
 	return s.stopErr
 }
 
-func (s *stopRecordingSidecar) GetCaptureStatus(context.Context, string, string, string) (string, int64, int64, string, error) {
+func (s *stopRecordingSidecar) GetCaptureStatus(context.Context, string, string, string, string, string) (string, int64, int64, string, error) {
 	s.statusCalls++
 	if s.statusErr != nil {
 		return "", 0, 0, "", s.statusErr
@@ -60,7 +60,7 @@ func (s *stopRecordingSidecar) GetCaptureStatus(context.Context, string, string,
 	return "running", s.packets, s.bytes, "", nil
 }
 
-func (s *stopRecordingSidecar) DeleteCaptureFile(context.Context, string, string, string) error {
+func (s *stopRecordingSidecar) DeleteCaptureFile(context.Context, string, string, string, string, string) error {
 	return errors.New("unexpected DeleteCaptureFile")
 }
 

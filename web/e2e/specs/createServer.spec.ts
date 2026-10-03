@@ -58,14 +58,18 @@ test.describe("create-server wizard", () => {
     // navigates to /servers/<name>.
     const createBtn = page.getByRole("button", { name: /create server/i });
     const apiCall = page.waitForRequest(
-      (req) => req.url().endsWith("/servers") && req.method() === "POST",
+      (req) => new URL(req.url()).pathname === "/servers" && req.method() === "POST",
     );
     await createBtn.click();
-    await apiCall;
+    const requestURL = new URL((await apiCall).url());
+    expect(requestURL.searchParams.get("cluster") ?? "local").toBe("local");
+    expect(requestURL.searchParams.get("namespace")).toBe("gameplane-games");
 
-    // The wizard's onSuccess navigates to /servers/{name}. Some MSW
-    // setups can briefly settle on "/" first; assert the eventual URL.
-    await page.waitForURL(/\/servers\/e2e-mock-srv$/, { timeout: 10_000 });
+    // The canonical link retains the exact placement used by creation.
+    await page.waitForURL((url) => url.pathname === "/servers/e2e-mock-srv", { timeout: 10_000 });
+    const detailURL = new URL(page.url());
+    expect(detailURL.searchParams.get("cluster")).toBe("local");
+    expect(detailURL.searchParams.get("ns")).toBe("gameplane-games");
   });
 
   test("rejects an invalid kubernetes name", async ({ page }) => {

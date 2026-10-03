@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
+
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // LoadPerms resolves the user's effective permission set from their role
@@ -115,6 +117,9 @@ func PermsByClusterToJSON(perms map[string]map[string]map[string]struct{}) map[s
 //     privilege escalation.
 //   - The "*" permission wildcard (the built-in admin role) matches any perm
 //     but is still subject to the same cluster gating for namespaced perms.
+//   - Inventory (cluster:read) always requires a cluster-wide grant on the
+//     selected cluster or wildcard cluster, regardless of namespaced. An
+//     omitted cluster selects the home cluster; namespace grants never qualify.
 func (u *User) Can(perm string, namespaced bool, cluster, ns string) bool {
 	if u == nil {
 		return false
@@ -122,6 +127,12 @@ func (u *User) Can(perm string, namespaced bool, cluster, ns string) bool {
 	// cwHolds: does the user hold perm cluster-wide (namespace "*") on cluster ck?
 	cwHolds := func(ck string) bool {
 		return permSetHas(u.Perms[ck]["*"], "*") || permSetHas(u.Perms[ck]["*"], perm)
+	}
+	if perm == "cluster:read" {
+		if cluster == "" {
+			cluster = scope.DefaultCluster
+		}
+		return cwHolds(cluster) || cwHolds("*")
 	}
 	if !namespaced {
 		// Control-plane perm: any cluster's cluster-wide binding grants it.
@@ -139,6 +150,30 @@ func (u *User) Can(perm string, namespaced bool, cluster, ns string) bool {
 		}
 		if ns != "" && ns != "*" {
 			if permSetHas(u.Perms[ck][ns], "*") || permSetHas(u.Perms[ck][ns], perm) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// CanDiscoverCluster permits selecting a cluster without granting node inventory
+// access. A server reader in one namespace still needs to find that cluster.
+func (u *User) CanDiscoverCluster(cluster string) bool {
+	if u == nil {
+		return false
+	}
+	// Existing control-plane administrators need assignment/registration
+	// targets before a target-cluster grant exists. This is metadata only.
+	if u.Can("users:manage", false, "", "") || u.Can("cluster:manage", false, "", "") {
+		return true
+	}
+	if u.Can("cluster:read", true, cluster, "") {
+		return true
+	}
+	for _, ck := range []string{cluster, "*"} {
+		for _, perms := range u.Perms[ck] {
+			if permSetHas(perms, "*") || permSetHas(perms, "servers:read") {
 				return true
 			}
 		}

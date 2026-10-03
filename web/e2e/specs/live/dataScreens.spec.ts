@@ -76,6 +76,20 @@ test.describe("live: data screens render real backend data", () => {
 
   test("servers list shows the seeded GameServer", async ({ page }) => {
     await page.goto("/servers");
+    // Use the same session and Vite origin after navigation. A response event
+    // from the previous document can lose its body when Chromium unloads it.
+    const response = await page.request.get(new URL("/fleet/servers", page.url()).href, {
+      headers: { Accept: "application/json" },
+    });
+    expect(response.ok()).toBeTruthy();
+    expect(response.headers()["content-type"]).toContain("application/json");
+    // A missing dev proxy must fail here, rather than serving the SPA shell
+    // and leaving an apparently empty list. Verify the actual resource scope.
+    expect(await response.json()).toEqual(expect.objectContaining({
+      items: expect.arrayContaining([expect.objectContaining({
+        target: expect.objectContaining({ cluster: "local", namespace: "gameplane-games", name: serverName }),
+      })]),
+    }));
     await expect(page.getByRole("heading", { name: /^servers$/i })).toBeVisible();
     // The list polls every 5s; the seeded server's row links to its detail.
     await expect(page.getByRole("link", { name: serverName })).toBeVisible({ timeout: 15_000 });

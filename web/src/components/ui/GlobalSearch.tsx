@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, Server } from "lucide-react";
 import {
@@ -8,8 +7,8 @@ import {
   SearchFieldClearButton,
   PopoverContent,
 } from "@heroui/react";
-import { Servers } from "@/lib/endpoints";
 import { cn } from "@/lib/utils";
+import { targetKey, targetLabel, targetSearch, useFleetServers, type FleetTarget } from "@/lib/fleet";
 
 /**
  * GlobalSearch provides a server search dropdown with keyboard navigation.
@@ -30,17 +29,13 @@ export function GlobalSearch(): JSX.Element {
     };
   }, []);
 
-  const { data } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => Servers.list(),
-    staleTime: 10_000,
-  });
+  const { data, error } = useFleetServers();
 
   const query = q.trim().toLowerCase();
   const matches =
     query.length > 0
       ? (data?.items ?? [])
-          .filter((s) => s.metadata.name.toLowerCase().includes(query))
+          .filter((s) => `${s.target.name} ${s.target.namespace} ${s.target.cluster}`.toLowerCase().includes(query))
           .slice(0, 6)
       : [];
 
@@ -49,11 +44,11 @@ export function GlobalSearch(): JSX.Element {
   // a useEffect here, since `matches` is a fresh array every render and
   // setState-in-effect off that would cascade renders.
 
-  const navigateToServer = async (name: string) => {
+  const navigateToServer = async (target: FleetTarget) => {
     setOpen(false);
     setQ("");
     setSelectedIndex(-1);
-    await navigate({ to: "/servers/$name", params: { name } });
+    await navigate({ to: "/servers/$name", params: { name: target.name }, search: targetSearch(target) });
   };
 
   // HeroUI's SearchField already handles Enter (onSubmit, unused here) and
@@ -83,9 +78,9 @@ export function GlobalSearch(): JSX.Element {
       case "Enter":
         e.preventDefault();
         if (selectedIndex >= 0 && selectedIndex < matches.length) {
-          void navigateToServer(matches[selectedIndex].metadata.name);
+          void navigateToServer(matches[selectedIndex].target);
         } else if (matches.length > 0) {
-          void navigateToServer(matches[0].metadata.name);
+          void navigateToServer(matches[0].target);
         }
         break;
       case "Escape":
@@ -117,7 +112,7 @@ export function GlobalSearch(): JSX.Element {
           aria-controls="global-search-results"
           aria-activedescendant={
             selectedIndex >= 0 && selectedIndex < matches.length
-              ? `search-result-${matches[selectedIndex].metadata.name}`
+              ? `search-result-${targetKey(matches[selectedIndex].target)}`
               : ""
           }
           onFocus={() => {
@@ -142,32 +137,37 @@ export function GlobalSearch(): JSX.Element {
         placement="bottom start"
         className="w-72 overflow-hidden rounded-md border border-border bg-background p-0 shadow-lg"
       >
+        {data?.partial && <p role="status" className="px-3 py-2 text-xs text-warning">Search results are partial.</p>}
         <ul role="listbox" id="global-search-results" className="max-h-72 overflow-auto">
           {matches.length === 0 ? (
             <li className="px-3 py-2 text-sm text-muted">
-              No servers match.
+              {error ? "Search is unavailable." : data?.partial ? "No matches in available results." : "No servers match."}
             </li>
           ) : (
             matches.map((server, idx) => (
               <li
-                key={server.metadata.name}
-                id={`search-result-${server.metadata.name}`}
+                key={targetKey(server.target)}
+                id={`search-result-${targetKey(server.target)}`}
                 role="option"
                 aria-selected={selectedIndex === idx}
                 onMouseEnter={() => setSelectedIndex(idx)}
-                onClick={() => void navigateToServer(server.metadata.name)}
                 className={cn(
                   "flex cursor-pointer items-center gap-2 px-3 py-2 text-sm",
                   selectedIndex === idx
                     ? "bg-surface text-fg"
                     : "text-fg hover:bg-surface"
                 )}
-                data-testid={`search-result-${server.metadata.name}`}
+                data-testid={`search-result-${targetKey(server.target)}`}
               >
                 <Server className="h-3.5 w-3.5 shrink-0 text-muted" />
-                <span className="truncate font-mono">
-                  {server.metadata.name}
-                </span>
+                <a
+                  href={`/servers/${encodeURIComponent(server.target.name)}?${new URLSearchParams(targetSearch(server.target))}`}
+                  onClick={(event) => { if (!event.ctrlKey && !event.metaKey && !event.shiftKey && event.button === 0) { event.preventDefault(); void navigateToServer(server.target); } }}
+                  className="min-w-0 flex-1"
+                >
+                  <span className="block truncate font-mono">{server.target.name}</span>
+                  <span className="block truncate text-xs text-muted">{targetLabel(server.target)}</span>
+                </a>
               </li>
             ))
           )}
