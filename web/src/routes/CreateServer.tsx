@@ -593,22 +593,23 @@ function PickTemplate({
   byName: Map<string, GameTemplate>;
   templates: GameTemplate[];
 }) {
-  const data = { items: templates };
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
 
+  // ⚡ Bolt: Prevent recreating intermediate objects before useMemo.
+  // Using 'templates' directly instead of 'data' wrapper ensures stable reference.
   const templateCategories = useMemo(
     () =>
-      categoryFilters((data?.items ?? []).map((t) => resolveCategories(t.spec.categories, t.spec.game))),
-    [data],
+      categoryFilters((templates ?? []).map((t) => resolveCategories(t.spec.categories, t.spec.game))),
+    [templates],
   );
-  // The chips come from the data, so a selected category can disappear when the
+  // The chips come from the templates, so a selected category can disappear when the
   // template list changes. Fall back to "all" instead of showing an empty
   // picker with no chip highlighted.
   const activeCat = templateCategories.includes(cat) ? cat : "all";
 
   const needle = q.trim().toLowerCase();
-  const filtered = (data?.items ?? []).filter((t) => {
+  const filtered = (templates ?? []).filter((t) => {
     if (!matchesCategory(t.spec.categories, t.spec.game, activeCat)) return false;
     if (needle) {
       const hay = `${t.spec.displayName} ${t.spec.game} ${t.spec.description ?? ""}`.toLowerCase();

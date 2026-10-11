@@ -1,0 +1,3 @@
+## 2024-11-20 - React useMemo Broken by Intermediate Wrapper Object
+**Learning:** Re-creating a wrapper object (like `const data = { items: templates }`) during a React render and passing it to a `useMemo` dependency array completely circumvents memoization, as the object reference is unique on every render. This forces expensive filter computations to unnecessarily run on every render (e.g. key strokes in search inputs).
+**Action:** When a hook dependency can be derived directly from a stable variable (e.g. `templates`), pass that variable directly instead of introducing an intermediate object that breaks reference equality checks.

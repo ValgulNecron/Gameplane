@@ -1,0 +1,12 @@
+--- web/src/lib/useThemePreferences.ts
++++ web/src/lib/useThemePreferences.ts
+@@ -460,7 +460,7 @@
+       applyThemePreferences(next);
+       // …then the authoritative PUT.
+       mutation.mutate({ body: toUpdateBody(next), previous: current });
+     },
+-    [preferences, mutation],
++    [preferences, mutation.mutate],
+   );
+
+   return {
