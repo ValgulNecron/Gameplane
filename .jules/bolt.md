@@ -1,0 +1,4 @@
+
+## 2024-10-18 - Component Re-rendering Optimization (useMemo)
+**Learning:** Found an opportunity to optimize `ServerStatusCard` in Gameplane. The component reads real-time server metrics from the agent (`useQuery` with `refetchInterval`), triggering frequent re-renders while polling. The layout parses the readings array into a `Map` (`byId`) to look up metrics by their declared `id`. Prior to the optimization, this map was recreated on every polling tick/render, consuming unnecessary processing cycles.
+**Action:** Wrapped the reading lookup `Map` instantiation with `useMemo` so that the `Map` is only regenerated when `readings` (the data array returned by the query) actually changes. Avoided `eslint react-hooks/rules-of-hooks` issues by ensuring `useMemo` was not conditionally called after `if (!show)`.

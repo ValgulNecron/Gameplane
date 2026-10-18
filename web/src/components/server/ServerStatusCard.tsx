@@ -1,4 +1,5 @@
 import { useResourceClient, useResourceTarget, resourceKey } from "@/lib/resourceTarget";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity } from "lucide-react";
 import { Card } from "@heroui/react";
@@ -45,6 +46,14 @@ export function ServerStatusCard({
     retry: false,
   });
 
+  // ⚡ Bolt: Memoize the status readings map to avoid recreating it on every render
+  // Expected impact: Prevents unnecessary work building a Map and iterating over
+  // readings during component re-renders (which happen frequently when data polls).
+  const byId = useMemo(
+    () => new Map((readings ?? []).map((r) => [r.id, r])),
+    [readings]
+  );
+
   if (!show) {
     if (!gs) return null;
     const status = gs.status ?? {};
@@ -72,8 +81,6 @@ export function ServerStatusCard({
       </Card>
     );
   }
-
-  const byId = new Map((readings ?? []).map((r) => [r.id, r]));
 
   return (
     <Card className="border border-border bg-surface">
