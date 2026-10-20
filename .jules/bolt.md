@@ -1,3 +1,6 @@
+## 2024-11-20 - React useMemo Broken by Intermediate Wrapper Object
+**Learning:** Re-creating a wrapper object (like `const data = { items: templates }`) during a React render and passing it to a `useMemo` dependency array completely circumvents memoization, as the object reference is unique on every render. This forces expensive filter computations to unnecessarily run on every render (e.g. key strokes in search inputs).
+**Action:** When a hook dependency can be derived directly from a stable variable (e.g. `templates`), pass that variable directly instead of introducing an intermediate object that breaks reference equality checks.
 
 ## 2024-10-18 - Component Re-rendering Optimization (useMemo)
 **Learning:** Found an opportunity to optimize `ServerStatusCard` in Gameplane. The component reads real-time server metrics from the agent (`useQuery` with `refetchInterval`), triggering frequent re-renders while polling. The layout parses the readings array into a `Map` (`byId`) to look up metrics by their declared `id`. Prior to the optimization, this map was recreated on every polling tick/render, consuming unnecessary processing cycles.
